@@ -46,7 +46,7 @@ test("the avatar menu is anchored, viewport-clamped, keyboard dismissible, and u
   for (const label of ["帮助与工作手册", "我的主页", "退出登录"]) {
     assert.ok(layout.includes(label), `missing account menu action: ${label}`);
   }
-  assert.equal((layout.match(/className="admin-design dashboard-shell__user-menu"/g) ?? []).length, 1);
+  assert.equal((layout.match(/className="admin-design dashboard-shell__user-menu account-menu-surface"/g) ?? []).length, 1);
   assert.doesNotMatch(layout, /dashboard-shell__profile-area/);
 });
 

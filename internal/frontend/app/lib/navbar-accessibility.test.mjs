@@ -6,6 +6,7 @@ const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.ur
 const themeControl = await readFile(new URL("../components/theme-control.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
+const menuStyles = await readFile(new URL("../admin-design.css", import.meta.url), "utf8");
 
 test("the same compact header serves every viewport without public or hidden navigation", () => {
   assert.doesNotMatch(navbar, /navLinks|microSpecialtyNavLinks|visibleNavLinks|menuOpen|mobileMenu|desktopNavLinks|closeMobileMenu|variant/);
@@ -39,8 +40,9 @@ test("account actions reuse existing permissions and retain keyboard navigation"
   assert.equal((themeControl.match(/<button\b/g) ?? []).length, 1);
   assert.doesNotMatch(themeControl, /systemOnly|__menu-toggle|__option/);
   assert.doesNotMatch(styles, /\.theme-control__menu-toggle|\.theme-control__options|\.theme-control--navbar/);
-  assert.match(styles, /\.navbar-account-action\s*\{[\s\S]*?min-height:\s*2\.75rem/);
-  assert.match(styles, /\.navbar-user-menu\s*\{[\s\S]*?width: min\(18rem, calc\(100vw - 2rem\)\)/);
+  assert.match(menuStyles, /\.account-menu-action\s*\{[\s\S]*?min-height: 2\.75rem/);
+  assert.match(styles, /\.navbar-user-menu\s*\{[\s\S]*?width: min\(20rem, calc\(100vw - 2rem\)\)/);
+  assert.match(navbar, /<AccountMenuIdentity user=\{visibleUser\} \/>/);
 });
 
 test("authentication loading, guest, and member states stay distinct and reserve identity space", () => {
@@ -57,7 +59,8 @@ test("authentication loading, guest, and member states stay distinct and reserve
   assert.match(styles, /\.navbar-auth-loading\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.match(styles, /\.navbar-identity-detail--compact\s*\{\s*min-height:\s*17px/);
   assert.match(styles, /\.navbar-user-menu\s*\{/);
-  assert.match(styles, /\.navbar-user-menu\s+\[role="menuitem"\]:focus-visible/);
+  assert.match(menuStyles, /\.account-session-choices \[role="menuitem"\]:focus-visible/);
+  assert.match(menuStyles, /\.account-menu-action:focus-visible/);
   assert.match(styles, /\.navbar-auth-loading__avatar\s*\{\s*animation:\s*none !important/);
 });
 

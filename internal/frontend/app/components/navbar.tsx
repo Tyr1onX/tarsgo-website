@@ -16,7 +16,7 @@ import {
   subscribePermissionChange,
   type AuthUser,
 } from "~/lib/auth-client";
-import { getDashboardSectionKey, getDashboardSectionMenu, getDefaultDashboardPath } from "~/lib/dashboard-navigation";
+import { getDashboardSectionKey, getDashboardSectionMenu, getDefaultDashboardPath, hasWorkbenchAccess } from "~/lib/dashboard-navigation";
 import { resolveGroupIdentity, type GroupIdentity } from "~/lib/group-identity";
 import {
   getCachedUserGroupConfirmationState,
@@ -25,10 +25,9 @@ import {
   refreshUserGroupConfirmationState,
   type UserGroupConfirmationState,
 } from "~/lib/user-group-client";
-import { teamIdentityLabel } from "./community-team-identity";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
-import { AccountSessionChoices, useAccountSessionChoices } from "./account-session-choices";
+import { AccountMenuActionIcon, AccountMenuIdentity, AccountSessionChoices, useAccountSessionChoices } from "./account-session-choices";
 
 type NavbarProps = {
   currentUser?: AuthUser | null;
@@ -396,33 +395,10 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                   </button>
 
                   {userMenuOpen ? (
-                    <div
-                      role="menu"
-                      className="navbar-user-menu animate-user-menu-in absolute right-0 z-20 mt-2.5 overflow-hidden rounded-xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
-                    >
-                      <div className="navbar-account-header">
-                        <UserAvatar user={visibleUser} className="h-10 w-10 shrink-0" textClassName="text-sm" />
-                        <div className="navbar-account-header__identity">
-                          <div className="navbar-account-header__name">{getUserDisplayName(visibleUser)}</div>
-                          <div className="navbar-account-header__email">{visibleUser.email}</div>
-                          <div className="navbar-account-header__detail">
-                            <span className="navbar-user-role">{teamIdentityLabel(visibleUser.teamIdentityStatus)}</span>
-                            <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="navbar-account-actions">
-                        {accountMenuItems.map((item) => (
-                          <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)}
-                            aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
-                            className="navbar-account-action">
-                            <NavbarAccountIcon name={item.key} />
-                            {item.label}
-                          </Link>
-                        ))}
-                        <div className="navbar-account-separator" role="separator" />
-                        {visibleUser ? <AccountSessionChoices
+                    <div role="menu" className="navbar-user-menu account-menu-surface animate-user-menu-in absolute right-0 z-20 mt-2.5">
+                      <AccountMenuIdentity user={visibleUser} />
+                      <div className="account-menu-actions">
+                        <AccountSessionChoices
                           accounts={accounts}
                           currentUserId={visibleUser.id}
                           loading={accountsLoading}
@@ -432,15 +408,25 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                           onRemove={(id) => void handleRemoveAccount(id)}
                           onReauthenticate={(email) => { setUserMenuOpen(false); navigate(accountLoginPath(email)); }}
                           onAdd={() => { setUserMenuOpen(false); navigate(accountLoginPath()); }}
-                        /> : null}
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          disabled={loggingOut}
-                          role="menuitem"
-                          className="navbar-account-action navbar-account-action--danger"
-                        >
-                          <NavbarAccountIcon name="logout" />
+                        />
+                        {accountMenuItems.map((item) => (
+                          <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)}
+                            aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
+                            className="account-menu-action">
+                            <AccountMenuActionIcon name="my-profile" />
+                            {item.label}
+                          </Link>
+                        ))}
+                        {hasWorkbenchAccess(visibleUser) ? (
+                          <Link to="/dashboard/guide" role="menuitem" onClick={() => setUserMenuOpen(false)} className="account-menu-action">
+                            <AccountMenuActionIcon name="guide" />
+                            帮助与工作手册
+                          </Link>
+                        ) : null}
+                        <div className="account-menu-divider" role="separator" />
+                        <button type="button" onClick={handleLogout} disabled={loggingOut}
+                          role="menuitem" className="account-menu-action account-menu-action--logout">
+                          <AccountMenuActionIcon name="logout" />
                           退出登录
                         </button>
                       </div>
@@ -460,19 +446,6 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
         </div>
       </div>
     </nav>
-  );
-}
-
-function NavbarAccountIcon({ name }: { name: string }) {
-  const paths: Record<string, string> = {
-    "my-profile": "M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
-    overview: "M9 6V4h6v2 M3 7h18v14H3Z M3 12a22 22 0 0 0 18 0 M12 11v4",
-    logout: "M9 3H4v18h5 M14 7l5 5-5 5 M8 12h11",
-  };
-  return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d={paths[name]} />
-    </svg>
   );
 }
 
