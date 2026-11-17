@@ -89,7 +89,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
       setListLoaded(true);
       const nextID = items.some((item) => item.id === requestedID) ? requestedID : items.find((item) => item.submittedCount > item.reviewedCount)?.id ?? items[0]?.id ?? 0;
       setSelectedID(nextID);
-      if (nextID) setSearchParams({ view: "review", assignmentId: String(nextID) }, { replace: true });
+      if (nextID) setSearchParams({ view: "review", groupId: String(groupId), assignmentId: String(nextID) }, { replace: true });
     }).catch((cause: unknown) => {
       if (active) {
         setAssignments([]);
@@ -208,7 +208,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
     reviewUploadsRef.current = [];
     setReviewError("");
     setError("");
-    setSearchParams(id ? { view: "review", assignmentId: String(id) } : { view: "review" }, { replace: true });
+    setSearchParams(id ? { view: "review", groupId: String(groupId), assignmentId: String(id) } : { view: "review", groupId: String(groupId) }, { replace: true });
     setNotice("");
   }
 

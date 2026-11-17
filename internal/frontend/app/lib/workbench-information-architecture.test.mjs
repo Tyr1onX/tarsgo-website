@@ -2,75 +2,62 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const navigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
-const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
-const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
-const personalWorkbench = await readFile(new URL("../routes/dashboard/workbench.tsx", import.meta.url), "utf8");
-const personalWorkbenchCache = await readFile(new URL("./personal-workbench-cache.ts", import.meta.url), "utf8");
-const weeklyReports = await readFile(new URL("../routes/dashboard/weekly-reports.tsx", import.meta.url), "utf8");
-const adminWorkbench = await readFile(new URL("../routes/admin/dashboard.tsx", import.meta.url), "utf8");
-const managementTodos = await readFile(new URL("../components/management-todos.tsx", import.meta.url), "utf8");
-const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", import.meta.url), "utf8");
+const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
+const navigation = await read("./dashboard-navigation.ts");
+const sidebar = await read("../components/dashboard-section-navigation.tsx");
+const layout = await read("../routes/dashboard/layout.tsx");
+const routes = await read("../routes.ts");
+const oldOverview = await read("../routes/dashboard/workbench.tsx");
+const adminOverview = await read("../routes/admin/dashboard.tsx");
+const assignmentManagement = await read("../routes/admin/assignment-management.tsx");
+const review = await read("../routes/admin/assignment-submissions.tsx");
+const weeklyReports = await read("../routes/dashboard/weekly-reports.tsx");
 
-test("the personal landing route is a status-first overview backed by existing user data", () => {
-  assert.match(routeConfig, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
-  assert.match(personalWorkbench, /getWeeklyReportStatus\(\)/);
-  assert.match(personalWorkbench, /import\("~\/lib\/weekly-report-client"\)/);
-  assert.match(personalWorkbenchCache, /import type \{ WeeklyReportStatus \} from "\.\/weekly-report-client\.ts"/);
-  assert.doesNotMatch(personalWorkbench, /^import \{[^\n]*getWeeklyReportStatus[^\n]*\} from "~\/lib\/weekly-report-client"/m);
-  assert.match(personalWorkbench, /assignmentClient\.listTodos\(\)/);
-  assert.match(personalWorkbench, /leaveClient\.leaveAccess\(\)/);
-  assert.match(personalWorkbench, /hasAssignmentGroupAccess\(groupResolution\?\.groups\)/);
-  assert.match(personalWorkbench, /本周已提交/);
-  assert.match(personalWorkbench, /本周待填写/);
-  assert.match(personalWorkbench, /填写本周工作周报/);
-  assert.match(personalWorkbench, /待处理/);
-  assert.match(personalWorkbench, /getPersonalWorkbenchSnapshot\(snapshotKey\)/);
-  assert.match(personalWorkbench, /rememberPersonalWorkbenchSnapshot\(snapshotKey, next\)/);
-  assert.doesNotMatch(personalWorkbench, /setSnapshot\(emptySnapshot\)/);
-  assert.match(personalWorkbench, /getPersonalWorkbenchSnapshot\(snapshotKey\) \?\? emptyPersonalSnapshot/);
-  assert.match(personalWorkbench, /我的作业/);
-  assert.match(personalWorkbench, /请假事务/);
-  assert.doesNotMatch(personalWorkbench, /<form|<textarea/);
-  assert.doesNotMatch(personalWorkbench, /课程表|工作手册/);
+test("old overview paths lead to tasks instead of a second navigation page", () => {
+  assert.match(routes, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
+  assert.match(routes, /route\("admin", "routes\/admin\/dashboard\.tsx"\)/);
+  assert.match(adminOverview, /export \{ default \} from "~\/routes\/dashboard\/workbench"/);
+  assert.match(oldOverview, /<Navigate to=\{destination\} replace/);
+  assert.match(oldOverview, /currentUser\.role\.name === "super_admin"/);
+  assert.match(oldOverview, /hasAssignmentGroupAccess\(groupResolution\?\.groups\)/);
+  assert.match(oldOverview, /"\/dashboard\/admin\/training\/assignments\?view=review"/);
+  assert.match(oldOverview, /"\/dashboard\/admin\/registrations"/);
+  assert.match(oldOverview, /"\/dashboard\/assignments"/);
+  assert.match(oldOverview, /"\/dashboard\/weekly-reports"/);
+  assert.doesNotMatch(navigation, /label: "概览"/);
 });
 
-test("management and personal routes use one role-gated action overview", () => {
-  assert.match(adminWorkbench, /export \{ default \} from "~\/routes\/dashboard\/workbench"/);
-  assert.match(personalWorkbench, /const canViewPersonal = hasWorkbenchAccess\(currentUser\)/);
-  assert.match(personalWorkbench, /if \(canViewPersonal\) void load\(\)/);
-  assert.match(personalWorkbench, /isAdmin \? <ManagementTodos showEmpty=\{!canViewPersonal\}/);
-  assert.match(personalWorkbench, /\{canViewPersonal \? <>/);
-  assert.match(managementTodos, /getAdminWorkbenchSummary\(currentUser\.id\)/);
-  assert.match(managementTodos, /assignmentClient\.adminTodos\(\)/);
-  assert.doesNotMatch(managementTodos, /leaveClient|schoolSummary/);
-  assert.match(managementTodos, /候选人待初筛/);
-  assert.match(managementTodos, /候选人待面试/);
-  assert.match(managementTodos, /作业待批改/);
-  assert.doesNotMatch(managementTodos, /请假事项待处理/);
-  assert.match(managementTodos, /当前没有管理待办/);
-  assert.doesNotMatch(managementTodos, /listAdminInterviewSessions|近期面试场次|招新总览/);
-  assert.match(navigation, /label: "招新"/);
-  assert.match(navigation, /label: "成员与培养"/);
-  assert.match(navigation, /label: "协作与运营"/);
+test("sidebar indicators come from authorized work sources without separate score state", () => {
+  assert.match(sidebar, /hasWorkbenchAccess\(currentUser\)/);
+  assert.match(sidebar, /if \(!visible\) return/);
+  assert.match(sidebar, /canReview = currentUser\.role\.name === "super_admin" \|\| \(canManage && hasAssignmentGroup\)/);
+  assert.match(sidebar, /void getWeeklyReportStatus\(\)/);
+  assert.match(sidebar, /void assignmentClient\.listTodos\(\)/);
+  assert.match(sidebar, /void getAdminWorkbenchSummary\(currentUser\.id\)/);
+  assert.match(sidebar, /void assignmentClient\.adminTodos\(\)/);
+  assert.match(sidebar, /previous\.scope === scope/);
+  assert.match(sidebar, /if \(active\) setTaskCounts/);
+  assert.match(sidebar, /reviewGroups\.length > 1/);
+  assert.match(sidebar, /groupId=\$\{reviewGroup\.groupId\}/);
+  assert.doesNotMatch(sidebar, /leaveClient|Promise\.all\(/);
 });
 
-test("personal timetable and help content are reachable outside permanent business navigation", () => {
-  assert.match(timetable, /Navigate to=\{`\/dashboard\/members\/\$\{currentUser\.id\}\?tab=settings#timetable`\}/);
-  assert.match(layout, /帮助与工作手册/);
-  assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
-  assert.doesNotMatch(navigation, /label: "课程表"|label: "工作手册"/);
-  assert.match(routeConfig, /route\("team", "routes\/organization-preview\.tsx", \{ id: "dashboard-team-legacy" \}\)/);
-  assert.match(routeConfig, /route\("admin\/organization-preview", "routes\/organization-preview\.tsx", \{ id: "dashboard-admin-organization-preview" \}\)/);
+test("review groups are resolved from the URL with permission checks and kept during drill-down", () => {
+  assert.match(assignmentManagement, /const requestedGroupId = Number\(searchParams\.get\("groupId"\)\)/);
+  assert.match(assignmentManagement, /assignmentGroups\.find\(\(group\) => group\.groupId === requestedGroupId\)/);
+  assert.match(assignmentManagement, /setSearchParams\(\{ view, groupId: String\(nextGroupID\) \}/);
+  assert.match(review, /setSearchParams\(\{ view: "review", groupId: String\(groupId\), assignmentId: String\(nextID\) \}/);
+  assert.match(review, /groupId: String\(groupId\), assignmentId: String\(id\)/);
+});
+
+test("team pages and personal settings remain reachable after removing the overview", async () => {
+  const timetable = await read("../routes/dashboard/timetable.tsx");
+  assert.match(routes, /route\("team", "routes\/organization-preview\.tsx", \{ id: "dashboard-team-legacy" \}\)/);
+  assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
   assert.match(layout, /redirect\("\/dashboard\/workbench\/organization"\)/);
-  assert.match(routeConfig, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
-});
-
-test("personal and team weekly data stay independent and loads remain deferred past route auth", () => {
-  // Settlement order and partial failures are exercised with deferred promises
-  // in personal-workbench-cache.test.mjs, not source-shape assertions.
-  assert.match(weeklyReports, /if \(teamExpanded && dashboard\?\.canViewTeam/);
-  assert.match(weeklyReports, /const isEditing = searchParams\.get\("edit"\) === "1"/);
+  assert.match(layout, /帮助与工作手册/);
+  assert.match(timetable, /tab=settings#timetable/);
+  assert.match(weeklyReports, /getWeeklyDashboardSnapshot\(currentUser\.id\)/);
   assert.match(layout, /export async function clientLoader/);
   assert.doesNotMatch(layout.slice(layout.indexOf("export async function clientLoader"), layout.indexOf("clientLoader.hydrate")), /getWeeklyReportStatus|getAdminWorkbenchSummary|assignmentClient/);
 });

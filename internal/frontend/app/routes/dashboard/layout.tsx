@@ -30,7 +30,7 @@ import {
   type AuthUser,
 } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
-import { clearPersonalWorkbenchSnapshots } from "~/lib/personal-workbench-cache";
+import { clearWeeklyDashboardSnapshots } from "~/lib/weekly-dashboard-cache";
 import {
   getCachedUserGroupConfirmationState,
   getUserGroupConfirmationState,
@@ -396,7 +396,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           const nextGroups = groupResult.value;
           const groupAuthorizationChanged = JSON.stringify(previousGroups) !== JSON.stringify(nextGroups);
           routeAuthorizationChanged ||= groupAuthorizationChanged;
-          if (groupAuthorizationChanged) clearPersonalWorkbenchSnapshots(currentUser.id);
+          if (groupAuthorizationChanged) clearWeeklyDashboardSnapshots(currentUser.id);
           setDisplayGroupResolution(nextGroups);
           setDisplayGroupResolutionError("");
         } else if (groupResult.status === "rejected") {
@@ -729,6 +729,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <DashboardSectionNavigation
               currentUser={currentUser}
               hasAssignmentGroup={hasAssignmentGroup}
+              permissionsKey={groupResolution?.groups.map((group) => `${group.groupId}:${group.role}`).sort().join(",") ?? ""}
+              visible={sidebarOpen}
               onNavigate={handleSidebarNavigate}
             />
           </nav>

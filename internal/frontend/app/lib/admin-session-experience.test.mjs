@@ -22,7 +22,7 @@ test("paused school leave does not load in the admin home or navigation", async 
   const [layout, leave, adminDashboard] = await Promise.all([
     read("routes/dashboard/layout.tsx"),
     read("lib/leave-client.ts"),
-    read("components/management-todos.tsx"),
+    read("components/dashboard-section-navigation.tsx"),
   ]);
   assert.doesNotMatch(leave, /SchoolLeaveSummary|schoolSummary/);
   assert.doesNotMatch(adminDashboard, /leaveClient|schoolSummary/);

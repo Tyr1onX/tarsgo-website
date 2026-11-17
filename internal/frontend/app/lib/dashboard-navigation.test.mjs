@@ -20,25 +20,15 @@ const account = (name, workbenchAccess = true) => ({ id: 42, workbenchAccess, ro
 const menuKeys = (groups) => groups.map(({ key }) => key);
 const linkKeys = (group) => group?.children.map(({ key }) => key);
 
-test("community, role-appropriate overview and profile are the only global entries", () => {
-  assert.deepEqual(getDashboardSectionMenu(account("user")).map(({ key, label, href }) => [key, label, href]), [
-    ["community", "社区", "/dashboard"],
-    ["overview", "概览", "/dashboard/workbench"],
-    ["my-profile", "我的主页", "/dashboard/members/42"],
-  ]);
-  for (const role of ["admin", "super_admin"]) {
-    assert.deepEqual(getDashboardSectionMenu(account(role)).map(({ key, href }) => [key, href]), [
-      ["community", "/dashboard"],
-      ["overview", "/dashboard/workbench"],
-      ["my-profile", "/dashboard/members/42"],
-    ]);
-    assert.deepEqual(getDashboardSectionMenu(account(role, false)).map(({ key, href }) => [key, href]), [
-      ["community", "/dashboard"],
-      ["overview", "/dashboard/admin"],
-      ["my-profile", "/dashboard/members/42"],
-    ]);
+test("community and profile remain the only global entries for every role", () => {
+  for (const role of ["user", "admin", "super_admin"]) {
+    for (const access of [true, false]) {
+      assert.deepEqual(getDashboardSectionMenu(account(role, access)).map(({ key, label, href }) => [key, label, href]), [
+        ["community", "社区", "/dashboard"],
+        ["my-profile", "我的主页", "/dashboard/members/42"],
+      ]);
+    }
   }
-  assert.deepEqual(menuKeys(getDashboardSectionMenu(account("user", false))), ["community", "my-profile"]);
   assert.equal(getDefaultDashboardPath("user"), "/dashboard");
   assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard");
   assert.equal(hasDashboardAdminAccess("user"), false);
@@ -68,8 +58,8 @@ test("one stable business directory exposes only accessible member functions", (
 test("the active global entry does not switch menus on business routes", () => {
   assert.equal(getDashboardSectionKey("/dashboard"), "community");
   assert.equal(getDashboardSectionKey("/dashboard/community/42"), "community");
-  assert.equal(getDashboardSectionKey("/dashboard/workbench"), "overview");
-  assert.equal(getDashboardSectionKey("/dashboard/admin"), "overview");
+  assert.equal(getDashboardSectionKey("/dashboard/workbench"), null);
+  assert.equal(getDashboardSectionKey("/dashboard/admin"), null);
   for (const path of ["/dashboard/admin/registrations", "/dashboard/leave", "/dashboard/weekly-reports", "/dashboard/workbench/operations", "/dashboard/assignments", "/dashboard/team"]) {
     assert.equal(getDashboardSectionKey(path, 42), null, path);
   }

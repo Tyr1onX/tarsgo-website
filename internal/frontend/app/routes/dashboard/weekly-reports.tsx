@@ -17,7 +17,7 @@ import {
   type WeeklyReportTeamWeek,
 } from "~/lib/weekly-report-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
-import { getWeeklyDashboardSnapshot, rememberWeeklyDashboardSnapshot } from "~/lib/personal-workbench-cache";
+import { getWeeklyDashboardSnapshot, rememberWeeklyDashboardSnapshot } from "~/lib/weekly-dashboard-cache";
 import { subscribePermissionChange } from "~/lib/auth-client";
 import "./weekly-reports.css";
 

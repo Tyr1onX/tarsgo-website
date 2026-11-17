@@ -63,7 +63,8 @@ export default function AssignmentManagementRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view") === "list" ? "list" : "review";
   const { assignmentGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
-  const [groupId, setGroupId] = useState(0);
+  const requestedGroupId = Number(searchParams.get("groupId"));
+  const groupId = assignmentGroups.find((group) => group.groupId === requestedGroupId)?.groupId ?? assignmentGroups[0]?.groupId ?? 0;
   const [items, setItems] = useState<Assignment[]>([]);
   const [members, setMembers] = useState<AssignmentMemberOption[] | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(0));
@@ -101,11 +102,6 @@ export default function AssignmentManagementRoute() {
   const filteredMembers = useMemo(() => filterAssignmentMembers(members ?? [], memberSearch), [members, memberSearch]);
   const selectedMembers = useMemo(() => (members ?? []).filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
   const lastTargetedAssignment = items.find((item) => !item.isGroupWide);
-
-  useEffect(() => {
-    setGroupId((current) => assignmentGroups.some((group) => group.groupId === current)
-      ? current : assignmentGroups[0]?.groupId ?? 0);
-  }, [assignmentGroups]);
 
   useEffect(() => {
     if (!groupId || view !== "list") return;
@@ -478,14 +474,14 @@ export default function AssignmentManagementRoute() {
       <header className="admin-page-header assignment-management__header flex flex-wrap items-center justify-between gap-3">
         <h1 id="assignment-management-title" className="admin-page-title">作业管理</h1>
         <div className="assignment-management__header-actions">
-        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); setSearchParams({ view }, { replace: true }); }}>
+        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); resetDraft(nextGroupID); setSearchParams({ view, groupId: String(nextGroupID) }, { replace: true }); }}>
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
         {feishuBinding?.accountId === currentUser.id ? feishuBound
           ? <span className="text-sm text-[var(--admin-muted)]">飞书已绑定</span>
           : feishuPanelAccount !== currentUser.id ? <button type="button" className="admin-button admin-button--secondary" onClick={() => void startFeishuBinding()} disabled={feishuBusy}>绑定飞书</button> : null
           : feishuError ? <button type="button" className="admin-button admin-button--quiet" disabled={feishuBusy} onClick={() => void checkFeishuBinding()}>重试飞书状态</button> : null}
-        {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list" }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
+        {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list", groupId: String(groupId) }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
         </div>
       </header>
       {feishuPanelAccount === currentUser.id && !feishuBound ? <section className="admin-panel space-y-3 p-4 sm:p-5" aria-label="飞书账号绑定">
@@ -513,8 +509,8 @@ export default function AssignmentManagementRoute() {
       {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
 
       <nav className="assignment-management__views" aria-label="作业管理视图">
-        <button type="button" className={view === "review" ? "is-active" : ""} aria-current={view === "review" ? "page" : undefined} disabled={saving || publishStage !== "idle"} onClick={() => { if (view === "review") return; resetDraft(); setSearchParams({ view: "review" }); }}>批改中心</button>
-        <button type="button" className={view === "list" ? "is-active" : ""} aria-current={view === "list" ? "page" : undefined} disabled={saving || publishStage !== "idle"} onClick={() => { if (view !== "list") setSearchParams({ view: "list" }); }}>作业列表</button>
+        <button type="button" className={view === "review" ? "is-active" : ""} aria-current={view === "review" ? "page" : undefined} disabled={saving || publishStage !== "idle"} onClick={() => { if (view === "review") return; resetDraft(); setSearchParams({ view: "review", groupId: String(groupId) }); }}>批改中心</button>
+        <button type="button" className={view === "list" ? "is-active" : ""} aria-current={view === "list" ? "page" : undefined} disabled={saving || publishStage !== "idle"} onClick={() => { if (view !== "list") setSearchParams({ view: "list", groupId: String(groupId) }); }}>作业列表</button>
       </nav>
 
       {view === "review" ? <Suspense fallback={<BrandLoader label="正在加载批改中心" />}><AssignmentReview key={groupId} groupId={groupId} /></Suspense> : <>

@@ -257,8 +257,15 @@ func (s *Service) ListTodos(ctx context.Context, actor Actor) ([]Todo, error) {
 	return result, nil
 }
 
+type AdminTodoGroup struct {
+	GroupID     uint64 `json:"groupId"`
+	GroupName   string `json:"groupName"`
+	ReviewCount int64  `json:"reviewCount"`
+}
+
 type AdminTodoSummary struct {
-	ReviewCount int64 `json:"reviewCount"`
+	ReviewCount int64            `json:"reviewCount"`
+	Groups      []AdminTodoGroup `json:"groups"`
 }
 
 func (s *Service) AdminTodos(ctx context.Context, actor Actor) (*AdminTodoSummary, error) {
@@ -272,26 +279,31 @@ func (s *Service) AdminTodos(ctx context.Context, actor Actor) (*AdminTodoSummar
 	if len(groupIDs) == 0 {
 		return nil, forbidden("当前账号没有可管理的技术组")
 	}
-	result := &AdminTodoSummary{}
-	// Include submissions from later group members, while preserving historical
-	// snapshots for earlier members and fixed targeted assignments.
-	err = s.db.WithContext(ctx).Raw(`SELECT COUNT(*) AS review_count
+	result := &AdminTodoSummary{Groups: []AdminTodoGroup{}}
+	// Count the same reviewable submissions by group; the sum and each group
+	// destination must use the same eligibility and latest-attempt rules.
+	err = s.db.WithContext(ctx).Raw(`SELECT a.group_id, g.name AS group_name, COUNT(*) AS review_count
  FROM assignments a
+ JOIN user_groups g ON g.id=a.group_id
  JOIN assignment_submissions s ON s.assignment_id=a.id
  WHERE a.group_id IN ? AND a.publication_status <> ?
  AND (EXISTS (SELECT 1 FROM assignment_targets t WHERE t.assignment_id=a.id AND t.user_id=s.user_id)
       OR (a.is_group_wide = 1 AND EXISTS (
         SELECT 1 FROM user_group_members gm
-        JOIN user_groups g ON g.id=gm.group_id AND g.status=?
+        JOIN user_groups current_group ON current_group.id=gm.group_id AND current_group.status=?
         JOIN users u ON u.id=gm.user_id AND u.status=?
         JOIN roles role ON role.id=u.role_id AND role.name=?
         WHERE gm.group_id=a.group_id AND gm.user_id=s.user_id)))
  AND NOT EXISTS (SELECT 1 FROM assignment_submissions ns WHERE ns.assignment_id=s.assignment_id AND ns.user_id=s.user_id AND ns.attempt>s.attempt)
- AND NOT EXISTS (SELECT 1 FROM assignment_reviews r WHERE r.submission_id=s.id)`,
+ AND NOT EXISTS (SELECT 1 FROM assignment_reviews r WHERE r.submission_id=s.id)
+ GROUP BY a.group_id, g.name ORDER BY g.name ASC`,
 		groupIDs, model.AssignmentPublicationWithdrawn,
-		model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).Scan(result).Error
+		model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).Scan(&result.Groups).Error
 	if err != nil {
 		return nil, internalError("读取作业批改待办失败", err)
+	}
+	for _, group := range result.Groups {
+		result.ReviewCount += group.ReviewCount
 	}
 	return result, nil
 }

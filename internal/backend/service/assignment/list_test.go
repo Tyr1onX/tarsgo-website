@@ -36,6 +36,23 @@ func TestMemberListQueriesAreBoundedByBatchAndPreserveOrder(t *testing.T) {
 	}
 }
 
+func TestAdminTodosBreaksDownTheSameReviewableTotalByAuthorizedGroup(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectSuperAdminAssignmentGroupIDs(mock, 41, 42)
+	mock.ExpectQuery("(?s)SELECT a.group_id, g.name AS group_name, COUNT\\(\\*\\) AS review_count.*GROUP BY a.group_id, g.name ORDER BY g.name ASC").
+		WithArgs(uint64(41), uint64(42), model.AssignmentPublicationWithdrawn, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).
+		WillReturnRows(sqlmock.NewRows([]string{"group_id", "group_name", "review_count"}).
+			AddRow(41, "机械组", 15).
+			AddRow(42, "电控组", 7))
+	summary, err := (&Service{db: db}).AdminTodos(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.ReviewCount != 22 || len(summary.Groups) != 2 || summary.Groups[0].GroupID != 41 || summary.Groups[1].ReviewCount != 7 {
+		t.Fatalf("grouped todo summary: %+v", summary)
+	}
+}
+
 func TestAdminListBatchesStatsAndProtectsReferencedAssignments(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	items := []model.Assignment{

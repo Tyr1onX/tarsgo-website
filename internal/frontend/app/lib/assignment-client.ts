@@ -116,7 +116,7 @@ export const assignmentClient = {
     for (const file of files) body.append("files", file, file.name);
     return apiRequest<MyAssignmentDetail>(`/api/assignments/${id}/submissions`, { method: "POST", body });
   },
-  adminTodos: () => apiRequest<{ reviewCount: number }>("/api/admin/assignments/todos"),
+  adminTodos: () => apiRequest<{ reviewCount: number; groups: { groupId: number; groupName: string; reviewCount: number }[] }>("/api/admin/assignments/todos"),
   feishuBindingStatus: () => apiRequest<{ bound: boolean; appId: string }>("/api/admin/integrations/feishu/binding-status", { cache: "no-store" }),
   createFeishuLinkCode: () => apiRequest<{ code: string; expiresInSeconds: number }>("/api/admin/integrations/feishu/link-code", { method: "POST" }),
   reconcileBitable: (assignmentId: number, memberId: number) => apiRequest<BitableReconcileSummary>(`/api/admin/integrations/feishu/bitable/reconcile?assignmentId=${assignmentId}&memberId=${memberId}`, { method: "POST" }),

@@ -6,22 +6,23 @@ import { getShanghaiDate } from "./admin-workbench.ts";
 
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const adminDashboard = await readFile(new URL("../routes/admin/dashboard.tsx", import.meta.url), "utf8");
-const managementTodos = await readFile(new URL("../components/management-todos.tsx", import.meta.url), "utf8");
 const personalWorkbench = await readFile(new URL("../routes/dashboard/workbench.tsx", import.meta.url), "utf8");
 const registrationsRoute = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 const registrationsClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
 const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
 const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
 
-test("management todos stay in the home modules and do not appear in navigation", () => {
+test("the sidebar shows actionable task indicators instead of a duplicate management overview", () => {
   assert.match(adminDashboard, /export \{ default \} from "~\/routes\/dashboard\/workbench"/);
-  assert.match(personalWorkbench, /isAdmin \? <ManagementTodos showEmpty=\{!canViewPersonal\}/);
-  assert.match(managementTodos, /getAdminWorkbenchSummary\(currentUser\.id\)/);
-  assert.doesNotMatch(managementTodos, /leaveClient|schoolSummary|leaveActionableCount/);
-  assert.match(managementTodos, /pendingScreening > 0[\s\S]*?候选人待初筛/);
-  assert.doesNotMatch(managementTodos, /Promise\.allSettled/);
-  assert.doesNotMatch(dashboardLayout, /managementLabel|报名待处理|请假待审批|leaveActionableState|candidateTodoCount/);
-  assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount|dashboard-nav-badge/);
+  assert.match(personalWorkbench, /<Navigate to=\{destination\} replace/);
+  assert.match(sectionNavigation, /getAdminWorkbenchSummary\(currentUser\.id\)/);
+  assert.match(sectionNavigation, /assignmentClient\.adminTodos\(\)/);
+  assert.match(sectionNavigation, /getWeeklyReportStatus\(\)/);
+  assert.match(sectionNavigation, /assignmentClient\.listTodos\(\)/);
+  assert.match(sectionNavigation, /reviewGroup\.groupId/);
+  assert.match(sectionNavigation, /dashboard-nav-badge/);
+  assert.doesNotMatch(sectionNavigation, /leaveClient|schoolSummary|leaveActionableCount/);
+  assert.doesNotMatch(dashboardLayout, /managementLabel|请假待审批|leaveActionableState|candidateTodoCount/);
   assert.ok(registrationsClient.includes("const pending = pendingWorkbenchSummaryRequests.get(accountId);"));
   assert.ok(registrationsClient.includes("if (pending && !force) return pending;"));
   assert.doesNotMatch(registrationsRoute, /refreshCandidateTodoCount/);
