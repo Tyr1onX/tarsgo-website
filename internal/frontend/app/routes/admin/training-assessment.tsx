@@ -236,10 +236,12 @@ export default function TrainingAssessmentRoute() {
                   : "text-[var(--admin-muted)] hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]")}
                 onClick={() => changeGroup(group.groupId)}>{group.name}</button>)}
             </div> : null}
-            <select className={assignmentGroups.length <= 5 ? "admin-field sm:hidden" : "admin-field"} aria-label="技术组"
-              value={groupId} onChange={(event) => changeGroup(Number(event.target.value))}>
-              {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
-            </select>
+            <div className={assignmentGroups.length <= 5 ? "sm:hidden" : "sm:w-48"}>
+              <select className="admin-field" aria-label="技术组"
+                value={groupId} onChange={(event) => changeGroup(Number(event.target.value))}>
+                {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
+              </select>
+            </div>
           </div> : <span className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0]?.name ?? ""}</span>}
       </header>
       {groupsError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{groupsError}</p> : null}
