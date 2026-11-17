@@ -165,7 +165,7 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);
   assert.match(layout, /<AccountSessionChoices/);
-  assert.match(layout, /退出当前账号/);
+  assert.match(layout, /退出登录/);
 });
 
 test("historical archive is restricted to super administrators", () => {

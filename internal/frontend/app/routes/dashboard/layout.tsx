@@ -19,7 +19,6 @@ import {
   getAccountSessions,
   needsCurrentUserRevalidation,
   logout,
-  logoutAllAccounts,
   removeAccountSession,
   subscribeAuthStateChange,
   subscribeAccountSessionChange,
@@ -594,21 +593,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     }
   }
 
-  async function handleLogoutAll() {
-    if (!window.confirm("确定退出全部已保存账号？之后需要重新登录。")) return;
-    setLoggingOut(true);
-    setAccountActionError("");
-    try {
-      await logoutAllAccounts();
-      setUserMenuOpen(false);
-      navigate("/login", { replace: true });
-    } catch (error) {
-      setAccountSessionsError(getAccountActionError(error));
-    } finally {
-      setLoggingOut(false);
-    }
-  }
-
   if (accountSyncing) {
     return (
       <main className="admin-design min-h-screen px-4 py-8 sm:px-6 sm:py-12" role="status" aria-live="polite">
@@ -766,9 +750,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               {currentUserName || getAuthUserRoleLabel(currentUser)}
             </div>
             <div className="truncate text-xs text-[var(--admin-muted)]">{currentUser.email}</div>
-            <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-[var(--admin-dim)]">
-              {getAuthUserRoleLabel(currentUser)}
-            </div>
+            {currentUserName !== getAuthUserRoleLabel(currentUser) ? (
+              <div className="mt-1 text-xs text-[var(--admin-muted)]">{getAuthUserRoleLabel(currentUser)}</div>
+            ) : null}
           </div>
           <div className="dashboard-shell__user-menu-actions">
             <button
@@ -802,11 +786,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               disabled={loggingOut}
               role="menuitem"
               className="dashboard-shell__account-action dashboard-shell__account-action--danger"
-            >退出当前账号</button>
-            {accountSessions.length > 1 ? <button type="button" role="menuitem" disabled={loggingOut}
-              onClick={() => void handleLogoutAll()} className="dashboard-shell__account-action dashboard-shell__account-action--danger">
-              退出全部账号
-            </button> : null}
+            >退出登录</button>
             {accountActionError ? <p role="alert" className="dashboard-shell__account-error mx-2 mt-2">{accountActionError}</p> : null}
           </div>
         </div>,

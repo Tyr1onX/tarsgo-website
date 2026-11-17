@@ -9,7 +9,6 @@ import {
   getAccountSessions,
   switchAccountSession,
   removeAccountSession,
-  logoutAllAccounts,
   hasKnownAnonymousSession,
   logout,
   subscribeAccountSessionChange,
@@ -253,7 +252,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
       await logout();
       setUserMenuOpen(false);
       revalidator.revalidate();
-      navigate("/", { replace: true });
+      navigate("/login", { replace: true });
     } catch (error) {
       setAccountsError(error instanceof Error ? error.message : "退出账号失败。");
     } finally {
@@ -319,21 +318,6 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
       }
     } catch (error) {
       setAccountsError(error instanceof Error ? error.message : "移除账号失败。");
-    } finally {
-      setLoggingOut(false);
-    }
-  }
-
-  async function handleLogoutAll() {
-    if (!window.confirm("确定退出全部已保存账号？之后需要重新登录。")) return;
-    setLoggingOut(true);
-    setAccountsError("");
-    try {
-      await logoutAllAccounts();
-      setUserMenuOpen(false);
-      navigate("/login", { replace: true });
-    } catch (error) {
-      setAccountsError(error instanceof Error ? error.message : "退出全部账号失败。");
     } finally {
       setLoggingOut(false);
     }
@@ -457,12 +441,8 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                           className="navbar-account-action navbar-account-action--danger"
                         >
                           <NavbarAccountIcon name="logout" />
-                          退出当前账号
+                          退出登录
                         </button>
-                        {accounts.length > 1 ? <button type="button" role="menuitem" disabled={loggingOut}
-                          onClick={() => void handleLogoutAll()} className="navbar-account-action navbar-account-action--danger">
-                          <NavbarAccountIcon name="logout" />退出全部账号
-                        </button> : null}
                       </div>
                     </div>
                   ) : null}
