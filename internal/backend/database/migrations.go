@@ -285,12 +285,12 @@ func migrationRegistry(appEnv string) []migration {
 				return nil
 			}
 			// Preserve previously granted extensions as one shared assignment deadline.
-			if err := db.Exec(`UPDATE assignments a
+			return db.Exec(`UPDATE assignments a
 				JOIN (SELECT assignment_id, MAX(due_at) AS due_at FROM assignment_late_windows GROUP BY assignment_id) w
 				ON w.assignment_id = a.id
-				SET a.due_at = GREATEST(a.due_at, w.due_at)`).Error; err != nil {
-				return err
-			}
+				SET a.due_at = GREATEST(a.due_at, w.due_at)`).Error
+		}},
+		{version: 66, apply: func(db *gorm.DB) error {
 			return db.Migrator().DropTable(&assignmentLateWindowV64{})
 		}},
 	}
