@@ -2,7 +2,7 @@ import type { AuthUser } from "~/lib/auth-client";
 
 export type DashboardMenuIconKey = "community" | "transactions" | "team" | "dashboard" | "people" | "user" | "registration" | "settings" | "analytics" | "report";
 
-export type DashboardSectionKey = "community" | "overview" | "profile";
+export type DashboardSectionKey = "community" | "profile";
 
 export type DashboardMenuLink = {
   key: string;
@@ -42,7 +42,6 @@ const ASSIGNMENT_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "
 
 const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
   { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
-  { key: "overview", label: "概览", href: "/dashboard/workbench", iconKey: "transactions" },
 ];
 
 const ADMIN_MENU: readonly AdminMenuGroup[] = [
@@ -134,11 +133,8 @@ export function isInternalDashboardPath(pathname: string) {
 }
 
 export function getDashboardSectionMenu(currentUser: AuthUser): DashboardMenuLink[] {
-  const canUseWorkbench = hasWorkbenchAccess(currentUser);
-  const canOpenOverview = canUseWorkbench || hasDashboardAdminAccess(currentUser.role.name);
   return [
-    ...DASHBOARD_SECTION_MENU.filter((item) => item.key !== "overview" || canOpenOverview)
-      .map((item) => item.key === "overview" && !canUseWorkbench ? { ...item, href: "/dashboard/admin" } : { ...item }),
+    ...DASHBOARD_SECTION_MENU,
     { key: "my-profile", label: "我的主页", href: `/dashboard/members/${currentUser.id}`, iconKey: "user" },
   ];
 }
@@ -150,7 +146,6 @@ export function isDashboardSectionItemActive(sectionKey: DashboardSectionKey | n
 export function getDashboardSectionKey(pathname: string, currentUserID?: number): DashboardSectionKey | null {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === "/dashboard" || path.startsWith("/dashboard/community/") || path === "/dashboard/questions") return "community";
-  if (path === "/dashboard/workbench" || path === "/dashboard/admin") return "overview";
   const memberProfileMatch = path.match(/^\/dashboard\/members\/(\d+)$/);
   if (memberProfileMatch && Number(memberProfileMatch[1]) === currentUserID) return "profile";
   return null;

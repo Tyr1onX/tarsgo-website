@@ -1,7 +1,7 @@
 import { ApiError, apiRequest, registerApiAuthLifecycle } from "./api-client.ts";
 import { AuthSessionCache } from "./auth-session-cache.ts";
 import { clearAllCommunityGrowthSnapshots, clearCommunityGrowthSnapshot, requestCommunityExperienceRefresh } from "./community-experience-sync.ts";
-import { clearPersonalWorkbenchSnapshots } from "./personal-workbench-cache.ts";
+import { clearWeeklyDashboardSnapshots } from "./weekly-dashboard-cache.ts";
 import {
   captureGroupConfirmationCacheWriter,
   invalidateUserGroupConfirmationStateCache,
@@ -88,7 +88,7 @@ function notifyAuthStateChange(user: AuthUser | null) {
 
 function clearCurrentAccountPrivateData() {
   const currentUser = authSessionCache.getUser();
-  if (currentUser) clearPersonalWorkbenchSnapshots(currentUser.id);
+  if (currentUser) clearWeeklyDashboardSnapshots(currentUser.id);
 }
 
 function clearCurrentAccountGrowthSnapshot() {
@@ -129,7 +129,7 @@ function ensureAccountSessionChannel() {
     }
 
     markUserGroupConfirmationStateStale(message.userId);
-    clearPersonalWorkbenchSnapshots(message.userId ?? undefined);
+    clearWeeklyDashboardSnapshots(message.userId ?? undefined);
     for (const listener of permissionChangeListeners) listener(message.userId);
   });
 }
@@ -171,7 +171,7 @@ function closeAccountSessionChannelWhenUnused() {
 
 export function announcePermissionChange(userId: number | null, options: { notifyLocal?: boolean; markStale?: boolean } = {}) {
   if (options.markStale !== false) markUserGroupConfirmationStateStale(userId);
-  clearPersonalWorkbenchSnapshots(userId ?? undefined);
+  clearWeeklyDashboardSnapshots(userId ?? undefined);
   if (options.notifyLocal !== false) {
     for (const listener of permissionChangeListeners) listener(userId);
   }
@@ -197,7 +197,7 @@ function notifyNewLogin(user: AuthUser) {
     previousUser.id !== user.id
     || previousUser.role.id !== user.role.id
     || previousUser.role.name !== user.role.name
-  )) clearPersonalWorkbenchSnapshots(previousUser.id);
+  )) clearWeeklyDashboardSnapshots(previousUser.id);
   authSessionCache.setAuthenticated(user);
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -470,7 +470,7 @@ export async function getCurrentUser(options: { force?: boolean; includeGroups?:
           previousUser.id !== data.user.id
           || previousUser.role.id !== data.user.role.id
           || previousUser.role.name !== data.user.role.name
-        )) clearPersonalWorkbenchSnapshots(previousUser.id);
+        )) clearWeeklyDashboardSnapshots(previousUser.id);
         if (data.groupConfirmation) rememberGroups?.(data.user.id, data.groupConfirmation);
         notifyAuthStateChange(data.user);
       }

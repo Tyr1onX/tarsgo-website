@@ -29,7 +29,9 @@ test("nested navigation lives in the sidebar and replaces the flat top tabs", ()
   assert.doesNotMatch(sectionNavigation, /getDashboardSectionKey|section === "management"|section === "workbench"/);
   assert.match(sectionNavigation, /aria-expanded=\{isExpanded\}/);
   assert.match(sectionNavigation, /dashboard-subnav__heading-button/);
-  assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount|dashboard-nav-badge/);
+  assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount/);
+  assert.match(sectionNavigation, /dashboard-nav-badge/);
+  assert.match(sectionNavigation, /aria-label="按技术组批改"/);
   assert.doesNotMatch(layout, /DashboardTooltip|compact/);
   assert.match(sectionNavigation, /const defaultExpandedGroup = activeGroup\?\.key \?\? groups\[0\]\?\.key \?\? null/);
   assert.doesNotMatch(layout, /managementLabel|报名待处理|请假待审批/);

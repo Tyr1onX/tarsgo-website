@@ -18,7 +18,7 @@ import {
   switchAccountSession,
 } from "./auth-client.ts";
 import { apiRequest } from "./api-client.ts";
-import { getPersonalWorkbenchSnapshot, rememberPersonalWorkbenchSnapshot } from "./personal-workbench-cache.ts";
+import { getWeeklyDashboardSnapshot, rememberWeeklyDashboardSnapshot } from "./weekly-dashboard-cache.ts";
 
 const rootSource = await readFile(new URL("../root.tsx", import.meta.url), "utf8");
 const navbarSource = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
@@ -134,30 +134,29 @@ test("auth identity requests are deduplicated and API 500 keeps the last verifie
     assert.equal(requests, 4);
 
     failWith401 = true;
-    const privateSnapshotKey = JSON.stringify([user.id, "member", false, false, "none"]);
-    rememberPersonalWorkbenchSnapshot(privateSnapshotKey, { private: true });
+    rememberWeeklyDashboardSnapshot(user.id, { reports: [] });
     await assert.rejects(getCurrentUser({ force: true }), /session expired/);
     assert.equal(getCachedCurrentUser(), null);
-    assert.equal(getPersonalWorkbenchSnapshot(privateSnapshotKey), undefined);
+    assert.equal(getWeeklyDashboardSnapshot(user.id), undefined);
     assert.equal(requests, 5);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("logout clears the previous account's in-memory workbench snapshot", async () => {
+test("logout clears the previous account's in-memory weekly dashboard snapshot", async () => {
   const originalFetch = globalThis.fetch;
   const user = { id: 91_323, email: "logout@example.test", role: { id: 1, name: "admin", displayName: "管理员" } };
-  const snapshotKey = JSON.stringify([user.id, "admin", true, true, "8:1"]);
+
   globalThis.fetch = async (url) => String(url) === "/api/me"
     ? new Response(JSON.stringify({ code: 0, message: "ok", data: { user } }), { status: 200 })
     : new Response(JSON.stringify({ code: 0, message: "ok", data: null }), { status: 200 });
   try {
     assert.deepEqual(await getCurrentUser({ force: true }), user);
-    rememberPersonalWorkbenchSnapshot(snapshotKey, { private: true });
+    rememberWeeklyDashboardSnapshot(user.id, { reports: [] });
     await logout();
     assert.equal(getCachedCurrentUser(), null);
-    assert.equal(getPersonalWorkbenchSnapshot(snapshotKey), undefined);
+    assert.equal(getWeeklyDashboardSnapshot(user.id), undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -204,11 +203,10 @@ test("login, account switching, and cross-tab messages keep identity, profile, a
   try {
     assert.deepEqual(await loginWithPassword({ email: firstUser.email, password: "not-stored" }), firstUser);
     assert.deepEqual(getCachedCurrentUser(), firstUser);
-    const oldSnapshotKey = JSON.stringify([firstUser.id, "admin", true, true, "8:1"]);
-    rememberPersonalWorkbenchSnapshot(oldSnapshotKey, { private: true });
+    rememberWeeklyDashboardSnapshot(firstUser.id, { reports: [] });
     assert.deepEqual((await switchAccountSession(44)).user, secondUser);
     assert.deepEqual(getCachedCurrentUser(), secondUser);
-    assert.equal(getPersonalWorkbenchSnapshot(oldSnapshotKey), undefined);
+    assert.equal(getWeeklyDashboardSnapshot(firstUser.id), undefined);
 
     BroadcastChannelMock.sendFromAnotherTab({ type: "profile-updated", source: "other-tab", user: { ...secondUser, realName: "Updated" } });
     assert.equal(getCachedCurrentUser()?.realName, "Updated");

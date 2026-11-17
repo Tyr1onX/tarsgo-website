@@ -975,14 +975,28 @@ func mustListAssignments(t *testing.T, service *Service, actor Actor, groupID ui
 		t.Fatal(err)
 	}
 	var want int64
+	groupCounts := map[uint64]int64{}
 	for _, item := range all {
 		if item.PublicationStatus != model.AssignmentPublicationWithdrawn {
-			want += int64(max(0, item.SubmittedCount-item.ReviewedCount))
+			count := int64(max(0, item.SubmittedCount-item.ReviewedCount))
+			want += count
+			groupCounts[item.GroupID] += count
 		}
 	}
 	summary, err := service.AdminTodos(context.Background(), actor)
 	if err != nil || summary.ReviewCount != want {
 		t.Fatalf("todo summary=%#v want=%d err=%v", summary, want, err)
+	}
+	for _, group := range summary.Groups {
+		if group.ReviewCount <= 0 || group.GroupName == "" || groupCounts[group.GroupID] != group.ReviewCount {
+			t.Fatalf("todo group=%#v expected=%#v", group, groupCounts)
+		}
+		delete(groupCounts, group.GroupID)
+	}
+	for _, count := range groupCounts {
+		if count != 0 {
+			t.Fatalf("pending group omitted from todo summary: %#v", groupCounts)
+		}
 	}
 	if _, err := service.AdminTodos(context.Background(), Actor{ID: actor.ID, RoleName: model.RoleNameUser}); statusOf(err) != http.StatusForbidden {
 		t.Fatalf("member summary permission err=%v", err)

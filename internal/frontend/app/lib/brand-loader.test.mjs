@@ -109,20 +109,19 @@ test("inline status stays compact and cached sections remain visible while refre
 
 test("background refresh retains existing community data without a loading banner", async () => {
   const feed = await read("../routes/dashboard/index.tsx");
-  const workbench = await read("../routes/dashboard/workbench.tsx");
   const thread = await read("../routes/dashboard/community-post.tsx");
   assert.match(thread, /if \(loading && detail\?\.post\.id !== postID\)/);
   assert.doesNotMatch(thread, /if \(loading\) return/);
   assert.match(feed, /visibleLoading && visiblePosts\.length === 0 \? <div className="community-post-list content-skeleton"/);
   assert.doesNotMatch(feed, /正在同步最新内容/);
-  assert.doesNotMatch(workbench, /正在同步最新状态…/);
 });
 
-test("personal workbench keeps per-section progress without a second global loader", async () => {
+test("navigation counts load independently without blocking the primary route", async () => {
+  const navigation = await read("../components/dashboard-section-navigation.tsx");
   const workbench = await read("../routes/dashboard/workbench.tsx");
-  assert.doesNotMatch(workbench, /BrandLoader|正在读取个人事务状态/);
-  assert.match(workbench, /weeklyLoading \? "读取中"/);
-  assert.match(workbench, /assignmentsLoading \? "读取中"/);
-  assert.match(workbench, /const leaveStatus = leaveLoading \? "读取中"/);
-  assert.match(workbench, /!loading && !tasksPending && taskCount === 0 && !hasErrors/);
+  assert.match(navigation, /void getWeeklyReportStatus\(\)/);
+  assert.match(navigation, /void assignmentClient\.listTodos\(\)/);
+  assert.match(navigation, /void assignmentClient\.adminTodos\(\)/);
+  assert.doesNotMatch(navigation, /<BrandLoader|Promise\.all\(/);
+  assert.match(workbench, /<Navigate to=\{destination\} replace/);
 });
