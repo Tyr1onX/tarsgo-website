@@ -164,7 +164,7 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(sideNavigation, /getUnifiedDashboardMenu\(currentUser, hasAssignmentGroup\)/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);
-  assert.match(layout, /切换账号/);
+  assert.match(layout, /<AccountSessionChoices/);
   assert.match(layout, /退出当前账号/);
 });
 

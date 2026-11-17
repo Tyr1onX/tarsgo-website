@@ -32,14 +32,16 @@ test("paused school leave does not load in the admin home or navigation", async 
 });
 
 test("account switching exposes reauthentication and synchronizes identity changes across tabs", async () => {
-  const [layout, login, auth] = await Promise.all([
+  const [layout, choices, login, auth] = await Promise.all([
     read("routes/dashboard/layout.tsx"),
+    read("components/account-session-choices.tsx"),
     read("routes/login.tsx"),
     read("lib/auth-client.ts"),
   ]);
-  assert.match(layout, /account\.status === "available"/);
-  assert.match(layout, /account\.status === "disabled"/);
-  assert.match(layout, /onReauthenticate\(account\.user\.email\)/);
+  assert.match(layout, /<AccountSessionChoices/);
+  assert.match(choices, /account\.status === "available"/);
+  assert.match(choices, /account\.status === "disabled"/);
+  assert.match(choices, /onReauthenticate\(account\.user\.email\)/);
   assert.match(login, /account\.status === "available"/);
   assert.match(login, /reauthPath\(account\.user\.email/);
   assert.match(auth, /BroadcastChannel\(ACCOUNT_SESSION_CHANNEL\)/);
@@ -57,17 +59,28 @@ test("newly created accounts open their exact detail without relying on list fil
   assert.match(route, /getAdminUser\(Number\(requestedUserId\)\)/);
 });
 
-test("full account storage identifies unavailable sessions and only removes the selected account", async () => {
-  const layout = await read("routes/dashboard/layout.tsx");
-  assert.match(layout, /MAX_SAVED_ACCOUNT_SESSIONS = 5/);
-  assert.match(layout, /账号名额已满。过期、已撤销或停用的记录仍占用名额/);
-  assert.match(layout, /会话已过期/);
-  assert.match(layout, /会话已撤销/);
-  assert.match(layout, /账号已停用/);
-  assert.match(layout, /onRemove\(account\.id\)/);
-  assert.match(layout, /释放名额后添加/);
-  assert.match(layout, /确定移除「\$\{accountLabel\}」的已保存登录会话？这只会移除该账号，不会退出其他账号/);
-  assert.match(layout, /mode === "manage" \|\| account\.status !== "available"/);
+test("account choice stays inside both avatar menus and does not need a management dialog", async () => {
+  const [layout, navbar, choices] = await Promise.all([
+    read("routes/dashboard/layout.tsx"),
+    read("components/navbar.tsx"),
+    read("components/account-session-choices.tsx"),
+  ]);
+  for (const menu of [layout, navbar]) {
+    assert.match(menu, /<AccountSessionChoices/);
+    assert.match(menu, /switchAccountSession\(accountId\)/);
+    assert.match(menu, /removeAccountSession\(accountId\)/);
+  }
+  assert.doesNotMatch(layout, /AccountSessionDialog|openAccountModal|accountModalMode/);
+  assert.doesNotMatch(navbar, /getAccountSwitchHref/);
+  assert.match(choices, /onSwitch\(account\.id\)/);
+  assert.match(choices, /onRemove\(account\.id\)/);
+  assert.match(choices, /会话已过期/);
+  assert.match(choices, /会话已撤销/);
+  assert.match(choices, /账号已停用/);
+  assert.match(choices, /accounts\.length === 1/);
+  assert.doesNotMatch(choices, /管理账号|添加账号/);
+  assert.match(layout, /移除当前账号/);
+  assert.match(layout, /这只会移除该账号，不会退出其他账号/);
 });
 
 test("account and group permission changes publish targeted or global invalidation", async () => {

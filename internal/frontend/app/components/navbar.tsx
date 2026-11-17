@@ -6,6 +6,10 @@ import {
   getAuthUserName,
   getCachedCurrentUser,
   getOptionalCurrentUser,
+  getAccountSessions,
+  switchAccountSession,
+  removeAccountSession,
+  logoutAllAccounts,
   hasKnownAnonymousSession,
   logout,
   subscribeAccountSessionChange,
@@ -25,6 +29,7 @@ import {
 import { teamIdentityLabel } from "./community-team-identity";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
+import { AccountSessionChoices, useAccountSessionChoices } from "./account-session-choices";
 
 type NavbarProps = {
   currentUser?: AuthUser | null;
@@ -51,6 +56,8 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
   const visibleAuthError = visibleUser === undefined && (authError || identityRefreshError);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const { accounts, setAccounts, loading: accountsLoading, error: accountsError, setError: setAccountsError } =
+    useAccountSessionChoices(userMenuOpen, visibleUser?.id);
   const [isScrolled, setIsScrolled] = useState(false);
   const [dashboardPrefetchUserId, setDashboardPrefetchUserId] = useState<number | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -247,6 +254,8 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
       setUserMenuOpen(false);
       revalidator.revalidate();
       navigate("/", { replace: true });
+    } catch (error) {
+      setAccountsError(error instanceof Error ? error.message : "退出账号失败。");
     } finally {
       setLoggingOut(false);
     }
@@ -266,10 +275,68 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
       });
   }
 
-  function getAccountSwitchHref() {
-    const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
-    const query = new URLSearchParams({ redirect: redirectTarget, addAccount: "1" });
+  function accountLoginPath(email?: string) {
+    const redirect = `${location.pathname}${location.search}${location.hash}`;
+    const query = new URLSearchParams({ redirect, addAccount: "1" });
+    if (email) {
+      query.set("email", email);
+      query.set("reauth", "1");
+    }
     return `/login?${query.toString()}`;
+  }
+
+  async function handleSwitchAccount(accountId: number) {
+    setAccountsError("");
+    setLoggingOut(true);
+    try {
+      const { user } = await switchAccountSession(accountId);
+      setUserMenuOpen(false);
+      window.location.assign(getDefaultDashboardPath(user.role.name));
+    } catch (error) {
+      setAccountsError(error instanceof Error ? error.message : "账号切换失败。");
+      try { setAccounts(await getAccountSessions()); } catch { /* Preserve the original error. */ }
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  async function handleRemoveAccount(accountId: number) {
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account || !visibleUser) return;
+    const name = getAuthUserName(account.user);
+    const confirmation = account.current || account.user.id === visibleUser.id
+      ? `移除当前账号「${name}」会同时退出登录，确定吗？`
+      : `确定移除「${name}」的已保存登录会话？这不会退出其他账号。`;
+    if (!window.confirm(confirmation)) return;
+    setLoggingOut(true);
+    setAccountsError("");
+    try {
+      const result = await removeAccountSession(accountId);
+      setAccounts(result.accounts);
+      if (result.currentRemoved) {
+        setUserMenuOpen(false);
+        navigate("/login", { replace: true });
+      }
+    } catch (error) {
+      setAccountsError(error instanceof Error ? error.message : "移除账号失败。");
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  async function handleLogoutAll() {
+    if (!window.confirm("确定退出全部已保存账号？之后需要重新登录。")) return;
+    setLoggingOut(true);
+    setAccountsError("");
+    try {
+      await logoutAllAccounts();
+      setUserMenuOpen(false);
+      navigate("/login", { replace: true });
+    } catch (error) {
+      setAccountsError(error instanceof Error ? error.message : "退出全部账号失败。");
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -371,16 +438,17 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                           </Link>
                         ))}
                         <div className="navbar-account-separator" role="separator" />
-                        <Link
-                          to={getAccountSwitchHref()}
-                          prefetch="render"
-                          onClick={() => setUserMenuOpen(false)}
-                          role="menuitem"
-                          className="navbar-account-action"
-                        >
-                          <NavbarAccountIcon name="switch" />
-                          切换账号
-                        </Link>
+                        {visibleUser ? <AccountSessionChoices
+                          accounts={accounts}
+                          currentUserId={visibleUser.id}
+                          loading={accountsLoading}
+                          busy={loggingOut}
+                          error={accountsError}
+                          onSwitch={(id) => void handleSwitchAccount(id)}
+                          onRemove={(id) => void handleRemoveAccount(id)}
+                          onReauthenticate={(email) => { setUserMenuOpen(false); navigate(accountLoginPath(email)); }}
+                          onAdd={() => { setUserMenuOpen(false); navigate(accountLoginPath()); }}
+                        /> : null}
                         <button
                           type="button"
                           onClick={handleLogout}
@@ -389,8 +457,12 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                           className="navbar-account-action navbar-account-action--danger"
                         >
                           <NavbarAccountIcon name="logout" />
-                          {loggingOut ? "退出中..." : "退出登录"}
+                          退出当前账号
                         </button>
+                        {accounts.length > 1 ? <button type="button" role="menuitem" disabled={loggingOut}
+                          onClick={() => void handleLogoutAll()} className="navbar-account-action navbar-account-action--danger">
+                          <NavbarAccountIcon name="logout" />退出全部账号
+                        </button> : null}
                       </div>
                     </div>
                   ) : null}
@@ -415,7 +487,6 @@ function NavbarAccountIcon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     "my-profile": "M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
     overview: "M9 6V4h6v2 M3 7h18v14H3Z M3 12a22 22 0 0 0 18 0 M12 11v4",
-    switch: "M4 7h16m-4-4 4 4-4 4 M20 17H4m4-4-4 4 4 4",
     logout: "M9 3H4v18h5 M14 7l5 5-5 5 M8 12h11",
   };
   return (

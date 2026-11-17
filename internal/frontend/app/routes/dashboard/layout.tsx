@@ -1,4 +1,3 @@
-import { BrandLoader } from "~/components/brand-loader";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Link, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
@@ -7,6 +6,7 @@ import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { DashboardSectionNavigation } from "~/components/dashboard-section-navigation";
+import { AccountSessionChoices, useAccountSessionChoices } from "~/components/account-session-choices";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
 import { CommunityExperienceToastHost } from "~/components/community-experience-toast-host";
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
@@ -18,7 +18,6 @@ import {
   getCurrentUser,
   getAccountSessions,
   needsCurrentUserRevalidation,
-  initializeAccountSessions,
   logout,
   logoutAllAccounts,
   removeAccountSession,
@@ -26,7 +25,6 @@ import {
   subscribeAccountSessionChange,
   subscribePermissionChange,
   switchAccountSession,
-  type AccountSessionAccount,
   type AuthUser,
 } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
@@ -64,7 +62,6 @@ export interface DashboardLayoutOutletContext {
 
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
 const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
-const MAX_SAVED_ACCOUNT_SESSIONS = 5;
 const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["management"]);
 
 type UserMenuPosition = { left: number; top: number };
@@ -236,10 +233,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [badgeReplayRequest, setBadgeReplayRequest] = useState<CoBuilderBadgeReplayRequest | null>(null);
-  const [accountModalMode, setAccountModalMode] = useState<"switch" | "manage" | null>(null);
-  const [accountSessions, setAccountSessions] = useState<AccountSessionAccount[]>([]);
-  const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
-  const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
   const [userMenuPosition, setUserMenuPosition] = useState<UserMenuPosition | null>(null);
   const [displayUser, setDisplayUser] = useState(loaderData.currentUser);
@@ -255,6 +248,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
   const badgeReplaySequenceRef = useRef(0);
   const currentUser = displayUser;
+  const { accounts: accountSessions, setAccounts: setAccountSessions, loading: accountSessionsLoading,
+    error: accountSessionsError, setError: setAccountSessionsError } = useAccountSessionChoices(userMenuOpen, currentUser.id);
   const groupResolution = displayGroupResolution;
   const groupResolutionError = displayGroupResolutionError;
   const identitySyncSequenceRef = useRef(0);
@@ -540,20 +535,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     }
   }
 
-  async function openAccountModal(mode: "switch" | "manage") {
-    setUserMenuOpen(false);
-    setAccountModalMode(mode);
-    setAccountSessionsError("");
-    setAccountSessionsLoading(true);
-    try {
-      setAccountSessions(await initializeAccountSessions());
-    } catch (error) {
-      setAccountSessionsError(getAccountActionError(error));
-    } finally {
-      setAccountSessionsLoading(false);
-    }
-  }
-
   function handleAddAccount() {
     setUserMenuOpen(false);
     const redirectTarget = `${location.pathname}${location.search}`;
@@ -562,7 +543,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   function handleReauthenticateAccount(email: string) {
-    setAccountModalMode(null);
+    setUserMenuOpen(false);
     const redirectTarget = `${location.pathname}${location.search}`;
     const query = new URLSearchParams({ email, redirect: redirectTarget, addAccount: "1", reauth: "1" });
     navigate(`/login?${query.toString()}`);
@@ -574,14 +555,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     try {
       const { user } = await switchAccountSession(accountId);
       setDisplayUser(user);
-      setAccountModalMode(null);
+      setUserMenuOpen(false);
       await navigate(getDefaultDashboardPath(user.role.name), { replace: true });
       await revalidator.revalidate();
       setAccountSyncing(false);
     } catch (error) {
       setAccountSessionsError(getAccountActionError(error));
       try { setAccountSessions(await getAccountSessions()); } catch { /* Keep the switch failure visible. */ }
-      setLoggingOut(false);
     } finally {
       setLoggingOut(false);
     }
@@ -591,9 +571,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     const account = accountSessions.find((item) => item.id === accountId);
     if (!account) return;
     const accountLabel = getAuthUserName(account.user);
-    const confirmation = account.status === "available"
-      ? `确定移除「${accountLabel}」的已保存登录会话？这只会移除该账号，不会退出其他账号。`
-      : `确定移除「${accountLabel}」的失效账号记录？`;
+    const confirmation = account.current || account.user.id === currentUser.id
+      ? `移除当前账号「${accountLabel}」会同时退出登录，确定吗？`
+      : account.status === "available"
+        ? `确定移除「${accountLabel}」的已保存登录会话？这只会移除该账号，不会退出其他账号。`
+        : `确定移除「${accountLabel}」的失效账号记录？`;
     if (!window.confirm(confirmation)) return;
     setAccountActionError("");
     setAccountSessionsError("");
@@ -602,7 +584,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       const result = await removeAccountSession(accountId);
       setAccountSessions(result.accounts);
       if (result.currentRemoved) {
-        setAccountModalMode(null);
+        setUserMenuOpen(false);
         navigate("/login", { replace: true });
       }
     } catch (error) {
@@ -613,11 +595,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   async function handleLogoutAll() {
+    if (!window.confirm("确定退出全部已保存账号？之后需要重新登录。")) return;
     setLoggingOut(true);
     setAccountActionError("");
     try {
       await logoutAllAccounts();
-      setAccountModalMode(null);
+      setUserMenuOpen(false);
       navigate("/login", { replace: true });
     } catch (error) {
       setAccountSessionsError(getAccountActionError(error));
@@ -752,27 +735,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         replayRequest={currentBadgeReplayRequest}
         onReplayComplete={completeBadgeReplay}
       />
-      {accountModalMode ? (
-        <AccountSessionDialog
-          mode={accountModalMode}
-          accounts={accountSessions}
-          loading={accountSessionsLoading}
-          busy={loggingOut}
-          error={accountSessionsError}
-          currentUser={currentUser}
-          onClose={() => setAccountModalMode(null)}
-          onSwitch={handleSwitchAccount}
-          onReauthenticate={handleReauthenticateAccount}
-          onRemove={handleRemoveAccount}
-          onManage={() => setAccountModalMode("manage")}
-          onAdd={() => {
-            setAccountModalMode(null);
-            handleAddAccount();
-          }}
-          onLogoutCurrent={() => void handleLogout()}
-          onLogoutAll={() => void handleLogoutAll()}
-        />
-      ) : null}
       {userMenuOpen && typeof document !== "undefined" ? createPortal(
         <div
           ref={userMenuPanelRef}
@@ -822,24 +784,17 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               className="dashboard-shell__account-action"
             >帮助与工作手册</button> : null}
             <div className="dashboard-shell__account-divider" />
-            <button
-              type="button"
-              onClick={() => void openAccountModal("switch")}
-              role="menuitem"
-              className="dashboard-shell__account-action"
-            >切换账号</button>
-            <button
-              type="button"
-              onClick={handleAddAccount}
-              role="menuitem"
-              className="dashboard-shell__account-action"
-            >添加账号</button>
-            <button
-              type="button"
-              onClick={() => void openAccountModal("manage")}
-              role="menuitem"
-              className="dashboard-shell__account-action"
-            >管理账号</button>
+            <AccountSessionChoices
+              accounts={accountSessions}
+              currentUserId={currentUser.id}
+              loading={accountSessionsLoading}
+              busy={loggingOut}
+              error={accountSessionsError}
+              onSwitch={(id) => void handleSwitchAccount(id)}
+              onRemove={(id) => void handleRemoveAccount(id)}
+              onReauthenticate={handleReauthenticateAccount}
+              onAdd={handleAddAccount}
+            />
             <div className="dashboard-shell__account-divider" />
             <button
               type="button"
@@ -847,125 +802,16 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               disabled={loggingOut}
               role="menuitem"
               className="dashboard-shell__account-action dashboard-shell__account-action--danger"
-            >{loggingOut ? "退出中..." : "退出当前账号"}</button>
+            >退出当前账号</button>
+            {accountSessions.length > 1 ? <button type="button" role="menuitem" disabled={loggingOut}
+              onClick={() => void handleLogoutAll()} className="dashboard-shell__account-action dashboard-shell__account-action--danger">
+              退出全部账号
+            </button> : null}
             {accountActionError ? <p role="alert" className="dashboard-shell__account-error mx-2 mt-2">{accountActionError}</p> : null}
           </div>
         </div>,
         document.body,
       ) : null}
-    </div>
-  );
-}
-
-function AccountSessionDialog({
-  mode,
-  accounts,
-  loading,
-  busy,
-  error,
-  currentUser,
-  onClose,
-  onSwitch,
-  onReauthenticate,
-  onRemove,
-  onManage,
-  onAdd,
-  onLogoutCurrent,
-  onLogoutAll,
-}: {
-  mode: "switch" | "manage";
-  accounts: AccountSessionAccount[];
-  loading: boolean;
-  busy: boolean;
-  error: string;
-  currentUser: AuthUser;
-  onClose: () => void;
-  onSwitch: (accountId: number) => void;
-  onReauthenticate: (email: string) => void;
-  onRemove: (accountId: number) => void;
-  onManage: () => void;
-  onAdd: () => void;
-  onLogoutCurrent: () => void;
-  onLogoutAll: () => void;
-}) {
-  const title = mode === "manage" ? "管理账号" : "切换账号";
-  const atCapacity = accounts.length >= MAX_SAVED_ACCOUNT_SESSIONS;
-
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
-  return (
-    <div className="dashboard-shell__account-modal-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="account-session-dialog-title"
-        className="dashboard-shell__account-modal"
-      >
-        <header className="dashboard-shell__account-modal-header">
-          <div>
-            <h2 id="account-session-dialog-title">{title}</h2>
-            <p>当前账号：{getAuthUserName(currentUser)} · {accounts.length} / {MAX_SAVED_ACCOUNT_SESSIONS} 个</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="关闭" className="dashboard-shell__account-close">×</button>
-        </header>
-        {error ? <div role="alert" className="admin-notice admin-notice--error mb-3">{error}</div> : null}
-        {!loading && atCapacity ? (
-          <div className="dashboard-shell__account-capacity" role="status">
-            <span>账号名额已满。过期、已撤销或停用的记录仍占用名额；可在此重新验证或移除指定账号。</span>
-            {mode === "switch" ? <button type="button" onClick={onManage} className="admin-button admin-button--quiet admin-button--small">管理已保存账号</button> : null}
-          </div>
-        ) : null}
-        <div className="dashboard-shell__account-list" aria-busy={loading}>
-          {loading ? <BrandLoader label="正在读取账号" size="sm" /> : accounts.length === 0 ? (
-            <div className="dashboard-shell__account-empty">当前没有可切换的账号。</div>
-          ) : accounts.map((account) => (
-            <div className="dashboard-shell__account-row" key={account.id}>
-              <div className="dashboard-shell__account-avatar" aria-hidden="true">
-                {getAuthUserName(account.user).charAt(0).toUpperCase()}
-              </div>
-              <div className="dashboard-shell__account-details">
-                <strong>{getAuthUserName(account.user)}</strong>
-                <span>{account.user.email}</span>
-                <small>{getAuthUserRoleLabel(account.user)}</small>
-              </div>
-              <div className="dashboard-shell__account-controls">
-                {account.current || account.user.id === currentUser.id ? (
-                  <span className="dashboard-shell__account-current">当前</span>
-                ) : account.status === "available" ? (
-                  <button type="button" disabled={busy} onClick={() => onSwitch(account.id)} className="admin-button admin-button--secondary admin-button--small">切换</button>
-                ) : account.status === "disabled" ? (
-                  <span className="dashboard-shell__account-unavailable">账号已停用</span>
-                ) : (
-                  <>
-                    <span className="dashboard-shell__account-unavailable">{account.status === "expired" ? "会话已过期" : "会话已撤销"}</span>
-                    <button type="button" disabled={busy} onClick={() => onReauthenticate(account.user.email)} className="admin-button admin-button--quiet admin-button--small">重新验证</button>
-                  </>
-                )}
-                {mode === "manage" || account.status !== "available" ? (
-                  <button type="button" disabled={busy} onClick={() => onRemove(account.id)} aria-label={`移除${getAuthUserName(account.user)}`} className="dashboard-shell__account-remove">移除</button>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
-        <footer className="dashboard-shell__account-modal-footer">
-          <button type="button" disabled={atCapacity} onClick={onAdd} className="admin-button admin-button--primary">{atCapacity ? "释放名额后添加" : "添加账号"}</button>
-          {mode === "manage" ? (
-            <div className="dashboard-shell__account-signout-actions">
-              <button type="button" disabled={busy} onClick={onLogoutCurrent} className="admin-button admin-button--quiet">退出当前账号</button>
-              <button type="button" disabled={busy} onClick={onLogoutAll} className="dashboard-shell__account-signout-all">退出全部账号</button>
-            </div>
-          ) : null}
-        </footer>
-      </section>
     </div>
   );
 }
