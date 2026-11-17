@@ -30,7 +30,10 @@ test("account actions reuse existing permissions and retain keyboard navigation"
   assert.match(navbar, /profileButtonRef\.current\?\.focus\(\)/);
   assert.match(navbar, /event\.key !== "ArrowDown" && event\.key !== "ArrowUp" && event\.key !== "Home" && event\.key !== "End"/);
   assert.match(navbar, /items\[nextIndex\]\.focus\(\)/);
-  assert.match(themeControl, /onClick=\{\(\) => setPreference\(nextTheme\)\}/);
+  assert.match(themeControl, /role="switch"/);
+  assert.match(themeControl, /aria-checked=\{resolvedTheme === "dark"\}/);
+  assert.match(themeControl, /onPointerMove=\{onPointerMove\}/);
+  assert.match(themeControl, /onKeyDown=\{/);
   assert.match(navbar, /<ThemeControl \/>/);
   assert.match(dashboardLayout, /<ThemeControl \/>/);
   assert.equal((themeControl.match(/<button\b/g) ?? []).length, 1);
