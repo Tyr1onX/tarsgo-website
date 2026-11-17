@@ -19,9 +19,9 @@ test("the same compact header serves every viewport without public or hidden nav
 test("account actions reuse existing permissions and retain keyboard navigation", () => {
   assert.match(navbar, /getDashboardSectionMenu\(visibleUser\)/);
   assert.match(navbar, /filter\(\(item\) => item.key !== "community"\)/);
-  assert.match(navbar, /切换账号/);
-  assert.match(navbar, /退出登录/);
-  assert.match(navbar, /getAccountSwitchHref/);
+  assert.match(navbar, /<AccountSessionChoices/);
+  assert.match(navbar, /退出当前账号/);
+  assert.doesNotMatch(navbar, /getAccountSwitchHref/);
   assert.match(navbar, /subscribeAccountSessionChange/);
   assert.match(navbar, /aria-expanded=\{userMenuOpen\}/);
   assert.match(navbar, /aria-haspopup="menu"/);

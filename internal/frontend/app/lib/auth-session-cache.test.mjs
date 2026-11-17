@@ -311,11 +311,11 @@ test("dashboard route feedback appears immediately and stale group results stay 
   assert.match(authClientSource, /invalidateUserGroupConfirmationStateCache\(\)/);
 });
 
-test("account-vault setup stays on demand and high-priority workbench pages preload early", () => {
-  const openAccountModalIndex = dashboardLayoutSource.indexOf("async function openAccountModal");
-  assert.ok(openAccountModalIndex > 0);
-  assert.doesNotMatch(dashboardLayoutSource.slice(0, openAccountModalIndex), /initializeAccountSessions\(\)/);
-  assert.match(dashboardLayoutSource, /async function openAccountModal[\s\S]*?initializeAccountSessions\(\)/);
+test("account-vault setup stays on avatar-menu demand and high-priority pages preload early", async () => {
+  const picker = await readFile(new URL("../components/account-session-choices.tsx", import.meta.url), "utf8");
+  assert.match(picker, /if \(!open \|\| !currentUserId\) return/);
+  assert.match(picker, /initializeAccountSessions\(\)/);
+  assert.match(dashboardLayoutSource, /useAccountSessionChoices\(userMenuOpen, currentUser\.id\)/);
   assert.match(dashboardLayoutSource, /new Set\(\["management"\]\)/);
   assert.match(navbarSource, /requestIdleCallback\([\s\S]*?timeout: 250/);
 });
