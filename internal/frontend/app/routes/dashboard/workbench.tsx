@@ -13,12 +13,12 @@ export default function LegacyWorkbenchRedirect() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const canManage = currentUser.role.name === "super_admin" || currentUser.role.name === "admin";
   const hasGroup = hasAssignmentGroupAccess(groupResolution?.groups);
-  const destination = canManage
-    ? currentUser.role.name === "super_admin" || hasGroup
-      ? "/dashboard/admin/training/assignments?view=review"
-      : "/dashboard/admin/registrations"
-    : !hasWorkbenchAccess(currentUser)
-      ? "/dashboard"
-      : hasGroup ? "/dashboard/assignments" : "/dashboard/weekly-reports";
+  const destination = currentUser.role.name === "super_admin"
+    ? "/dashboard/admin/training/assignments"
+    : canManage
+      ? hasGroup ? "/dashboard/admin/training/assignments?view=review" : "/dashboard/admin/registrations"
+      : !hasWorkbenchAccess(currentUser)
+        ? "/dashboard"
+        : hasGroup ? "/dashboard/assignments" : "/dashboard/weekly-reports";
   return <Navigate to={destination} replace />;
 }

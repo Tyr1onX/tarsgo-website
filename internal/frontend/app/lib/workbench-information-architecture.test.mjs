@@ -30,22 +30,22 @@ test("old overview paths lead to tasks instead of a second navigation page", () 
 test("sidebar indicators come from authorized work sources without separate score state", () => {
   assert.match(sidebar, /hasWorkbenchAccess\(currentUser\)/);
   assert.match(sidebar, /if \(!visible\) return/);
-  assert.match(sidebar, /canReview = currentUser\.role\.name === "super_admin" \|\| \(canManage && hasAssignmentGroup\)/);
+  assert.match(sidebar, /canReview = currentUser\.role\.name === "admin" && hasAssignmentGroup/);
   assert.match(sidebar, /void getWeeklyReportStatus\(\)/);
   assert.match(sidebar, /void assignmentClient\.listTodos\(\)/);
   assert.match(sidebar, /void getAdminWorkbenchSummary\(currentUser\.id\)/);
   assert.match(sidebar, /void assignmentClient\.adminTodos\(\)/);
   assert.match(sidebar, /previous\.scope === scope/);
   assert.match(sidebar, /if \(active\) setTaskCounts/);
-  assert.match(sidebar, /reviewGroups\.length > 1/);
-  assert.match(sidebar, /groupId=\$\{reviewGroup\.groupId\}/);
+  assert.match(sidebar, /reviewCount: value\.reviewCount/);
+  assert.doesNotMatch(sidebar, /reviewGroups\.length|reviewGroup\.groupId/);
   assert.doesNotMatch(sidebar, /leaveClient|Promise\.all\(/);
 });
 
 test("review groups are resolved from the URL with permission checks and kept during drill-down", () => {
   assert.match(assignmentManagement, /const requestedGroupId = Number\(searchParams\.get\("groupId"\)\)/);
-  assert.match(assignmentManagement, /assignmentGroups\.find\(\(group\) => group\.groupId === requestedGroupId\)/);
-  assert.match(assignmentManagement, /setSearchParams\(\{ view, groupId: String\(nextGroupID\) \}/);
+  assert.match(assignmentManagement, /assignmentGroups\.some\(\(group\) => group\.groupId === requestedGroupId\)/);
+  assert.match(assignmentManagement, /setSearchParams\(nextGroupID \? \{ view, groupId: String\(nextGroupID\) \} : \{ view \}/);
   assert.match(review, /setSearchParams\(\{ view: "review", groupId: String\(groupId\), assignmentId: String\(nextID\) \}/);
   assert.match(review, /groupId: String\(groupId\), assignmentId: String\(id\)/);
 });
