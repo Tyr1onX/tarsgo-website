@@ -103,25 +103,25 @@ test("assignment access follows the existing five groups for both member and adm
 
 test("admin capabilities extend the same directory without duplicate leave links", () => {
   const adminMenu = getUnifiedDashboardMenu(account("admin"), true);
-  assert.deepEqual(menuKeys(adminMenu), ["daily-work", "team-information", "recruitment", "members-training", "collaboration-operations"]);
+  assert.deepEqual(menuKeys(adminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information"]);
   assert.deepEqual(linkKeys(adminMenu[2]), ["candidate-processing"]);
-  assert.deepEqual(linkKeys(adminMenu[3]), ["assignment-management", "training-assessments"]);
-  assert.deepEqual(linkKeys(adminMenu[4]), ["collection-forms", "timetable-availability"]);
+  assert.deepEqual(linkKeys(adminMenu[1]), ["assignment-management", "training-assessments"]);
+  assert.deepEqual(linkKeys(adminMenu[3]), ["collection-forms", "timetable-availability"]);
   assert.equal(adminMenu.flatMap(({ children }) => children).filter(({ href }) => href === "/dashboard/leave").length, 1);
 
   const restrictedAdminMenu = getUnifiedDashboardMenu(account("admin"), false);
-  assert.deepEqual(menuKeys(restrictedAdminMenu), ["daily-work", "team-information", "recruitment", "collaboration-operations"]);
+  assert.deepEqual(menuKeys(restrictedAdminMenu), ["daily-work", "recruitment", "collaboration-operations", "team-information"]);
 
   const adminWithoutWorkbench = getUnifiedDashboardMenu(account("admin", false), true);
-  assert.deepEqual(menuKeys(adminWithoutWorkbench), ["recruitment", "members-training", "collaboration-operations"]);
+  assert.deepEqual(menuKeys(adminWithoutWorkbench), ["members-training", "recruitment", "collaboration-operations"]);
   assert.equal(adminWithoutWorkbench.flatMap(({ children }) => children).some(({ href }) => href === "/dashboard/leave"), false);
 
   const superAdminMenu = getUnifiedDashboardMenu(account("super_admin"), false);
-  assert.deepEqual(menuKeys(superAdminMenu), ["daily-work", "team-information", "recruitment", "members-training", "collaboration-operations"]);
+  assert.deepEqual(menuKeys(superAdminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information"]);
   assert.deepEqual(linkKeys(superAdminMenu[2]), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
-  assert.deepEqual(linkKeys(superAdminMenu[3]), ["accounts", "assignment-management", "training-assessments"]);
-  assert.deepEqual(linkKeys(superAdminMenu[4]), ["collection-forms", "timetable-availability", "email-management"]);
-  assert.deepEqual(menuKeys(getUnifiedDashboardMenu(account("super_admin", false))), ["recruitment", "members-training", "collaboration-operations"]);
+  assert.deepEqual(linkKeys(superAdminMenu[1]), ["accounts", "assignment-management", "training-assessments"]);
+  assert.deepEqual(linkKeys(superAdminMenu[3]), ["collection-forms", "timetable-availability", "email-management"]);
+  assert.deepEqual(menuKeys(getUnifiedDashboardMenu(account("super_admin", false))), ["members-training", "recruitment", "collaboration-operations"]);
 });
 
 test("management deep links keep role restrictions without broadening page access", () => {
@@ -159,7 +159,8 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(layout, /skipGroupResolution[\s\S]*?currentPath\.pathname === "\/dashboard\/base"/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.match(layout, /帮助与工作手册/);
-  assert.doesNotMatch(layout, />我的主页<\/button>/);
+  assert.match(layout, />我的主页<\/button>/);
+  assert.match(layout, /getDashboardSectionMenu\(currentUser\)\.filter\(\(\{ key \}\) => key !== "my-profile"\)/);
   assert.match(sideNavigation, /getUnifiedDashboardMenu\(currentUser, hasAssignmentGroup\)/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);

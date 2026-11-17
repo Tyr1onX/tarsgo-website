@@ -42,12 +42,12 @@ export function DashboardSectionNavigation({
   const groups = getUnifiedDashboardMenu(currentUser, hasAssignmentGroup);
   const activeGroup = groups.find(({ children }) =>
     children.some((item) => isDashboardMenuPathActive(location.pathname, item.href)));
-  const defaultExpandedGroup = activeGroup?.key ?? groups[0]?.key ?? null;
+  const canManage = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
+  const defaultExpandedGroup = activeGroup?.key ?? (canManage ? groups.find((group) => group.key !== "daily-work")?.key : groups[0]?.key) ?? null;
   const [expandedGroup, setExpandedGroup] = useState<string | null>(defaultExpandedGroup);
   const scope = JSON.stringify([currentUser.id, currentUser.role.name, currentUser.workbenchAccess, permissionsKey]);
   const [taskCounts, setTaskCounts] = useState<TaskCounts>(() => emptyCounts(scope));
   const counts = taskCounts.scope === scope ? taskCounts : emptyCounts(scope);
-  const canManage = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
   const canReview = currentUser.role.name === "admin" && hasAssignmentGroup;
 
   useEffect(() => {
