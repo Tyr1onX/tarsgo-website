@@ -314,7 +314,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const currentBadgeReplayRequest = badgeReplayRequest?.userId === currentUser.id ? badgeReplayRequest : null;
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
-  const sectionMenuItems = getDashboardSectionMenu(currentUser);
+  const sectionMenuItems = getDashboardSectionMenu(currentUser).filter(({ key }) => key !== "my-profile");
   const activeSectionKey = getDashboardSectionKey(location.pathname, currentUser.id);
   const currentUserName = getAuthUserName(currentUser);
   const userInitial = (currentUserName || "U")
@@ -809,6 +809,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
           </div>
           <div className="dashboard-shell__user-menu-actions">
+            <button
+              type="button"
+              onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
+              role="menuitem"
+              className="dashboard-shell__account-action"
+            >我的主页</button>
             {hasWorkbenchAccess(currentUser) ? <button
               type="button"
               onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}

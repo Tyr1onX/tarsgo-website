@@ -46,16 +46,6 @@ const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
 
 const ADMIN_MENU: readonly AdminMenuGroup[] = [
   {
-    key: "recruitment",
-    label: "招新",
-    iconKey: "registration",
-    children: [
-      { key: "candidate-processing", label: "候选人处理", href: "/dashboard/admin/registrations", allowedRoles: ["admin", "super_admin"] },
-      { key: "recruitment-management", label: "招新设置", href: "/dashboard/admin/recruitment", allowedRoles: ["super_admin"] },
-      { key: "recruitment-analytics", label: "招新数据", href: "/dashboard/admin/recruitment-analytics", allowedRoles: ["super_admin"] },
-    ],
-  },
-  {
     key: "members-training",
     label: "成员与培养",
     iconKey: "people",
@@ -63,6 +53,16 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
       { key: "accounts", label: "账号与权限", href: "/dashboard/admin/users", allowedRoles: ["super_admin"] },
       { key: "assignment-management", label: "作业管理", href: "/dashboard/admin/training/assignments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
       { key: "training-assessments", label: "培训成绩与能力", href: "/dashboard/admin/training/assessments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
+    ],
+  },
+  {
+    key: "recruitment",
+    label: "招新",
+    iconKey: "registration",
+    children: [
+      { key: "candidate-processing", label: "候选人处理", href: "/dashboard/admin/registrations", allowedRoles: ["admin", "super_admin"] },
+      { key: "recruitment-management", label: "招新设置", href: "/dashboard/admin/recruitment", allowedRoles: ["super_admin"] },
+      { key: "recruitment-analytics", label: "招新数据", href: "/dashboard/admin/recruitment-analytics", allowedRoles: ["super_admin"] },
     ],
   },
   {
@@ -163,11 +163,11 @@ export function getUnifiedDashboardMenu(currentUser: AuthUser, hasAssignmentGrou
   ];
   return [
     ...(personalLinks.length > 0 ? [{ key: "daily-work", label: "日常事务", iconKey: "report" as const, children: personalLinks }] : []),
-    ...(hasWorkbench ? [TEAM_INFORMATION] : []),
     ...getAccessibleAdminMenu(currentUser.role.name, hasAssignmentGroup).map((group) => ({
       ...group,
       children: group.children.map(({ key, label, href, iconKey }) => ({ key, label, href, iconKey })),
     })),
+    ...(hasWorkbench ? [TEAM_INFORMATION] : []),
   ];
 }
 
