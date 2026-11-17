@@ -77,10 +77,18 @@ test("account choice stays inside both avatar menus and does not need a manageme
   assert.match(choices, /会话已过期/);
   assert.match(choices, /会话已撤销/);
   assert.match(choices, /账号已停用/);
-  assert.match(choices, /accounts\.length === 1/);
-  assert.doesNotMatch(choices, /管理账号|添加账号/);
-  assert.match(layout, /移除当前账号/);
+  assert.match(choices, /const otherAccounts = accounts\.filter\(\(account\) => !account\.current && account\.user\.id !== currentUserId\)/);
+  assert.match(choices, /otherAccounts\.map\(\(account\) =>/);
+  assert.doesNotMatch(choices, /accounts\.map\(\(account\) =>/);
+  assert.match(choices, /const canAddAccount = !loading && accounts\.length === 1 && otherAccounts\.length === 0/);
+  assert.match(choices, /if \(!loading && !error && otherAccounts\.length === 0 && !canAddAccount\) return null/);
+  assert.doesNotMatch(choices, /aria-current|管理账号|添加账号/);
+  assert.match(layout, /currentUserName !== getAuthUserRoleLabel\(currentUser\)/);
   assert.match(layout, /这只会移除该账号，不会退出其他账号/);
+  for (const menu of [layout, navbar]) {
+    assert.match(menu, /退出登录/);
+    assert.doesNotMatch(menu, /退出全部账号|handleLogoutAll|logoutAllAccounts/);
+  }
 });
 
 test("account and group permission changes publish targeted or global invalidation", async () => {

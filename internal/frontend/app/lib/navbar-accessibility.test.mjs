@@ -20,7 +20,9 @@ test("account actions reuse existing permissions and retain keyboard navigation"
   assert.match(navbar, /getDashboardSectionMenu\(visibleUser\)/);
   assert.match(navbar, /filter\(\(item\) => item.key !== "community"\)/);
   assert.match(navbar, /<AccountSessionChoices/);
-  assert.match(navbar, /退出当前账号/);
+  assert.match(navbar, /退出登录/);
+  assert.match(navbar, /navigate\("\/login", \{ replace: true \}\)/);
+  assert.doesNotMatch(navbar, /handleLogoutAll|退出全部账号/);
   assert.doesNotMatch(navbar, /getAccountSwitchHref/);
   assert.match(navbar, /subscribeAccountSessionChange/);
   assert.match(navbar, /aria-expanded=\{userMenuOpen\}/);

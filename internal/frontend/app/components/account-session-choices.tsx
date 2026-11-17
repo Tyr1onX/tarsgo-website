@@ -43,15 +43,17 @@ export function AccountSessionChoices({
   onReauthenticate: (email: string) => void;
   onAdd: () => void;
 }) {
+  const otherAccounts = accounts.filter((account) => !account.current && account.user.id !== currentUserId);
+  const canAddAccount = !loading && accounts.length === 1 && otherAccounts.length === 0;
+  if (!loading && !error && otherAccounts.length === 0 && !canAddAccount) return null;
+
   return (
-    <div className="account-session-choices" aria-label="已保存账号" aria-busy={loading}>
-      <div className="account-session-choices__heading">已保存账号</div>
-      {loading ? <p className="account-session-choices__message" role="status">正在读取账号…</p> : accounts.length === 0
-        ? <p className="account-session-choices__message">暂无已保存账号</p>
-        : accounts.map((account) => {
-          const current = account.current || account.user.id === currentUserId;
+    <div className="account-session-choices" aria-label="切换账号" aria-busy={loading}>
+      {loading || otherAccounts.length > 0 ? <div className="account-session-choices__heading">切换账号</div> : null}
+      {loading ? <p className="account-session-choices__message" role="status">正在读取账号…</p> :
+        otherAccounts.map((account) => {
           const available = account.status === "available";
-          const status = current ? "当前" : account.status === "disabled" ? "账号已停用"
+          const status = account.status === "disabled" ? "账号已停用"
             : account.status === "expired" ? "会话已过期" : account.status === "revoked" ? "会话已撤销" : getAuthUserRoleLabel(account.user);
           const details = (
             <>
@@ -62,14 +64,14 @@ export function AccountSessionChoices({
           );
           return (
             <div className="account-session-choices__row" key={account.id}>
-              {current || !available ? (
-                <div className="account-session-choices__identity" aria-current={current ? "true" : undefined}>{details}</div>
+              {!available ? (
+                <div className="account-session-choices__identity">{details}</div>
               ) : (
                 <button type="button" role="menuitem" disabled={busy} onClick={() => onSwitch(account.id)}
                   className="account-session-choices__identity account-session-choices__select"
                   aria-label={`切换到${getAuthUserName(account.user)}（${account.user.email}）`}>{details}</button>
               )}
-              {!current && !available && account.status !== "disabled" ? (
+              {!available && account.status !== "disabled" ? (
                 <button type="button" role="menuitem" disabled={busy} className="account-session-choices__small-action"
                   onClick={() => onReauthenticate(account.user.email)}>重新验证</button>
               ) : null}
@@ -80,7 +82,7 @@ export function AccountSessionChoices({
           );
         })}
       {error ? <p className="account-session-choices__error" role="alert">{error}</p> : null}
-      {!loading && accounts.length === 1 ? (
+      {canAddAccount ? (
         <button type="button" role="menuitem" disabled={busy} onClick={onAdd} className="account-session-choices__add">
           登录其他账号
         </button>

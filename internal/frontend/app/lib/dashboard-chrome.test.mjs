@@ -15,7 +15,8 @@ test("expanded sidebar keeps its labels visible and the account menu stays with 
   assert.doesNotMatch(layout, /candidateTodoCount|leaveActionableCount|managementLabel|badgeLabel/);
   assert.match(layout, /dashboard-shell__avatar-button/);
   assert.match(layout, /dashboard-shell__user-menu-role[\s\S]*?\{currentUserName \|\| getAuthUserRoleLabel\(currentUser\)\}[\s\S]*?\{currentUser\.email\}/);
-  for (const action of ["帮助与工作手册", "我的主页", "退出当前账号"]) assert.match(layout, new RegExp(action));
+  for (const action of ["帮助与工作手册", "我的主页", "退出登录"]) assert.match(layout, new RegExp(action));
+  assert.doesNotMatch(layout, /handleLogoutAll|退出全部账号/);
   assert.match(layout, /<AccountSessionChoices/);
   assert.doesNotMatch(layout, /AccountSessionDialog|openAccountModal|accountModalMode/);
   assert.match(layout, /createPortal\([\s\S]*?dashboard-user-menu[\s\S]*?document\.body/);
