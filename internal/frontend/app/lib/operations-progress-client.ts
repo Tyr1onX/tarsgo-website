@@ -2,24 +2,27 @@ import { apiRequest } from "./api-client.ts";
 
 export type OperationsItemStatus = "active" | "blocked" | "done";
 export type OperationsItemKind = "workstream" | "channel" | "video" | "merchandise";
+export type OperationsStepStatus = "pending" | "active" | "blocked" | "done";
 export type OperationsVideoStage = "" | "unconfirmed" | "planning" | "materials" | "editing" | "review" | "published" | "design" | "approval" | "sample" | "production" | "delivered";
 
-export const videoStageLabels = [
-  { key: "planning", label: "选题文案" },
-  { key: "materials", label: "素材拍摄" },
-  { key: "editing", label: "剪辑制作" },
-  { key: "review", label: "审核确认" },
-  { key: "published", label: "发布" },
-] as const;
+export interface OperationsStep {
+  id: number;
+  itemId: number;
+  key: string;
+  title: string;
+  position: number;
+  assigneeId: number | null;
+  assigneeName: string;
+  status: OperationsStepStatus;
+  blockReason: string;
+  completedAt: string | null;
+  updatedAt: string;
+}
 
-export const merchandiseStageLabels = [
-  { key: "planning", label: "需求确定" },
-  { key: "design", label: "设计制作" },
-  { key: "approval", label: "设计定稿" },
-  { key: "sample", label: "打样确认" },
-  { key: "production", label: "批量生产" },
-  { key: "delivered", label: "完成发放" },
-] as const;
+export interface OperationsMember {
+  id: number;
+  name: string;
+}
 
 export interface OperationsSnapshot {
   id: number;
@@ -57,6 +60,8 @@ export interface OperationsItem {
   id: number;
   title: string;
   kind: OperationsItemKind;
+  platforms: string;
+  steps: OperationsStep[];
   stage: OperationsVideoStage;
   owner: string;
   intervalDays: number;
@@ -67,8 +72,6 @@ export interface OperationsItem {
   updatedAt: string;
   lastUpdate: OperationsUpdate | null;
   lastCompletedOn: string | null;
-  lastStageChangedAt: string | null;
-  lastConfirmedAt: string | null;
 }
 
 export interface OperationsBoard {
@@ -77,23 +80,25 @@ export interface OperationsBoard {
   snapshots: OperationsSnapshot[];
   posts: OperationsPost[];
   canManage: boolean;
+  viewerId: number;
+  members: OperationsMember[];
 }
 
-export type OperationsItemInput = Pick<OperationsItem, "title" | "kind" | "stage" | "owner" | "intervalDays" | "nextAction" | "nextCheckAt" | "status">;
+export type OperationsItemInput = Pick<OperationsItem, "title" | "kind" | "platforms" | "intervalDays" | "nextAction" | "nextCheckAt" | "status"> & { copyFromItemId?: number };
 export type OperationsUpdateInput = Pick<OperationsUpdate, "content" | "kind" | "link" | "publishedOn">;
 
-export function recordOperationsStage(id: number, stage: string | null) {
-  return apiRequest<{ id: number }>(`/api/operations/progress/${id}/stage`, {
-    method: "POST",
-    body: stage === null ? { confirm: true } : { stage },
+export function addOperationsStep(itemId: number, title: string) {
+  return apiRequest<OperationsStep>(`/api/operations/progress/${itemId}/steps`, { method: "POST", body: { title } });
+}
+
+export function saveOperationsStep(itemId: number, stepId: number, changes: Partial<Pick<OperationsStep, "title" | "assigneeId" | "status" | "blockReason">>) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, {
+    method: "PATCH", body: changes,
   });
 }
 
-export function undoOperationsStage(id: number, updateId: number) {
-  return apiRequest<{ id: number }>(`/api/operations/progress/${id}/stage/undo`, {
-    method: "POST",
-    body: { updateId },
-  });
+export function deleteOperationsStep(itemId: number, stepId: number) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, { method: "DELETE" });
 }
 
 export function getOperationsBoard() {
@@ -126,7 +131,7 @@ export function getOperationsAttention(item: OperationsItem, now = new Date()): 
     return expected && expected < now ? "overdue" : item.lastCompletedOn ? "active" : "pending";
   }
   if (item.nextCheckAt && new Date(item.nextCheckAt) < now) return "overdue";
-  return item.lastUpdate || (item.kind === "video" && item.stage !== "unconfirmed") ? "active" : "pending";
+  return item.lastUpdate || item.steps?.some((step) => step.status !== "pending") || (item.kind === "video" && item.stage !== "unconfirmed") ? "active" : "pending";
 }
 
 export const operationsAttentionLabel: Record<OperationsAttention, string> = {

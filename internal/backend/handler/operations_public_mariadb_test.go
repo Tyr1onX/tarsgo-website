@@ -36,8 +36,8 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sqlDB.Close()
-	defer db.Migrator().DropTable(&model.OperationsPlatformPost{}, &model.OperationsAccountSnapshot{}, &model.OperationsProgressUpdate{}, &model.OperationsProgressItem{})
-	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressUpdate{}, &model.OperationsAccountSnapshot{}, &model.OperationsPlatformPost{}); err != nil {
+	defer db.Migrator().DropTable(&model.OperationsPlatformPost{}, &model.OperationsAccountSnapshot{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsProgressItem{})
+	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsAccountSnapshot{}, &model.OperationsPlatformPost{}); err != nil {
 		t.Fatal(err)
 	}
 	item := model.OperationsProgressItem{Title: "B站运营", Kind: "channel", Owner: "内部负责人", NextAction: "内部沟通计划", Status: "active"}

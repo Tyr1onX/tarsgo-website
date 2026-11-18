@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 
 type OperationsProgressHandler struct{ db *gorm.DB }
 
+var errOperationsCopySource = errors.New("invalid operations copy source")
+
 func NewOperationsProgressHandler(db *gorm.DB) *OperationsProgressHandler {
 	return &OperationsProgressHandler{db: db}
 }
@@ -23,8 +26,8 @@ func NewOperationsProgressHandler(db *gorm.DB) *OperationsProgressHandler {
 type operationsProgressInput struct {
 	Title        string     `json:"title"`
 	Kind         string     `json:"kind"`
-	Stage        string     `json:"stage"`
-	Owner        string     `json:"owner"`
+	Platforms    string     `json:"platforms"`
+	CopyFromID   uint64     `json:"copyFromItemId"`
 	IntervalDays int        `json:"intervalDays"`
 	NextAction   string     `json:"nextAction"`
 	NextCheckAt  *time.Time `json:"nextCheckAt"`
@@ -40,17 +43,25 @@ type operationsUpdateInput struct {
 
 type operationsProgressView struct {
 	model.OperationsProgressItem
-	LastUpdate         *model.OperationsProgressUpdate `json:"lastUpdate"`
-	LastCompletedOn    *string                         `json:"lastCompletedOn"`
-	LastStageChangedAt *time.Time                      `json:"lastStageChangedAt"`
-	LastConfirmedAt    *time.Time                      `json:"lastConfirmedAt"`
+	LastUpdate      *model.OperationsProgressUpdate `json:"lastUpdate"`
+	LastCompletedOn *string                         `json:"lastCompletedOn"`
+	Steps           []operationsStepView            `json:"steps"`
 }
 
 func validateOperationsProgress(input *operationsProgressInput) bool {
 	input.Title = strings.TrimSpace(input.Title)
-	input.Owner = strings.TrimSpace(input.Owner)
 	input.NextAction = strings.TrimSpace(input.NextAction)
-	if input.Title == "" || len([]rune(input.Title)) > 120 || len([]rune(input.Owner)) > 80 ||
+	input.Platforms = strings.TrimSpace(input.Platforms)
+	if input.Platforms != "" {
+		seen := map[string]bool{}
+		for _, platform := range strings.Split(input.Platforms, ",") {
+			if (platform != "douyin" && platform != "bilibili" && platform != "wechat") || seen[platform] {
+				return false
+			}
+			seen[platform] = true
+		}
+	}
+	if input.Title == "" || len([]rune(input.Title)) > 120 ||
 		len([]rune(input.NextAction)) > 300 || input.IntervalDays < 0 || input.IntervalDays > 365 {
 		return false
 	}
@@ -60,13 +71,10 @@ func validateOperationsProgress(input *operationsProgressInput) bool {
 	if input.Kind != "workstream" && input.Kind != "channel" && input.Kind != "video" && input.Kind != "merchandise" {
 		return false
 	}
-	if !validOperationsStage(input.Kind, input.Stage) {
+	if input.CopyFromID != 0 && input.Kind != "video" && input.Kind != "merchandise" {
 		return false
 	}
 	if input.Kind != "workstream" && input.IntervalDays != 0 {
-		return false
-	}
-	if input.Kind == "workstream" && input.IntervalDays == 0 && input.Status != "done" && input.NextCheckAt == nil {
 		return false
 	}
 	// A recurring item's next review is calculated from recorded completions.
@@ -148,8 +156,51 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 	views := make([]operationsProgressView, len(items))
 	byID := make(map[uint64]int, len(items))
 	for i, item := range items {
-		views[i] = operationsProgressView{OperationsProgressItem: item}
+		views[i] = operationsProgressView{OperationsProgressItem: item, Steps: []operationsStepView{}}
 		byID[item.ID] = i
+	}
+
+	// Load every workflow step once; derive parent state instead of storing a second copy.
+	var steps []model.OperationsProgressStep
+	if err := h.db.WithContext(c.Request.Context()).Order("item_id, position, id").Find(&steps).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "运营环节读取失败")
+		return
+	}
+	needsMembers := canManage
+	for _, step := range steps {
+		if step.AssigneeID != nil {
+			needsMembers = true
+			break
+		}
+	}
+	var members []operationsMember
+	if needsMembers {
+		members, err = h.members(c.Request.Context())
+		if err != nil {
+			writeAPIError(c, http.StatusInternalServerError, "运营成员读取失败")
+			return
+		}
+	}
+	names := make(map[uint64]string, len(members))
+	for _, member := range members {
+		names[member.ID] = member.Name
+	}
+	for _, step := range steps {
+		if at, exists := byID[step.ItemID]; exists {
+			name := ""
+			if step.AssigneeID != nil {
+				name = names[*step.AssigneeID]
+				if name == "" {
+					name = "成员 #" + strconv.FormatUint(*step.AssigneeID, 10)
+				}
+			}
+			views[at].Steps = append(views[at].Steps, operationsStepView{OperationsProgressStep: step, AssigneeName: name})
+		}
+	}
+	for i := range views {
+		if status, stage := operationsStepState(views[i].Steps); status != "" {
+			views[i].Status, views[i].Stage = status, stage
+		}
 	}
 
 	// One batch for the latest note per item; no per-item database round trips.
@@ -183,25 +234,6 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		}
 	}
 
-	type activity struct {
-		ItemID        uint64
-		LastChanged   *time.Time
-		LastConfirmed *time.Time
-	}
-	var activities []activity
-	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressUpdate{}).
-		Select("item_id, MAX(CASE WHEN kind = 'stage' THEN created_at END) AS last_changed, MAX(CASE WHEN kind IN ('stage','confirmed') THEN created_at END) AS last_confirmed").
-		Group("item_id").Scan(&activities).Error; err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "阶段进度读取失败")
-		return
-	}
-	for _, entry := range activities {
-		if at, exists := byID[entry.ItemID]; exists {
-			views[at].LastStageChangedAt = entry.LastChanged
-			views[at].LastConfirmedAt = entry.LastConfirmed
-		}
-	}
-
 	var snapshots []model.OperationsAccountSnapshot
 	if err := h.db.WithContext(c.Request.Context()).Order("observed_on ASC").Find(&snapshots).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "账号历史数据读取失败")
@@ -232,7 +264,16 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "运营进展读取失败")
 		return
 	}
-	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots, "posts": posts, "canManage": canManage})
+	user, _ := middleware.CurrentSessionUser(c)
+	var viewerID uint64
+	if user != nil {
+		viewerID = user.ID
+	}
+	if !canManage {
+		members = nil
+	}
+	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots,
+		"posts": posts, "canManage": canManage, "viewerId": viewerID, "members": members})
 }
 
 func (h *OperationsProgressHandler) Create(c *gin.Context) {
@@ -241,14 +282,53 @@ func (h *OperationsProgressHandler) Create(c *gin.Context) {
 	}
 	var input operationsProgressInput
 	if c.ShouldBindJSON(&input) != nil || !validateOperationsProgress(&input) {
-		writeAPIError(c, http.StatusBadRequest, "请检查事项名称、负责人和跟进安排")
+		writeAPIError(c, http.StatusBadRequest, "请检查事项名称和跟进安排")
 		return
 	}
 	item := model.OperationsProgressItem{
-		Title: input.Title, Kind: input.Kind, Stage: input.Stage, Owner: input.Owner, IntervalDays: input.IntervalDays,
-		NextAction: input.NextAction, NextCheckAt: input.NextCheckAt, Status: input.Status,
+		Title: input.Title, Kind: input.Kind, Platforms: input.Platforms,
+		IntervalDays: input.IntervalDays, NextAction: input.NextAction,
+		NextCheckAt: input.NextCheckAt, Status: input.Status,
 	}
-	if err := h.db.WithContext(c.Request.Context()).Create(&item).Error; err != nil {
+	if len(model.OperationsStepPresets(input.Kind)) > 0 {
+		item.Stage = "unconfirmed" // Archived legacy field; step rows own live progress.
+	}
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		presets := model.OperationsStepPresets(item.Kind)
+		if len(presets) == 0 {
+			return nil
+		}
+		previous := map[string]*uint64{}
+		if input.CopyFromID != 0 {
+			var source model.OperationsProgressItem
+			if err := tx.First(&source, input.CopyFromID).Error; err != nil || source.Kind != item.Kind {
+				return errOperationsCopySource
+			}
+			var sourceSteps []model.OperationsProgressStep
+			if err := tx.Where("item_id = ?", source.ID).Find(&sourceSteps).Error; err != nil {
+				return err
+			}
+			for _, step := range sourceSteps {
+				previous[step.Key] = step.AssigneeID
+			}
+		}
+		steps := make([]model.OperationsProgressStep, 0, len(presets))
+		for i, preset := range presets {
+			steps = append(steps, model.OperationsProgressStep{
+				ItemID: item.ID, Key: preset.Key, Title: preset.Title, Position: i,
+				Status: "pending", AssigneeID: previous[preset.Key],
+			})
+		}
+		return tx.Create(&steps).Error
+	})
+	if errors.Is(err, errOperationsCopySource) {
+		writeAPIError(c, http.StatusBadRequest, "请选择同类型的已有事项复制分工")
+		return
+	}
+	if err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "创建事项失败")
 		return
 	}
@@ -266,7 +346,7 @@ func (h *OperationsProgressHandler) Update(c *gin.Context) {
 	}
 	var input operationsProgressInput
 	if c.ShouldBindJSON(&input) != nil || !validateOperationsProgress(&input) {
-		writeAPIError(c, http.StatusBadRequest, "请检查事项名称、负责人和跟进安排")
+		writeAPIError(c, http.StatusBadRequest, "请检查事项名称和跟进安排")
 		return
 	}
 	var existing model.OperationsProgressItem
@@ -278,14 +358,24 @@ func (h *OperationsProgressHandler) Update(c *gin.Context) {
 		}
 		return
 	}
-	if existing.Stage != input.Stage {
-		writeAPIError(c, http.StatusConflict, "请直接点击进度条更新阶段")
+	if existing.Kind != input.Kind {
+		writeAPIError(c, http.StatusConflict, "创建后不能变更事项类型")
 		return
 	}
-	result := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressItem{}).Where("id = ?", id).
-		Updates(map[string]any{"title": input.Title, "kind": input.Kind, "stage": input.Stage, "owner": input.Owner,
-			"interval_days": input.IntervalDays, "next_action": input.NextAction,
-			"next_check_at": input.NextCheckAt, "status": input.Status})
+	var stepCount int64
+	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressStep{}).
+		Where("item_id = ?", id).Count(&stepCount).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "读取环节失败")
+		return
+	}
+	values := map[string]any{"title": input.Title, "platforms": input.Platforms,
+		"interval_days": input.IntervalDays, "next_action": input.NextAction,
+		"next_check_at": input.NextCheckAt}
+	if stepCount == 0 {
+		values["status"] = input.Status
+	}
+	result := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressItem{}).
+		Where("id = ?", id).Updates(values)
 	if result.Error != nil {
 		writeAPIError(c, http.StatusInternalServerError, "保存事项失败")
 		return
@@ -329,6 +419,17 @@ func (h *OperationsProgressHandler) AddUpdate(c *gin.Context) {
 	}
 	if item.Status == "done" {
 		writeAPIError(c, http.StatusConflict, "已结束的事项不能追加进展")
+		return
+	}
+	var counts struct{ Total, Open int64 }
+	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressStep{}).
+		Select("COUNT(*) AS total, COALESCE(SUM(CASE WHEN status != 'done' THEN 1 ELSE 0 END), 0) AS open").
+		Where("item_id = ?", id).Scan(&counts).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "读取环节状态失败")
+		return
+	}
+	if counts.Total > 0 && counts.Open == 0 {
+		writeAPIError(c, http.StatusConflict, "已完成的事项不能追加进展")
 		return
 	}
 	if input.Kind == "completed" && item.IntervalDays == 0 && item.Kind != "channel" {

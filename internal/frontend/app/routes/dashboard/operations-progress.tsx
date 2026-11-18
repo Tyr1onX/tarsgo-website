@@ -4,6 +4,9 @@ import { useLocation } from "react-router";
 import { assignmentDeadlineToISOString, shanghaiDateTimeLocal } from "~/lib/assignment-deadline";
 import {
   createOperationsItem,
+  addOperationsStep,
+  saveOperationsStep,
+  deleteOperationsStep,
   daysSinceOperationsPublish,
   formatOperationsDate,
   formatOperationsDay,
@@ -14,12 +17,9 @@ import {
   nextOperationsDate,
   operationsAttentionLabel,
   recordOperationsUpdate,
-  recordOperationsStage,
-  undoOperationsStage,
   saveOperationsItem,
   sortOperationsItems,
-  videoStageLabels,
-  merchandiseStageLabels,
+  type OperationsStepStatus,
   type OperationsSnapshot,
   type OperationsBoard,
   type OperationsItem,
@@ -34,7 +34,7 @@ export function meta() {
 }
 
 const initialItem: OperationsItemInput = {
-  title: "", kind: "workstream", stage: "", owner: "", intervalDays: 0, nextAction: "", nextCheckAt: null, status: "active",
+  title: "", kind: "workstream", platforms: "", intervalDays: 0, nextAction: "", nextCheckAt: null, status: "active",
 };
 
 function OperationsProgressSkeleton() {
@@ -91,12 +91,7 @@ function FollowerTrend({ platform, snapshots }: { platform: "bilibili" | "douyin
   </div>;
 }
 
-function History({ itemId, latestActionID, busy, onUndo }: {
-  itemId: number;
-  latestActionID: number | null;
-  busy: boolean;
-  onUndo: (updateID: number) => void;
-}) {
+function History({ itemId }: { itemId: number }) {
   const [history, setHistory] = useState<OperationsUpdate[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -116,9 +111,6 @@ function History({ itemId, latestActionID, busy, onUndo }: {
       <time dateTime={entry.publishedOn || entry.createdAt}>{formatOperationsUpdateDate(entry)}</time>
       <span>{entry.kind === "reverted" ? "已撤回 · " : entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</span>
       {entry.link ? <a href={entry.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}
-      {entry.id === latestActionID && (entry.kind === "stage" || entry.kind === "confirmed") ? (
-        <button type="button" disabled={busy} onClick={() => onUndo(entry.id)}>{busy ? "撤回中…" : "撤回"}</button>
-      ) : null}
     </li>,
   )}</ol>;
 }
@@ -133,9 +125,18 @@ export default function OperationsProgressPage() {
   const [updating, setUpdating] = useState<number | null>(null);
   const [updateForm, setUpdateForm] = useState<OperationsUpdateInput>({ content: "", kind: "progress", link: "", publishedOn: null });
   const [saving, setSaving] = useState(false);
-  const [savingStage, setSavingStage] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [historyItem, setHistoryItem] = useState<number | null>(null);
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  const [stepBusy, setStepBusy] = useState<number | null>(null);
+  const [stepError, setStepError] = useState("");
+  const [blockReason, setBlockReason] = useState("");
+  const [stepTitle, setStepTitle] = useState("");
+  const [addingStepTo, setAddingStepTo] = useState<number | null>(null);
+  const [newStepTitle, setNewStepTitle] = useState("");
+  const [copyFromItemId, setCopyFromItemId] = useState(0);
+  const [viewMode, setViewMode] = useState<"all" | "mine" | "blocked">("all");
+  const [platformFilter, setPlatformFilter] = useState("all");
 
   const load = useCallback(async () => {
     try {
@@ -163,9 +164,10 @@ export default function OperationsProgressPage() {
     setUpdating(null);
     setEditing(item?.id ?? "new");
     setItemForm(item ? {
-      title: item.title, kind: item.kind, stage: item.stage, owner: item.owner, intervalDays: item.intervalDays,
+      title: item.title, kind: item.kind, platforms: item.platforms, intervalDays: item.intervalDays,
       nextAction: item.nextAction, nextCheckAt: item.nextCheckAt, status: item.status,
     } : { ...initialItem });
+    setCopyFromItemId(0);
     setError("");
   }
 
@@ -174,7 +176,7 @@ export default function OperationsProgressPage() {
     setSaving(true);
     setError("");
     try {
-      if (editing === "new") await createOperationsItem(itemForm);
+      if (editing === "new") await createOperationsItem({ ...itemForm, copyFromItemId });
       else if (typeof editing === "number") await saveOperationsItem(editing, itemForm);
       await load();
       setEditing(null);
@@ -202,31 +204,60 @@ export default function OperationsProgressPage() {
     }
   }
 
-  async function submitStage(itemId: number, stage: string | null) {
-    setSavingStage(itemId);
-    setError("");
+  async function changeStep(itemId: number, stepId: number, changes: Parameters<typeof saveOperationsStep>[2]) {
+    setStepBusy(stepId);
+    setStepError("");
     try {
-      await recordOperationsStage(itemId, stage);
+      await saveOperationsStep(itemId, stepId, changes);
       await load();
-      setHistoryItem(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "阶段更新失败");
+      setStepError(reason instanceof Error ? reason.message : "环节更新失败");
     } finally {
-      setSavingStage(null);
+      setStepBusy(null);
     }
   }
 
-  async function submitUndo(itemId: number, updateId: number) {
-    setSavingStage(itemId);
-    setError("");
+  async function addStep(itemId: number) {
+    const title = newStepTitle.trim();
+    if (!title) return;
+    setStepBusy(-1);
+    setStepError("");
     try {
-      await undoOperationsStage(itemId, updateId);
+      await addOperationsStep(itemId, title);
       await load();
+      setNewStepTitle("");
+      setAddingStepTo(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "撤回失败");
+      setStepError(reason instanceof Error ? reason.message : "环节添加失败");
     } finally {
-      setSavingStage(null);
+      setStepBusy(null);
     }
+  }
+
+  async function removeStep(itemId: number, stepId: number) {
+    setStepBusy(stepId);
+    setStepError("");
+    try {
+      await deleteOperationsStep(itemId, stepId);
+      await load();
+      setSelectedStep(null);
+    } catch (reason) {
+      setStepError(reason instanceof Error ? reason.message : "环节移除失败");
+    } finally {
+      setStepBusy(null);
+    }
+  }
+
+  function renderAddStepControl(itemId: number) {
+    if (!board?.canManage) return null;
+    return addingStepTo === itemId
+      ? <form className="operations-progress__add-step" onSubmit={(event) => { event.preventDefault(); void addStep(itemId); }}>
+        <input required maxLength={80} placeholder="新环节名称" value={newStepTitle} disabled={stepBusy !== null} onChange={(event) => setNewStepTitle(event.target.value)} />
+        <button type="submit" disabled={stepBusy !== null}>添加</button>
+        <button type="button" onClick={() => setAddingStepTo(null)}>取消</button>
+      </form>
+      : <button type="button" className="operations-progress__add-step-trigger"
+        onClick={() => { setAddingStepTo(itemId); setNewStepTitle(""); }}>添加环节</button>;
   }
 
   function renderItemEditor() {
@@ -235,11 +266,9 @@ export default function OperationsProgressPage() {
           <h2>{editing === "new" ? "新增事项" : "编辑事项"}</h2>
           <label>事项名称<input required maxLength={120} value={itemForm.title} onChange={(event) => setItemForm((current) => ({ ...current, title: event.target.value }))} /></label>
           <div className="operations-progress__form-grid">
-            <label>负责人<input maxLength={80} value={itemForm.owner} onChange={(event) => setItemForm((current) => ({ ...current, owner: event.target.value }))} /></label>
-            <label>类型<select value={itemForm.kind === "workstream" && itemForm.intervalDays > 0 ? "recurring" : itemForm.kind} onChange={(event) => setItemForm((current) => ({
+            <label>类型<select disabled={editing !== "new"} value={itemForm.kind === "workstream" && itemForm.intervalDays > 0 ? "recurring" : itemForm.kind} onChange={(event) => setItemForm((current) => ({
               ...current,
               kind: event.target.value === "recurring" ? "workstream" : event.target.value as OperationsItemInput["kind"],
-              stage: event.target.value === "video" || event.target.value === "merchandise" ? "unconfirmed" : "",
               intervalDays: event.target.value === "recurring" ? 7 : 0,
               nextCheckAt: null,
             }))}>
@@ -249,12 +278,28 @@ export default function OperationsProgressPage() {
           <div className="operations-progress__form-grid">
             {itemForm.intervalDays > 0
               ? <label>更新周期（天）<input type="number" required min="1" max="365" value={itemForm.intervalDays} onChange={(event) => setItemForm((current) => ({ ...current, intervalDays: Number(event.target.value) }))} /></label>
-              : <label>下次跟进（北京时间）<input type="datetime-local" required={itemForm.kind === "workstream" && itemForm.status !== "done"} value={localDateTime(itemForm.nextCheckAt)} onChange={(event) => setItemForm((current) => ({ ...current, nextCheckAt: assignmentDeadlineToISOString(event.target.value) }))} /></label>}
-            <label>状态<select value={itemForm.status} onChange={(event) => setItemForm((current) => ({ ...current, status: event.target.value as OperationsItemInput["status"] }))}>
+              : <label>下次跟进（北京时间）<input type="datetime-local" value={localDateTime(itemForm.nextCheckAt)} onChange={(event) => setItemForm((current) => ({ ...current, nextCheckAt: assignmentDeadlineToISOString(event.target.value) }))} /></label>}
+            {itemForm.kind !== "video" && itemForm.kind !== "merchandise" && !(typeof editing === "number" && board?.items.find((item) => item.id === editing)?.steps.length) ? <label>状态<select value={itemForm.status} onChange={(event) => setItemForm((current) => ({ ...current, status: event.target.value as OperationsItemInput["status"] }))}>
               <option value="active">进行中</option><option value="blocked">遇到阻塞</option><option value="done">已结束</option>
-            </select></label>
+            </select></label> : null}
           </div>
-          <label>下一步<input maxLength={300} value={itemForm.nextAction} onChange={(event) => setItemForm((current) => ({ ...current, nextAction: event.target.value }))} /></label>
+          {itemForm.kind !== "video" && itemForm.kind !== "merchandise" && !(typeof editing === "number" && board?.items.find((item) => item.id === editing)?.steps.length) ? <label>下一步<input maxLength={300} value={itemForm.nextAction} onChange={(event) => setItemForm((current) => ({ ...current, nextAction: event.target.value }))} /></label> : null}
+          {itemForm.kind !== "merchandise" ? <fieldset className="operations-progress__platforms">
+            <legend>关联平台</legend>
+            {([["douyin", "抖音"], ["bilibili", "B站"], ["wechat", "公众号"]] as const).map(([key, label]) => (
+              <label key={key}><input type="checkbox" checked={itemForm.platforms.split(",").includes(key)} onChange={(event) => setItemForm((current) => ({
+                ...current, platforms: (event.target.checked
+                  ? [...current.platforms.split(",").filter(Boolean), key]
+                  : current.platforms.split(",").filter((value) => value !== key)).join(","),
+              }))} />{label}</label>
+            ))}
+          </fieldset> : null}
+          {editing === "new" && (itemForm.kind === "video" || itemForm.kind === "merchandise") && board?.items.some((item) => item.kind === itemForm.kind && item.steps.length) ? <label>沿用已有分工（选填）
+            <select value={copyFromItemId} onChange={(event) => setCopyFromItemId(Number(event.target.value))}>
+              <option value={0}>暂不复制</option>
+              {board.items.filter((item) => item.kind === itemForm.kind && item.steps.length).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+            </select>
+          </label> : null}
           <div className="operations-progress__actions">
             <button className="admin-button admin-button--primary" disabled={saving}>{saving ? "保存中…" : "保存"}</button>
             <button className="admin-button admin-button--secondary" type="button" disabled={saving} onClick={() => setEditing(null)}>取消</button>
@@ -263,7 +308,11 @@ export default function OperationsProgressPage() {
     );
   }
 
-  const visibleItems = sortOperationsItems(board?.items ?? []).filter((item) => showDone || item.status !== "done");
+  const visibleItems = sortOperationsItems(board?.items ?? []).filter((item) =>
+    (showDone || item.status !== "done")
+    && (viewMode === "all" || viewMode === "blocked" && getOperationsAttention(item) === "blocked"
+      || viewMode === "mine" && item.steps.some((step) => step.assigneeId === board?.viewerId))
+    && (platformFilter === "all" || item.platforms.split(",").includes(platformFilter)));
   const attentionCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "overdue").length;
   const blockedCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "blocked").length;
   const doneCount = (board?.items ?? []).filter((item) => item.status === "done").length;
@@ -299,43 +348,87 @@ export default function OperationsProgressPage() {
           <h2>运营事项</h2>
           {doneCount > 0 ? <label className="operations-progress__toggle"><input type="checkbox" checked={showDone} onChange={(event) => setShowDone(event.target.checked)} />显示已结束（{doneCount}）</label> : null}
         </div>
-        {visibleItems.length === 0 && !editing ? <p className="operations-progress__muted">暂无运营事项{board.canManage ? "，可新增事项开始记录" : ""}。</p> : null}
+        <div className="operations-progress__filters" aria-label="运营事项筛选">
+          {([["all", "全部事项"], ["mine", "我的任务"], ["blocked", "卡点"]] as const).map(([key, label]) =>
+            <button type="button" className={viewMode === key ? "is-selected" : ""} aria-pressed={viewMode === key}
+              key={key} onClick={() => setViewMode(key)}>{label}</button>)}
+          <select aria-label="按平台筛选" value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}>
+            <option value="all">全部平台</option>
+            <option value="douyin">抖音</option>
+            <option value="bilibili">B站</option>
+            <option value="wechat">公众号</option>
+          </select>
+        </div>
+        {visibleItems.length === 0 && !editing ? <p className="operations-progress__muted">当前筛选下暂无事项</p> : null}
         <div className="operations-progress__items">
           {visibleItems.map((item) => {
             const attention = getOperationsAttention(item);
             const due = nextOperationsDate(item);
             return <article id={`operations-item-${item.id}`} className="operations-progress__item" key={item.id}>
               <div className="operations-progress__item-head">
-                <div><h3>{item.title}</h3><p className="operations-progress__muted">{item.owner || "负责人待定"} · {item.kind === "channel" ? "账号运营" : item.kind === "video" ? "视频制作" : item.kind === "merchandise" ? "周边制作" : item.intervalDays > 0 ? `每 ${item.intervalDays} 天更新` : "长期推进"}</p></div>
+                <div><h3>{item.title}</h3><p className="operations-progress__muted">{item.kind === "channel" ? "账号运营" : item.kind === "video" ? "视频制作" : item.kind === "merchandise" ? "周边制作" : item.intervalDays > 0 ? `每 ${item.intervalDays} 天更新` : "长期推进"}{item.platforms ? " · " + item.platforms.split(",").map((key) => ({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[key] || key).join(" / ") : ""}</p></div>
                 <span className={`operations-progress__status operations-progress__status--${attention}`}>{operationsAttentionLabel[attention]}</span>
               </div>
-              {item.kind === "video" || item.kind === "merchandise" ? <div className="operations-progress__video-stages" aria-label="事项流程">
-                <ol>{(item.kind === "video" ? videoStageLabels : merchandiseStageLabels).map((stage, index, stages) => {
-                  const current = stages.findIndex(({ key }) => key === item.stage);
-                  return <li key={stage.key} className={index < current ? "is-complete" : index === current ? "is-current" : ""}>
-                    {board.canManage && item.status !== "done" ? <button type="button" disabled={savingStage !== null || index === current}
-                      className="operations-progress__step-button"
-                      aria-label={`将${item.title}更新至${stage.label}`}
-                      aria-current={index === current ? "step" : undefined}
-                      onClick={() => void submitStage(item.id, stage.key)}>
-                      <span className="operations-progress__step-marker" aria-hidden="true">{index < current ? "✓" : index + 1}</span>
-                      <span>{stage.label}</span>
-                    </button> : <><span className="operations-progress__step-marker" aria-hidden="true">{index < current ? "✓" : index + 1}</span><span>{stage.label}</span></>}
-                  </li>;
-                })}</ol>
-                <div className="operations-progress__stage-meta">
-                  <span>{item.stage === "unconfirmed" ? "阶段待确认" : "阶段已确认"}</span>
-                  <span>上次变化：{formatOperationsDate(item.lastStageChangedAt)}</span>
-                  <span>上次确认：{formatOperationsDate(item.lastConfirmedAt)}</span>
-                  {board.canManage && item.status !== "done" && item.stage !== "unconfirmed" ? <button type="button" disabled={savingStage !== null}
-                    onClick={() => void submitStage(item.id, null)}>进度无变化，确认已跟进</button> : null}
-                </div>
+              {item.steps.length > 0 ? <div className="operations-progress__video-stages" aria-label="事项流程">
+                <ol style={{ gridTemplateColumns: `repeat(${item.steps.length}, minmax(6rem, 1fr))` }}>
+                  {item.steps.map((step, index) => <li key={step.id} className={step.status === "done" ? "is-complete" : step.status === "active" ? "is-current" : step.status === "blocked" ? "is-blocked" : ""}>
+                    <button type="button" className="operations-progress__step-button" aria-expanded={selectedStep === step.id}
+                      onClick={() => {
+                        setSelectedStep(selectedStep === step.id ? null : step.id);
+                        setBlockReason(step.blockReason);
+                        setStepTitle(step.title);
+                        setStepError("");
+                      }}>
+                      <span className="operations-progress__step-marker" aria-hidden="true">{step.status === "done" ? "✓" : index + 1}</span>
+                      <span>{step.title}</span>
+                      <small>{step.assigneeName || "待分配"}</small>
+                      <small>{({ pending: "待处理", active: "进行中", blocked: "受阻", done: "已完成" } as Record<OperationsStepStatus, string>)[step.status]}</small>
+                    </button>
+                  </li>)}
+                </ol>
+                {item.steps.filter((step) => step.status === "blocked").map((step) =>
+                  <p className="operations-progress__blocker" key={step.id}>
+                    <strong>{step.title} · {step.assigneeName || "待分配"}</strong>：{step.blockReason || "卡点原因待补充"}
+                  </p>)}
+                {item.steps.filter((step) => step.id === selectedStep).map((step) => <div className="operations-progress__step-detail" key={step.id}>
+                  <strong>{step.title}</strong>
+                  {board.canManage ? <label>环节名称
+                    <input maxLength={80} value={stepTitle} disabled={stepBusy !== null} onChange={(event) => setStepTitle(event.target.value)} />
+                  </label> : null}
+                  {board.canManage && stepTitle.trim() && stepTitle.trim() !== step.title ? <button type="button" disabled={stepBusy !== null}
+                    onClick={() => void changeStep(item.id, step.id, { title: stepTitle.trim() })}>保存名称</button> : null}
+                  {board.canManage ? <label>负责人
+                    <select value={step.assigneeId ?? 0} disabled={stepBusy !== null}
+                      onChange={(event) => void changeStep(item.id, step.id, { assigneeId: Number(event.target.value) })}>
+                      <option value={0}>待分配</option>
+                      {board.members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+                    </select>
+                  </label> : null}
+                  {(board.canManage || step.assigneeId === board.viewerId) ? <>
+                    <div className="operations-progress__actions">
+                      {([["pending", "待处理"], ["active", "进行中"], ["done", "已完成"]] as const).map(([status, label]) =>
+                        <button key={status} className={step.status === status ? "is-selected" : ""} type="button"
+                          disabled={stepBusy !== null || step.status === status} onClick={() => void changeStep(item.id, step.id, { status })}>{label}</button>)}
+                    </div>
+                    <label>卡点原因
+                      <input maxLength={300} value={blockReason} disabled={stepBusy !== null} onChange={(event) => setBlockReason(event.target.value)} />
+                    </label>
+                    <button type="button" disabled={stepBusy !== null || !blockReason.trim()}
+                      onClick={() => void changeStep(item.id, step.id, { status: "blocked", blockReason })}>标记受阻</button>
+                  </> : null}
+                  {step.completedAt ? <span className="operations-progress__muted">完成于 {formatOperationsDate(step.completedAt)}</span> : null}
+                  {board.canManage && step.status !== "done" ? <button type="button" disabled={stepBusy !== null}
+                    onClick={() => void removeStep(item.id, step.id)}>移除环节</button> : null}
+                  {stepError ? <p role="alert" className="operations-progress__error">{stepError}</p> : null}
+                </div>)}
+                {renderAddStepControl(item.id)}
               </div> : null}
+              {item.steps.length === 0 ? renderAddStepControl(item.id) : null}
               <div className="operations-progress__item-body">
                 {item.lastUpdate ? <p><span>最近进展</span>{item.lastUpdate.content} <time dateTime={item.lastUpdate.publishedOn || item.lastUpdate.createdAt}>（{formatOperationsUpdateDate(item.lastUpdate)}）</time>
                   {item.lastUpdate.link ? <a href={item.lastUpdate.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}</p> : null}
                 {item.kind === "channel" ? <p><span>上次发布</span><strong>{formatOperationsDay(item.lastCompletedOn)}</strong>{daysSinceOperationsPublish(item.lastCompletedOn) !== null ? <small>（距今 {daysSinceOperationsPublish(item.lastCompletedOn)} 天）</small> : null}</p> : item.intervalDays > 0 ? <p><span>上次完成</span>{formatOperationsDay(item.lastCompletedOn)}</p> : null}
-                {item.status !== "done" && (item.nextAction || due) ? <p><span>下一步</span>{item.nextAction || "待跟进"}{due ? <time dateTime={due.toISOString()}> · {formatOperationsDate(due)}</time> : null}</p> : null}
+                {item.status !== "done" && item.steps.length === 0 && (item.nextAction || due) ? <p><span>下一步</span>{item.nextAction || "待跟进"}{due ? <time dateTime={due.toISOString()}> · {formatOperationsDate(due)}</time> : null}</p> : null}
               </div>
               <div className="operations-progress__item-actions">
                 {board.canManage ? <button type="button" onClick={() => setHistoryItem(historyItem === item.id ? null : item.id)}>{historyItem === item.id ? "收起记录" : "最近记录"}</button> : null}
@@ -350,9 +443,7 @@ export default function OperationsProgressPage() {
                 </> : null}
               </div>
               {editing === item.id && board.canManage ? renderItemEditor() : null}
-              {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id}
-                latestActionID={board.canManage && item.status !== "done" && (item.lastUpdate?.kind === "stage" || item.lastUpdate?.kind === "confirmed") ? item.lastUpdate.id : null}
-                busy={savingStage !== null} onUndo={(updateId) => void submitUndo(item.id, updateId)} /> : null}
+              {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id} /> : null}
               {updating === item.id && board.canManage ? <form className="operations-progress__update-form" onSubmit={(event) => void submitUpdate(event)}>
                 {item.kind === "channel" || item.intervalDays > 0 ? <label>记录类型<select value={updateForm.kind} onChange={(event) => setUpdateForm((current) => ({ ...current, kind: event.target.value as OperationsUpdateInput["kind"], publishedOn: null }))}>
                   <option value="completed">{item.kind === "channel" ? "发布新内容" : "本期已完成"}</option><option value="progress">进展备注</option>
