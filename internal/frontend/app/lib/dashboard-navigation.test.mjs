@@ -189,12 +189,12 @@ test("training materials retain the uploaded group routes and the shared video r
   assert.ok(content.includes("硬件组学习全部软件组内容"));
 });
 
-test("common foundations are a separate default document and retain original directions", async () => {
+test("common foundations remain accessible in the documentation hierarchy", async () => {
   const content = await readFile(new URL("../routes/dashboard/training-materials.tsx", import.meta.url), "utf8");
   const start = content.indexOf('id: "foundation"');
   const originalStart = content.indexOf('id: "electrical"');
   assert.ok(start >= 0 && start < originalStart);
-  assert.match(content, /materials\.find\(\(\{ id \}\) => id === searchParams\.get\("group"\)\) \?\? materials\[0\]/);
+  assert.ok(content.includes('{ key: "group:foundation", label: "通用基础概览", href: "?group=foundation" }'));
   const foundation = content.slice(start, originalStart);
   for (const part of ["计算机基础", "Git 与 GitHub", "Linux（Ubuntu）基础", "编程语言基础", "工程实践基础"]) {
     assert.ok(foundation.includes(part), part);
