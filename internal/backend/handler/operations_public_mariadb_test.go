@@ -36,8 +36,8 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sqlDB.Close()
-	defer db.Migrator().DropTable(&model.OperationsPlatformPost{}, &model.OperationsAccountSnapshot{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsProgressItem{})
-	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsAccountSnapshot{}, &model.OperationsPlatformPost{}); err != nil {
+	defer db.Migrator().DropTable(&model.OperationsPublication{}, &model.OperationsPlatformPost{}, &model.OperationsAccountSnapshot{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsProgressItem{})
+	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsAccountSnapshot{}, &model.OperationsPlatformPost{}, &model.OperationsPublication{}); err != nil {
 		t.Fatal(err)
 	}
 	item := model.OperationsProgressItem{Title: "B站运营", Kind: "channel", Owner: "内部负责人", NextAction: "内部沟通计划", Status: "active"}
@@ -63,7 +63,9 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/api/operations/progress", NewOperationsProgressHandler(db).List)
+	handler := NewOperationsProgressHandler(db)
+	router.GET("/api/operations/progress", handler.List)
+	router.GET("/api/operations/works", handler.Works)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/operations/progress", nil))
 	if response.Code != 200 {
@@ -77,14 +79,29 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	}
 	var wrapper struct {
 		Data struct {
-			Items []operationsProgressView       `json:"items"`
-			Posts []model.OperationsPlatformPost `json:"posts"`
+			Items []operationsProgressView `json:"items"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &wrapper); err != nil {
 		t.Fatal(err)
 	}
-	if len(wrapper.Data.Items) != 2 || len(wrapper.Data.Posts) != 1 {
-		t.Fatalf("workbench overview incorrect items=%d posts=%d", len(wrapper.Data.Items), len(wrapper.Data.Posts))
+	if len(wrapper.Data.Items) != 2 {
+		t.Fatalf("workbench overview incorrect items=%d", len(wrapper.Data.Items))
+	}
+	works := httptest.NewRecorder()
+	router.ServeHTTP(works, httptest.NewRequest(http.MethodGet, "/api/operations/works?platform=bilibili", nil))
+	if works.Code != http.StatusOK {
+		t.Fatalf("works API failed: %d %s", works.Code, works.Body.String())
+	}
+	var published struct {
+		Data struct {
+			Posts []model.OperationsPlatformPost `json:"posts"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(works.Body.Bytes(), &published); err != nil {
+		t.Fatal(err)
+	}
+	if len(published.Data.Posts) != 1 {
+		t.Fatalf("works API missing historical post: %+v", published.Data.Posts)
 	}
 }
