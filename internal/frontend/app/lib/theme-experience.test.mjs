@@ -64,30 +64,30 @@ test("independent campus lab keeps its original scene without a second theme sta
 });
 
 test("compact switch keeps a full-height hit target without a full-size canvas", () => {
-  const wrapper = styles.match(/\\.theme-glass-switch\\s*\\{([^}]*)\\}/)?.[1] ?? "";
-  const art = styles.match(/\\.theme-glass-switch__canvas\\s*\\{([^}]*)\\}/)?.[1] ?? "";
-  assert.match(wrapper, /width:\\s*60px/);
-  assert.match(wrapper, /height:\\s*44px/);
-  assert.match(art, /height:\\s*32px/);
+  const wrapper = styles.match(/\.theme-glass-switch\s*\{([^}]*)\}/)?.[1] ?? "";
+  const art = styles.match(/\.theme-glass-switch__canvas\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(wrapper, /width:\s*60px/);
+  assert.match(wrapper, /height:\s*44px/);
+  assert.match(art, /height:\s*32px/);
 });
 
 test("drag painting is frame-coalesced, and canvas geometry is not queried per frame", () => {
-  const dragging = themeControl.match(/const onMove = \\(event: PointerEvent\\) => \\{([\\s\\S]*?)\\n    \\};/)?.[1] ?? "";
-  assert.match(dragging, /requestPaint\\(\\)/);
-  assert.doesNotMatch(dragging, /paint\\(/);
-  assert.match(themeControl, /requestAnimationFrame\\(frame\\)/);
-  assert.match(themeControl, /scene\\.resize\\(\\)/);
-  assert.match(themeControl, /}, 750\\)/);
-  assert.match(glassScene, /const grains = paired\\.map/);
-  assert.match(glassScene, /const edgePoints = Array\\.from/);
+  const dragging = themeControl.match(/const onMove = \(event: PointerEvent\) => \{([\s\S]*?)\n    \};/)?.[1] ?? "";
+  assert.match(dragging, /requestPaint\(\)/);
+  assert.doesNotMatch(dragging, /paint\(/);
+  assert.match(themeControl, /requestAnimationFrame\(frame\)/);
+  assert.match(themeControl, /scene\.resize\(\)/);
+  assert.match(themeControl, /}, 750\)/);
+  assert.match(glassScene, /const grains = paired\.map/);
+  assert.match(glassScene, /const edgePoints = Array\.from/);
   const render = glassScene.slice(glassScene.indexOf("function render("));
   assert.doesNotMatch(render, /getBoundingClientRect/);
-  assert.doesNotMatch(render, /hash\\(/);
+  assert.doesNotMatch(render, /hash\(/);
 });
 
 test("page transition no longer assigns effects to every descendant", () => {
-  assert.match(styles, /html\\[data-theme-transition\\] :is\\(/);
-  assert.doesNotMatch(styles, /html\\[data-theme-transition\\] body \\*/);
-  assert.match(styles, /\\.dashboard-shell__sidebar/);
-  assert.match(styles, /\\.site-navbar/);
+  assert.match(styles, /html\[data-theme-transition\] :is\(/);
+  assert.doesNotMatch(styles, /html\[data-theme-transition\] body \*/);
+  assert.match(styles, /\.dashboard-shell__sidebar/);
+  assert.match(styles, /\.site-navbar/);
 });
