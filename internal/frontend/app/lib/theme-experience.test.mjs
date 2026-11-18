@@ -42,7 +42,7 @@ test("glass light switch restores the source's detailed renderer and continuous 
   assert.match(glassScene, /const half = mix\(\.22,\.19,a\)/);
   assert.match(glassScene, /const edgeSteps = 40/);
   assert.match(glassScene, /Math\.sin\(Math\.PI\*f\)\*1\.1/);
-  assert.match(glassScene, /ctx\.translate\(-10, -10\)/);
+  assert.match(glassScene, /ctx\.translate\(-45, -43\)/);
   assert.match(glassScene, /knob = \{ y: 70, size: 140, radius: 46, left: 72, travel: 156 \}/);
   assert.match(glassScene, /Math\.min\(window\.devicePixelRatio \|\| 1, 3\)/);
 });
@@ -60,9 +60,10 @@ test("compact switch keeps a full-height hit target without a full-size canvas",
   const art = styles.match(/\.theme-glass-switch__canvas\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(wrapper, /width:\s*60px/);
   assert.match(wrapper, /height:\s*44px/);
-  assert.match(art, /width:\s*72px/);
-  assert.match(art, /height:\s*44px/);
-  assert.match(art, /left:\s*-6px/);
+  assert.match(art, /width:\s*60px/);
+  assert.match(art, /height:\s*32px/);
+  assert.match(art, /left:\s*0/);
+  assert.match(art, /top:\s*6px/);
 });
 
 test("drag painting is frame-coalesced, and canvas geometry is not queried per frame", () => {
@@ -86,21 +87,21 @@ test("page transition no longer assigns effects to every descendant", () => {
   assert.match(styles, /\.site-navbar/);
 });
 
-test("transparent overscan preserves track size while leaving shadow clearance", () => {
-  assert.match(glassScene, /ctx\.setTransform\(width \/ 420, 0, 0, height \/ 260/);
-  assert.match(glassScene, /ctx\.translate\(-10, -10\)/);
-  assert.match(glassScene, /ctx\.clearRect\(0, 0, width, height\)/);
-  assert.match(styles, /\.theme-glass-switch__canvas\s*\{[^}]*background:\s*transparent/s);
+test("all glass painting is clipped to the capsule, with transparent outside pixels", () => {
+  const art = styles.match(/\.theme-glass-switch__canvas\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(art, /background:\s*transparent/);
   assert.match(glassScene, /getContext\("2d", \{ alpha: true \}\)/);
-  // The visible track remains essentially unchanged; only the transparent buffer grows.
-  const previous = [(60 - 45) * 60 / 350, 6 + (58 - 43) * 32 / 190, 320 * 60 / 350, 164 * 32 / 190];
-  const withBleed = [-6 + (60 - 10) * 72 / 420, (58 - 10) * 44 / 260, 320 * 72 / 420, 164 * 44 / 260];
-  for (let i = 0; i < previous.length; i++) {
-    assert.ok(Math.abs(previous[i] - withBleed[i]) < 0.5, `track geometry ${i} drifted`);
-  }
-  const sideMargin = (60 - 10) * 72 / 420;
-  const verticalMargin = (58 - 10) * 44 / 260;
-  const softShadowReach = (26 + 10) * 44 / 260;
-  assert.ok(sideMargin > 7 && verticalMargin > softShadowReach,
-    "the transparent overscan must extend beyond the track shadow");
+  assert.match(glassScene, /ctx\.clearRect\(0, 0, width, height\)/);
+
+  const render = glassScene.slice(glassScene.indexOf("function render("));
+  assert.match(render, /ctx\.setTransform\(width \/ 350, 0, 0, height \/ 190/);
+  assert.match(render, /ctx\.translate\(-45, -43\)/);
+  const clipping = render.indexOf("rounded(track.x, track.y, track.w, track.h, track.r);\n    ctx.clip();");
+  assert.ok(clipping >= 0, "capsule clip must match the original rounded track outline");
+  assert.ok(clipping < render.indexOf("ctx.fill();"), "clip must precede every filled surface");
+  assert.ok(clipping < render.indexOf("ctx.shadowBlur"), "clip must precede every remaining shadow");
+  assert.match(render, /ctx\.restore\(\);\s*\}\s*return \{ resize, render \}/);
+  assert.doesNotMatch(render, /rgba\(0,4,18,/);
+  assert.match(render, /ctx\.shadowBlur = mix\(22,16,a\)/);
+  assert.match(render, /ctx\.shadowBlur = pass \? 8 : 26/);
 });

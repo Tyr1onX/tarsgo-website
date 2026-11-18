@@ -157,18 +157,16 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.save();
-    // Keep the original track size, but render the shadow into an overscanned
-    // transparent canvas so the blur fades out before reaching bitmap edges.
-    ctx.setTransform(width / 420, 0, 0, height / 260, 0, 0);
-    ctx.translate(-10, -10);
+    ctx.setTransform(width / 350, 0, 0, height / 190, 0, 0);
+    ctx.translate(-45, -43);
+    // The capsule is the entire visual boundary: nothing may paint outside it.
+    rounded(track.x, track.y, track.w, track.h, track.r);
+    ctx.clip();
 
-    // Recessed track: cast shadow, inner cavity, and a thin ambient rim.
-    ctx.save();
+    // The recessed track keeps its inset shading; exterior drop shadows are removed.
     rounded(track.x,track.y,track.w,track.h,track.r);
     ctx.fillStyle = linear(track.y,track.y+track.h,color('trackTop',p),color('trackBot',p));
-    ctx.shadowColor = `rgba(0,4,18,${mix(.55,.12,a)})`;
-    ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; ctx.fill();
-    ctx.restore();
+    ctx.fill();
 
     ctx.save();
     rounded(track.x,track.y,track.w,track.h,track.r); ctx.clip();
