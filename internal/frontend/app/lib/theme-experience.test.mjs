@@ -1,15 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8");
 const themeControl = read("../components/theme-control.tsx");
 const glassScene = read("../components/glass-switch-scene.ts");
 const provider = read("../components/theme-provider.tsx");
-const labScene = read("../components/theme-lab-scene.ts");
-const lab = read("../routes/lab.tsx");
 const styles = read("../app.css");
-const labStyles = read("../routes/lab.css");
 const routes = read("../routes.ts");
 const footer = read("../components/public-footer.tsx");
 const navbar = read("../components/navbar.tsx");
@@ -45,22 +42,17 @@ test("glass light switch restores the source's detailed renderer and continuous 
   assert.match(glassScene, /const half = mix\(\.22,\.19,a\)/);
   assert.match(glassScene, /const edgeSteps = 40/);
   assert.match(glassScene, /Math\.sin\(Math\.PI\*f\)\*1\.1/);
-  assert.match(glassScene, /ctx\.translate\(-45, -43\)/);
+  assert.match(glassScene, /ctx\.translate\(-10, -10\)/);
   assert.match(glassScene, /knob = \{ y: 70, size: 140, radius: 46, left: 72, travel: 156 \}/);
   assert.match(glassScene, /Math\.min\(window\.devicePixelRatio \|\| 1, 3\)/);
 });
 
-test("independent campus lab keeps its original scene without a second theme state", () => {
-  assert.match(routes, /route\("lab", "routes\/lab\.tsx"\)/);
-  assert.match(footer, /to="\/lab"/);
-  assert.match(lab, /paintThemeLab\(/);
-  assert.match(lab, /type="range"/);
-  assert.match(lab, /aria-valuetext=\{clock\}/);
-  assert.match(lab, /<Navbar \/>/);
-  assert.match(lab, /<PublicFooter \/>/);
-  assert.doesNotMatch(lab, /setPreference|localStorage|requestAnimationFrame/);
-  assert.match(labScene, /export function paintThemeLab\(/);
-  assert.match(labStyles, /\.lab-scene\s*\{[^}]*image-rendering: pixelated/s);
+test("retired light lab is fully removed from routes, footer and source", () => {
+  assert.doesNotMatch(routes, /route\\("lab",/);
+  assert.doesNotMatch(footer, /to="\\/lab"/);
+  for (const file of ["../routes/lab.tsx", "../routes/lab.css", "../components/theme-lab-scene.ts"]) {
+    assert.equal(existsSync(new URL(file, import.meta.url)), false, `unused ${file} must be deleted`);
+  }
 });
 
 test("compact switch keeps a full-height hit target without a full-size canvas", () => {
@@ -68,7 +60,9 @@ test("compact switch keeps a full-height hit target without a full-size canvas",
   const art = styles.match(/\.theme-glass-switch__canvas\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(wrapper, /width:\s*60px/);
   assert.match(wrapper, /height:\s*44px/);
-  assert.match(art, /height:\s*32px/);
+  assert.match(art, /width:\s*72px/);
+  assert.match(art, /height:\s*44px/);
+  assert.match(art, /left:\s*-6px/);
 });
 
 test("drag painting is frame-coalesced, and canvas geometry is not queried per frame", () => {
@@ -90,4 +84,17 @@ test("page transition no longer assigns effects to every descendant", () => {
   assert.doesNotMatch(styles, /html\[data-theme-transition\] body \*/);
   assert.match(styles, /\.dashboard-shell__sidebar/);
   assert.match(styles, /\.site-navbar/);
+});
+
+test("transparent overscan preserves track size while leaving shadow clearance", () => {
+  assert.match(glassScene, /ctx\\.setTransform\\(width \\/ 420, 0, 0, height \\/ 260/);
+  assert.match(glassScene, /ctx\\.translate\\(-10, -10\\)/);
+  assert.match(glassScene, /ctx\\.clearRect\\(0, 0, width, height\\)/);
+  assert.doesNotMatch(styles, /\\.theme-glass-switch__canvas\\s*\\{[^}]*background:/s);
+  // The visible track remains essentially unchanged; only the transparent buffer grows.
+  const previous = [(60 - 45) * 60 / 350, 6 + (58 - 43) * 32 / 190, 320 * 60 / 350, 164 * 32 / 190];
+  const withBleed = [-6 + (60 - 10) * 72 / 420, (58 - 10) * 44 / 260, 320 * 72 / 420, 164 * 44 / 260];
+  for (let i = 0; i < previous.length; i++) {
+    assert.ok(Math.abs(previous[i] - withBleed[i]) < 0.5, `track geometry ${i} drifted`);
+  }
 });
