@@ -32,10 +32,10 @@ type douyinSheet struct {
 	} `xml:"sheetData>row"`
 }
 
-func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.OperationsPlatformPost, error) {
+func readDouyinWorkbook(file io.ReaderAt, size int64) ([]map[string]string, map[string]string, error) {
 	archive, err := zip.NewReader(file, size)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var shared struct {
 		Entries []struct {
@@ -52,11 +52,11 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 			continue
 		}
 		if entry.UncompressedSize64 > 8<<20 {
-			return nil, errors.New("作品表数据过大")
+			return nil, nil, errors.New("Excel 文件数据过大")
 		}
 		reader, err := entry.Open()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if entry.Name == "xl/sharedStrings.xml" {
 			err = xml.NewDecoder(io.LimitReader(reader, 8<<20)).Decode(&shared)
@@ -66,11 +66,11 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 		}
 		reader.Close()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if !foundSheet || len(sheet.Rows) < 2 || len(sheet.Rows) > 2001 {
-		return nil, errors.New("作品表缺少有效数据")
+		return nil, nil, errors.New("Excel 缺少有效数据")
 	}
 	value := func(cell douyinCell) (string, error) {
 		if cell.Type != "s" {
@@ -81,7 +81,7 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 		}
 		index, err := strconv.Atoi(cell.Value)
 		if err != nil || index < 0 || index >= len(shared.Entries) {
-			return "", errors.New("作品表文本索引无效")
+			return "", errors.New("Excel 文本索引无效")
 		}
 		item := shared.Entries[index]
 		text := item.Text
@@ -95,7 +95,7 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 		for _, cell := range cells {
 			column := strings.TrimRight(cell.Ref, "0123456789")
 			if column == "" {
-				return nil, errors.New("作品表列格式无效")
+				return nil, errors.New("Excel 列格式无效")
 			}
 			text, err := value(cell)
 			if err != nil {
@@ -107,11 +107,27 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 	}
 	header, err := readRow(sheet.Rows[0].Cells)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	columns := map[string]string{}
 	for column, name := range header {
 		columns[name] = column
+	}
+	rows := make([]map[string]string, 0, len(sheet.Rows)-1)
+	for _, entry := range sheet.Rows[1:] {
+		row, err := readRow(entry.Cells)
+		if err != nil {
+			return nil, nil, err
+		}
+		rows = append(rows, row)
+	}
+	return rows, columns, nil
+}
+
+func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.OperationsPlatformPost, error) {
+	rows, columns, err := readDouyinWorkbook(file, size)
+	if err != nil {
+		return nil, err
 	}
 	for _, name := range []string{"作品名称", "发布时间", "体裁", "审核状态", "播放量", "点赞量", "评论量", "分享量", "收藏量", "主页访问量", "粉丝增量"} {
 		if columns[name] == "" {
@@ -119,13 +135,9 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 		}
 	}
 	beijing := time.FixedZone("Beijing", 8*3600)
-	posts := make([]model.OperationsPlatformPost, 0, len(sheet.Rows)-1)
+	posts := make([]model.OperationsPlatformPost, 0, len(rows))
 	seen := make(map[string]bool)
-	for _, entry := range sheet.Rows[1:] {
-		row, err := readRow(entry.Cells)
-		if err != nil {
-			return nil, err
-		}
+	for _, row := range rows {
 		if strings.TrimSpace(row[columns["审核状态"]]) != "公开" {
 			continue
 		}
@@ -224,4 +236,3 @@ func (h *OperationsProgressHandler) ImportDouyin(c *gin.Context) {
 	}
 	writeAPI(c, http.StatusOK, "作品数据已更新", gin.H{"count": len(posts)})
 }
-

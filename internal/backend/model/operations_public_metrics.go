@@ -4,14 +4,15 @@ import "time"
 
 // OperationsAccountSnapshot is a dated observation, never an interpolated value.
 type OperationsAccountSnapshot struct {
-	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	Platform     string    `json:"platform" gorm:"size:16;not null;uniqueIndex:uk_operations_platform_day"`
-	ObservedOn   string    `json:"observedOn" gorm:"size:10;not null;uniqueIndex:uk_operations_platform_day"`
-	Followers    int64     `json:"followers" gorm:"not null"`
-	NewFollowers *int64    `json:"newFollowers" gorm:"default:null"`
-	Unfollows    *int64    `json:"unfollows" gorm:"default:null"`
-	Source       string    `json:"source" gorm:"size:24;not null"`
-	CreatedAt    time.Time `json:"createdAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP"`
+	ID            uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	Platform      string    `json:"platform" gorm:"size:16;not null;uniqueIndex:uk_operations_platform_day"`
+	ObservedOn    string    `json:"observedOn" gorm:"size:10;not null;uniqueIndex:uk_operations_platform_day"`
+	Followers     int64     `json:"followers" gorm:"not null"`
+	NewFollowers  *int64    `json:"newFollowers" gorm:"default:null"`
+	Unfollows     *int64    `json:"unfollows" gorm:"default:null"`
+	ReturningFans *int64    `json:"returningFans" gorm:"default:null"`
+	Source        string    `json:"source" gorm:"size:24;not null"`
+	CreatedAt     time.Time `json:"createdAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP"`
 }
 
 // OperationsPlatformPost tracks public posts independently from internal workflow notes.

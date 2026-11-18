@@ -299,6 +299,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 70, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsPlatformPost{}) }},
 		{version: 71, apply: migrateWeChatHistoryV71},
 		{version: 72, apply: migrateOperationsProductionV72},
+		{version: 73, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsAccountSnapshot{}) }},
 	}
 }
 

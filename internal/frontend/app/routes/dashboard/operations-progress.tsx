@@ -54,7 +54,7 @@ function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["
     </div>
     {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注增长趋势，从${minimum}到${maximum}`}>
       <polyline points={coords.map(({ x, y }) => `${x},${y}`).join(" ")} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}</title></circle>)}
+      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}{entry.newFollowers !== null && entry.unfollows !== null ? `（净增 ${entry.newFollowers - entry.unfollows}，新增 ${entry.newFollowers}，取消 ${entry.unfollows}${entry.returningFans !== null ? `，回访 ${entry.returningFans}` : ""}）` : ""}</title></circle>)}
     </svg> : null}
     {values.length > 1 ? <p className="operations-progress__muted">历史记录 {values.length} 个 · {values[0].observedOn} 起</p> : null}
   </div>;

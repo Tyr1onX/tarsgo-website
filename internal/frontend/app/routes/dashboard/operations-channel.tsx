@@ -56,7 +56,7 @@ export default function OperationsChannelPage() {
           </div>
           <div className="operations-progress__header-actions">
             <Link to={workUrl}>查看作品库</Link>
-            {channel.platforms === "douyin" && board.canManage ? <Link to="/dashboard/workbench/operations/douyin/import">导入抖音作品</Link> : null}
+            {channel.platforms === "douyin" && board.canManage ? <Link to="/dashboard/workbench/operations/douyin/import">导入抖音数据</Link> : null}
             {channel.platforms === "douyin" && douyinSync?.enabled && !douyinSync.connected
               ? <Link to="/api/operations/douyin/authorize" reloadDocument>连接抖音自动同步</Link> : null}
             {board.canManage ? <Link className="admin-button admin-button--primary" to={`/dashboard/workbench/operations/channels/${channel.id}/new`}>新建并行一期</Link> : null}
