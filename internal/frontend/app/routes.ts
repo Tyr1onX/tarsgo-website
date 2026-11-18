@@ -45,6 +45,7 @@ export default [
     route("guide", "routes/dashboard/guide.tsx"),
     route("timetable", "routes/dashboard/timetable.tsx"),
     route("assignments", "routes/dashboard/assignments.tsx"),
+    route("training-materials", "routes/dashboard/training-materials.tsx"),
     route("questions", "routes/dashboard/community-question-redirect.tsx"),
     route("community/:id", "routes/dashboard/community-post.tsx"),
     route("members/:id", "routes/dashboard/community-member-profile.tsx"),
