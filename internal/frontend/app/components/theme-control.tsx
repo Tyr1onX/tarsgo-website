@@ -216,7 +216,7 @@ export function ThemeControl() {
   }, [setPreference]);
 
   useEffect(() => {
-    controllerRef.current?.setLight(resolvedTheme === "light");
+    controllerRef.current?.setLight(document.documentElement.dataset.theme === "light");
   }, [resolvedTheme]);
 
   return (
