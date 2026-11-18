@@ -295,6 +295,7 @@ func migrationRegistry(appEnv string) []migration {
 		}},
 		{version: 67, apply: migrateOperationsStepsV67},
 		{version: 68, apply: migrateWeChatOperationsV68},
+		{version: 69, apply: migrateDouyinOperationsV69},
 	}
 }
 

@@ -16,6 +16,7 @@ type Config struct {
 	Auth     AuthConfig
 	Email    EmailConfig
 	Feishu   FeishuConfig
+	Douyin   DouyinConfig
 	Source   SourceConfig
 }
 
@@ -68,6 +69,11 @@ type FeishuConfig struct {
 	VerificationToken string
 	BitableAppToken   string
 	BitableTableID    string
+}
+
+type DouyinConfig struct {
+	ClientKey string
+	ClientSecret string
 }
 
 type SourceConfig struct {
@@ -133,6 +139,7 @@ func Load() (*Config, error) {
 			BitableAppToken:   strings.TrimSpace(os.Getenv("FEISHU_BITABLE_APP_TOKEN")),
 			BitableTableID:    strings.TrimSpace(os.Getenv("FEISHU_BITABLE_TABLE_ID")),
 		},
+		Douyin: DouyinConfig{ClientKey: strings.TrimSpace(os.Getenv("DOUYIN_CLIENT_KEY")), ClientSecret: strings.TrimSpace(os.Getenv("DOUYIN_CLIENT_SECRET"))},
 		Source: SourceConfig{
 			EnvFilePath: envFilePath,
 		},

@@ -82,6 +82,10 @@ export function getOperationsBoard() {
   return apiRequest<OperationsBoard>("/api/operations/progress");
 }
 
+export function getDouyinSyncStatus() {
+  return apiRequest<{ enabled: boolean; connected: boolean }>("/api/operations/douyin/status");
+}
+
 export function importDouyinPosts(file: File) {
   const body = new FormData();
   body.append("file", file);
