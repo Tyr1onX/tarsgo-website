@@ -2113,11 +2113,11 @@ html[data-theme-transition] :is(
 
 .theme-glass-switch__canvas {
   position: absolute;
-  top: 0;
-  left: -6px;
+  top: 6px;
+  left: 0;
   display: block;
-  width: 72px;
-  height: 44px;
+  width: 60px;
+  height: 32px;
   background: transparent;
   pointer-events: none;
 }
