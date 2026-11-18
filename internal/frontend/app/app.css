@@ -139,20 +139,29 @@ html {
   --hero-accent: #E0C790;
 }
 
-html[data-theme-transition] body,
-html[data-theme-transition] body *,
-html[data-theme-transition] body *::before,
-html[data-theme-transition] body *::after {
-  transition-property: color, background-color, border-color, fill, stroke, box-shadow;
-  transition-duration: 200ms;
+/* Animate the page surfaces, not every child, text run and SVG in the DOM. */
+html[data-theme-transition] :is(
+  body,
+  .public-home,
+  .dashboard-shell,
+  .dashboard-shell__sidebar,
+  .dashboard-shell__topbar,
+  .site-navbar
+) {
+  transition-property: background-color, border-color;
+  transition-duration: 180ms;
   transition-timing-function: ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme-transition] body,
-  html[data-theme-transition] body *,
-  html[data-theme-transition] body *::before,
-  html[data-theme-transition] body *::after {
+  html[data-theme-transition] :is(
+    body,
+    .public-home,
+    .dashboard-shell,
+    .dashboard-shell__sidebar,
+    .dashboard-shell__topbar,
+    .site-navbar
+  ) {
     transition-duration: 0.01ms !important;
   }
 }
@@ -2096,16 +2105,18 @@ html[data-theme-transition] body *::after {
 
 .theme-glass-switch {
   position: relative;
-  width: 108px;
-  height: 58px;
+  width: 60px;
+  height: 44px;
   flex: 0 0 auto;
   isolation: isolate;
 }
 
 .theme-glass-switch__canvas {
+  position: absolute;
+  inset: 6px 0 auto;
   display: block;
   width: 100%;
-  height: 100%;
+  height: 32px;
   pointer-events: none;
 }
 
@@ -2138,13 +2149,6 @@ html[data-theme-transition] body *::after {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
-}
-
-@media (max-width: 639px) {
-  .theme-glass-switch {
-    width: 96px;
-    height: 52px;
-  }
 }
 
 @media (max-width: 359px) {
