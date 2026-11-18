@@ -125,6 +125,11 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(membershipService)
 	workManualHandler := handler.NewWorkManualHandler(workmanual.NewService(db))
+	trainingFiles, err := privatefile.NewStore(filepath.Join("upload", "training-documents"))
+	if err != nil {
+		panic(err)
+	}
+	trainingDocumentHandler := handler.NewTrainingDocumentHandler(emailtemplate.NewGormStore(db), trainingFiles)
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	collectionFormHandler := handler.NewCollectionFormHandler(db)
 	operationsFileStore, err := privatefile.NewStore(filepath.Join("upload", "operations"))
@@ -166,6 +171,10 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/password-reset", requireSameOriginRequest(cfg), authHandler.ResetPassword)
 	api.POST("/logout", requireAccountActionOrigin(cfg), authHandler.Logout)
 	api.GET("/me", authHandler.Me)
+	trainingReadAPI := api.Group("/training-documents")
+	trainingReadAPI.Use(middleware.RequireAuthenticated(authService))
+	trainingReadAPI.GET("/:slug", trainingDocumentHandler.Get)
+	trainingReadAPI.GET("/images/:scope/:owner/:filename", trainingDocumentHandler.Image)
 	api.GET("/me/profile", middleware.RequireAuthenticated(authService), authHandler.AccountProfile)
 	api.PUT("/me", requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService), authHandler.UpdateProfile)
 	teamAPI := api.Group("/team")
@@ -310,6 +319,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	superAdminAPI.PUT("/training-documents/:slug", trainingDocumentHandler.Save)
 	superAdminAPI.GET("/recruitment/retained-records", handler.NewRecruitmentRecordsHandler(recruitmentrecords.NewService(db)).List)
 	salonAdminAPI := superAdminAPI.Group("/ai-salon")
 	salonAdminAPI.GET("/events", salonHandler.AdminList)
