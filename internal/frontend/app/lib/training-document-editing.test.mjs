@@ -28,7 +28,7 @@ test("training documents reuse the existing visual editor and save the current m
 test("training documentation endpoints keep reads available and writes super admin only", async () => {
   const router = await read("../../../backend/router/router.go");
   const start = router.indexOf('trainingReadAPI := api.Group("/training-documents")');
-  const end = router.indexOf('trainingReadAPI.GET("/images/:scope/:owner/:filename"', start);
+  const end = router.indexOf('trainingImagesAPI := api.Group("/training-document-images")', start);
   assert.ok(start > 0 && end > start);
   assert.match(router.slice(start, end), /RequireAuthenticated\(authService\)/);
   assert.match(router, /superAdminAPI\.PUT\("\/training-documents\/:slug", trainingDocumentHandler\.Save\)/);
