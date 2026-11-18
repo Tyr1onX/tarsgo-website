@@ -1,7 +1,14 @@
+import { isValidElement, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+import startMarkdown from "~/content/training/start.md?raw";
+import gitMarkdown from "~/content/training/git-and-github.md?raw";
+import "./training-materials.css";
 
 export function meta() {
-  return [{ title: "培训资料 | TARSGO" }];
+  return [{ title: "新人培养文档 | TARSGO" }];
 }
 
 const materials = [
@@ -273,30 +280,144 @@ AI视觉 与 TARS_Go｜ 2026—2027学年秋季学期
   },
 ] as const;
 
-export default function TrainingMaterialsPage() {
-  const [searchParams] = useSearchParams();
-  const selected = materials.find(({ id }) => id === searchParams.get("group")) ?? materials[0];
+type DocumentLink = { key: string; label: string; href: string };
 
-  return (
-    <main className="admin-design mx-auto w-full max-w-6xl space-y-5 p-4 sm:p-6">
-      <h1 className="text-2xl font-semibold">培训资料</h1>
-      <nav aria-label="培训方向" className="flex flex-wrap gap-2">
-        {materials.map(({ id, label }) => (
-          <Link
-            key={id}
-            to={`?group=${id}`}
-            aria-current={selected.id === id ? "page" : undefined}
-            className={`rounded-lg border px-3 py-2 text-sm transition-colors ${selected.id === id
-              ? "border-[var(--admin-accent)] bg-[var(--admin-accent-soft)] text-[var(--admin-accent-text)]"
-              : "border-[var(--admin-border-subtle)] hover:bg-[var(--admin-bg-subtle)]"}`}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      <article aria-label={`${selected.label}培训资料`} className="max-w-4xl rounded-xl border border-[var(--admin-border-subtle)] p-4 sm:p-6">
-        <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-8 text-[var(--admin-text)]">{selected.text}</pre>
+const documents = [
+  { id: "start", label: "学习指南", markdown: startMarkdown },
+  { id: "git", label: "Git 与 GitHub", markdown: gitMarkdown },
+] as const;
+
+const directory = [
+  { title: "开始学习", links: [{ key: "doc:start", label: "新人学习指南", href: "?doc=start" }] },
+  {
+    title: "通用基础",
+    links: [
+      { key: "group:foundation", label: "通用基础概览", href: "?group=foundation" },
+      { key: "doc:git", label: "Git 与 GitHub", href: "?doc=git" },
+    ],
+  },
+  {
+    title: "原始培养路线",
+    links: materials.filter(({ id }) => id !== "foundation")
+      .map(({ id, label }) => ({ key: `group:${id}`, label, href: `?group=${id}` })),
+  },
+] satisfies { title: string; links: DocumentLink[] }[];
+
+const allLinks = directory.flatMap(({ links }) => links);
+
+function headingId(title: string) {
+  return title.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+}
+
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const code = isValidElement<{ children?: ReactNode }>(children) ? children.props.children : children;
+  const value = String(code ?? "").replace(/\n$/, "");
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return <div className="training-docs__code">
+    <div className="training-docs__code-bar">
+      <span>命令 / 示例</span>
+      <button type="button" onClick={() => void copy()}>{copied ? "已复制" : "复制"}</button>
+    </div>
+    <pre><code>{value}</code></pre>
+  </div>;
+}
+
+function DocumentationArticle({ source }: { source: string }) {
+  const components: Components = {
+    h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
+    h3: ({ children }) => <h3 id={headingId(String(children))}>{children}</h3>,
+    a: ({ href, children }) => href?.startsWith("?")
+      ? <Link to={href}>{children}</Link>
+      : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+    img: ({ src, alt }) => <img src={src} alt={alt ?? ""} loading="lazy" />,
+    pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  };
+
+  return <div className="training-docs__markdown">
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{source}</ReactMarkdown>
+  </div>;
+}
+
+export default function TrainingMaterialsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedMaterial = searchParams.has("group")
+    ? materials.find(({ id }) => id === searchParams.get("group"))
+    : undefined;
+  const selectedDocument = selectedMaterial ? undefined
+    : documents.find(({ id }) => id === searchParams.get("doc")) ?? documents[0];
+  const selectedKey = selectedMaterial ? `group:${selectedMaterial.id}` : `doc:${selectedDocument?.id}`;
+  const activeIndex = allLinks.findIndex(({ key }) => key === selectedKey);
+  const before = allLinks[activeIndex - 1];
+  const after = allLinks[activeIndex + 1];
+  const category = selectedMaterial
+    ? selectedMaterial.id === "foundation" ? "通用基础" : "原始培养路线"
+    : selectedDocument?.id === "start" ? "开始学习" : "通用基础";
+  const sections = selectedDocument
+    ? Array.from(selectedDocument.markdown.matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
+    : [];
+
+  return <section className="training-docs admin-design mx-auto w-full max-w-[84rem] p-4 sm:p-6" aria-label="新人培养文档">
+    <header className="training-docs__top">
+      <p>新人培养文档</p>
+      <p>面向本届纳新同学</p>
+    </header>
+    <label className="training-docs__mobile-picker">
+      <span>选择章节</span>
+      <select
+        value={selectedKey}
+        onChange={(event) => {
+          const [kind, id] = event.target.value.split(":");
+          setSearchParams(kind === "group" ? { group: id } : { doc: id });
+        }}
+      >
+        {directory.map(({ title, links }) => <optgroup key={title} label={title}>
+          {links.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
+        </optgroup>)}
+      </select>
+    </label>
+    <div className="training-docs__layout">
+      <aside className="training-docs__sidebar" aria-label="文档导航">
+        <nav aria-label="培训文档目录">
+          {directory.map(({ title, links }) => <section key={title} className="training-docs__nav-section">
+            <h2>{title}</h2>
+            {links.map(({ key, href, label }) => <Link
+              key={key}
+              to={href}
+              aria-current={selectedKey === key ? "page" : undefined}
+              className="training-docs__nav-link"
+            >{label}</Link>)}
+          </section>)}
+        </nav>
+      </aside>
+      <article className="training-docs__article">
+        <p className="training-docs__breadcrumb">新人培养 / {category}</p>
+        {selectedMaterial
+          ? <>
+            <h1>{selectedMaterial.id === "foundation" ? "通用基础学习资料" : `${selectedMaterial.label} · 原始培养路线`}</h1>
+            <p className="training-docs__original-label">资料原文保留，未调整知识点和阶段要求。</p>
+            <pre className="training-docs__original">{selectedMaterial.text}</pre>
+          </>
+          : <DocumentationArticle source={selectedDocument?.markdown ?? startMarkdown} />}
+        <nav className="training-docs__pagination" aria-label="相邻文档">
+          {before ? <Link to={before.href}>← {before.label}</Link> : <span />}
+          {after ? <Link to={after.href}>{after.label} →</Link> : <span />}
+        </nav>
       </article>
-    </main>
-  );
+      {sections.length ? <aside className="training-docs__toc" aria-label="本页目录">
+        <h2>本页目录</h2>
+        {sections.map(({ title, id }) => <a key={id} href={`#${id}`}>{title}</a>)}
+      </aside> : <div className="training-docs__toc" aria-hidden="true" />}
+    </div>
+  </section>;
 }
