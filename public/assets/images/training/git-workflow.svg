@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="300" viewBox="0 0 1100 300" role="img" aria-labelledby="title description">
+  <title id="title">Git 的本地提交流程</title>
+  <desc id="description">从修改文件的工作区出发，git add 进入暂存区，git commit 进入本地仓库，git push 上传 GitHub 远程仓库。</desc>
+  <rect width="1100" height="300" rx="24" fill="#141C1B"/>
+  <text x="42" y="48" fill="#D6E0DA" font-size="19" font-family="system-ui, sans-serif" font-weight="600">从本地文件到 GitHub</text>
+  <text x="42" y="78" fill="#94A6A0" font-size="13" font-family="system-ui, sans-serif">一次代码提交经历的四个位置</text>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="42" y="107" width="215" height="126" rx="15" fill="#25322F" stroke="#4D6960"/>
+    <text x="149" y="151" font-size="24" fill="#F2F5F1" font-weight="650">工作区</text>
+    <text x="149" y="184" font-size="16" fill="#B8C9C1">修改 README.md</text>
+    <text x="149" y="209" font-size="13" fill="#92A89E">你的本地文件夹</text>
+    <rect x="308" y="107" width="215" height="126" rx="15" fill="#25322F" stroke="#4D6960"/>
+    <text x="415" y="151" font-size="24" fill="#F2F5F1" font-weight="650">暂存区</text>
+    <text x="415" y="184" font-size="16" fill="#B8C9C1">选择本次提交内容</text>
+    <text x="415" y="209" font-size="13" fill="#92A89E">Staging area</text>
+    <rect x="574" y="107" width="215" height="126" rx="15" fill="#25322F" stroke="#4D6960"/>
+    <text x="681" y="151" font-size="24" fill="#F2F5F1" font-weight="650">本地仓库</text>
+    <text x="681" y="184" font-size="16" fill="#B8C9C1">生成提交记录</text>
+    <text x="681" y="209" font-size="13" fill="#92A89E">Local repository</text>
+    <rect x="840" y="107" width="215" height="126" rx="15" fill="#374339" stroke="#B39E70"/>
+    <text x="947" y="151" font-size="24" fill="#FFF5DD" font-weight="650">GitHub</text>
+    <text x="947" y="184" font-size="16" fill="#E1D6B9">远程仓库</text>
+    <text x="947" y="209" font-size="13" fill="#BBAE8F">Remote repository</text>
+    <g fill="none" stroke="#D9B977" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M263 170 H301 l-8 -7 M301 170 l-8 7"/>
+      <path d="M529 170 H567 l-8 -7 M567 170 l-8 7"/>
+      <path d="M795 170 H833 l-8 -7 M833 170 l-8 7"/>
+    </g>
+    <text x="282" y="140" fill="#E9C88D" font-size="13" font-weight="600">add</text>
+    <text x="548" y="140" fill="#E9C88D" font-size="13" font-weight="600">commit</text>
+    <text x="814" y="140" fill="#E9C88D" font-size="13" font-weight="600">push</text>
+  </g>
+  <text x="42" y="267" fill="#A1B2A9" font-family="system-ui, sans-serif" font-size="13">本地提交 ≠ 上传到远程仓库</text>
+</svg>
