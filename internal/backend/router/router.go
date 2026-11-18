@@ -425,6 +425,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.GET("/operations/attachments/:fileId", operationsProgressHandler.OpenStepAttachment)
 	workbenchAPI.POST("/operations/channels/:id/episodes", operationsProgressHandler.CreateEpisode)
 	workbenchAPI.POST("/operations/douyin/import", operationsProgressHandler.ImportDouyin)
+	workbenchAPI.POST("/operations/douyin/fans/import", operationsProgressHandler.ImportDouyinFans)
 	workbenchAPI.GET("/operations/douyin/status", operationsDouyinHandler.Status)
 	workbenchAPI.GET("/operations/douyin/authorize", operationsDouyinHandler.Authorize)
 	workbenchAPI.GET("/operations/douyin/callback", operationsDouyinHandler.Callback)

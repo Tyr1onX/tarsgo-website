@@ -26,6 +26,7 @@ export interface OperationsSnapshot {
   followers: number;
   newFollowers: number | null;
   unfollows: number | null;
+  returningFans: number | null;
   source: string;
 }
 
@@ -105,6 +106,12 @@ export function importDouyinPosts(file: File) {
   const body = new FormData();
   body.append("file", file);
   return apiRequest<{ count: number }>("/api/operations/douyin/import", { method: "POST", body });
+}
+
+export function importDouyinFans(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return apiRequest<{ count: number }>("/api/operations/douyin/fans/import", { method: "POST", body });
 }
 
 export function saveOperationsStep(itemId: number, stepId: number, changes: { status: OperationsStepStatus; blockReason?: string; note?: string; evidenceUrl?: string }) {
