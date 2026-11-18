@@ -13,14 +13,22 @@ import (
 
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/privatefile"
 )
 
-type OperationsProgressHandler struct{ db *gorm.DB }
+type OperationsProgressHandler struct {
+	db    *gorm.DB
+	files *privatefile.Store
+}
 
 var errOperationsCopySource = errors.New("invalid operations copy source")
 
-func NewOperationsProgressHandler(db *gorm.DB) *OperationsProgressHandler {
-	return &OperationsProgressHandler{db: db}
+func NewOperationsProgressHandler(db *gorm.DB, files ...*privatefile.Store) *OperationsProgressHandler {
+	h := &OperationsProgressHandler{db: db}
+	if len(files) > 0 {
+		h.files = files[0]
+	}
+	return h
 }
 
 type operationsProgressInput struct {
@@ -68,10 +76,10 @@ func validateOperationsProgress(input *operationsProgressInput) bool {
 	if input.Status != "active" && input.Status != "blocked" && input.Status != "done" {
 		return false
 	}
-	if input.Kind != "workstream" && input.Kind != "channel" && input.Kind != "video" && input.Kind != "merchandise" {
+	if input.Kind != "workstream" && input.Kind != "channel" && input.Kind != "video" && input.Kind != "article" && input.Kind != "merchandise" {
 		return false
 	}
-	if input.CopyFromID != 0 && input.Kind != "video" && input.Kind != "merchandise" {
+	if input.CopyFromID != 0 && input.Kind != "video" && input.Kind != "article" && input.Kind != "merchandise" {
 		return false
 	}
 	if input.Kind != "workstream" && input.IntervalDays != 0 {

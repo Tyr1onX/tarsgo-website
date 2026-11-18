@@ -15,6 +15,7 @@ import (
 
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/operationsworkflow"
 )
 
 type operationsStepView struct {
@@ -166,8 +167,10 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		AssigneeID  *uint64 `json:"assigneeId"`
 		Status      *string `json:"status"`
 		BlockReason *string `json:"blockReason"`
+		Note        string  `json:"note"`
+		EvidenceURL string  `json:"evidenceUrl"`
 	}
-	if c.ShouldBindJSON(&input) != nil || (input.Title == nil && input.AssigneeID == nil && input.Status == nil && input.BlockReason == nil) {
+	if c.ShouldBindJSON(&input) != nil || (input.Title == nil && input.AssigneeID == nil && input.Status == nil && input.BlockReason == nil && input.Note == "" && input.EvidenceURL == "") {
 		writeAPIError(c, http.StatusBadRequest, "环节修改参数不正确")
 		return
 	}
@@ -203,6 +206,12 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 			return
 		}
 	}
+	input.Note = strings.TrimSpace(input.Note)
+	input.EvidenceURL = strings.TrimSpace(input.EvidenceURL)
+	if len([]rune(input.Note)) > 400 || !validOperationsEvidenceURL(input.EvidenceURL) {
+		writeAPIError(c, http.StatusBadRequest, "备注或成果链接不正确")
+		return
+	}
 	var assigneeName string
 	if input.AssigneeID != nil && *input.AssigneeID != 0 {
 		members, err := h.members(c.Request.Context())
@@ -222,6 +231,10 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		}
 	}
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var item model.OperationsProgressItem
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, itemID).Error; err != nil {
+			return err
+		}
 		var step model.OperationsProgressStep
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND item_id = ?", stepID, itemID).Take(&step).Error; err != nil {
@@ -246,7 +259,8 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 				notes = append(notes, "负责人："+assigneeName)
 			}
 		}
-		status := step.Status
+		previousStatus := step.Status
+		status := previousStatus
 		if input.Status != nil {
 			status = *input.Status
 		}
@@ -259,6 +273,17 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		}
 		if status != "blocked" {
 			reason = ""
+		}
+		if step.Key == "published" && status == "done" && previousStatus != "done" && item.ChannelID != nil {
+			var remaining int64
+			if err := tx.Model(&model.OperationsProgressStep{}).
+				Where("item_id = ? AND id <> ? AND status <> ?", itemID, stepID, "done").
+				Count(&remaining).Error; err != nil {
+				return err
+			}
+			if remaining > 0 {
+				return errOperationsPublishIncomplete
+			}
 		}
 		if status != step.Status {
 			changes["status"] = status
@@ -276,21 +301,45 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 				notes = append(notes, "卡点："+reason)
 			}
 		}
-		if len(changes) == 0 {
+		if input.Note != "" {
+			notes = append(notes, input.Note)
+		}
+		if input.EvidenceURL != "" {
+			notes = append(notes, "提交成果链接")
+		}
+		if len(changes) == 0 && input.Note == "" && input.EvidenceURL == "" {
 			return nil
 		}
-		if err := tx.Model(&step).Updates(changes).Error; err != nil {
+		if len(changes) > 0 {
+			if err := tx.Model(&step).Updates(changes).Error; err != nil {
+				return err
+			}
+		}
+		if input.EvidenceURL != "" && step.Key == "published" && status == "done" {
+			if err := tx.Model(&item).Update("publication_url", input.EvidenceURL).Error; err != nil {
+				return err
+			}
+		}
+		stepRef := step.ID
+		if err := tx.Create(&model.OperationsProgressUpdate{
+			ItemID: itemID, StepID: &stepRef, AuthorID: user.ID, Kind: "progress",
+			Content:   step.Title + " · " + strings.Join(notes, " · "),
+			FromStage: previousStatus, ToStage: status, Link: input.EvidenceURL,
+		}).Error; err != nil {
 			return err
 		}
-		return tx.Create(&model.OperationsProgressUpdate{
-			ItemID: itemID, AuthorID: user.ID, Kind: "progress",
-			Content: step.Title + " · " + strings.Join(notes, " · "),
-		}).Error
+		if step.Key == "published" && status == "done" && previousStatus != "done" && item.ChannelID != nil {
+			_, err := operationsworkflow.EnsureUpcoming(tx, *item.ChannelID)
+			return err
+		}
+		return nil
 	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		writeAPIError(c, http.StatusNotFound, "环节不存在")
 	} else if errors.Is(err, errOperationsStepForbidden) {
 		writeAPIError(c, http.StatusForbidden, "只能更新自己负责环节的进度")
+	} else if errors.Is(err, errOperationsPublishIncomplete) {
+		writeAPIError(c, http.StatusConflict, "请先完成审核和此前环节，再确认发布")
 	} else if errors.Is(err, errOperationsStepReason) {
 		writeAPIError(c, http.StatusBadRequest, "请填写具体卡点原因")
 	} else if err != nil {
@@ -301,10 +350,11 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 }
 
 var (
-	errOperationsStepForbidden = errors.New("step permission denied")
-	errOperationsStepReason    = errors.New("step block reason required")
-	errOperationsStepCompleted = errors.New("completed step cannot be deleted")
-	errOperationsLastStep      = errors.New("last step cannot be deleted")
+	errOperationsStepForbidden     = errors.New("step permission denied")
+	errOperationsStepReason        = errors.New("step block reason required")
+	errOperationsStepCompleted     = errors.New("completed step cannot be deleted")
+	errOperationsLastStep          = errors.New("last step cannot be deleted")
+	errOperationsPublishIncomplete = errors.New("publication steps incomplete")
 )
 
 func (h *OperationsProgressHandler) DeleteStep(c *gin.Context) {
