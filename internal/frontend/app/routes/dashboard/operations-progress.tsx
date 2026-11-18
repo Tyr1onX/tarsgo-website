@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useLocation } from "react-router";
 
 import { assignmentDeadlineToISOString, shanghaiDateTimeLocal } from "~/lib/assignment-deadline";
@@ -14,6 +14,7 @@ import {
   getOperationsAttention,
   getOperationsBoard,
   getOperationsHistory,
+  importDouyinPosts,
   nextOperationsDate,
   operationsAttentionLabel,
   recordOperationsUpdate,
@@ -126,6 +127,8 @@ export default function OperationsProgressPage() {
   const [updating, setUpdating] = useState<number | null>(null);
   const [updateForm, setUpdateForm] = useState<OperationsUpdateInput>({ content: "", kind: "progress", link: "", publishedOn: null });
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState("");
   const [showDone, setShowDone] = useState(false);
   const [historyItem, setHistoryItem] = useState<number | null>(null);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
@@ -149,6 +152,24 @@ export default function OperationsProgressPage() {
       setLoading(false);
     }
   }, []);
+
+  async function importDouyin(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportResult("");
+    setError("");
+    try {
+      const result = await importDouyinPosts(file);
+      await load();
+      setImportResult(`已更新 ${result.count} 条抖音作品`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "抖音作品导入失败");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -462,17 +483,29 @@ export default function OperationsProgressPage() {
           })}
         </div>
 
-        {board.posts.length > 0 ? <section className="operations-progress__posts" aria-labelledby="operations-posts-title">
-          <div className="operations-progress__section-head"><h2 id="operations-posts-title">历史发布</h2>
-            {board.posts.some((post) => post.platform === "wechat") ? <span className="operations-progress__muted">公众号阅读数据核实于 2026-11-18</span> : null}
+        <section className="operations-progress__posts" aria-labelledby="operations-posts-title">
+          <div className="operations-progress__section-head flex-wrap">
+            <h2 id="operations-posts-title">历史发布</h2>
+            <div className="operations-progress__actions flex-wrap">
+              <span className="operations-progress__muted">{(["douyin", "bilibili", "wechat"] as const).map((platform) => {
+                const count = board.posts.filter((post) => post.platform === platform).length;
+                return count > 0 ? `${({ douyin: "抖音", bilibili: "B站", wechat: "公众号" })[platform]} ${count} 条` : "";
+              }).filter(Boolean).join(" · ")}</span>
+              {board.canManage ? <label className="admin-button admin-button--secondary">
+                {importing ? "导入中…" : "导入抖音作品"}
+                <input className="sr-only" type="file" accept=".xlsx" disabled={importing} aria-label="选择抖音作品列表" onChange={(event) => void importDouyin(event)} />
+              </label> : null}
+            </div>
           </div>
-          <ol>{board.posts.slice(0, 10).map((post) => <li key={`${post.platform}:${post.externalId}`}>
-            <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a>
-            <span>{post.platform === "wechat" ? "公众号" : "B站"} · {post.platform === "wechat"
+          {board.posts.some((post) => post.platform === "wechat") ? <p className="operations-progress__muted">公众号阅读数据核实于 2026-11-18</p> : null}
+          {importResult ? <p role="status" className="operations-progress__muted">{importResult}</p> : null}
+          {board.posts.length ? <ol>{board.posts.slice(0, 10).map((post) => <li key={`${post.platform}:${post.externalId}`}>
+            {post.url ? <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a> : <strong>{post.title}</strong>}
+            <span>{({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[post.platform] || post.platform} · {post.platform === "wechat"
               ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
               : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : "播放"}</span>
-          </li>)}</ol>
-        </section> : null}
+          </li>)}</ol> : <p className="operations-progress__muted">暂无发布记录</p>}
+        </section>
 
         {board.updates.length > 0 ? <section className="operations-progress__feed" aria-labelledby="operations-progress-feed-title">
           <h2 id="operations-progress-feed-title">最近动态</h2>

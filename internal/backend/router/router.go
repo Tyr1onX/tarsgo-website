@@ -414,6 +414,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI := authenticatedAPI.Group("")
 	workbenchAPI.Use(middleware.RequireWorkbench())
 	workbenchAPI.GET("/operations/progress", operationsProgressHandler.List)
+	workbenchAPI.POST("/operations/douyin/import", operationsProgressHandler.ImportDouyin)
 	workbenchAPI.GET("/operations/progress/:id/updates", operationsProgressHandler.History)
 	workbenchAPI.POST("/operations/progress", operationsProgressHandler.Create)
 	workbenchAPI.PATCH("/operations/progress/:id", operationsProgressHandler.Update)

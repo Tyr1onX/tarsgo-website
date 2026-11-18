@@ -105,6 +105,12 @@ export function getOperationsBoard() {
   return apiRequest<OperationsBoard>("/api/operations/progress");
 }
 
+export function importDouyinPosts(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return apiRequest<{ count: number }>("/api/operations/douyin/import", { method: "POST", body });
+}
+
 export function createOperationsItem(input: OperationsItemInput) {
   return apiRequest<OperationsItem>("/api/operations/progress", { method: "POST", body: input });
 }

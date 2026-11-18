@@ -244,12 +244,14 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "历史作品读取失败")
 		return
 	}
-	channelNames := map[string]string{"bilibili": "B站运营", "wechat": "公众号运营"}
+	channelNames := map[string]string{"bilibili": "B站运营", "wechat": "公众号运营", "douyin": "抖音运营"}
+	seenPlatforms := map[string]bool{}
 	for _, post := range posts {
 		channelName, supported := channelNames[post.Platform]
-		if !supported {
+		if !supported || seenPlatforms[post.Platform] {
 			continue
 		}
+		seenPlatforms[post.Platform] = true
 		day := post.PublishedAt.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
 		for i := range views {
 			if views[i].Kind == "channel" && (views[i].Title == channelName ||
