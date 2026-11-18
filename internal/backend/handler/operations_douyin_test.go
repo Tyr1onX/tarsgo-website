@@ -17,7 +17,7 @@ func makeDouyinXLSX(t *testing.T, date, status, views string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	labels := []string{"作品名称", "发布时间", "审核状态", "播放量", "标题第一行\n详细说明", date, status}
+	labels := []string{"作品名称", "发布时间", "体裁", "审核状态", "播放量", "点赞量", "分享量", "评论量", "收藏量", "主页访问量", "粉丝增量", "标题第一行\n详细说明", date, status, "1min-视频"}
 	fmt.Fprint(shared, `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`)
 	for _, label := range labels {
 		fmt.Fprintf(shared, "<si><t>%s</t></si>", label)
@@ -28,8 +28,8 @@ func makeDouyinXLSX(t *testing.T, date, status, views string) []byte {
 		t.Fatal(err)
 	}
 	fmt.Fprintf(sheet, `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
-		<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="D1" t="s"><v>2</v></c><c r="E1" t="s"><v>3</v></c></row>
-		<row r="2"><c r="A2" t="s"><v>4</v></c><c r="B2" t="s"><v>5</v></c><c r="D2" t="s"><v>6</v></c><c r="E2"><v>%s</v></c></row>
+		<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c><c r="E1" t="s"><v>4</v></c><c r="K1" t="s"><v>5</v></c><c r="L1" t="s"><v>6</v></c><c r="M1" t="s"><v>7</v></c><c r="N1" t="s"><v>8</v></c><c r="O1" t="s"><v>9</v></c><c r="P1" t="s"><v>10</v></c></row>
+		<row r="2"><c r="A2" t="s"><v>11</v></c><c r="B2" t="s"><v>12</v></c><c r="C2" t="s"><v>14</v></c><c r="D2" t="s"><v>13</v></c><c r="E2"><v>%s</v></c><c r="K2"><v>727</v></c><c r="L2"><v>220</v></c><c r="M2"><v>45</v></c><c r="N2"><v>80</v></c><c r="O2"><v>689</v></c><c r="P2"><v>49</v></c></row>
 	</sheetData></worksheet>`, views)
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -45,7 +45,9 @@ func TestParseDouyinExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(posts) != 1 || posts[0].Platform != "douyin" || posts[0].Title != "标题第一行" ||
-		posts[0].ViewCount != 15485 || posts[0].URL != "" ||
+		posts[0].ViewCount != 15485 || posts[0].URL != "" || posts[0].MediaType != "video" ||
+		posts[0].LikeCount != 727 || posts[0].CommentCount != 45 || posts[0].ShareCount != 220 || posts[0].FavoriteCount != 80 ||
+		posts[0].ProfileVisits == nil || *posts[0].ProfileVisits != 689 || posts[0].FollowerGain == nil || *posts[0].FollowerGain != 49 ||
 		posts[0].PublishedAt.Format(time.RFC3339) != "2026-11-02T02:52:35Z" ||
 		posts[0].ExternalID != fmt.Sprint(posts[0].PublishedAt.Unix()) {
 		t.Fatalf("unexpected imported post: %+v", posts)
@@ -74,3 +76,4 @@ func TestParseDouyinExportRejectsInvalidData(t *testing.T) {
 		t.Fatal("accepted non-xlsx data")
 	}
 }
+

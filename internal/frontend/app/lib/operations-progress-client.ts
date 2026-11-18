@@ -35,6 +35,13 @@ export interface OperationsPost {
   url: string;
   publishedAt: string;
   viewCount: number;
+  mediaType: string;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  favoriteCount: number;
+  profileVisits: number | null;
+  followerGain: number | null;
   syncedAt: string;
 }
 

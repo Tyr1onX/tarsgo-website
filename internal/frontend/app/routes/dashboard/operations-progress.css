@@ -153,14 +153,13 @@
 .operations-progress__posts { margin: 2.2rem 0; }
 .operations-progress__posts ol { padding: 0; margin: 0.8rem 0 0; list-style: none; }
 .operations-progress__posts li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
+  display: grid;
+  gap: 0.3rem;
   padding: 0.8rem 0;
   border-bottom: 1px solid var(--admin-border-subtle);
   font-size: 0.84rem;
 }
-.operations-progress__posts li span { flex: none; color: var(--admin-muted); font-size: 0.78rem; }
+.operations-progress__posts li span { color: var(--admin-muted); font-size: 0.78rem; }
 @media (max-width: 900px) {
   .operations-progress__account-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

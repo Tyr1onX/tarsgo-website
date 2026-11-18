@@ -14,12 +14,20 @@ type OperationsAccountSnapshot struct {
 
 // OperationsPlatformPost tracks public posts independently from internal workflow notes.
 type OperationsPlatformPost struct {
-	ID          uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	Platform    string    `json:"platform" gorm:"size:16;not null;uniqueIndex:uk_operations_platform_post"`
-	ExternalID  string    `json:"externalId" gorm:"size:80;not null;uniqueIndex:uk_operations_platform_post"`
-	Title       string    `json:"title" gorm:"size:250;not null"`
-	URL         string    `json:"url" gorm:"size:500;not null"`
-	PublishedAt time.Time `json:"publishedAt" gorm:"type:datetime;not null;index:idx_operations_platform_post_published"`
-	ViewCount   int64     `json:"viewCount" gorm:"not null;default:0"`
-	SyncedAt    time.Time `json:"syncedAt" gorm:"type:datetime;not null"`
+	ID            uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	Platform      string    `json:"platform" gorm:"size:16;not null;uniqueIndex:uk_operations_platform_post"`
+	ExternalID    string    `json:"externalId" gorm:"size:80;not null;uniqueIndex:uk_operations_platform_post"`
+	Title         string    `json:"title" gorm:"size:250;not null"`
+	URL           string    `json:"url" gorm:"size:500;not null"`
+	PublishedAt   time.Time `json:"publishedAt" gorm:"type:datetime;not null;index:idx_operations_platform_post_published"`
+	ViewCount     int64     `json:"viewCount" gorm:"not null;default:0"`
+	MediaType     string    `json:"mediaType" gorm:"size:16;not null;default:''"`
+	LikeCount     int64     `json:"likeCount" gorm:"not null;default:0"`
+	CommentCount  int64     `json:"commentCount" gorm:"not null;default:0"`
+	ShareCount    int64     `json:"shareCount" gorm:"not null;default:0"`
+	FavoriteCount int64     `json:"favoriteCount" gorm:"not null;default:0"`
+	ProfileVisits *int64    `json:"profileVisits"`
+	FollowerGain  *int64    `json:"followerGain"`
+	SyncedAt      time.Time `json:"syncedAt" gorm:"type:datetime;not null"`
 }
+
