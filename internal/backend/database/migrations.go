@@ -87,7 +87,7 @@ func migrationRegistry(appEnv string) []migration {
 			)
 		}},
 		{version: 14, apply: func(db *gorm.DB) error {
-			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.DailySignal{})
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&dailySignalV14{})
 		}},
 		{version: 15, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.WeeklyReport{})
@@ -306,6 +306,10 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 77, apply: auditLegacyAssignmentCohortsV77},
 		{version: 78, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.JoinInterest{})
+		}},
+		// The feature was retired in PR #478; its records are no longer needed.
+		{version: 79, apply: func(db *gorm.DB) error {
+			return db.Exec("DROP TABLE IF EXISTS daily_signals").Error
 		}},
 	}
 }
