@@ -21,6 +21,7 @@ export interface AssignmentSubmissionGrade {
   userId: number;
   score: number | null;
   decision: "passed" | "needs_redo" | null;
+  overdueMissing?: boolean;
 }
 
 export interface CapabilityDimension {
