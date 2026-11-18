@@ -2173,25 +2173,25 @@ html[data-theme-transition] body *::after {
   transform: rotate(-60deg) scale(0.75);
 }
 
-.theme-light-switch[aria-checked="true"] .theme-light-switch__track {
+:root[data-theme="dark"] .theme-light-switch .theme-light-switch__track {
   border-color: #34465a;
   background: linear-gradient(160deg, #1a293d, #0b1322);
   box-shadow: inset 0 3px 8px rgb(0 0 0 / 0.46);
 }
 
-.theme-light-switch[aria-checked="true"] .theme-light-switch__thumb {
+:root[data-theme="dark"] .theme-light-switch .theme-light-switch__thumb {
   border-color: rgb(166 196 238 / 0.44);
   background: linear-gradient(155deg, #62768f, #26374f);
   box-shadow: 0 3px 12px rgb(5 10 22 / 0.46), inset 0 1px 2px rgb(211 233 255 / 0.26);
   transform: translateX(36px);
 }
 
-.theme-light-switch[aria-checked="true"] .theme-light-switch__sun {
+:root[data-theme="dark"] .theme-light-switch .theme-light-switch__sun {
   opacity: 0;
   transform: rotate(60deg) scale(0.75);
 }
 
-.theme-light-switch[aria-checked="true"] .theme-light-switch__moon {
+:root[data-theme="dark"] .theme-light-switch .theme-light-switch__moon {
   opacity: 1;
   transform: rotate(0) scale(1);
 }
