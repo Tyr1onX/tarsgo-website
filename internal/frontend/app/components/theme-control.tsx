@@ -29,7 +29,7 @@ export function ThemeControl() {
     let target = progress;
     let velocity = 0;
     let dragging = false;
-    let pointer: { id: number; startX: number; startProgress: number; lastX: number; lastTime: number; speed: number; moved: boolean } | null = null;
+    let pointer: { id: number; startX: number; startProgress: number; lastX: number; lastTime: number; speed: number; moved: boolean; travel: number } | null = null;
     let suppressClick = false;
     let springing = false;
     let raf = 0;
@@ -49,15 +49,19 @@ export function ThemeControl() {
         starTimer = window.setTimeout(() => {
           starTimer = 0;
           raf = requestAnimationFrame(frame);
-        }, 110);
+        }, 750);
       }
+    };
+    // Pointer events can exceed the display refresh rate; coalesce to one paint per frame.
+    const requestPaint = () => {
+      if (!raf && !document.hidden) raf = requestAnimationFrame(frame);
     };
     function frame(now: number) {
       raf = 0;
       if (document.hidden) return;
       if (springing) {
         const dt = Math.min((now - (previousFrame || now)) / 1000, 0.05);
-        const omega = media.matches ? 30 : 10;
+        const omega = 18;
         const distance = progress - target;
         const factor = Math.exp(-omega * dt);
         const term = velocity + omega * distance;
@@ -81,7 +85,7 @@ export function ThemeControl() {
     };
     const animateTo = (to: number, initialVelocity = 0) => {
       target = to;
-      if (document.hidden) {
+      if (document.hidden || media.matches) {
         progress = to;
         velocity = 0;
         springing = false;
@@ -102,7 +106,6 @@ export function ThemeControl() {
       }
       animateTo(next, initialVelocity);
     };
-    const pointerTravel = () => button.getBoundingClientRect().width * 156 / 350;
     const onDown = (event: PointerEvent) => {
       if ((event.pointerType === "mouse" && event.button !== 0) || pointer) return;
       button.setPointerCapture(event.pointerId);
@@ -119,6 +122,7 @@ export function ThemeControl() {
         lastTime: performance.now(),
         speed: 0,
         moved: false,
+        travel: button.clientWidth * 156 / 350,
       };
     };
     const onMove = (event: PointerEvent) => {
@@ -128,12 +132,11 @@ export function ThemeControl() {
       pointer.moved = true;
       const now = performance.now();
       const dt = (now - pointer.lastTime) / 1000;
-      const travel = pointerTravel();
-      progress = clamp(pointer.startProgress + delta / travel);
-      if (dt > 0) pointer.speed = 0.3 * pointer.speed + 0.7 * (event.clientX - pointer.lastX) / travel / dt;
+      progress = clamp(pointer.startProgress + delta / pointer.travel);
+      if (dt > 0) pointer.speed = 0.3 * pointer.speed + 0.7 * (event.clientX - pointer.lastX) / pointer.travel / dt;
       pointer.lastX = event.clientX;
       pointer.lastTime = now;
-      paint(now);
+      requestPaint();
     };
     const onUp = (event: PointerEvent) => {
       if (!pointer || event.pointerId !== pointer.id) return;
@@ -146,7 +149,7 @@ export function ThemeControl() {
       if (Math.abs(delta) < 4) {
         commit(!checked);
       } else {
-        progress = clamp(current.startProgress + delta / pointerTravel());
+        progress = clamp(current.startProgress + delta / current.travel);
         commit(progress + current.speed * 0.06 >= 0.5, current.speed);
       }
     };
@@ -197,8 +200,12 @@ export function ThemeControl() {
     document.addEventListener("visibilitychange", onVisibility, { signal });
     media.addEventListener("change", onMotion, { signal });
 
-    const observer = new ResizeObserver(drawNow);
+    const observer = new ResizeObserver(() => {
+      scene.resize();
+      drawNow();
+    });
     observer.observe(canvas);
+    scene.resize();
     controllerRef.current = {
       setLight: (nextLight) => {
         checked = nextLight;
