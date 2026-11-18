@@ -70,6 +70,7 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 	var input struct {
 		Title      string   `json:"title"`
 		SeriesName string   `json:"seriesName"`
+		LeadID     uint64   `json:"leadId"`
 		Platforms  []string `json:"platforms"`
 		Owners     []struct {
 			StepID     uint64 `json:"stepId"`
@@ -94,6 +95,10 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 	names := make(map[uint64]string, len(members))
 	for _, member := range members {
 		names[member.ID] = member.Name
+	}
+	if input.LeadID != 0 && names[input.LeadID] == "" {
+		writeAPIError(c, http.StatusBadRequest, "作品总负责人无效")
+		return
 	}
 	owners := make(map[uint64]uint64, len(input.Owners))
 	for _, entry := range input.Owners {
@@ -174,6 +179,13 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 			}
 		}
 		values := map[string]any{}
+		if item.LeadID == nil && input.LeadID != 0 || item.LeadID != nil && *item.LeadID != input.LeadID {
+			if input.LeadID == 0 {
+				values["lead_id"] = nil
+			} else {
+				values["lead_id"] = input.LeadID
+			}
+		}
 		if item.Title != input.Title {
 			values["title"] = input.Title
 		}

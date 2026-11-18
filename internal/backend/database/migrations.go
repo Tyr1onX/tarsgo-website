@@ -312,6 +312,7 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Exec("DROP TABLE IF EXISTS daily_signals").Error
 		}},
 		{version: 80, apply: migrateOperationsContentV80},
+		{version: 81, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsProgressItem{}) }},
 	}
 }
 

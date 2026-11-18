@@ -15,6 +15,7 @@ export default function OperationsEpisodeSetupPage() {
   const [members, setMembers] = useState<OperationsMember[]>([]);
   const [title, setTitle] = useState("");
   const [seriesName, setSeriesName] = useState("");
+  const [leadId, setLeadId] = useState(0);
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [owners, setOwners] = useState<Record<number, number>>({});
   const [error, setError] = useState("");
@@ -32,6 +33,7 @@ export default function OperationsEpisodeSetupPage() {
         if (item) {
           setTitle(item.title);
           setSeriesName(item.seriesName || "");
+          setLeadId(item.leadId ?? 0);
           setPlatforms(item.publications.map((entry) => entry.platform));
           setOwners(Object.fromEntries(item.steps.map((step) => [step.id, step.assigneeId ?? 0])));
         }
@@ -43,7 +45,7 @@ export default function OperationsEpisodeSetupPage() {
   const isOtherWork = item?.kind === "merchandise";
   const validPlatforms = item?.kind === "article" ? ["wechat"] : isOtherWork ? [] : ["douyin", "bilibili", "wechat_video"];
   const changed = Boolean(item && (
-    item.title !== title.trim() || (item.seriesName || "") !== seriesName.trim() ||
+    item.title !== title.trim() || (item.seriesName || "") !== seriesName.trim() || (item.leadId ?? 0) !== leadId ||
     item.publications.length !== platforms.length ||
     platforms.some((key) => !item.publications.some((entry) => entry.platform === key)) ||
     item.steps.some((step) => (step.assigneeId ?? 0) !== (owners[step.id] ?? 0))
@@ -56,7 +58,7 @@ export default function OperationsEpisodeSetupPage() {
     setSaving(true);
     setError("");
     try {
-      await setupOperationsEpisode(item.id, title.trim(), seriesName.trim(), platforms,
+      await setupOperationsEpisode(item.id, title.trim(), seriesName.trim(), platforms, leadId,
         item.steps.map((step) => ({ stepId: step.id, assigneeId: owners[step.id] ?? 0 })));
       navigate(back, { replace: true });
     } catch (cause) {
@@ -88,6 +90,12 @@ export default function OperationsEpisodeSetupPage() {
               {operationsPlatformNames[key]}
             </label>)}
           </fieldset> : null}
+          <label>总负责人
+            <select value={leadId} onChange={(event) => setLeadId(Number(event.target.value))}>
+              <option value={0}>待分配</option>
+              {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </select>
+          </label>
           <h2>环节负责人</h2>
           <div className="operations-progress__setup-steps">
             {item.steps.map((step) => <label key={step.id}>{step.title}
@@ -101,7 +109,7 @@ export default function OperationsEpisodeSetupPage() {
           </div>
           <button className="admin-button admin-button--primary" type="submit"
             disabled={saving || !changed || !title.trim() || (!isOtherWork && platforms.length === 0)}>
-            {saving ? "保存中…" : "保存作品"}
+            {saving ? "保存中…" : "保存安排"}
           </button>
         </form>}
   </main>;
