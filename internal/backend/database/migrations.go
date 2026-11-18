@@ -303,6 +303,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 74, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.Assignment{}) }},
 		{version: 75, apply: func(db *gorm.DB) error { return db.AutoMigrate(&legacyAssignmentTargetArchiveV75{}) }},
 		{version: 76, apply: migrateLegacyAssignmentRecipientsV76},
+		{version: 77, apply: auditLegacyAssignmentCohortsV77},
 	}
 }
 
