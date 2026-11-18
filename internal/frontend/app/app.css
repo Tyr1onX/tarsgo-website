@@ -2147,6 +2147,12 @@ html[data-theme-transition] body *::after {
   }
 }
 
+@media (max-width: 359px) {
+  .site-navbar .site-logo {
+    max-width: 116px;
+  }
+}
+
 .navbar-profile-button { min-height: 2.75rem; max-width: 220px; }
 .navbar-auth-loading { display: flex; width: 11.5rem; min-height: 2.75rem; align-items: center; gap: 0.6rem; border: 1px solid var(--theme-border); border-radius: 999px; background: var(--theme-surface); padding: 0.35rem 0.65rem; color: var(--theme-muted); font: inherit; font-size: 0.75rem; text-align: left; }
 .navbar-auth-loading--error { justify-content: center; border-color: color-mix(in srgb, var(--theme-accent-contrast) 38%, var(--theme-border)); color: var(--theme-accent-contrast); cursor: pointer; }
