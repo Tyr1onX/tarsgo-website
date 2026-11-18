@@ -198,6 +198,10 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 			return err
 		}
 
+		if err := ensureDistinctStudentID(tx, 0, normalizedInput.StudentID); err != nil {
+			return err
+		}
+
 		role, err := s.findRoleByNameTx(tx, model.RoleNameUser)
 		if err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "默认用户角色不存在", Err: err}

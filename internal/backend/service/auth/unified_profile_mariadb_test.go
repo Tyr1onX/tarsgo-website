@@ -63,6 +63,22 @@ func TestMariaDBUnifiedRegistrationAndCanonicalProfile(t *testing.T) {
 		if groups != 0 {
 			t.Fatal("registration created membership")
 		}
+		if student {
+			duplicateEmail := fmt.Sprintf("duplicate-%d@tarsgo.test", now.UnixNano())
+			duplicateCode := model.EmailCode{Email: duplicateEmail, Purpose: model.EmailCodePurposeRegister,
+				CodeHash:  HashVerificationCode(duplicateEmail, model.EmailCodePurposeRegister, "123456"),
+				ExpiresAt: now.Add(time.Hour), LastSentAt: now}
+			if err := tx.Create(&duplicateCode).Error; err != nil {
+				t.Fatal(err)
+			}
+			_, err := s.RegisterWithEmail(ctx, RegisterEmailInput{
+				Input: accountprofile.Input{IsStudent: &student, StudentID: "20241421", College: "通信工程学院"},
+				Email: duplicateEmail, Password: "Synthetic123!", RealName: "另一个学生", Code: "123456",
+			})
+			if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != 409 {
+				t.Fatalf("duplicate student ID registration must be rejected: %v", err)
+			}
+		}
 		if !student {
 			continue
 		}

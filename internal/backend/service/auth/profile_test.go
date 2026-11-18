@@ -35,6 +35,9 @@ func TestUpdateProfileAllowsSuperAdminToChangeCanonicalName(t *testing.T) {
 		WithArgs(uint64(7), model.UserStatusEnabled, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "status", "avatar_url"}).
 			AddRow(uint64(7), uint64(3), model.UserStatusEnabled, nil))
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users` WHERE status = \\? AND phone = \\? AND id <> \\?").
+		WithArgs(model.UserStatusEnabled, "13900139000", uint64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
 	mock.ExpectExec("UPDATE `users` SET `phone`=\\?,`real_name`=\\?,`updated_at`=\\? WHERE id = \\? AND status = \\?").
 		WithArgs("13900139000", "李四", sqlmock.AnyArg(), uint64(7), model.UserStatusEnabled).
 		WillReturnResult(sqlmock.NewResult(0, 1))

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -108,6 +109,16 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 			return err
 		}
 		oldAvatar = current.AvatarURL
+		if phone != "" && (current.Phone == nil || *current.Phone != phone) {
+			if err := ensureDistinctPhone(tx, userID, phone); err != nil {
+				return err
+			}
+		}
+		if value, ok := updates["student_id"].(string); ok && value != current.StudentID {
+			if err := ensureDistinctStudentID(tx, userID, value); err != nil {
+				return err
+			}
+		}
 		result := tx.Model(&model.User{}).
 			Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Updates(updates)
 		if result.Error != nil {
@@ -134,6 +145,10 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 	if err != nil {
 		if newAvatarPath != "" {
 			_ = os.Remove(newAvatarPath)
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存个人资料失败", Err: err}
 	}
