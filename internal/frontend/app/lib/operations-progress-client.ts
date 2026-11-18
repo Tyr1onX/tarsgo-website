@@ -19,11 +19,6 @@ export interface OperationsStep {
   updatedAt: string;
 }
 
-export interface OperationsMember {
-  id: number;
-  name: string;
-}
-
 export interface OperationsSnapshot {
   id: number;
   platform: "bilibili" | "douyin" | "wechat";
@@ -81,24 +76,6 @@ export interface OperationsBoard {
   posts: OperationsPost[];
   canManage: boolean;
   viewerId: number;
-  members: OperationsMember[];
-}
-
-export type OperationsItemInput = Pick<OperationsItem, "title" | "kind" | "platforms" | "intervalDays" | "nextAction" | "nextCheckAt" | "status"> & { copyFromItemId?: number };
-export type OperationsUpdateInput = Pick<OperationsUpdate, "content" | "kind" | "link" | "publishedOn">;
-
-export function addOperationsStep(itemId: number, title: string) {
-  return apiRequest<OperationsStep>(`/api/operations/progress/${itemId}/steps`, { method: "POST", body: { title } });
-}
-
-export function saveOperationsStep(itemId: number, stepId: number, changes: Partial<Pick<OperationsStep, "title" | "assigneeId" | "status" | "blockReason">>) {
-  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, {
-    method: "PATCH", body: changes,
-  });
-}
-
-export function deleteOperationsStep(itemId: number, stepId: number) {
-  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, { method: "DELETE" });
 }
 
 export function getOperationsBoard() {
@@ -111,20 +88,10 @@ export function importDouyinPosts(file: File) {
   return apiRequest<{ count: number }>("/api/operations/douyin/import", { method: "POST", body });
 }
 
-export function createOperationsItem(input: OperationsItemInput) {
-  return apiRequest<OperationsItem>("/api/operations/progress", { method: "POST", body: input });
-}
-
-export function saveOperationsItem(id: number, input: OperationsItemInput) {
-  return apiRequest<{ id: number }>(`/api/operations/progress/${id}`, { method: "PATCH", body: input });
-}
-
-export function recordOperationsUpdate(id: number, input: OperationsUpdateInput) {
-  return apiRequest<OperationsUpdate>(`/api/operations/progress/${id}/updates`, { method: "POST", body: input });
-}
-
-export function getOperationsHistory(id: number) {
-  return apiRequest<OperationsUpdate[]>(`/api/operations/progress/${id}/updates`);
+export function saveOperationsStep(itemId: number, stepId: number, changes: { status: OperationsStepStatus; blockReason?: string }) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, {
+    method: "PATCH", body: changes,
+  });
 }
 
 export type OperationsAttention = "done" | "blocked" | "overdue" | "pending" | "active";
@@ -141,7 +108,7 @@ export function getOperationsAttention(item: OperationsItem, now = new Date()): 
 }
 
 export const operationsAttentionLabel: Record<OperationsAttention, string> = {
-  done: "已结束", blocked: "遇到阻塞", overdue: "需要跟进", pending: "待补充", active: "推进中",
+  done: "已结束", blocked: "遇到阻塞", overdue: "需要跟进", pending: "待启动", active: "推进中",
 };
 
 export function nextOperationsDate(item: OperationsItem): Date | null {

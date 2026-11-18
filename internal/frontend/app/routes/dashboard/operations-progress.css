@@ -7,7 +7,6 @@
 .operations-progress__header,
 .operations-progress__section-head,
 .operations-progress__item-head,
-.operations-progress__item-actions,
 .operations-progress__actions {
   display: flex;
   align-items: center;
@@ -68,42 +67,7 @@
 .operations-progress__item-body p > span:first-child { flex: none; min-width: 4.5rem; color: var(--admin-muted); }
 .operations-progress a { color: var(--admin-accent-text); text-decoration: none; }
 .operations-progress a:hover { text-decoration: underline; }
-.operations-progress__item-actions { justify-content: flex-start; border-top: 1px solid var(--admin-border-subtle); padding-top: 0.65rem; }
-.operations-progress__item-actions button,
-.operations-progress__error button { padding: 0.25rem 0; border: 0; background: transparent; color: var(--admin-accent-text); font-size: 0.8rem; cursor: pointer; }
-.operations-progress__item-actions button:hover { text-decoration: underline; }
-.operations-progress__form,
-.operations-progress__update-form {
-  display: grid;
-  gap: 0.8rem;
-  padding: 1.1rem 1.25rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-md);
-  margin: 1rem 0;
-  background: var(--admin-surface);
-}
-.operations-progress__form label,
-.operations-progress__update-form label { display: grid; gap: 0.4rem; color: var(--admin-muted); font-size: 0.8rem; }
-.operations-progress__form input,
-.operations-progress__form select,
-.operations-progress__update-form input,
-.operations-progress__update-form select,
-.operations-progress__update-form textarea {
-  width: 100%;
-  min-width: 0;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
-  background: var(--admin-surface);
-  color: var(--admin-text);
-  font: inherit;
-}
-.operations-progress__form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0.8rem; }
-.operations-progress__actions { justify-content: flex-start; }
 .operations-progress__error { margin: 1rem 0; color: var(--admin-danger); font-size: 0.85rem; }
-.operations-progress__history { display: grid; gap: 0.6rem; padding: 0.9rem 0 0; margin: 0.8rem 0 0; border-top: 1px solid var(--admin-border-subtle); list-style: none; }
-.operations-progress__history li { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.8rem; overflow-wrap: anywhere; }
-.operations-progress__history time { flex: none; color: var(--admin-muted); }
 .operations-progress__feed { margin: 2rem 0; }
 .operations-progress__feed ol { margin: 0.75rem 0 0; padding: 0; list-style: none; border-top: 1px solid var(--admin-border-subtle); }
 .operations-progress__feed li { display: grid; grid-template-columns: 6.5rem minmax(0,1fr); gap: 0.75rem; padding: 0.8rem 0; border-bottom: 1px solid var(--admin-border-subtle); }
@@ -136,6 +100,15 @@
   color: var(--admin-text);
 }
 .operations-progress__video-stages li.is-current { font-weight: 650; }
+.operations-progress a.operations-progress__step-button {
+  color: inherit;
+  text-decoration: none;
+}
+.operations-progress a.operations-progress__step-button:hover,
+.operations-progress a.operations-progress__step-button:focus-visible {
+  color: var(--admin-accent-text);
+  text-decoration: none;
+}
 .operations-progress__step-button {
   width: 100%;
   display: grid;
@@ -149,26 +122,6 @@
   cursor: pointer;
   font: inherit;
 }
-.operations-progress__step-button:disabled { cursor: default; }
-.operations-progress__step-button:not(:disabled):hover,
-.operations-progress__step-button:not(:disabled):focus-visible { color: var(--admin-accent-text); }
-.operations-progress__stage-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
-  margin-top: 0.75rem;
-  color: var(--admin-muted);
-  font-size: 0.75rem;
-}
-.operations-progress__stage-meta button {
-  border: 0;
-  background: transparent;
-  color: var(--admin-accent-text);
-  cursor: pointer;
-  font: inherit;
-}
-.operations-progress__stage-meta button:disabled { opacity: 0.5; cursor: default; }
 .operations-progress__account-metrics {
   display: grid;
   grid-template-columns: repeat(3,minmax(0,1fr));
@@ -229,7 +182,6 @@
   border-color: var(--admin-accent);
   color: var(--admin-accent-text);
 }
-.operations-progress__video-stages > .operations-progress__muted { display: block; margin-top: 0.4rem; }
 @media (max-width: 520px) {
   .operations-progress__video-stages li { font-size: 0.65rem; }
   .operations-progress__video-stages .operations-progress__step-marker { width: 1.25rem; height: 1.25rem; }
@@ -240,7 +192,6 @@
   .operations-progress__stats > div { padding: 0.65rem; }
   .operations-progress__stats span { font-size: 0.7rem; }
   .operations-progress__item { padding: 0.9rem; }
-  .operations-progress__form-grid { grid-template-columns: minmax(0,1fr); }
   .operations-progress__item-head { flex-wrap: wrap; }
   .operations-progress__feed li { grid-template-columns: minmax(0,1fr); gap: 0.25rem; }
 }
@@ -264,68 +215,42 @@
   font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
-.operations-progress__step-detail {
-  margin-top: 0.7rem;
-  padding: 0.8rem;
-  border: 1px solid var(--admin-border-subtle);
-  border-radius: 0.65rem;
-  background: var(--admin-surface);
-  display: grid;
-  gap: 0.7rem;
-  font-size: 0.8rem;
-}
-.operations-progress__step-detail label { display: grid; gap: 0.3rem; }
-.operations-progress__step-detail select,
-.operations-progress__step-detail input {
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--admin-border);
-  border-radius: 0.4rem;
-  background: var(--admin-surface);
-  color: var(--admin-text);
-  width: 100%;
-  max-width: 24rem;
-}
-.operations-progress__step-detail button,
-.operations-progress__add-step button,
-.operations-progress__add-step-trigger {
-  width: fit-content;
-  border: 0;
-  background: none;
-  color: var(--admin-accent-text);
-  cursor: pointer;
-  font: inherit;
-}
-.operations-progress__step-detail button:disabled { opacity: 0.5; cursor: default; }
-.operations-progress__step-detail .is-selected,
-.operations-progress__filters .is-selected { font-weight: 700; color: var(--admin-text); }
-.operations-progress__add-step,
-.operations-progress__filters,
-.operations-progress__platforms {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-}
-.operations-progress__add-step { margin-top: 0.7rem; }
-.operations-progress__add-step input { min-width: 10rem; flex: 1; }
-.operations-progress__add-step-trigger { margin-top: 0.6rem; font-size: 0.77rem; }
-.operations-progress__filters { margin: 0.55rem 0 0.9rem; }
-.operations-progress__filters button,
-.operations-progress__filters select {
-  padding: 0.36rem 0.6rem;
-  border: 1px solid var(--admin-border-subtle);
-  border-radius: 0.4rem;
-  background: var(--admin-surface);
-  color: var(--admin-text);
-  font: inherit;
-  font-size: 0.76rem;
-  cursor: pointer;
-}
-.operations-progress__platforms {
-  border: 0;
-  padding: 0;
-  margin: 0;
+
+.operations-progress__step-page { max-width: 42rem; }
+.operations-progress__step-page .operations-progress__back {
+  display: inline-block;
+  margin: 0 0 1.1rem;
   font-size: 0.82rem;
 }
-.operations-progress__platforms legend { margin-bottom: 0.4rem; }
-.operations-progress__platforms label { display: flex; align-items: center; gap: 0.3rem; }
+.operations-progress__step-info {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1.4rem 0;
+}
+.operations-progress__step-info p {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.87rem;
+}
+.operations-progress__step-info span { color: var(--admin-muted); font-size: 0.76rem; }
+.operations-progress__edit-link { display: inline-flex; width: fit-content; }
+.operations-progress__status-editor { display: grid; gap: 1rem; }
+.operations-progress__status-editor label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.operations-progress__status-editor select,
+.operations-progress__status-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font: inherit;
+}
+.operations-progress__status-editor button { width: fit-content; }

@@ -166,7 +166,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "运营环节读取失败")
 		return
 	}
-	needsMembers := canManage
+	needsMembers := false
 	for _, step := range steps {
 		if step.AssigneeID != nil {
 			needsMembers = true
@@ -272,11 +272,8 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 	if user != nil {
 		viewerID = user.ID
 	}
-	if !canManage {
-		members = nil
-	}
 	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots,
-		"posts": posts, "canManage": canManage, "viewerId": viewerID, "members": members})
+		"posts": posts, "canManage": canManage, "viewerId": viewerID})
 }
 
 func (h *OperationsProgressHandler) Create(c *gin.Context) {
