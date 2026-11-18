@@ -398,3 +398,90 @@ export default function OperationsProgressPage() {
                     <input maxLength={80} value={stepTitle} disabled={stepBusy !== null} onChange={(event) => setStepTitle(event.target.value)} />
                   </label> : null}
                   {board.canManage && stepTitle.trim() && stepTitle.trim() !== step.title ? <button type="button" disabled={stepBusy !== null}
+                    onClick={() => void changeStep(item.id, step.id, { title: stepTitle.trim() })}>保存名称</button> : null}
+                  {board.canManage ? <label>负责人
+                    <select value={step.assigneeId ?? 0} disabled={stepBusy !== null}
+                      onChange={(event) => void changeStep(item.id, step.id, { assigneeId: Number(event.target.value) })}>
+                      <option value={0}>待分配</option>
+                      {board.members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+                    </select>
+                  </label> : null}
+                  {(board.canManage || step.assigneeId === board.viewerId) ? <>
+                    <div className="operations-progress__actions">
+                      {([["pending", "待处理"], ["active", "进行中"], ["done", "已完成"]] as const).map(([status, label]) =>
+                        <button key={status} className={step.status === status ? "is-selected" : ""} type="button"
+                          disabled={stepBusy !== null || step.status === status} onClick={() => void changeStep(item.id, step.id, { status })}>{label}</button>)}
+                    </div>
+                    <label>卡点原因
+                      <input maxLength={300} value={blockReason} disabled={stepBusy !== null} onChange={(event) => setBlockReason(event.target.value)} />
+                    </label>
+                    <button type="button" disabled={stepBusy !== null || !blockReason.trim()}
+                      onClick={() => void changeStep(item.id, step.id, { status: "blocked", blockReason })}>标记受阻</button>
+                  </> : null}
+                  {step.completedAt ? <span className="operations-progress__muted">完成于 {formatOperationsDate(step.completedAt)}</span> : null}
+                  {board.canManage && step.status !== "done" ? <button type="button" disabled={stepBusy !== null}
+                    onClick={() => void removeStep(item.id, step.id)}>移除环节</button> : null}
+                  {stepError ? <p role="alert" className="operations-progress__error">{stepError}</p> : null}
+                </div>)}
+                {renderAddStepControl(item.id)}
+              </div> : null}
+              {item.steps.length === 0 ? renderAddStepControl(item.id) : null}
+              <div className="operations-progress__item-body">
+                {item.lastUpdate ? <p><span>最近进展</span>{item.lastUpdate.content} <time dateTime={item.lastUpdate.publishedOn || item.lastUpdate.createdAt}>（{formatOperationsUpdateDate(item.lastUpdate)}）</time>
+                  {item.lastUpdate.link ? <a href={item.lastUpdate.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}</p> : null}
+                {item.kind === "channel" ? <p><span>上次发布</span><strong>{formatOperationsDay(item.lastCompletedOn)}</strong>{daysSinceOperationsPublish(item.lastCompletedOn) !== null ? <small>（距今 {daysSinceOperationsPublish(item.lastCompletedOn)} 天）</small> : null}</p> : item.intervalDays > 0 ? <p><span>上次完成</span>{formatOperationsDay(item.lastCompletedOn)}</p> : null}
+                {item.status !== "done" && item.steps.length === 0 && (item.nextAction || due) ? <p><span>下一步</span>{item.nextAction || "待跟进"}{due ? <time dateTime={due.toISOString()}> · {formatOperationsDate(due)}</time> : null}</p> : null}
+              </div>
+              <div className="operations-progress__item-actions">
+                {board.canManage ? <button type="button" onClick={() => setHistoryItem(historyItem === item.id ? null : item.id)}>{historyItem === item.id ? "收起记录" : "最近记录"}</button> : null}
+                {board.canManage ? <>
+                  {item.status !== "done" ? <button type="button" onClick={() => {
+                    setEditing(null);
+                    setUpdating(updating === item.id ? null : item.id);
+                    setUpdateForm({ content: "", kind: item.kind === "channel" || item.intervalDays > 0 ? "completed" : "progress", link: "", publishedOn: null });
+                    setError("");
+                  }}>记录进展</button> : null}
+                  <button type="button" onClick={() => startEdit(item)}>编辑</button>
+                </> : null}
+              </div>
+              {editing === item.id && board.canManage ? renderItemEditor() : null}
+              {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id} /> : null}
+              {updating === item.id && board.canManage ? <form className="operations-progress__update-form" onSubmit={(event) => void submitUpdate(event)}>
+                {item.kind === "channel" || item.intervalDays > 0 ? <label>记录类型<select value={updateForm.kind} onChange={(event) => setUpdateForm((current) => ({ ...current, kind: event.target.value as OperationsUpdateInput["kind"], publishedOn: null }))}>
+                  <option value="completed">{item.kind === "channel" ? "发布新内容" : "本期已完成"}</option><option value="progress">进展备注</option>
+                </select></label> : null}
+                {updateForm.kind === "completed" ? <label>实际发布日期<input type="date" required value={updateForm.publishedOn || ""} onChange={(event) => setUpdateForm((current) => ({ ...current, publishedOn: event.target.value || null }))} /></label> : null}
+                <label>进展内容<textarea required maxLength={1000} rows={2} value={updateForm.content} onChange={(event) => setUpdateForm((current) => ({ ...current, content: event.target.value }))} /></label>
+                <label>相关链接（选填）<input type="url" placeholder="https://" maxLength={500} value={updateForm.link} onChange={(event) => setUpdateForm((current) => ({ ...current, link: event.target.value }))} /></label>
+                <div className="operations-progress__actions">
+                  <button className="admin-button admin-button--primary" disabled={saving}>{saving ? "提交中…" : "保存进展"}</button>
+                  <button type="button" className="admin-button admin-button--secondary" disabled={saving} onClick={() => setUpdating(null)}>取消</button>
+                </div>
+              </form> : null}
+            </article>;
+          })}
+        </div>
+
+        {board.posts.length > 0 ? <section className="operations-progress__posts" aria-labelledby="operations-posts-title">
+          <div className="operations-progress__section-head"><h2 id="operations-posts-title">历史发布</h2>
+            {board.posts.some((post) => post.platform === "wechat") ? <span className="operations-progress__muted">公众号阅读数据核实于 2026-11-18</span> : null}
+          </div>
+          <ol>{board.posts.slice(0, 10).map((post) => <li key={`${post.platform}:${post.externalId}`}>
+            <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a>
+            <span>{post.platform === "wechat" ? "公众号" : "B站"} · {post.platform === "wechat"
+              ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
+              : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : "播放"}</span>
+          </li>)}</ol>
+        </section> : null}
+
+        {board.updates.length > 0 ? <section className="operations-progress__feed" aria-labelledby="operations-progress-feed-title">
+          <h2 id="operations-progress-feed-title">最近动态</h2>
+          <ol>{board.updates.map((entry) => <li key={entry.id}>
+            <time dateTime={entry.publishedOn || entry.createdAt}>{formatOperationsUpdateDate(entry)}</time>
+            <div><a href={`#operations-item-${entry.itemId}`}>{itemNames.get(entry.itemId) || "事项"}</a><p>{entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</p></div>
+          </li>)}</ol>
+        </section> : null}
+      </> : null}
+    </main>
+  );
+}
