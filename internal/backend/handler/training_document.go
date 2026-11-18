@@ -122,7 +122,7 @@ func (h *TrainingDocumentHandler) Save(c *gin.Context) {
 			return
 		}
 		saved = append(saved, stored.StoragePath)
-		body = strings.ReplaceAll(body, "community-upload://"+tokens[i], "/api/training-documents/images/"+stored.StoragePath)
+		body = strings.ReplaceAll(body, "community-upload://"+tokens[i], "/api/training-document-images/"+stored.StoragePath)
 	}
 	if strings.Contains(body, "community-upload://") || strings.Contains(body, "blob:") || strings.Contains(body, "data:image/") {
 		writeAPIError(c, http.StatusBadRequest, "文档中有未保存的图片")
