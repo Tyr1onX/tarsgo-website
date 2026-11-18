@@ -31,8 +31,8 @@ func cohortOptions(db *gorm.DB, groupID uint64) ([]CohortOption, error) {
 		Joins("JOIN user_groups AS g ON g.id = gm.group_id").
 		Joins("JOIN users AS u ON u.id = r.user_id").
 		Joins("JOIN roles AS role ON role.id = u.role_id").
-		Where("r.preferred_group_id = ? AND r.recruitment_status = ? AND g.status = ? AND u.status = ? AND role.name = ? AND u.team_identity_status <> ?",
-			groupID, model.RecruitmentStatusAdmitted, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser, model.TeamIdentityFormerMember).
+		Where("r.recruitment_status = ? AND g.status = ? AND u.status = ? AND role.name = ? AND u.team_identity_status <> ?",
+			model.RecruitmentStatusAdmitted, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser, model.TeamIdentityFormerMember).
 		Order("f.created_at DESC, f.id DESC, u.real_name ASC, u.id ASC").
 		Scan(&rows).Error
 	if err != nil {
