@@ -33,9 +33,17 @@ export function PublicFooter({ compactMobile = false }: { compactMobile?: boolea
         </div>
 
         <div className="public-footer-signature">
-          <p className="text-xs text-fg-dim">
-            &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <p className="text-xs text-fg-dim">
+              &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
+            </p>
+            <Link
+              to="/lab"
+              className="text-xs text-fg-muted underline-offset-4 hover:text-accent-primary hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary"
+            >
+              互动实验室
+            </Link>
+          </div>
           <FooterCoordinateSandTrace />
         </div>
       </div>
