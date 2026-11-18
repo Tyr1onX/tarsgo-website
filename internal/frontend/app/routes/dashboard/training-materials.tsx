@@ -1,8 +1,11 @@
-import { isValidElement, useState, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router";
+import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useOutletContext, useSearchParams } from "react-router";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { CommunityMarkdownEditor, type CommunityPendingImage } from "~/components/community-markdown-editor";
+import { apiRequest } from "~/lib/api-client";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import startMarkdown from "~/content/training/start.md?raw";
 import gitMarkdown from "~/content/training/git-and-github.md?raw";
 import "./training-materials.css";
@@ -350,21 +353,84 @@ function DocumentationArticle({ source }: { source: string }) {
 }
 
 export default function TrainingMaterialsPage() {
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const canEdit = currentUser.role.name === "super_admin";
   const [searchParams, setSearchParams] = useSearchParams();
+  const [loaded, setLoaded] = useState<{ slug: string; body: string; error?: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [uploads, setUploads] = useState<CommunityPendingImage[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const flushRef = useRef<() => string>(() => "");
   const selectedMaterial = searchParams.has("group")
     ? materials.find(({ id }) => id === searchParams.get("group"))
     : undefined;
   const selectedDocument = selectedMaterial ? undefined
     : documents.find(({ id }) => id === searchParams.get("doc")) ?? documents[0];
   const selectedKey = selectedMaterial ? `group:${selectedMaterial.id}` : `doc:${selectedDocument?.id}`;
+  const documentSlug = selectedDocument?.id;
+  useEffect(() => {
+    if (!documentSlug) return;
+    const controller = new AbortController();
+    apiRequest<{ body: string }>(`/api/training-documents/${documentSlug}`, { signal: controller.signal })
+      .then(({ body }) => setLoaded({ slug: documentSlug, body }))
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setLoaded({ slug: documentSlug, body: "", error: error instanceof Error ? error.message : "文档加载失败" });
+      });
+    return () => controller.abort();
+  }, [documentSlug]);
+
+  useEffect(() => {
+    setEditing(false);
+    setUploads([]);
+    setSaveError("");
+  }, [selectedKey]);
+
+  const documentSource = selectedDocument && loaded?.slug === selectedDocument.id && !loaded.error
+    ? loaded.body || selectedDocument.markdown : null;
+
+  function confirmLeave() {
+    return !editing || (draft === documentSource && uploads.length === 0) || window.confirm("有未保存的修改，确定离开吗？");
+  }
+
+  function beginEdit() {
+    if (documentSource === null) return;
+    setDraft(documentSource);
+    setUploads([]);
+    setSaveError("");
+    setEditing(true);
+  }
+
+  async function saveDocument() {
+    if (!selectedDocument || saving) return;
+    const markdown = flushRef.current();
+    const form = new FormData();
+    form.set("body", markdown);
+    form.set("uploadTokens", JSON.stringify(uploads.map(({ token }) => token)));
+    uploads.forEach(({ file }) => form.append("files", file, file.name));
+    setSaving(true);
+    setSaveError("");
+    try {
+      const saved = await apiRequest<{ body: string }>(`/api/admin/training-documents/${selectedDocument.id}`, { method: "PUT", body: form });
+      setLoaded({ slug: selectedDocument.id, body: saved.body });
+      setEditing(false);
+      setUploads([]);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "保存失败，请重试");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const activeIndex = allLinks.findIndex(({ key }) => key === selectedKey);
   const before = allLinks[activeIndex - 1];
   const after = allLinks[activeIndex + 1];
   const category = selectedMaterial
     ? selectedMaterial.id === "foundation" ? "通用基础" : "原始培养路线"
     : selectedDocument?.id === "start" ? "开始学习" : "通用基础";
-  const sections = selectedDocument
-    ? Array.from(selectedDocument.markdown.matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
+  const sections = selectedDocument && documentSource !== null
+    ? Array.from((editing ? draft : documentSource).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
     : [];
 
   return <section className="training-docs admin-design mx-auto w-full max-w-[84rem] p-4 sm:p-6" aria-label="新人培养文档">
@@ -377,6 +443,7 @@ export default function TrainingMaterialsPage() {
       <select
         value={selectedKey}
         onChange={(event) => {
+          if (!confirmLeave()) return;
           const [kind, id] = event.target.value.split(":");
           setSearchParams(kind === "group" ? { group: id } : { doc: id });
         }}
@@ -394,6 +461,7 @@ export default function TrainingMaterialsPage() {
             {links.map(({ key, href, label }) => <Link
               key={key}
               to={href}
+              onClick={(event) => { if (key !== selectedKey && !confirmLeave()) event.preventDefault(); }}
               aria-current={selectedKey === key ? "page" : undefined}
               className="training-docs__nav-link"
             >{label}</Link>)}
@@ -401,17 +469,43 @@ export default function TrainingMaterialsPage() {
         </nav>
       </aside>
       <article className="training-docs__article">
-        <p className="training-docs__breadcrumb">新人培养 / {category}</p>
+        <div className="training-docs__article-header">
+          <p className="training-docs__breadcrumb">新人培养 / {category}</p>
+          {canEdit && selectedDocument && documentSource !== null ? <div className="training-docs__actions">
+            {editing ? <>
+              <button type="button" onClick={() => { setEditing(false); setUploads([]); setSaveError(""); }} disabled={saving}>取消</button>
+              <button type="button" className="training-docs__save" onClick={() => void saveDocument()} disabled={saving}>{saving ? "保存中…" : "保存"}</button>
+            </> : <button type="button" onClick={beginEdit}>编辑</button>}
+          </div> : null}
+        </div>
         {selectedMaterial
           ? <>
             <h1>{selectedMaterial.id === "foundation" ? "通用基础学习资料" : `${selectedMaterial.label} · 原始培养路线`}</h1>
             <p className="training-docs__original-label">资料原文保留，未调整知识点和阶段要求。</p>
             <pre className="training-docs__original">{selectedMaterial.text}</pre>
           </>
-          : <DocumentationArticle source={selectedDocument?.markdown ?? startMarkdown} />}
+          : !selectedDocument || loaded?.slug !== selectedDocument.id
+            ? <p className="training-docs__status">正在加载文档…</p>
+            : loaded.error
+              ? <p className="training-docs__status" role="alert">{loaded.error}</p>
+              : editing
+                ? <section className="training-docs__editing" aria-label="编辑文档">
+                  <CommunityMarkdownEditor
+                    key={selectedDocument.id}
+                    value={draft}
+                    onChange={setDraft}
+                    flushRef={flushRef}
+                    uploads={uploads}
+                    onUploadsChange={setUploads}
+                    placeholder="编辑文档内容…"
+                    disabled={saving}
+                  />
+                  {saveError ? <p className="training-docs__save-error" role="alert">{saveError}</p> : null}
+                </section>
+                : <DocumentationArticle source={documentSource ?? selectedDocument.markdown} />}
         <nav className="training-docs__pagination" aria-label="相邻文档">
-          {before ? <Link to={before.href}>← {before.label}</Link> : <span />}
-          {after ? <Link to={after.href}>{after.label} →</Link> : <span />}
+          {before ? <Link to={before.href} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>← {before.label}</Link> : <span />}
+          {after ? <Link to={after.href} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>{after.label} →</Link> : <span />}
         </nav>
       </article>
       {sections.length ? <aside className="training-docs__toc" aria-label="本页目录">
