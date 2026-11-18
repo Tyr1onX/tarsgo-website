@@ -188,3 +188,22 @@ test("training materials retain the uploaded group routes and the shared video r
   assert.ok(content.includes("阶段考核：？？？"));
   assert.ok(content.includes("硬件组学习全部软件组内容"));
 });
+
+test("common foundations are a separate default document and retain original directions", async () => {
+  const content = await readFile(new URL("../routes/dashboard/training-materials.tsx", import.meta.url), "utf8");
+  const start = content.indexOf('id: "foundation"');
+  const originalStart = content.indexOf('id: "electrical"');
+  assert.ok(start >= 0 && start < originalStart);
+  assert.match(content, /materials\.find\(\(\{ id \}\) => id === searchParams\.get\("group"\)\) \?\? materials\[0\]/);
+  const foundation = content.slice(start, originalStart);
+  for (const part of ["计算机基础", "Git 与 GitHub", "Linux（Ubuntu）基础", "编程语言基础", "工程实践基础"]) {
+    assert.ok(foundation.includes(part), part);
+  }
+  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F", "BV1Y8aL6SEit", "BV1LwHv6LEYz", "BV1cq421w72c", "BV1Cc41127B9", "BV1rpWjevEip", "BV1Dk4y1j7oj"]) {
+    assert.ok(foundation.includes(bv), bv);
+  }
+  for (const original of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
+    assert.ok(content.includes('id: "' + original + '"'), original);
+  }
+  assert.ok(foundation.includes("不统一要求全部学习"));
+});
