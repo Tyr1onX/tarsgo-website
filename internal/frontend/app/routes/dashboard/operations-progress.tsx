@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link } from "react-router";
 import {
-  daysSinceOperationsPublish, formatOperationsDate, formatOperationsDay,
-  formatOperationsUpdateDate, getOperationsAttention, getOperationsBoard, getDouyinSyncStatus,
-  nextOperationsDate, operationsAttentionLabel, sortOperationsItems,
-  type OperationsBoard, type OperationsSnapshot, type OperationsStepStatus,
+  formatOperationsDay, getOperationsAttention, getOperationsBoard, operationsAttentionLabel,
+  type OperationsBoard, type OperationsItem, type OperationsSnapshot,
 } from "~/lib/operations-progress-client";
+import { OperationsStageBar } from "./operations-stage-bar";
 import "./operations-progress.css";
 
-export function meta() { return [{ title: "战队动态 | TARSGO" }]; }
+export function meta() { return [{ title: "运营动态 | TARSGO" }]; }
 
 function OperationsProgressSkeleton() {
   const line = "block h-3 rounded bg-[var(--admin-border)]";
@@ -43,7 +42,6 @@ function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["
   const maximum = Math.max(...values.map((entry) => entry.followers));
   const minimum = Math.min(...values.map((entry) => entry.followers));
   const span = Math.max(1, maximum - minimum);
-  const change = values[values.length - 1].followers - values[0].followers;
   const coords = values.map((entry, index) => {
     const x = 12 + index * 296 / Math.max(1, values.length - 1);
     const y = 66 - (entry.followers - minimum) / span * 54;
@@ -54,183 +52,119 @@ function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["
       <strong>{label}</strong>
       <span><b>{values[values.length - 1].followers.toLocaleString("zh-CN")}</b> {platform === "wechat" ? "关注" : "粉"} · {values[values.length - 1].observedOn}</span>
     </div>
-    {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注趋势，从${values[0].followers}到${values[values.length - 1].followers}`}>
+    {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注增长趋势，从${minimum}到${maximum}`}>
       <polyline points={coords.map(({ x, y }) => `${x},${y}`).join(" ")} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}{entry.newFollowers !== null && entry.unfollows !== null ? `（新增 ${entry.newFollowers}，取消 ${entry.unfollows}）` : ""}</title></circle>)}
+      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}</title></circle>)}
     </svg> : null}
-    {values.length > 1 ? <p className="operations-progress__muted">净变化 {change >= 0 ? "+" : ""}{change.toLocaleString("zh-CN")} · {values[0].observedOn} 起</p> : null}
+    {values.length > 1 ? <p className="operations-progress__muted">历史记录 {values.length} 个 · {values[0].observedOn} 起</p> : null}
   </div>;
 }
 
 
-const statusLabels: Record<OperationsStepStatus, string> = {
-  pending: "待处理", active: "进行中", blocked: "受阻", done: "已完成",
-};
-
 export default function OperationsProgressPage() {
-  const location = useLocation();
   const [board, setBoard] = useState<OperationsBoard | null>(null);
-  const [douyinSync, setDouyinSync] = useState<{ enabled: boolean; connected: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showDone, setShowDone] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "mine" | "blocked">("all");
-  const [platformFilter, setPlatformFilter] = useState("all");
-  const [postFilter, setPostFilter] = useState("all");
-  const [showAllPosts, setShowAllPosts] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      const result = await getOperationsBoard();
-      setBoard(result);
-      void getDouyinSyncStatus().then(setDouyinSync).catch(() => setDouyinSync(null));
+      setBoard(await getOperationsBoard());
       setError("");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "运营进展加载失败");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "运营动态加载失败");
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    const selected = board?.items.find((item) => location.hash === `#operations-item-${item.id}`);
-    if (!selected) return;
-    if (selected.status === "done" && !showDone) { setShowDone(true); return; }
-    document.getElementById(location.hash.slice(1))?.scrollIntoView();
-  }, [board, location.hash, showDone]);
 
-  const visibleItems = sortOperationsItems(board?.items ?? []).filter((item) =>
-    (showDone || item.status !== "done") &&
-    (viewMode === "all" || (viewMode === "blocked" && getOperationsAttention(item) === "blocked") ||
-      (viewMode === "mine" && item.steps.some((step) => step.assigneeId === board?.viewerId))) &&
-    (platformFilter === "all" || item.platforms.split(",").includes(platformFilter)));
-  const attentionCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "overdue").length;
-  const blockedCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "blocked").length;
-  const doneCount = (board?.items ?? []).filter((item) => item.status === "done").length;
-  const itemNames = new Map((board?.items ?? []).map((item) => [item.id, item.title]));
-  const historyPosts = (board?.posts ?? []).filter((post) => postFilter === "all" || post.platform === postFilter);
+  const items = board?.items ?? [];
+  const channels = items.filter((item) => item.kind === "channel");
+  const episodes = items.filter((item) => item.channelId !== null && item.status !== "done");
+  const inProgress = episodes.filter((item) => item.steps.some((step) => step.status !== "pending")).length;
+  const drafts = episodes.length - inProgress;
+  const blocked = episodes.filter((item) => getOperationsAttention(item) === "blocked").length;
+  const otherItems = items.filter((item) => item.kind !== "channel" && item.channelId === null && item.status !== "done");
 
-  return <main className="operations-progress admin-design" aria-labelledby="operations-progress-title" aria-busy={loading && !board}>
+  const selected = (item: OperationsItem) => viewMode === "all"
+    || (viewMode === "mine" && item.steps.some((step) => step.assigneeId === board?.viewerId))
+    || (viewMode === "blocked" && getOperationsAttention(item) === "blocked");
+  const prioritized = (values: OperationsItem[]) => [...values].sort((a, b) => {
+    const rank = (item: OperationsItem) => getOperationsAttention(item) === "blocked" ? 0
+      : item.steps.some((step) => step.status !== "pending") ? 1 : 2;
+    return rank(a) - rank(b) || b.episodeNo - a.episodeNo;
+  });
+
+  return <main className="operations-progress admin-design" aria-busy={loading && !board}>
     <header className="operations-progress__header">
-      <h1 id="operations-progress-title">战队动态</h1>
-      <button className="admin-button admin-button--secondary" type="button" onClick={() => void load()}>刷新</button>
+      <div><h1>运营动态</h1></div>
+      <Link className="operations-progress__library-link" to="/dashboard/workbench/operations/works">查看作品库</Link>
     </header>
-    {error ? <p className="operations-progress__error" role="alert">{error} <button type="button" onClick={() => void load()}>重试</button></p> : null}
+    {error ? <p className="operations-progress__error" role="alert">{error}
+      <button type="button" onClick={() => void load()}>重试</button></p> : null}
     {loading && !board ? <OperationsProgressSkeleton /> : null}
     {board ? <>
-      {board.snapshots.length > 0 ? <section className="operations-progress__account-metrics" aria-label="宣传平台关注数据">
+      {board.snapshots.length > 0 ? <section className="operations-progress__account-metrics" aria-label="平台关注趋势">
         <FollowerTrend platform="douyin" snapshots={board.snapshots} />
         <FollowerTrend platform="bilibili" snapshots={board.snapshots} />
         <FollowerTrend platform="wechat" snapshots={board.snapshots} />
       </section> : null}
-      <div className="operations-progress__stats" aria-label="事项状态">
-        <div><strong>{board.items.filter((item) => item.status !== "done").length - attentionCount - blockedCount}</strong><span>正常 / 待启动</span></div>
-        <div><strong>{attentionCount}</strong><span>需要跟进</span></div>
-        <div><strong>{blockedCount}</strong><span>遇到阻塞</span></div>
+      <div className="operations-progress__stats" aria-label="制作状态">
+        <div><strong>{inProgress}</strong><span>制作中</span></div>
+        <div><strong>{drafts}</strong><span>待启动</span></div>
+        <div><strong>{blocked}</strong><span>存在卡点</span></div>
       </div>
       <div className="operations-progress__section-head">
         <h2>运营事项</h2>
-        {doneCount > 0 ? <label className="operations-progress__toggle"><input type="checkbox" checked={showDone} onChange={(event) => setShowDone(event.target.checked)} />显示已结束（{doneCount}）</label> : null}
-      </div>
-      <div className="operations-progress__filters" aria-label="运营事项筛选">
-        {([["all", "全部事项"], ["mine", "我的任务"], ["blocked", "卡点"]] as const).map(([key, label]) =>
-          <button type="button" className={viewMode === key ? "is-selected" : ""} aria-pressed={viewMode === key}
-            key={key} onClick={() => setViewMode(key)}>{label}</button>)}
-        <select aria-label="按平台筛选" value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}>
-          <option value="all">全部平台</option><option value="douyin">抖音</option>
-          <option value="bilibili">B站</option><option value="wechat">公众号</option>
-        </select>
-      </div>
-      {visibleItems.length === 0 ? <p className="operations-progress__muted">当前筛选下暂无事项</p> : null}
-      <div className="operations-progress__items">
-        {visibleItems.map((item) => {
-          const attention = getOperationsAttention(item);
-          const due = nextOperationsDate(item);
-          const category = item.kind === "channel" ? "账号运营" : item.kind === "video" ? "视频制作"
-            : item.kind === "merchandise" ? "周边制作" : item.intervalDays > 0 ? `每 ${item.intervalDays} 天更新` : "长期推进";
-          const platforms = item.platforms ? item.platforms.split(",").map((key) =>
-            ({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[key] || key).join(" / ") : "";
-          return <article id={`operations-item-${item.id}`} className="operations-progress__item" key={item.id}>
-            <div className="operations-progress__item-head">
-              <div><h3>{item.title}</h3>
-                {category !== item.title || platforms ? <p className="operations-progress__muted">
-                  {[category === item.title ? "" : category, platforms].filter(Boolean).join(" · ")}
-                </p> : null}
-              </div>
-              <span className={`operations-progress__status operations-progress__status--${attention}`}>{operationsAttentionLabel[attention]}</span>
-            </div>
-            {item.steps.length > 0 ? <div className="operations-progress__video-stages" aria-label="事项流程">
-              <ol style={{ gridTemplateColumns: `repeat(${item.steps.length}, minmax(6rem, 1fr))` }}>
-                {item.steps.map((step, index) =>
-                  <li key={step.id} className={step.status === "done" ? "is-complete" : step.status === "active" ? "is-current" : step.status === "blocked" ? "is-blocked" : ""}>
-                    <Link className="operations-progress__step-button" to={`/dashboard/workbench/operations/${item.id}/steps/${step.id}`}
-                      aria-label={`查看${item.title}的${step.title}环节，${statusLabels[step.status]}`}>
-                      <span className="operations-progress__step-marker" aria-hidden="true">{step.status === "done" ? "✓" : index + 1}</span>
-                      <span>{step.title}</span>
-                      {step.assigneeName ? <small>{step.assigneeName}</small> : null}
-                      {step.status !== "pending" ? <small>{statusLabels[step.status]}</small> : null}
-                    </Link>
-                  </li>)}
-              </ol>
-              {item.steps.filter((step) => step.status === "blocked").map((step) =>
-                <p className="operations-progress__blocker" key={step.id}>
-                  <strong>{step.title}{step.assigneeName ? ` · ${step.assigneeName}` : ""}</strong>：{step.blockReason}
-                </p>)}
-            </div> : null}
-            {item.steps.length === 0 ? <div className="operations-progress__item-body">
-              {item.lastUpdate ? <p><span>最近进展</span>{item.lastUpdate.content}
-                <time dateTime={item.lastUpdate.publishedOn || item.lastUpdate.createdAt}>（{formatOperationsUpdateDate(item.lastUpdate)}）</time>
-                {item.lastUpdate.link ? <a href={item.lastUpdate.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}
-              </p> : null}
-              {item.kind === "channel" ? <p><span>上次发布</span><strong>{formatOperationsDay(item.lastCompletedOn)}</strong>
-                {daysSinceOperationsPublish(item.lastCompletedOn) !== null ? <small>（距今 {daysSinceOperationsPublish(item.lastCompletedOn)} 天）</small> : null}
-              </p> : item.intervalDays > 0 ? <p><span>上次完成</span>{formatOperationsDay(item.lastCompletedOn)}</p> : null}
-              {item.status !== "done" && item.steps.length === 0 && (item.nextAction || due) ? <p>
-                <span>下一步</span>{item.nextAction || "待跟进"}{due ? <time dateTime={due.toISOString()}> · {formatOperationsDate(due)}</time> : null}
-              </p> : null}
-            </div> : null}
-          </article>;
-        })}
-      </div>
-      <section className="operations-progress__posts" aria-labelledby="operations-posts-title">
-        <div className="operations-progress__section-head">
-          <h2 id="operations-posts-title">历史发布</h2>
-          <div className="operations-progress__actions flex-wrap">
-            <span className="operations-progress__muted">{(["douyin", "bilibili", "wechat"] as const).map((platform) => {
-              const count = board.posts.filter((post) => post.platform === platform).length;
-              return count > 0 ? `${({ douyin: "抖音", bilibili: "B站", wechat: "公众号" })[platform]} ${count} 条` : "";
-            }).filter(Boolean).join(" · ")}</span>
-            {douyinSync?.enabled ? douyinSync.connected
-              ? <span className="operations-progress__muted">抖音自动同步已连接</span>
-              : <Link to="/api/operations/douyin/authorize" reloadDocument>连接抖音自动同步</Link> : null}
-            <select aria-label="筛选历史发布平台" value={postFilter} onChange={(event) => { setPostFilter(event.target.value); setShowAllPosts(false); }}>
-              <option value="all">全部平台</option><option value="douyin">抖音</option>
-              <option value="bilibili">B站</option><option value="wechat">公众号</option>
-            </select>
-            {board.canManage ? <Link to="/dashboard/workbench/operations/douyin/import">导入抖音作品</Link> : null}
-          </div>
+        <div className="operations-progress__filters" role="group" aria-label="任务筛选">
+          {([["all", "全部事项"], ["mine", "我的任务"], ["blocked", "卡点"]] as const).map(([key, label]) =>
+            <button type="button" className={viewMode === key ? "is-selected" : ""} aria-pressed={viewMode === key}
+              key={key} onClick={() => setViewMode(key)}>{label}</button>)}
         </div>
-        {board.posts.some((post) => post.platform === "wechat") ? <p className="operations-progress__muted">公众号阅读数据核实于 2026-11-18</p> : null}
-        {historyPosts.length ? <ol>{(showAllPosts ? historyPosts : historyPosts.slice(0, 10)).map((post) => <li key={`${post.platform}:${post.externalId}`}>
-          {post.url ? <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a> : <strong>{post.title}</strong>}
-          <span>{({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[post.platform] || post.platform} · {post.platform === "wechat"
-            ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
-            : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : post.mediaType === "image" ? "浏览" : "播放"}
-            {post.platform === "douyin" && post.mediaType ? ` · ${post.likeCount} 赞 · ${post.commentCount} 评论 · ${post.shareCount} 分享 · ${post.favoriteCount} 收藏` : ""}
-            {post.platform === "wechat" ? ` · ${post.likeCount} 赞 · ${post.shareCount} 分享 · ${post.recommendCount} 推荐` : ""}
-            {post.platform === "douyin" && post.profileVisits !== null ? ` · 主页访问 ${post.profileVisits}` : ""}
-            {post.platform === "douyin" && post.followerGain !== null ? ` · 吸粉 ${post.followerGain}` : ""}
-          </span>
-        </li>)}</ol> : <p className="operations-progress__muted">暂无发布记录</p>}
-        {historyPosts.length > 10 ? <button type="button" className="admin-button admin-button--secondary" onClick={() => setShowAllPosts((value) => !value)}>
-          {showAllPosts ? "收起历史" : `查看全部 ${historyPosts.length} 条`}
-        </button> : null}
-      </section>
-      {board.updates.length > 0 ? <section className="operations-progress__feed" aria-labelledby="operations-progress-feed-title">
-        <h2 id="operations-progress-feed-title">最近动态</h2>
-        <ol>{board.updates.map((entry) => <li key={entry.id}>
-          <time dateTime={entry.publishedOn || entry.createdAt}>{formatOperationsUpdateDate(entry)}</time>
-          <div><a href={`#operations-item-${entry.itemId}`}>{itemNames.get(entry.itemId) || "事项"}</a>
-            <p>{entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</p></div>
-        </li>)}</ol>
-      </section> : null}
+      </div>
+      <div className="operations-progress__items">
+        {channels.map((channel) => {
+          const current = prioritized(episodes.filter((item) => item.channelId === channel.id && selected(item)));
+          if (viewMode !== "all" && current.length === 0) return null;
+          const featured = current[0];
+          return <section className="operations-progress__item operations-progress__channel-card" key={channel.id}>
+            <div className="operations-progress__item-head">
+              <div>
+                <p className="operations-progress__eyebrow">{({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[channel.platforms] || "平台运营"}</p>
+                <h3>{channel.title}</h3>
+              </div>
+              <span className="operations-progress__muted">{current.length} 期{viewMode === "all" ? "待推进" : "符合筛选"}</span>
+            </div>
+            {featured ? <div className="operations-progress__featured-episode">
+              <div className="operations-progress__item-head">
+                <h4>{featured.title}</h4>
+                <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(featured)}`}>
+                  {operationsAttentionLabel[getOperationsAttention(featured)]}
+                </span>
+              </div>
+              <OperationsStageBar item={featured} />
+              {current.length > 1 ? <p className="operations-progress__muted">另外 {current.length - 1} 期正在安排</p> : null}
+            </div> : <p className="operations-progress__muted">暂无待推进任务</p>}
+            <div className="operations-progress__channel-footer">
+              <span>最近发布 {formatOperationsDay(channel.lastCompletedOn)}</span>
+              <Link to={`/dashboard/workbench/operations/channels/${channel.id}`}>查看平台任务</Link>
+            </div>
+          </section>;
+        })}
+        {otherItems.filter(selected).length > 0 ? <section className="operations-progress__other-items">
+          <h2>其他事项</h2>
+          {otherItems.filter(selected).map((item) => <article className="operations-progress__item" key={item.id}>
+            <div className="operations-progress__item-head">
+              <h3>{item.title}</h3>
+              <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(item)}`}>
+                {operationsAttentionLabel[getOperationsAttention(item)]}
+              </span>
+            </div>
+            <OperationsStageBar item={item} />
+            {item.steps.length === 0 && item.nextAction ? <p className="operations-progress__muted">{item.nextAction}</p> : null}
+          </article>)}
+        </section> : null}
+      </div>
+      {channels.length === 0 ? <p className="operations-progress__muted">暂无运营平台</p> : null}
     </> : null}
   </main>;
 }

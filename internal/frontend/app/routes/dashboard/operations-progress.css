@@ -153,13 +153,14 @@
 .operations-progress__posts { margin: 2.2rem 0; }
 .operations-progress__posts ol { padding: 0; margin: 0.8rem 0 0; list-style: none; }
 .operations-progress__posts li {
-  display: grid;
-  gap: 0.3rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
   padding: 0.8rem 0;
   border-bottom: 1px solid var(--admin-border-subtle);
   font-size: 0.84rem;
 }
-.operations-progress__posts li span { color: var(--admin-muted); font-size: 0.78rem; }
+.operations-progress__posts li span { flex: none; color: var(--admin-muted); font-size: 0.78rem; }
 @media (max-width: 900px) {
   .operations-progress__account-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -253,3 +254,139 @@
   font: inherit;
 }
 .operations-progress__status-editor button { width: fit-content; }
+
+/* Platform -> episode -> step: one visual language, separate reading from editing. */
+.operations-progress__header { margin-bottom: 1.2rem; }
+.operations-progress__library-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-sm);
+  padding: 0.5rem 0.8rem;
+  color: var(--admin-text) !important;
+  font-size: 0.83rem;
+}
+.operations-progress__section-head { flex-wrap: wrap; gap: 0.9rem; }
+.operations-progress__section-head .operations-progress__filters { margin: 0; }
+.operations-progress__eyebrow {
+  margin: 0 0 0.4rem;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+.operations-progress__channel-card { padding: 1.45rem 1.6rem; }
+.operations-progress__channel-card > .operations-progress__item-head h3 { font-size: 1.15rem; }
+.operations-progress__featured-episode {
+  margin: 1.2rem 0 1rem;
+  padding: 1rem;
+  background: var(--admin-bg, var(--admin-surface));
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-sm);
+}
+.operations-progress__featured-episode h4 { margin: 0; font-size: 0.95rem; font-weight: 650; }
+.operations-progress__featured-episode > .operations-progress__muted { margin: 0.8rem 0 0; }
+.operations-progress__channel-footer,
+.operations-progress__item-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  border-top: 1px solid var(--admin-border-subtle);
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  color: var(--admin-muted);
+  font-size: 0.8rem;
+}
+.operations-progress__item-footer { justify-content: flex-end; }
+.operations-progress__other-items { display: grid; gap: 0.75rem; margin-top: 1.25rem; }
+.operations-progress__other-items h2 { margin: 0.7rem 0 0.25rem; }
+.operations-progress__other-items > .operations-progress__item > .operations-progress__muted { margin-top: 1rem; }
+.operations-progress__channel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.5rem;
+  padding: 0.75rem 0 1.5rem;
+}
+.operations-progress__channel-head p { margin: 0.35rem 0; }
+.operations-progress__header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; }
+.operations-progress__episode { padding: 1.3rem 1.5rem; }
+.operations-progress__episode h3 { font-size: 1rem; }
+.operations-progress__episode .operations-progress__video-stages { margin: 1.2rem 0 0; }
+.operations-progress__status-editor input,
+.operations-progress__status-editor select,
+.operations-progress__status-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font: inherit;
+}
+.operations-progress__status-editor input[type="file"] { padding: 0.6rem; font-size: 0.82rem; }
+.operations-progress__setup-steps { display: grid; gap: 0.75rem; }
+.operations-progress__detail-section { margin-top: 2rem; border-top: 1px solid var(--admin-border-subtle); padding-top: 1.2rem; }
+.operations-progress__detail-section h2 { margin: 0 0 0.85rem; }
+.operations-progress__files, .operations-progress__activity { list-style: none; margin: 0; padding: 0; }
+.operations-progress__files li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  font-size: 0.84rem;
+}
+.operations-progress__files small, .operations-progress__activity time { color: var(--admin-muted); font-size: 0.75rem; }
+.operations-progress__activity li { padding: 0.85rem 0; border-bottom: 1px solid var(--admin-border-subtle); font-size: 0.85rem; }
+.operations-progress__activity li p { margin: 0.35rem 0; overflow-wrap: anywhere; }
+.operations-progress__activity-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.operations-progress__library-controls { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.5rem; margin: 0 0 1.1rem; }
+.operations-progress__library-controls .operations-progress__filters { margin: 0; }
+.operations-progress__works-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; margin: 1rem 0 1.75rem; }
+.operations-progress__work {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-md);
+  background: var(--admin-surface);
+}
+.operations-progress__work-cover {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  aspect-ratio: 16/8;
+  padding: 1.1rem;
+  background: var(--admin-bg, var(--admin-surface));
+  border-bottom: 1px solid var(--admin-border-subtle);
+  color: var(--admin-muted);
+}
+.operations-progress__work-cover strong { color: var(--admin-text); font-size: clamp(1.25rem, 3vw, 2rem); letter-spacing: -0.04em; }
+.operations-progress__work-cover span { font-size: 0.78rem; }
+.operations-progress__work-cover--archive { background: var(--admin-surface); }
+.operations-progress__work-body { display: grid; align-content: start; gap: 0.5rem; padding: 0.9rem 1rem 1.1rem; }
+.operations-progress__work-body h2 { font-size: 0.92rem; line-height: 1.5; overflow-wrap: anywhere; }
+.operations-progress__work-body h2 a { color: var(--admin-text); }
+.operations-progress__work-body p { margin: 0; font-size: 0.75rem; color: var(--admin-muted); }
+.operations-progress__work-metrics { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; font-size: 0.7rem; color: var(--admin-muted); }
+.operations-progress__pagination { display: flex; justify-content: center; align-items: center; gap: 1rem; font-size: 0.83rem; }
+.operations-progress__pagination button {
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-sm);
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+}
+.operations-progress__pagination button:disabled { opacity: 0.4; cursor: default; }
+@media (max-width: 850px) { .operations-progress__works-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .operations-progress__channel-card, .operations-progress__episode { padding: 1rem; }
+  .operations-progress__featured-episode { padding: 0.7rem; }
+  .operations-progress__works-grid { grid-template-columns: 1fr; }
+  .operations-progress__library-controls { align-items: stretch; }
+}

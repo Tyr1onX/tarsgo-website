@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import {
-  getOperationsBoard, saveOperationsStep,
+  getOperationsBoard, saveOperationsStep, uploadOperationsStepFile,
   type OperationsBoard, type OperationsStepStatus,
 } from "~/lib/operations-progress-client";
 import "./operations-progress.css";
@@ -18,6 +18,9 @@ export default function OperationsStepStatusPage() {
   const [board, setBoard] = useState<OperationsBoard | null>(null);
   const [status, setStatus] = useState<OperationsStepStatus>("pending");
   const [blockReason, setBlockReason] = useState("");
+  const [note, setNote] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -35,26 +38,42 @@ export default function OperationsStepStatusPage() {
   const item = board?.items.find((entry) => entry.id === Number(itemId));
   const step = item?.steps.find((entry) => entry.id === Number(stepId));
   const canUpdate = Boolean(step && (board?.canManage || step.assigneeId === board?.viewerId));
-  const changed = Boolean(step && (status !== step.status || (status === "blocked" && blockReason.trim() !== step.blockReason)));
+  const changed = Boolean(step && (
+    status !== step.status || status === "blocked" && blockReason.trim() !== step.blockReason ||
+    note.trim() || evidenceUrl.trim() || file
+  ));
   const detailUrl = `/dashboard/workbench/operations/${itemId}/steps/${stepId}`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!item || !step || !canUpdate || !changed || saving) return;
     if (status === "blocked" && !blockReason.trim()) { setError("请填写具体卡点"); return; }
+    if (file && file.size > 20 * 1024 * 1024) { setError("文件不能超过20 MB"); return; }
     const summary = status === step.status
-      ? `确认更新「${item.title} / ${step.title}」的卡点原因？`
+      ? `确认提交「${item.title} / ${step.title}」的进展材料？`
       : `确认将「${item.title} / ${step.title}」从「${labels[step.status]}」改为「${labels[status]}」？`;
     if (!window.confirm(summary)) return;
     setSaving(true);
     setError("");
+    let fileUploaded = false;
     try {
-      await saveOperationsStep(item.id, step.id, {
-        status, ...(status === "blocked" ? { blockReason: blockReason.trim() } : {}),
-      });
+      if (file) {
+        await uploadOperationsStepFile(item.id, step.id, file);
+        fileUploaded = true;
+        setFile(null);
+      }
+      if (status !== step.status || (status === "blocked" && blockReason.trim() !== step.blockReason)
+        || note.trim() || evidenceUrl.trim()) {
+        await saveOperationsStep(item.id, step.id, {
+          status, ...(status === "blocked" ? { blockReason: blockReason.trim() } : {}),
+          ...(note.trim() ? { note: note.trim() } : {}),
+          ...(evidenceUrl.trim() ? { evidenceUrl: evidenceUrl.trim() } : {}),
+        });
+      }
       navigate(detailUrl, { replace: true });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "保存失败");
+      const message = cause instanceof Error ? cause.message : "保存失败";
+      setError(fileUploaded ? `文件已提交，但状态未更新：${message}` : message);
     } finally { setSaving(false); }
   }
 
@@ -77,6 +96,17 @@ export default function OperationsStepStatusPage() {
           <textarea required maxLength={300} rows={3} value={blockReason}
             onChange={(event) => setBlockReason(event.target.value)} />
         </label> : null}
+        <label>进展备注（选填）
+          <textarea maxLength={400} rows={2} value={note} placeholder="补充完成情况或交接信息"
+            onChange={(event) => setNote(event.target.value)} />
+        </label>
+        <label>成果链接（选填）
+          <input type="url" maxLength={500} value={evidenceUrl} placeholder="https://"
+            onChange={(event) => setEvidenceUrl(event.target.value)} />
+        </label>
+        <label>成果文件（选填，最多20 MB）
+          <input type="file" disabled={saving} onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)} />
+        </label>
         <button className="admin-button admin-button--primary" type="submit" disabled={saving || !changed}>
           {saving ? "保存中…" : "保存修改"}
         </button>

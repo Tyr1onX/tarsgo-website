@@ -46,3 +46,17 @@ test("progress notes do not reset recurring completion; overdue follow-ups, bloc
     { ...base, id: 4 },
   ]).map(({ id }) => id), [3, 4, 2]);
 });
+
+test("production drafts stay pending after assignment and advance only with real step statuses", () => {
+  const issue = { ...base, kind: "video", channelId: 12, episodeNo: 1, intervalDays: 0,
+    steps: [
+      { status: "pending", assigneeId: 42 },
+      { status: "pending", assigneeId: null },
+    ],
+    lastUpdate: { id: 33, kind: "progress", content: "分配负责人" },
+  };
+  assert.equal(getOperationsAttention(issue), "pending");
+  assert.equal(getOperationsAttention({ ...issue, steps: [{ status: "done" }, { status: "pending" }] }), "active");
+  assert.equal(getOperationsAttention({ ...issue, status: "blocked" }), "blocked");
+  assert.equal(getOperationsAttention({ ...issue, status: "done" }), "done");
+});
