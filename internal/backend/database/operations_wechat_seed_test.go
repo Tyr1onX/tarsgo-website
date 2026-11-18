@@ -97,4 +97,41 @@ func TestMariaDBWeChatOperationsSeedPreservesExistingData(t *testing.T) {
 	if other.Platforms != "bilibili" {
 		t.Fatalf("manual platform selection was overwritten: %+v", other)
 	}
+
+	for i := 0; i < 2; i++ {
+		if err := migrateWeChatHistoryV71(db); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var postCount, snapshotCount int64
+	if err := db.Model(&model.OperationsPlatformPost{}).Where("platform = ?", "wechat").Count(&postCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.OperationsAccountSnapshot{}).Where("platform = ?", "wechat").Count(&snapshotCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if postCount != 383 || snapshotCount != 92 {
+		t.Fatalf("unexpected expanded history: %d articles and %d snapshots", postCount, snapshotCount)
+	}
+	if err := db.Where("platform = ? AND external_id = ?", "wechat", manual.ExternalID).Take(&manual).Error; err != nil {
+		t.Fatal(err)
+	}
+	if manual.ViewCount != 999 || manual.Title != "保留已编辑标题" {
+		t.Fatalf("updated manual article was overwritten: %+v", manual)
+	}
+	var imported model.OperationsPlatformPost
+	if err := db.Where("platform = ? AND external_id = ?", "wechat", "ehEbaB-8GAx_CAcZUrQTfQ").Take(&imported).Error; err != nil {
+		t.Fatal(err)
+	}
+	if imported.ViewCount != 854 || imported.LikeCount != 26 {
+		t.Fatalf("unchanged v68 article metrics were not refreshed: %+v", imported)
+	}
+	var follower model.OperationsAccountSnapshot
+	if err := db.Where("platform = ? AND observed_on = ?", "wechat", "2026-11-17").Take(&follower).Error; err != nil {
+		t.Fatal(err)
+	}
+	if follower.Followers != 3425 || follower.NewFollowers == nil || *follower.NewFollowers != 1 ||
+		follower.Unfollows == nil || *follower.Unfollows != 5 {
+		t.Fatalf("daily follower data was not imported: %+v", follower)
+	}
 }
