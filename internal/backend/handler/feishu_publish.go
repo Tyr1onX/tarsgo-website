@@ -371,13 +371,13 @@ func feishuAssignmentPublishCard(groups []assignment.GroupOption, requestID stri
 		"schema": "2.0", "config": map[string]any{"update_multi": true},
 		"header": map[string]any{"template": "blue", "title": map[string]any{"tag": "plain_text", "content": "发布网站作业"}},
 		"body": map[string]any{"elements": []any{
-			map[string]any{"tag": "markdown", "content": "提交后立即发布到网站。接收对象留空表示所选组全员；填写网站成员 ID（逗号分隔）可指定成员。卡片不支持本地文件上传，发布后可在本私聊发送“资料 #作业编号”并继续发送文件。"},
+			map[string]any{"tag": "markdown", "content": "提交后立即发布到网站。按纳新届次发布：请填入网站作业发布页显示的届次编号，多个编号用逗号分隔。卡片不支持本地文件上传，发布后可在本私聊发送“资料 #作业编号”并继续发送文件。"},
 			map[string]any{"tag": "form", "name": "assignment_publish_form", "elements": []any{
 				map[string]any{"tag": "input", "name": "title", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "作业名称"}, "max_length": 120},
 				map[string]any{"tag": "input", "name": "description", "required": true, "input_type": "multiline_text", "placeholder": map[string]any{"tag": "plain_text", "content": "作业要求"}, "max_length": feishuCardInputMaxLength},
 				map[string]any{"tag": "select_static", "name": "group_id", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "所属组别"}, "options": options},
 				map[string]any{"tag": "input", "name": "due_at", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "截止时间（北京时间：YYYY-MM-DD HH:mm）"}, "max_length": 16},
-				map[string]any{"tag": "input", "name": "target_user_ids", "placeholder": map[string]any{"tag": "plain_text", "content": "接收对象：成员 ID，逗号分隔；留空为全组"}, "max_length": 1000},
+				map[string]any{"tag": "input", "name": "cohort_form_ids", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "纳新届次编号（可多个，逗号分隔）"}, "max_length": 1000},
 				map[string]any{"tag": "input", "name": "attachment_requirements", "placeholder": map[string]any{"tag": "plain_text", "content": "提交附件要求（选填）"}, "max_length": feishuCardInputMaxLength},
 				map[string]any{"tag": "button", "name": "publish_assignment", "form_action_type": "submit", "type": "primary_filled", "text": map[string]any{"tag": "plain_text", "content": "发布作业"},
 					"behaviors": []any{map[string]any{"type": "callback", "value": value}}},
@@ -407,13 +407,13 @@ func (h *FeishuHandler) publishFeishuAssignment(c *gin.Context, actor assignment
 	if err != nil {
 		return errors.New("assignment deadline is invalid")
 	}
-	targetIDs, err := parseFeishuRecipientIDs(values["target_user_ids"])
+	cohortIDs, err := parseFeishuCohortIDs(values["cohort_form_ids"])
 	if err != nil {
 		return err
 	}
 	input := assignment.CreateInput{
 		GroupID: groupID, Title: values["title"], Description: values["description"], DueAt: dueAt,
-		AttachmentRequirements: values["attachment_requirements"], IsGroupWide: len(targetIDs) == 0, TargetUserIDs: targetIDs,
+		AttachmentRequirements: values["attachment_requirements"], CohortFormIDs: cohortIDs,
 	}
 	result, err := h.assignments.CreateWithMaterialFiles(c.Request.Context(), actor, input, event.Event.Action.Value.RequestID, nil)
 	if err != nil {
@@ -428,21 +428,18 @@ func (h *FeishuHandler) publishFeishuAssignment(c *gin.Context, actor assignment
 	return nil
 }
 
-func parseFeishuRecipientIDs(raw string) ([]uint64, error) {
+func parseFeishuCohortIDs(raw string) ([]uint64, error) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "全组" {
-		return nil, nil
-	}
 	parts := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == '，' || r == ';' || r == '；' })
-	if len(parts) == 0 || len(parts) > 500 {
-		return nil, errors.New("invalid recipient list")
+	if len(parts) == 0 || len(parts) > 20 {
+		return nil, errors.New("请选择 1 至 20 个纳新届次")
 	}
 	ids := make([]uint64, 0, len(parts))
 	seen := make(map[uint64]struct{}, len(parts))
 	for _, part := range parts {
 		id, err := strconv.ParseUint(strings.TrimSpace(part), 10, 64)
 		if err != nil || id == 0 {
-			return nil, errors.New("invalid recipient id")
+			return nil, errors.New("纳新届次编号无效")
 		}
 		if _, exists := seen[id]; !exists {
 			ids = append(ids, id)

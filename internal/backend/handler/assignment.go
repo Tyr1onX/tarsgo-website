@@ -37,6 +37,7 @@ type assignmentRequest struct {
 	AttachmentRequirements string   `json:"attachmentRequirements"`
 	IsGroupWide            bool     `json:"isGroupWide"`
 	TargetUserIDs          []uint64 `json:"targetUserIds"`
+	CohortFormIDs          []uint64 `json:"cohortFormIds"`
 }
 
 func (h *AssignmentHandler) ListMine(c *gin.Context) {
@@ -130,9 +131,27 @@ func (h *AssignmentHandler) ListGroupMembers(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取组内成员成功", items)
 }
 
+func (h *AssignmentHandler) ListCohorts(c *gin.Context) {
+	groupID, err := strconv.ParseUint(strings.TrimSpace(c.Query("groupId")), 10, 64)
+	if err != nil || groupID == 0 {
+		writeAPIError(c, http.StatusBadRequest, "技术组参数不合法")
+		return
+	}
+	items, serviceErr := h.service.ListCohorts(c.Request.Context(), currentAssignmentActor(c), groupID)
+	if serviceErr != nil {
+		h.fail(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取纳新届次成功", items)
+}
+
 func (h *AssignmentHandler) Create(c *gin.Context) {
 	input, ok := bindAssignmentRequest(c)
 	if !ok {
+		return
+	}
+	if len(input.CohortFormIDs) == 0 {
+		writeAPIError(c, http.StatusBadRequest, "请选择纳新届次")
 		return
 	}
 	item, err := h.service.Create(c.Request.Context(), currentAssignmentActor(c), input)
@@ -161,6 +180,10 @@ func (h *AssignmentHandler) PublishWithMaterials(c *gin.Context) {
 	input, ok := assignmentInput(request)
 	if !ok {
 		writeAPIError(c, http.StatusBadRequest, "请填写有效的北京时间截止时间")
+		return
+	}
+	if len(input.CohortFormIDs) == 0 {
+		writeAPIError(c, http.StatusBadRequest, "请选择纳新届次")
 		return
 	}
 	result, err := h.service.CreateWithMaterialFiles(c.Request.Context(), currentAssignmentActor(c), input, c.GetHeader("Idempotency-Key"), files)
@@ -314,7 +337,7 @@ func assignmentInput(request assignmentRequest) (assignment.CreateInput, bool) {
 	return assignment.CreateInput{
 		GroupID: request.GroupID, Title: request.Title, Description: request.Description,
 		DueAt: dueAt, AttachmentRequirements: request.AttachmentRequirements,
-		IsGroupWide: request.IsGroupWide, TargetUserIDs: request.TargetUserIDs,
+		IsGroupWide: request.IsGroupWide, TargetUserIDs: request.TargetUserIDs, CohortFormIDs: request.CohortFormIDs,
 	}, true
 }
 

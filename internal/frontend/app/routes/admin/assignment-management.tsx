@@ -7,7 +7,7 @@ import { Notify } from "~/components/notify";
 import { AssignmentOverview } from "./assignment-overview";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
-import { assignmentClient, assignmentPublicationStatusLabel, formatAssignmentDate, type Assignment, type AssignmentInput, type AssignmentMaterialFile, type AssignmentMemberOption } from "~/lib/assignment-client";
+import { assignmentClient, assignmentPublicationStatusLabel, formatAssignmentDate, type Assignment, type AssignmentInput, type AssignmentMaterialFile, type AssignmentCohortOption } from "~/lib/assignment-client";
 import {
   assignmentDeadlineForShortcut,
   assignmentDeadlineIsFuture,
@@ -17,7 +17,6 @@ import {
   type AssignmentDeadlineShortcut,
 } from "~/lib/assignment-deadline";
 import { formatAssignmentMaterialSize, validateAssignmentMaterialSelection } from "~/lib/assignment-materials";
-import { filterAssignmentMembers, toggleAssignmentMemberSelection } from "~/lib/assignment-member-selection";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 import "./assignment-management.css";
 
@@ -33,8 +32,9 @@ const emptyDraft = (groupId: number): Draft => ({
   description: "",
   dueAt: assignmentDeadlineForShortcut(new Date(), 7),
   attachmentRequirements: "",
-  isGroupWide: true,
+  isGroupWide: false,
   targetUserIds: [],
+  cohortFormIds: [],
 });
 const fieldClass = "admin-field w-full";
 const AssignmentReview = lazy(() => import("./assignment-submissions").then((module) => ({ default: module.AssignmentReview })));
@@ -56,6 +56,7 @@ function asDraft(item: Assignment): Draft {
     attachmentRequirements: item.attachmentRequirements,
     isGroupWide: item.isGroupWide,
     targetUserIds: [],
+    cohortFormIds: item.cohortFormIds ?? [],
   };
 }
 
@@ -70,10 +71,9 @@ export default function AssignmentManagementRoute() {
   const selectedGroupId = assignmentGroups.some((group) => group.groupId === requestedGroupId) ? requestedGroupId : 0;
   const groupId = selectedGroupId || assignmentGroups[0]?.groupId || 0;
   const [items, setItems] = useState<Assignment[]>([]);
-  const [members, setMembers] = useState<AssignmentMemberOption[] | null>(null);
+  const [cohorts, setCohorts] = useState<AssignmentCohortOption[] | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(0));
   const [quickDeadline, setQuickDeadline] = useState<AssignmentDeadlineShortcut | null>("seven-days");
-  const [memberSearch, setMemberSearch] = useState("");
   const [editing, setEditing] = useState<Assignment | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [existingMaterials, setExistingMaterials] = useState<AssignmentMaterialFile[]>([]);
@@ -103,9 +103,11 @@ export default function AssignmentManagementRoute() {
   const feishuBound = feishuBinding?.accountId === currentUser.id && feishuBinding.bound;
   const feishuBotURL = feishuBinding?.accountId === currentUser.id && feishuBinding.appId
     ? `https://applink.feishu.cn/client/bot/open?appId=${encodeURIComponent(feishuBinding.appId)}` : "";
-  const filteredMembers = useMemo(() => filterAssignmentMembers(members ?? [], memberSearch), [members, memberSearch]);
-  const selectedMembers = useMemo(() => (members ?? []).filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
-  const lastTargetedAssignment = items.find((item) => !item.isGroupWide);
+  const recipients = useMemo(() => {
+    const selected = new Set(draft.cohortFormIds);
+    return [...new Map((cohorts ?? []).filter((cohort) => selected.has(cohort.formId))
+      .flatMap((cohort) => cohort.members.map((member) => [member.userId, member] as const))).values()];
+  }, [cohorts, draft.cohortFormIds]);
 
   useEffect(() => {
     if (!groupId || view !== "list") return;
@@ -113,7 +115,7 @@ export default function AssignmentManagementRoute() {
     setLoading(true);
     setError("");
     setItems([]);
-    setMembers(null);
+    setCohorts(null);
     assignmentClient.listAdmin(groupId)
       .then((assignments) => {
         if (!active) return;
@@ -128,19 +130,23 @@ export default function AssignmentManagementRoute() {
   }, [groupId, currentUser.id, view]);
 
   useEffect(() => {
-    if (!groupId || view !== "list" || !composerOpen || draft.isGroupWide) return;
+    if (!groupId || view !== "list" || !composerOpen || editing) return;
     let active = true;
-    setMembers(null);
-    setError("");
-    assignmentClient.listGroupMembers(groupId)
-      .then((groupMembers) => { if (active) setMembers(groupMembers); })
+    setCohorts(null);
+    assignmentClient.listCohorts(groupId)
+      .then((options) => {
+        if (!active) return;
+        setCohorts(options);
+        setDraft((current) => current.cohortFormIds.length || options.length === 0
+          ? current : { ...current, cohortFormIds: [options[0].formId] });
+      })
       .catch((cause: unknown) => {
         if (!active) return;
-        setMembers([]);
-        setError(cause instanceof Error ? cause.message : "组内成员加载失败");
+        setCohorts([]);
+        setError(cause instanceof Error ? cause.message : "纳新届次加载失败");
       });
     return () => { active = false; };
-  }, [groupId, currentUser.id, view, composerOpen, draft.isGroupWide]);
+  }, [groupId, currentUser.id, view, composerOpen, editing]);
 
   useEffect(() => {
     let active = true;
@@ -230,7 +236,6 @@ export default function AssignmentManagementRoute() {
     setComposerOpen(false);
     setDraft(emptyDraft(nextGroupID));
     setQuickDeadline("seven-days");
-    setMemberSearch("");
     setExistingMaterials([]);
     setPendingMaterials([]);
     setMaterialsUploadStatus("pending");
@@ -255,38 +260,13 @@ export default function AssignmentManagementRoute() {
     setLoadingEdit(true);
     void assignmentClient.getAdmin(item.id).then((detail) => {
       if (editRequestID.current !== activeRequest) return;
-      setDraft((current) => ({ ...current, targetUserIds: detail.members.map((member) => member.userId) }));
+      setDraft((current) => ({ ...current, targetUserIds: detail.assignment.cohortFormIds?.length ? [] : detail.members.map((member) => member.userId) }));
       setExistingMaterials(detail.assignment.materialFiles ?? []);
     }).catch((cause: unknown) => {
       if (editRequestID.current === activeRequest) setError(cause instanceof Error ? cause.message : "作业资料加载失败");
     }).finally(() => {
       if (editRequestID.current === activeRequest) setLoadingEdit(false);
     });
-  }
-
-  function toggleMember(userId: number) {
-    setDraft((current) => ({
-      ...current,
-      targetUserIds: toggleAssignmentMemberSelection(current.targetUserIds, userId),
-    }));
-  }
-
-  async function usePreviousRecipients() {
-    if (!lastTargetedAssignment) return;
-    setError("");
-    try {
-      const detail = await assignmentClient.getAdmin(lastTargetedAssignment.id);
-      const currentIDs = new Set((members ?? []).map((member) => member.userId));
-      const selected = detail.members.map((member) => member.userId).filter((id) => currentIDs.has(id));
-      if (selected.length === 0) {
-        setError("上次指定的成员已不在当前组，请重新选择。");
-        return;
-      }
-      setDraft((current) => current.groupId === groupId && !current.isGroupWide
-        ? { ...current, targetUserIds: selected } : current);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "读取上次指定成员失败");
-    }
   }
 
   function updateDeadline(value: string) {
@@ -563,31 +543,31 @@ export default function AssignmentManagementRoute() {
             </ul> : null}
           </section>
           <fieldset className="assignment-editor__recipients">
-            <legend className="admin-field-label">作业对象</legend>
-            {editing ? <p className="text-xs text-[var(--admin-muted)]">{draft.isGroupWide ? "全组范围持续同步，当前成员和原接收成员均可在提交记录中查看。" : "指定成员名单已锁定。需要调整请另建作业。"}</p> : null}
-            <div className="flex flex-wrap gap-4 text-sm">
-              <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: true, targetUserIds: [] })} />全组普通成员（实时）</label>
-              <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={!draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: false })} />指定成员</label>
-            </div>
-            {!draft.isGroupWide ? <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="sr-only" htmlFor="assignment-member-search">搜索组内成员</label>
-                <input id="assignment-member-search" type="search" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="admin-field min-w-48 flex-1" autoComplete="off" placeholder="搜索成员姓名" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} />
-                {memberSearch ? <button type="button" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="admin-button admin-button--quiet" onClick={() => setMemberSearch("")}>清空搜索</button> : null}
-                {!editing && lastTargetedAssignment ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving || publishStage !== "idle" || members === null} onClick={() => void usePreviousRecipients()}>上次指定的成员</button> : null}
-                <span className="text-sm text-[var(--admin-muted)]">已选 {draft.targetUserIds.length} 人</span>
-              </div>
-              {selectedMembers.length > 0 ? <div className="flex flex-wrap gap-1" aria-label="已选成员">
-                {selectedMembers.map((member) => <button key={member.userId} type="button" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="rounded-full border border-[var(--admin-border-subtle)] px-2 py-1 text-xs text-[var(--admin-muted)] hover:text-[var(--admin-text)]" aria-label={`取消选择${member.name}（账号 ${member.userId}）`} onClick={() => toggleMember(member.userId)}>× {member.name} #{member.userId}</button>)}
-              </div> : null}
-              <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name} <span className="text-xs text-[var(--admin-muted)]">#{member.userId}</span></label>)}
-                {members === null ? <BrandLoader label="正在加载组内成员" size="sm" /> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
-              </div>
-            </div> : null}
+            <legend className="admin-field-label">纳新届次</legend>
+            {editing ? <p className="text-sm text-[var(--admin-muted)]">
+              {editing.cohortFormIds?.length ? `发布时已锁定 ${editing.cohortFormIds.length} 个届次的成员名单。` : "历史作业保留原接收范围，无法通过编辑更改。"}
+            </p> : cohorts === null ? <BrandLoader label="正在加载纳新届次" size="sm" /> : cohorts.length === 0
+              ? <p className="text-sm text-[var(--admin-muted)]">当前技术组没有可发布作业的已录取届次。</p>
+              : <>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {cohorts.map((cohort) => <label key={cohort.formId} className="flex items-center gap-2 rounded-lg border border-[var(--admin-border-subtle)] p-3 text-sm">
+                    <input type="checkbox" disabled={saving || publishStage !== "idle"} checked={draft.cohortFormIds.includes(cohort.formId)}
+                      onChange={() => setDraft((current) => ({ ...current, cohortFormIds: current.cohortFormIds.includes(cohort.formId)
+                        ? current.cohortFormIds.filter((id) => id !== cohort.formId)
+                        : [...current.cohortFormIds, cohort.formId] }))} />
+                    <span className="min-w-0 flex-1">{cohort.title} <span className="text-xs text-[var(--admin-muted)]">#{cohort.formId}</span></span>
+                    <span className="shrink-0 text-xs text-[var(--admin-muted)]">{cohort.members.length} 人</span>
+                  </label>)}
+                </div>
+                <p className="text-sm text-[var(--admin-muted)]">将发布给 {recipients.length} 名成员（跨届重复人员已去重）。</p>
+                {recipients.length > 0 ? <details className="text-sm text-[var(--admin-muted)]">
+                  <summary className="cursor-pointer">查看接收名单</summary>
+                  <ul className="mt-2 max-h-40 overflow-y-auto">{recipients.map((member) => <li key={member.userId} className="py-1">{member.name} #{member.userId}</li>)}</ul>
+                </details> : null}
+              </>}
           </fieldset>
           </> : null}
-          <div className="assignment-editor__actions"><button type="submit" className="admin-button admin-button--primary" disabled={saving || loadingEdit || !groupId || (!draft.isGroupWide && draft.targetUserIds.length === 0)}>{saving ? publishStage === "saving" ? "保存作业信息中…" : uploadProgress === null ? "正在上传教学资料…" : `正在上传教学资料 ${uploadProgress}%` : editing?.submittedCount ? "延长截止时间" : editing ? "保存修改" : publishStage === "failed" ? "重试发布" : "发布作业"}</button>{saving && publishStage === "uploading" ? <button type="button" className="admin-button admin-button--quiet" onClick={() => activePublishCancel.current?.()}>停止上传</button> : null}{publishStage === "failed" && publishCanCancel ? <button type="button" className="admin-button admin-button--quiet" onClick={() => { setError(""); resetDraft(); }}>取消发布</button> : null}</div>
+          <div className="assignment-editor__actions"><button type="submit" className="admin-button admin-button--primary" disabled={saving || loadingEdit || !groupId || (!editing && (cohorts === null || recipients.length === 0 || draft.cohortFormIds.length === 0))}>{saving ? publishStage === "saving" ? "保存作业信息中…" : uploadProgress === null ? "正在上传教学资料…" : `正在上传教学资料 ${uploadProgress}%` : editing?.submittedCount ? "延长截止时间" : editing ? "保存修改" : publishStage === "failed" ? "重试发布" : "发布作业"}</button>{saving && publishStage === "uploading" ? <button type="button" className="admin-button admin-button--quiet" onClick={() => activePublishCancel.current?.()}>停止上传</button> : null}{publishStage === "failed" && publishCanCancel ? <button type="button" className="admin-button admin-button--quiet" onClick={() => { setError(""); resetDraft(); }}>取消发布</button> : null}</div>
         </form>
       </section> : null}
 
@@ -596,7 +576,7 @@ export default function AssignmentManagementRoute() {
         {loading && !items.length ? <BrandLoader label="正在加载作业" /> : null}
         {!groupsLoading && groupId > 0 && !loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
         <div className="assignment-list__items">{items.map((item) => <article key={item.id} className="assignment-list__item">
-          <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组（实时）" : "指定成员"} · 接收 {item.targetCount} 人 · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
+          <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.cohortFormIds?.length ? `纳新届次 ×${item.cohortFormIds.length}` : item.isGroupWide ? "历史全组（实时）" : "历史指定成员"} · 接收 {item.targetCount} 人 · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
           <div className="assignment-list__actions"><Link to={`/dashboard/admin/training/assignments?view=review&groupId=${groupId}&assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">查看批改</Link><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "延长截止" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
         </article>)}</div>
         <details className="mt-4 border-t border-[var(--admin-border-subtle)] pt-3 text-sm text-[var(--admin-muted)]">

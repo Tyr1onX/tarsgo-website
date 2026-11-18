@@ -39,15 +39,12 @@ test("workbench exposes assignments to all five supported groups", () => {
   assert.match(assignmentGroups, /return \{ assignmentGroups, error, loading:/);
 });
 
-test("assignment member options are not cleared by unrelated loader revalidation", () => {
+test("cohort selection loads only during publishing and reuses existing group access", () => {
   assert.match(assignmentManagement, /assignmentGroups\.some\(\(group\) => group\.groupId === requestedGroupId\)/);
-  assert.doesNotMatch(assignmentManagement, /groupResolution, technicalGroups\]\)/);
-  assert.match(assignmentManagement, /setItems\(\[\]\);\s*setMembers\(null\);\s*assignmentClient\.listAdmin\(groupId\)/);
-  assert.match(assignmentManagement, /if \(!groupId \|\| view !== "list" \|\| !composerOpen \|\| draft\.isGroupWide\) return/);
-  assert.match(assignmentManagement, /assignmentClient\.listGroupMembers\(groupId\)/);
-  assert.match(assignmentManagement, /if \(active\) setMembers\(groupMembers\)/);
-  assert.match(assignmentManagement, /\{members === null \? <BrandLoader label="正在加载组内成员"/);
-  assert.doesNotMatch(assignmentManagement, /Promise\.all\(\[assignmentClient\.listAdmin\(groupId\), assignmentClient\.listGroupMembers\(groupId\)\]\)/);
+  assert.match(assignmentManagement, /assignmentClient\.listCohorts\(groupId\)/);
+  assert.match(assignmentManagement, /!composerOpen \|\| editing/);
+  assert.match(assignmentManagement, /cohortFormIds: \[options\[0\]\.formId\]/);
+  assert.match(backendRoutes, /adminAPI\.GET\("\/assignment-cohorts", assignmentHandler\.ListCohorts\)/);
 });
 
 test("assignment API routes enforce authentication and admin scope", () => {
@@ -145,32 +142,27 @@ test("website review reuses rich image editor and protects feedback media", () =
   assert.match(backendRoutes, /assignmentMemberAPI\.GET\("\/assignment-review-images\/:id", assignmentHandler\.OpenReviewImage\)/);
 });
 
-test("specified recipients can be searched, removed, and retained across search changes", () => {
-  assert.match(assignmentManagement, /type="search"[\s\S]*?搜索成员姓名/);
-  assert.match(assignmentManagement, /已选 \{draft\.targetUserIds\.length\} 人/);
-  assert.match(assignmentManagement, /取消选择\$\{member\.name\}/);
-  assert.match(assignmentManagement, /清空搜索/);
-  assert.match(assignmentManagement, /没有匹配成员/);
-  assert.match(assignmentManagement, /filterAssignmentMembers\(members \?\? \[\], memberSearch\)/);
-  assert.match(assignmentManagement, /targetUserIds: toggleAssignmentMemberSelection/);
+test("publish composer uses one or more recruitment cohorts and previews deduplicated recipients", () => {
+  assert.match(assignmentManagement, /cohorts\.map\(\(cohort\) =>/);
+  assert.match(assignmentManagement, /cohortFormIds\.includes\(cohort\.formId\)/);
+  assert.match(assignmentManagement, /new Map\(/);
+  assert.match(assignmentManagement, /查看接收名单/);
+  assert.doesNotMatch(assignmentManagement, /全组普通成员（实时）|上次指定的成员|toggleMember\(/);
+  assert.match(assignmentClient, /listCohorts: \(groupId: number\)/);
 });
 
-test("targeted assignments default to false and keep their saved recipients when edited", () => {
-  assert.match(assignmentModel, /IsGroupWide\s+bool[\s\S]*?gorm:"column:is_group_wide;type:tinyint\(1\);not null;default:0"/);
-  assert.match(migrations, /\{version: 26, apply: migrateAssignmentGroupWideDefault\}/);
-  assert.match(migrations, /func migrateAssignmentGroupWideDefault\(db \*gorm\.DB\) error[\s\S]*?AlterColumn\(&model\.Assignment\{\}, "IsGroupWide"\)/);
-  assert.match(assignmentManagement, /setDraft\(\(current\) => \(\{ \.\.\.current, targetUserIds: detail\.members\.map\(\(member\) => member\.userId\) \}\)\)/);
-  assert.match(assignmentManagement, /指定成员名单已锁定。需要调整请另建作业。/);
-  assert.match(assignmentManagement, /全组范围持续同步/);
-  assert.match(assignmentManagement, /Boolean\(editing\)/);
+test("new cohort assignments use fixed recipients and preserve legacy editing", () => {
+  assert.match(assignmentModel, /CohortFormIDs\s+\[\]uint64/);
+  assert.match(migrations, /\{version: 74, apply:/);
+  assert.match(assignmentManagement, /isGroupWide: false/);
+  assert.match(assignmentManagement, /cohortFormIds: item\.cohortFormIds \?\? \[\]/);
+  assert.match(assignmentManagement, /detail\.assignment\.cohortFormIds\?\.length \? \[\] : detail\.members\.map/);
+  assert.match(assignmentManagement, /历史作业保留原接收范围/);
 });
 
-test("latest targeted recipient shortcut reads the latest group assignment without extra persistence", () => {
-  assert.match(assignmentManagement, /items\.find\(\(item\) => !item\.isGroupWide\)/);
-  assert.match(assignmentManagement, /assignmentClient\.getAdmin\(lastTargetedAssignment\.id\)/);
-  assert.match(assignmentManagement, /currentIDs\.has\(id\)/);
-  assert.match(assignmentManagement, /上次指定的成员/);
-  assert.match(assignmentManagement, /#\{member\.userId\}/);
+test("cohort publishing retains historical submission and review UI", () => {
+  assert.match(assignmentManagement, /item\.cohortFormIds\?\.length/);
+  assert.match(assignmentManagement, /历史全组（实时）/);
   assert.match(assignmentSubmissions, /#\{member\.userId\}/);
 });
 

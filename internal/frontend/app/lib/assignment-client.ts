@@ -47,6 +47,7 @@ export interface Assignment {
   dueAt: string;
   attachmentRequirements: string;
   isGroupWide: boolean;
+  cohortFormIds: number[] | null;
   createdAt: string;
   publicationStatus?: "published" | "withdrawn";
   canDelete?: boolean;
@@ -95,6 +96,12 @@ export interface AssignmentMemberOption {
   name: string;
 }
 
+export interface AssignmentCohortOption {
+  formId: number;
+  title: string;
+  members: AssignmentMemberOption[];
+}
+
 export interface AssignmentInput {
   groupId: number;
   title: string;
@@ -103,6 +110,7 @@ export interface AssignmentInput {
   attachmentRequirements: string;
   isGroupWide: boolean;
   targetUserIds: number[];
+  cohortFormIds: number[];
 }
 
 export type AssignmentTodo = Pick<Assignment, "id" | "title" | "dueAt" | "status">;
@@ -122,6 +130,7 @@ export const assignmentClient = {
   reconcileBitable: (assignmentId: number, memberId: number) => apiRequest<BitableReconcileSummary>(`/api/admin/integrations/feishu/bitable/reconcile?assignmentId=${assignmentId}&memberId=${memberId}`, { method: "POST" }),
   listAdmin: (groupId?: number) => apiRequest<Assignment[]>(`/api/admin/assignments${groupId ? `?groupId=${groupId}` : ""}`),
   listGroupMembers: (groupId: number) => apiRequest<AssignmentMemberOption[]>(`/api/admin/assignment-members?groupId=${groupId}`),
+  listCohorts: (groupId: number) => apiRequest<AssignmentCohortOption[]>(`/api/admin/assignment-cohorts?groupId=${groupId}`),
   create: (input: AssignmentInput) => apiRequest<Assignment>("/api/admin/assignments", { method: "POST", body: input }),
   publishWithMaterials: (input: AssignmentInput, files: File[], requestId: string, onProgress: (progress: number) => void, onUploadStarted: () => void) => {
     const body = new FormData();

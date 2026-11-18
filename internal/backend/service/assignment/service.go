@@ -55,6 +55,7 @@ type CreateInput struct {
 	AttachmentRequirements string
 	IsGroupWide            bool
 	TargetUserIDs          []uint64
+	CohortFormIDs          []uint64
 }
 
 type ReviewInput struct {
@@ -112,6 +113,7 @@ type AssignmentView struct {
 	DueAt                  time.Time          `json:"dueAt"`
 	AttachmentRequirements string             `json:"attachmentRequirements"`
 	IsGroupWide            bool               `json:"isGroupWide"`
+	CohortFormIDs          []uint64           `json:"cohortFormIds"`
 	PublicationStatus      string             `json:"publicationStatus"`
 	CreatedAt              time.Time          `json:"createdAt"`
 	CanDelete              bool               `json:"canDelete"`
@@ -152,6 +154,12 @@ type AdminAssignmentDetail struct {
 type MemberOption struct {
 	UserID uint64 `json:"userId"`
 	Name   string `json:"name"`
+}
+
+type CohortOption struct {
+	FormID  uint64         `json:"formId"`
+	Title   string         `json:"title"`
+	Members []MemberOption `json:"members"`
 }
 
 type Download struct {
@@ -814,8 +822,13 @@ func normalizeCreateInput(input CreateInput, now time.Time) (CreateInput, error)
 		return input, badRequest("截止时间必须晚于当前时间")
 	}
 	input.DueAt = input.DueAt.In(shanghaiLocation)
-	if !input.IsGroupWide && len(input.TargetUserIDs) == 0 {
-		return input, badRequest("请选择作业接收成员")
+	input.CohortFormIDs = uniqueSortedIDs(input.CohortFormIDs)
+	if len(input.CohortFormIDs) > 0 {
+		if len(input.CohortFormIDs) > 20 || input.IsGroupWide || len(input.TargetUserIDs) > 0 {
+			return input, badRequest("纳新届次参数不合法")
+		}
+	} else if !input.IsGroupWide && len(input.TargetUserIDs) == 0 {
+		return input, badRequest("请选择纳新届次")
 	}
 	return input, nil
 }
@@ -824,7 +837,7 @@ func assignmentView(item model.Assignment, groupName string) AssignmentView {
 	return AssignmentView{
 		ID: item.ID, GroupID: item.GroupID, GroupName: groupName, CreatorID: item.CreatorID,
 		Title: item.Title, Description: item.Description, DueAt: readStoredUTCWall(item.DueAt),
-		AttachmentRequirements: item.AttachmentRequirements, IsGroupWide: item.IsGroupWide,
+		AttachmentRequirements: item.AttachmentRequirements, IsGroupWide: item.IsGroupWide, CohortFormIDs: item.CohortFormIDs,
 		PublicationStatus: item.PublicationStatus, CreatedAt: readStoredUTCWall(item.CreatedAt),
 	}
 }
