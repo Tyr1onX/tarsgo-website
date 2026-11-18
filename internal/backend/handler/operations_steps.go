@@ -259,7 +259,8 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 				notes = append(notes, "负责人："+assigneeName)
 			}
 		}
-		status := step.Status
+		previousStatus := step.Status
+		status := previousStatus
 		if input.Status != nil {
 			status = *input.Status
 		}
@@ -273,7 +274,7 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		if status != "blocked" {
 			reason = ""
 		}
-		if step.Key == "published" && status == "done" && step.Status != "done" && item.ChannelID != nil {
+		if step.Key == "published" && status == "done" && previousStatus != "done" && item.ChannelID != nil {
 			var remaining int64
 			if err := tx.Model(&model.OperationsProgressStep{}).
 				Where("item_id = ? AND id <> ? AND status <> ?", itemID, stepID, "done").
@@ -323,11 +324,11 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		if err := tx.Create(&model.OperationsProgressUpdate{
 			ItemID: itemID, StepID: &stepRef, AuthorID: user.ID, Kind: "progress",
 			Content:   step.Title + " · " + strings.Join(notes, " · "),
-			FromStage: step.Status, ToStage: status, Link: input.EvidenceURL,
+			FromStage: previousStatus, ToStage: status, Link: input.EvidenceURL,
 		}).Error; err != nil {
 			return err
 		}
-		if step.Key == "published" && status == "done" && step.Status != "done" && item.ChannelID != nil {
+		if step.Key == "published" && status == "done" && previousStatus != "done" && item.ChannelID != nil {
 			_, err := operationsworkflow.EnsureUpcoming(tx, *item.ChannelID)
 			return err
 		}
