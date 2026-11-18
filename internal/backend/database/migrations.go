@@ -293,6 +293,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 66, apply: func(db *gorm.DB) error {
 			return db.Migrator().DropTable(&assignmentLateWindowV64{})
 		}},
+		{version: 67, apply: migrateOperationsStepsV67},
 	}
 }
 

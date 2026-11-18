@@ -28,8 +28,7 @@ func TestValidateOperationsInputs(t *testing.T) {
 		{Title: "事项", IntervalDays: 366, Status: "active"},
 		{Title: "事项", Status: "bogus"},
 		{Title: "事项", Status: "active"},
-		{Title: "事项", Kind: "video", Stage: "published", IntervalDays: 7, Status: "active"},
-		{Title: "事项", Kind: "workstream", Stage: "editing", Status: "active", NextCheckAt: &next},
+		{Title: "事项", Kind: "video", IntervalDays: 7, Status: "active"},
 	} {
 		if validateOperationsProgress(&invalid) {
 			t.Fatalf("accepted invalid item: %+v", invalid)
