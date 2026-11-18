@@ -90,11 +90,17 @@ test("transparent overscan preserves track size while leaving shadow clearance",
   assert.match(glassScene, /ctx\.setTransform\(width \/ 420, 0, 0, height \/ 260/);
   assert.match(glassScene, /ctx\.translate\(-10, -10\)/);
   assert.match(glassScene, /ctx\.clearRect\(0, 0, width, height\)/);
-  assert.doesNotMatch(styles, /\.theme-glass-switch__canvas\s*\{[^}]*background:/s);
+  assert.match(styles, /\.theme-glass-switch__canvas\s*\{[^}]*background:\s*transparent/s);
+  assert.match(glassScene, /getContext\("2d", \{ alpha: true \}\)/);
   // The visible track remains essentially unchanged; only the transparent buffer grows.
   const previous = [(60 - 45) * 60 / 350, 6 + (58 - 43) * 32 / 190, 320 * 60 / 350, 164 * 32 / 190];
   const withBleed = [-6 + (60 - 10) * 72 / 420, (58 - 10) * 44 / 260, 320 * 72 / 420, 164 * 44 / 260];
   for (let i = 0; i < previous.length; i++) {
     assert.ok(Math.abs(previous[i] - withBleed[i]) < 0.5, `track geometry ${i} drifted`);
   }
+  const sideMargin = (60 - 10) * 72 / 420;
+  const verticalMargin = (58 - 10) * 44 / 260;
+  const softShadowReach = (26 + 10) * 44 / 260;
+  assert.ok(sideMargin > 7 && verticalMargin > softShadowReach,
+    "the transparent overscan must extend beyond the track shadow");
 });
