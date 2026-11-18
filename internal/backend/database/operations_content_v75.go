@@ -54,7 +54,7 @@ func migrateOperationsContentV75(db *gorm.DB) error {
 			source = accountPlatform[*item.ChannelID]
 		}
 		var published model.OperationsProgressStep
-		err := db.Where("item_id = ? AND key = ?", item.ID, "published").First(&published).Error
+		err := db.Where("item_id = ? AND `key` = ?", item.ID, "published").First(&published).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}

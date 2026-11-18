@@ -122,7 +122,7 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 		}
 		var step model.OperationsProgressStep
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("item_id = ? AND key = ?", itemID, "published").First(&step).Error; err != nil {
+			Where("item_id = ? AND `key` = ?", itemID, "published").First(&step).Error; err != nil {
 			return err
 		}
 		if !canManage && (step.AssigneeID == nil || *step.AssigneeID != actor.ID) {

@@ -65,7 +65,7 @@ func TestMariaDBOperationsMultiPlatformPublicationAndSingleContinuation(t *testi
 		t.Fatal(err)
 	}
 	var published model.OperationsProgressStep
-	if err := db.Where("item_id = ? AND key = ?", item.ID, "published").First(&published).Error; err != nil {
+	if err := db.Where("item_id = ? AND `key` = ?", item.ID, "published").First(&published).Error; err != nil {
 		t.Fatal(err)
 	}
 	gin.SetMode(gin.TestMode)
@@ -90,7 +90,7 @@ func TestMariaDBOperationsMultiPlatformPublicationAndSingleContinuation(t *testi
 		t.Fatalf("publishing before production completion must fail: %d %s", got.Code, got.Body.String())
 	}
 	if err := db.Model(&model.OperationsProgressStep{}).
-		Where("item_id = ? AND key <> ?", item.ID, "published").
+		Where("item_id = ? AND `key` <> ?", item.ID, "published").
 		Update("status", "done").Error; err != nil {
 		t.Fatal(err)
 	}
