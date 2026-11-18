@@ -3,8 +3,9 @@
 type Dot = { x: number; y: number; a: number; star?: boolean };
 
 export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  const ctx: CanvasRenderingContext2D = context;
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const track = { x: 60, y: 58, w: 320, h: 164, r: 58 };
@@ -121,13 +122,6 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
   }
   moon.forEach((p,i) => { if (!usedMoon.has(i)) paired.push([p,{...p,a:0}]); });
   sun.forEach((p,i) => { if (!usedSun.has(i)) paired.push([{...p,a:0},p]); });
-
-  const queryT = Number(new URLSearchParams(location.search).get('t'));
-  let t = clamp(Number.isFinite(queryT) ? queryT : 0), target = t, velocity = 0;
-  let checked = t >= .5, dragging = false, springing = false;
-  let startX = 0, startT = 0, lastX = 0, lastTime = 0, pointerVelocity = 0;
-  let raf = 0, starTimer = 0, previousFrame = 0;
-  button.setAttribute('aria-checked', String(checked));
 
   function render(position: number, now: number) {
     const p = clamp(position), a = ease(p), cx = knob.left + knob.travel*p;
