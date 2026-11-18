@@ -9,7 +9,6 @@ import (
 	"errors"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -85,25 +84,14 @@ func (s *Service) createAccountSession(ctx context.Context, userID uint64, curre
 	now := s.now()
 	newCreatedAt := now
 	newExpiresAt := boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
-	if !credentialAuthentication && currentUser != nil && currentUser.ID == userID {
-		if currentSessionFound {
-			newCreatedAt = currentSession.CreatedAt
-			newExpiresAt = boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
-		} else if !currentExpiresAt.IsZero() {
-			// Upgrading a legacy signed cookie must not extend its original expiry.
-			newCreatedAt = currentExpiresAt.Add(-MaxSessionLifetime)
-			newExpiresAt = boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
-			if currentExpiresAt.Before(newExpiresAt) {
-				newExpiresAt = currentExpiresAt
-			}
-		}
+	if !credentialAuthentication && currentUser != nil && currentUser.ID == userID && currentSessionFound {
+		newCreatedAt = currentSession.CreatedAt
+		newExpiresAt = boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
 	}
+
 	newVaultExpiresAt := boundedSessionExpiry(now, now, s.authConfig.TokenTTL)
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.revokeLegacyJWTTx(tx, currentToken, 0, now); err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新旧登录态失败", Err: err}
-		}
 		user, err := s.loadUserWithRoleTx(tx, userID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -209,8 +197,7 @@ func (s *Service) createAccountSession(ctx context.Context, userID uint64, curre
 	return result, nil
 }
 
-// InitializeAccountSessions upgrades a still-valid legacy JWT to a revocable
-// opaque session and links the current identity to the browser's account vault.
+// InitializeAccountSessions links the current opaque session to the browser's account vault.
 func (s *Service) InitializeAccountSessions(ctx context.Context, currentToken, vaultToken string) (*AccountSessionsResult, error) {
 	user, err := s.CurrentUser(ctx, currentToken)
 	if err != nil {
@@ -352,9 +339,6 @@ func (s *Service) RemoveAccountSession(ctx context.Context, vaultToken, currentT
 	result := &AccountSessionsResult{}
 	now := s.now()
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.revokeLegacyJWTTx(tx, currentToken, 0, now); err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新旧登录态失败", Err: err}
-		}
 		var vault model.AccountVault
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("secret_hash = ? AND expires_at > ?", digestSecret(vaultToken), now).First(&vault).Error; err != nil {
 			return &ServiceError{Status: http.StatusUnauthorized, Message: "账号列表已失效", Err: err}
@@ -364,11 +348,6 @@ func (s *Service) RemoveAccountSession(ctx context.Context, vaultToken, currentT
 			return &ServiceError{Status: http.StatusNotFound, Message: "该账号已从列表移除", Err: err}
 		}
 		result.CurrentRemoved = entry.UserID == currentUserID
-		if result.CurrentRemoved {
-			if err := s.revokeLegacyJWTTx(tx, currentToken, entry.UserID, now); err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "撤销当前登录态失败", Err: err}
-			}
-		}
 		revokedAt := now
 		if err := tx.Model(&model.AuthSession{}).Where("id = ?", entry.SessionID).Update("revoked_at", revokedAt).Error; err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "移除账号失败", Err: err}
@@ -404,9 +383,6 @@ func (s *Service) LogoutCurrentAccount(ctx context.Context, currentToken, vaultT
 	keepVault := false
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := s.now()
-		if err := s.revokeLegacyJWTTx(tx, currentToken, 0, now); err != nil {
-			return err
-		}
 		if strings.TrimSpace(currentToken) != "" {
 			if err := tx.Model(&model.AuthSession{}).Where("token_hash = ?", digestSecret(currentToken)).Update("revoked_at", now).Error; err != nil {
 				return err
@@ -455,9 +431,6 @@ func (s *Service) LogoutCurrentAccount(ctx context.Context, currentToken, vaultT
 func (s *Service) LogoutAllAccounts(ctx context.Context, currentToken, vaultToken string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := s.now()
-		if err := s.revokeLegacyJWTTx(tx, currentToken, 0, now); err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新旧登录态失败", Err: err}
-		}
 		if strings.TrimSpace(currentToken) != "" {
 			if err := tx.Model(&model.AuthSession{}).Where("token_hash = ?", digestSecret(currentToken)).Update("revoked_at", now).Error; err != nil {
 				return &ServiceError{Status: http.StatusInternalServerError, Message: "退出全部账号失败", Err: err}
@@ -500,11 +473,7 @@ func (s *Service) currentUserForVault(ctx context.Context, token string) (*Sessi
 	if session, found, err := s.findAuthSession(ctx, token); err == nil && found {
 		return user, session.ExpiresAt
 	}
-	claims, err := ParseToken(s.authConfig.JWTSecret, token)
-	if err == nil {
-		return user, time.Unix(claims.ExpiresAt, 0)
-	}
-	return user, s.now().Add(s.authConfig.TokenTTL)
+	return nil, time.Time{}
 }
 
 func (s *Service) findAuthSession(ctx context.Context, token string) (*model.AuthSession, bool, error) {
@@ -598,38 +567,6 @@ func (s *Service) ensureVaultEntryTx(tx *gorm.DB, vaultID uint64, user *SessionU
 	return nil
 }
 
-// Legacy JWTs are still accepted during the upgrade window. Keep a revoked JWT
-// digest in auth_sessions through its original expiry so CurrentUser never falls
-// back to signature validation after a logout, account removal, or session swap.
-func (s *Service) revokeLegacyJWTTx(tx *gorm.DB, token string, userID uint64, now time.Time) error {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil
-	}
-	if _, found, err := s.findAuthSessionTx(tx, token); err != nil {
-		return err
-	} else if found {
-		return nil
-	}
-	claims, err := ParseToken(s.authConfig.JWTSecret, token)
-	if err != nil {
-		return nil
-	}
-	if userID == 0 {
-		userID, err = strconv.ParseUint(claims.Subject, 10, 64)
-		if err != nil {
-			return nil
-		}
-	}
-	revokedAt := now
-	return tx.Create(&model.AuthSession{
-		UserID:    userID,
-		TokenHash: digestSecret(token),
-		ExpiresAt: time.Unix(claims.ExpiresAt, 0),
-		RevokedAt: &revokedAt,
-	}).Error
-}
-
 func (s *Service) revokeSessionTokenTx(tx *gorm.DB, token string, now time.Time) error {
 	if strings.TrimSpace(token) == "" {
 		return nil
@@ -637,21 +574,6 @@ func (s *Service) revokeSessionTokenTx(tx *gorm.DB, token string, now time.Time)
 	return tx.Model(&model.AuthSession{}).
 		Where("token_hash = ? AND revoked_at IS NULL", digestSecret(token)).
 		Update("revoked_at", now).Error
-}
-
-func (s *Service) findAuthSessionTx(tx *gorm.DB, token string) (*model.AuthSession, bool, error) {
-	if strings.TrimSpace(token) == "" {
-		return nil, false, nil
-	}
-	var session model.AuthSession
-	err := tx.Where("token_hash = ?", digestSecret(token)).First(&session).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	return &session, true, nil
 }
 
 func (s *Service) findVaultEntryTx(tx *gorm.DB, vaultID, userID uint64) (*model.AccountVaultEntry, error) {
