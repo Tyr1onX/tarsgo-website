@@ -40,6 +40,7 @@ test("one stable business directory exposes only accessible member functions", (
   assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["daily-work", "日常事务"], ["team-information", "战队信息"]]);
   assert.deepEqual(memberMenu[0]?.children.map(({ key, href }) => [key, href]), [
     ["weekly-reports", "/dashboard/weekly-reports"],
+    ["training-materials", "/dashboard/training-materials"],
     ["leave-workbench", "/dashboard/leave"],
     ["users-registrations", "/dashboard/users/registrations"],
   ]);
@@ -47,11 +48,11 @@ test("one stable business directory exposes only accessible member functions", (
     ["team-status", "/dashboard/workbench/operations"],
     ["people-directory", "/dashboard/workbench/organization"],
   ]);
-  assert.deepEqual(linkKeys(getUnifiedDashboardMenu(account("user"), true)[0]), ["weekly-reports", "my-assignments", "leave-workbench", "users-registrations"]);
+  assert.deepEqual(linkKeys(getUnifiedDashboardMenu(account("user"), true)[0]), ["weekly-reports", "my-assignments", "training-materials", "leave-workbench", "users-registrations"]);
   assert.deepEqual(getUnifiedDashboardMenu(account("user", false)).map(({ key, children }) => [key, linkKeys({ children })]), [
     ["daily-work", ["users-registrations"]],
   ]);
-  assert.deepEqual(linkKeys(getUnifiedDashboardMenu(account("admin"), true)[0]), ["weekly-reports", "my-assignments", "leave-workbench"]);
+  assert.deepEqual(linkKeys(getUnifiedDashboardMenu(account("admin"), true)[0]), ["weekly-reports", "my-assignments", "training-materials", "leave-workbench"]);
   assert.equal(memberMenu.flatMap(({ children }) => children).some(({ key }) => key === "timetable" || key === "work-manual"), false);
 });
 
@@ -171,4 +172,18 @@ test("historical archive is restricted to super administrators", () => {
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/history"), true);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/history"), false);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/history"), false);
+});
+
+test("training materials retain the uploaded group routes and the shared video references", async () => {
+  const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
+  const content = await readFile(new URL("../routes/dashboard/training-materials.tsx", import.meta.url), "utf8");
+  assert.match(routes, /route\("training-materials", "routes\/dashboard\/training-materials\.tsx"\)/);
+  for (const group of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
+    assert.match(content, new RegExp('id: "' + group + '"'));
+  }
+  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F", "BV1Y8aL6SEit", "BV1LwHv6LEYz", "BV1cq421w72c", "BV1Cc41127B9", "BV1rpWjevEip", "BV1Dk4y1j7oj"]) {
+    assert.ok(content.includes(bv), bv);
+  }
+  assert.ok(content.includes("阶段考核：？？？"));
+  assert.ok(content.includes("硬件组学习全部软件组内容"));
 });
