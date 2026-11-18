@@ -36,7 +36,7 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
       .map(v => 255 * (v <= .0031308 ? 12.92*v : 1.055*v**(1/2.4) - .055));
   }
   const stops = [0, .24, .49, .73, 1];
-  const palettes = Object.fromEntries(Object.entries({
+  const palettes: Record<string, number[][]> = Object.fromEntries(Object.entries({
     page:       ['#0d1423','#222b46','#7685a6','#d8d8df','#f2f0eb'],
     trackTop:   ['#111827','#2a304c','#61728f','#b6bcc8','#d3d2d0'],
     trackBot:   ['#080e19','#171d36','#4d5a7c','#a8abb8','#c1bfbd'],
