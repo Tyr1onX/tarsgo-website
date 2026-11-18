@@ -21,7 +21,7 @@ test("content center has explicit navigation to works and personal tasks", async
   }
   assert.match(overview, />我的任务</);
   assert.match(overview, />全部作品</);
-  assert.match(overview, /进入平台/);
+  assert.match(overview, /查看任务/);
   assert.doesNotMatch(overview, /viewMode|全部事项|board\.posts\.slice/);
   assert.match(platform, /查看作品详情/);
   assert.match(works, /新建作品/);
@@ -37,7 +37,7 @@ test("content center has explicit navigation to works and personal tasks", async
 test("chart has no point-per-day marker cloud and preserves empty data state", async () => {
   const view = await read("../routes/dashboard/operations-progress.tsx");
   assert.match(view, /const entries = snapshots\.filter/);
-  assert.match(view, /暂无账号历史数据/);
+  assert.match(view, /暂无账号数据/);
   assert.match(view, /近30天/);
   assert.match(view, /<polyline/);
   assert.equal((view.match(/<circle /g) ?? []).length, 1);
@@ -81,4 +81,25 @@ test("follower curves use a concise recent window without inventing historical p
   assert.match(view, /const samples = recent\.filter/);
   assert.match(view, /const points = samples\.map/);
   assert.equal((view.match(/<circle /g) ?? []).length, 1);
+});
+
+test("platform cards prioritize current production then the real latest published work", async () => {
+  const [overview, client, handler, css] = await Promise.all([
+    read("../routes/dashboard/operations-progress.tsx"),
+    read("./operations-progress-client.ts"),
+    read("../../../backend/handler/operations_progress.go"),
+    read("../routes/dashboard/operations-progress.css"),
+  ]);
+  assert.match(client, /latestPosts: OperationsPost\[\]/);
+  assert.match(handler, /"latestPosts": latestPosts/);
+  assert.match(handler, /Order\("published_at DESC, id DESC"\)/);
+  assert.match(overview, /const selected = \[\.\.\.active\]/);
+  assert.match(overview, /\{selected \? <div className="operations-progress__platform-feature">/);
+  assert.match(overview, /: latestPost \? <div className="operations-progress__last-post">/);
+  assert.match(overview, /latestPost=\{board\.latestPosts\.find/);
+  assert.match(overview, /currentStep\.assigneeName/);
+  assert.match(overview, /latestPost\.viewCount\.toLocaleString/);
+  assert.doesNotMatch(overview, /当前没有正在制作的作品/);
+  assert.match(css, /align-items: start/);
+  assert.match(css, /operations-progress__last-post-title/);
 });

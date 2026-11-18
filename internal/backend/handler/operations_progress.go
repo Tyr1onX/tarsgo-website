@@ -268,7 +268,15 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "平台发布数据读取失败")
 		return
 	}
+	latestPosts := make([]model.OperationsPlatformPost, 0, len(published))
 	for _, entry := range published {
+		var post model.OperationsPlatformPost
+		if err := h.db.WithContext(c.Request.Context()).Where("platform = ?", entry.Platform).
+			Order("published_at DESC, id DESC").Take(&post).Error; err != nil {
+			writeAPIError(c, http.StatusInternalServerError, "最近发布作品读取失败")
+			return
+		}
+		latestPosts = append(latestPosts, post)
 		day := entry.Latest.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
 		for i := range views {
 			if views[i].Kind != "channel" {
@@ -289,7 +297,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		viewerID = user.ID
 	}
 	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "snapshots": snapshots,
-		"canManage": canManage, "viewerId": viewerID})
+		"latestPosts": latestPosts, "canManage": canManage, "viewerId": viewerID})
 }
 
 func (h *OperationsProgressHandler) Create(c *gin.Context) {

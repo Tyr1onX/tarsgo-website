@@ -107,6 +107,7 @@ export interface OperationsItem {
 export interface OperationsBoard {
   items: OperationsItem[];
   snapshots: OperationsSnapshot[];
+  latestPosts: OperationsPost[];
   canManage: boolean;
   viewerId: number;
 }
