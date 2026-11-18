@@ -63,3 +63,16 @@
   .training-docs__original { font-size: 13px; }
   .training-docs__code pre { font-size: 12px; }
 }
+
+.training-docs__article-header { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 14px; }
+.training-docs__article-header .training-docs__breadcrumb { margin-bottom: 0; }
+.training-docs__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.training-docs__actions button { min-height: 34px; border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 7px 14px; color: var(--admin-text); background: var(--admin-surface); font-size: 13px; }
+.training-docs__actions button:hover:not(:disabled) { border-color: var(--admin-accent); }
+.training-docs__actions button:disabled { opacity: .55; cursor: not-allowed; }
+.training-docs__actions .training-docs__save { border-color: var(--admin-accent); color: var(--admin-accent-on); background: var(--admin-accent); font-weight: 650; }
+.training-docs__status, .training-docs__save-error { color: var(--admin-muted); font-size: 14px; line-height: 1.65; }
+.training-docs__save-error { margin-top: 12px; color: var(--admin-danger); }
+.training-docs__editing { min-width: 0; }
+.training-docs__editing .community-markdown-editor__surface, .training-docs__editing .community-markdown-editor__surface .milkdown, .training-docs__editing .community-markdown-editor__surface .milkdown .ProseMirror { min-height: 400px; }
+.training-docs__editing .community-markdown-editor { --editor-bg: var(--admin-surface); }
