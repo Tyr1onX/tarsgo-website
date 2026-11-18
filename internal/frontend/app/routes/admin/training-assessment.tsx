@@ -387,7 +387,7 @@ export default function TrainingAssessmentRoute() {
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <div className="inline-flex shrink-0 gap-1 rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-1" role="group" aria-label="成员范围">
-                  {([{ value: false, label: selectedAssessment?.source === "assignment" ? "已提交" : selectedAssessment?.source === "training" ? "有成绩" : "有排名" }, { value: true, label: "本期参训" }] as const)
+                  {([{ value: false, label: selectedAssessment?.source === "assignment" ? "已提交或计分" : selectedAssessment?.source === "training" ? "有成绩" : "有排名" }, { value: true, label: "本期参训" }] as const)
                     .map((option) => <button key={String(option.value)} type="button" aria-pressed={showAllMembers === option.value}
                       className={"rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 " + (showAllMembers === option.value
                         ? "bg-[var(--admin-surface)] text-[var(--admin-text)] shadow-sm"
