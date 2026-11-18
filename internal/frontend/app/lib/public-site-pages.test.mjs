@@ -476,6 +476,9 @@ test("the join guide shows the verified cycle and separate permanent-interest re
   const joinInterestPage = await readFile(new URL("../routes/join-interest.tsx", import.meta.url), "utf8");
   assert.ok(joinInterestPage.includes("throw redirect("));
   assert.ok(joinInterestPage.includes("/api/join-interest"));
+  assert.ok(joinInterestPage.includes("required disabled={saving}"));
+  assert.ok(joinInterestPage.includes('<option value="" disabled>请选择意向组别</option>'));
+  assert.ok(!joinInterestPage.includes("暂未确定"));
   assert.ok(joinInterestPage.includes("/dashboard/users/registrations"));
   assert.match(joinExperience, /publicRecruitmentState\.phase === "open"/);
   assert.match(joinExperience, /材料初筛/);

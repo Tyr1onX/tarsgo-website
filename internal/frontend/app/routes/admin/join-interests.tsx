@@ -84,7 +84,7 @@ export function JoinInterests() {
               {result.items.map((item) => (
                 <tr key={item.id}>
                   <td><strong>{item.realName || "未填写姓名"}</strong><div className="text-xs text-fg-muted">{[item.college, item.grade].filter(Boolean).join(" · ")}</div></td>
-                  <td>{item.groupName || "暂未确定"}</td>
+                  <td>{item.groupName || "—"}</td>
                   <td><div>{item.qq}</div><div className="text-xs">{item.email}</div></td>
                   <td className="max-w-64 whitespace-normal">
                     {item.motivation || "—"}
