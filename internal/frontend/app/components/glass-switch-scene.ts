@@ -3,7 +3,7 @@
 type Dot = { x: number; y: number; a: number; star?: boolean };
 
 export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { alpha: true });
   if (!context) return null;
   const ctx: CanvasRenderingContext2D = context;
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
