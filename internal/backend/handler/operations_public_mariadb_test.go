@@ -36,8 +36,8 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sqlDB.Close()
-	defer db.Migrator().DropTable(&model.OperationsPlatformPost{}, &model.OperationsAccountSnapshot{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsProgressItem{})
-	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsAccountSnapshot{}, &model.OperationsPlatformPost{}); err != nil {
+	defer db.Migrator().DropTable(&model.OperationsPublication{}, &model.OperationsPlatformPost{}, &model.OperationsAccountSnapshot{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsProgressItem{})
+	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{}, &model.OperationsProgressUpdate{}, &model.OperationsAccountSnapshot{}, &model.OperationsPlatformPost{}, &model.OperationsPublication{}); err != nil {
 		t.Fatal(err)
 	}
 	item := model.OperationsProgressItem{Title: "B站运营", Kind: "channel", Owner: "内部负责人", NextAction: "内部沟通计划", Status: "active"}
@@ -63,28 +63,57 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/api/operations/progress", NewOperationsProgressHandler(db).List)
+	handler := NewOperationsProgressHandler(db)
+	router.GET("/api/operations/progress", handler.List)
+	router.GET("/api/operations/progress/:id/updates", handler.History)
+	router.GET("/api/operations/works", handler.Works)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/operations/progress", nil))
 	if response.Code != 200 {
 		t.Fatalf("unexpected HTTP %d: %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	for _, content := range []string{"内部备注不得公开", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
+	for _, content := range []string{"公开培训视频", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
 		if !strings.Contains(body, content) {
 			t.Errorf("workbench missing internal field %s", content)
 		}
 	}
+	// The overview only needs the latest progress. Older internal notes are
+	// retained in item history, not repeated in every overview payload.
+	if strings.Contains(body, "内部备注不得公开") {
+		t.Fatal("older internal note must not be expanded in the overview")
+	}
+	history := httptest.NewRecorder()
+	router.ServeHTTP(history, httptest.NewRequest(http.MethodGet,
+		fmt.Sprintf("/api/operations/progress/%d/updates", item.ID), nil))
+	if history.Code != http.StatusOK || !strings.Contains(history.Body.String(), "内部备注不得公开") {
+		t.Fatalf("historical internal note must remain retrievable: %d %s", history.Code, history.Body.String())
+	}
 	var wrapper struct {
 		Data struct {
-			Items []operationsProgressView       `json:"items"`
-			Posts []model.OperationsPlatformPost `json:"posts"`
+			Items []operationsProgressView `json:"items"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &wrapper); err != nil {
 		t.Fatal(err)
 	}
-	if len(wrapper.Data.Items) != 2 || len(wrapper.Data.Posts) != 1 {
-		t.Fatalf("workbench overview incorrect items=%d posts=%d", len(wrapper.Data.Items), len(wrapper.Data.Posts))
+	if len(wrapper.Data.Items) != 2 {
+		t.Fatalf("workbench overview incorrect items=%d", len(wrapper.Data.Items))
+	}
+	works := httptest.NewRecorder()
+	router.ServeHTTP(works, httptest.NewRequest(http.MethodGet, "/api/operations/works?platform=bilibili", nil))
+	if works.Code != http.StatusOK {
+		t.Fatalf("works API failed: %d %s", works.Code, works.Body.String())
+	}
+	var published struct {
+		Data struct {
+			Posts []model.OperationsPlatformPost `json:"posts"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(works.Body.Bytes(), &published); err != nil {
+		t.Fatal(err)
+	}
+	if len(published.Data.Posts) != 1 {
+		t.Fatalf("works API missing historical post: %+v", published.Data.Posts)
 	}
 }

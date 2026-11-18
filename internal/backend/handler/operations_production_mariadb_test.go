@@ -41,10 +41,10 @@ func TestMariaDBOperationsPublicationRenewalAuditAndFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sqlDB.Close()
-	defer db.Migrator().DropTable(&model.OperationsPlatformPost{}, &model.OperationsStepAttachment{}, &model.OperationsProgressUpdate{},
+	defer db.Migrator().DropTable(&model.OperationsPublication{}, &model.OperationsPlatformPost{}, &model.OperationsStepAttachment{}, &model.OperationsProgressUpdate{},
 		&model.OperationsProgressStep{}, &model.OperationsProgressItem{})
 	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{},
-		&model.OperationsProgressUpdate{}, &model.OperationsStepAttachment{}, &model.OperationsPlatformPost{}); err != nil {
+		&model.OperationsProgressUpdate{}, &model.OperationsStepAttachment{}, &model.OperationsPlatformPost{}, &model.OperationsPublication{}); err != nil {
 		t.Fatal(err)
 	}
 	channel := model.OperationsProgressItem{Title: "B站运营", Kind: "channel", Platforms: "bilibili", Status: "active"}

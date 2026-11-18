@@ -35,17 +35,21 @@ func (h *OperationsProgressHandler) CreateEpisode(c *gin.Context) {
 	}
 	channelID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	var input struct {
-		Title string `json:"title"`
+		Title      string `json:"title"`
+		SeriesName string `json:"seriesName"`
 	}
-	if err != nil || channelID == 0 || c.ShouldBindJSON(&input) != nil || len([]rune(strings.TrimSpace(input.Title))) > 120 {
+	if err != nil || channelID == 0 || c.ShouldBindJSON(&input) != nil || len([]rune(strings.TrimSpace(input.Title))) > 120 || len([]rune(strings.TrimSpace(input.SeriesName))) > 80 {
 		writeAPIError(c, http.StatusBadRequest, "请填写有效选题")
 		return
 	}
 	var episode *model.OperationsProgressItem
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var err error
-		episode, err = operationsworkflow.CreateEpisode(tx, channelID, input.Title)
-		return err
+		episode, err = operationsworkflow.CreateEpisode(tx, channelID, input.Title, input.SeriesName)
+		if err != nil {
+			return err
+		}
+		return ensureEpisodeTargets(tx, episode)
 	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		writeAPIError(c, http.StatusNotFound, "运营平台不存在")
@@ -56,25 +60,30 @@ func (h *OperationsProgressHandler) CreateEpisode(c *gin.Context) {
 	}
 }
 
+// ConfigureWork is the only administrative editor for work arrangements.
+// It updates the one work and its platform targets without creating platform copies.
 func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 	if !h.requireEditor(c) {
 		return
 	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	var input struct {
-		Title  string `json:"title"`
-		Owners []struct {
+		Title      string   `json:"title"`
+		SeriesName string   `json:"seriesName"`
+		Platforms  []string `json:"platforms"`
+		Owners     []struct {
 			StepID     uint64 `json:"stepId"`
 			AssigneeID uint64 `json:"assigneeId"`
 		} `json:"owners"`
 	}
 	if err != nil || id == 0 || c.ShouldBindJSON(&input) != nil {
-		writeAPIError(c, http.StatusBadRequest, "任务参数无效")
+		writeAPIError(c, http.StatusBadRequest, "作品参数无效")
 		return
 	}
 	input.Title = strings.TrimSpace(input.Title)
-	if input.Title == "" || len([]rune(input.Title)) > 120 {
-		writeAPIError(c, http.StatusBadRequest, "请填写不超过120字的选题")
+	input.SeriesName = strings.TrimSpace(input.SeriesName)
+	if input.Title == "" || len([]rune(input.Title)) > 120 || len([]rune(input.SeriesName)) > 80 {
+		writeAPIError(c, http.StatusBadRequest, "请检查作品名称和系列")
 		return
 	}
 	members, err := h.members(c.Request.Context())
@@ -87,48 +96,119 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 		names[member.ID] = member.Name
 	}
 	owners := make(map[uint64]uint64, len(input.Owners))
-	for _, owner := range input.Owners {
-		if owner.StepID == 0 || (owner.AssigneeID != 0 && names[owner.AssigneeID] == "") {
-			writeAPIError(c, http.StatusBadRequest, "请选择有效的环节负责人")
+	for _, entry := range input.Owners {
+		if entry.StepID == 0 || entry.AssigneeID != 0 && names[entry.AssigneeID] == "" {
+			writeAPIError(c, http.StatusBadRequest, "负责人无效")
 			return
 		}
-		if _, exists := owners[owner.StepID]; exists {
+		if _, ok := owners[entry.StepID]; ok {
 			writeAPIError(c, http.StatusBadRequest, "环节重复")
 			return
 		}
-		owners[owner.StepID] = owner.AssigneeID
+		owners[entry.StepID] = entry.AssigneeID
 	}
 	actor, _ := middleware.CurrentSessionUser(c)
+	var validationErr error
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var item model.OperationsProgressItem
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, id).Error; err != nil {
 			return err
 		}
-		if item.ChannelID == nil {
-			return errors.New("not a production episode")
+		if item.Kind != "video" && item.Kind != "article" && item.Kind != "merchandise" {
+			validationErr = errors.New("该事务不属于内容制作")
+			return nil
 		}
 		var steps []model.OperationsProgressStep
 		if err := tx.Where("item_id = ?", item.ID).Order("position").Find(&steps).Error; err != nil {
 			return err
 		}
-		for _, stepID := range input.Owners {
-			found := false
-			for _, step := range steps {
-				if step.ID == stepID.StepID {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return errors.New("step does not belong to episode")
+		validSteps := map[uint64]bool{}
+		for _, step := range steps {
+			validSteps[step.ID] = true
+		}
+		for stepID := range owners {
+			if !validSteps[stepID] {
+				validationErr = errors.New("环节不属于此作品")
+				return nil
 			}
 		}
+		var previous []model.OperationsPublication
+		if err := tx.Where("item_id = ?", item.ID).Find(&previous).Error; err != nil {
+			return err
+		}
+		requested := input.Platforms
+		if len(requested) == 0 {
+			for _, target := range previous {
+				requested = append(requested, target.Platform)
+			}
+		}
+		targets := []string{}
+		if item.Kind != "merchandise" {
+			var bad error
+			targets, bad = parseOperationsPlatforms(requested, item.Kind)
+			if bad != nil {
+				validationErr = bad
+				return nil
+			}
+		}
+		expected := make(map[string]bool, len(targets))
+		for _, platform := range targets {
+			expected[platform] = true
+		}
+		existing := make(map[string]model.OperationsPublication, len(previous))
+		for _, target := range previous {
+			existing[target.Platform] = target
+		}
+		changedTargets := len(previous) != len(targets)
+		for _, platform := range targets {
+			if _, ok := existing[platform]; !ok {
+				changedTargets = true
+			}
+		}
+		if changedTargets {
+			for _, target := range previous {
+				if target.Status == "done" {
+					validationErr = errors.New("已有平台发布，不能改变发布平台")
+					return nil
+				}
+			}
+		}
+		values := map[string]any{}
 		if item.Title != input.Title {
-			if err := tx.Model(&item).Update("title", input.Title).Error; err != nil {
+			values["title"] = input.Title
+		}
+		if item.SeriesName != input.SeriesName {
+			values["series_name"] = input.SeriesName
+		}
+		if len(values) > 0 {
+			if err := tx.Model(&item).Updates(values).Error; err != nil {
 				return err
 			}
 			if err := tx.Create(&model.OperationsProgressUpdate{
-				ItemID: item.ID, AuthorID: actor.ID, Kind: "progress", Content: "选题更新为：" + input.Title,
+				ItemID: item.ID, AuthorID: actor.ID, Kind: "progress", Content: "已更新作品信息",
+			}).Error; err != nil {
+				return err
+			}
+		}
+		for _, target := range previous {
+			if !expected[target.Platform] {
+				if err := tx.Delete(&target).Error; err != nil {
+					return err
+				}
+			}
+		}
+		for _, platform := range targets {
+			if _, ok := existing[platform]; !ok {
+				if err := tx.Create(&model.OperationsPublication{
+					ItemID: item.ID, Platform: platform, Status: "pending",
+				}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		if changedTargets {
+			if err := tx.Create(&model.OperationsProgressUpdate{
+				ItemID: item.ID, AuthorID: actor.ID, Kind: "progress", Content: "已调整发布平台",
 			}).Error; err != nil {
 				return err
 			}
@@ -139,7 +219,7 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 				step.AssigneeID != nil && *step.AssigneeID == wanted {
 				continue
 			}
-			var value any = nil
+			var value any
 			label := "待分配"
 			if wanted != 0 {
 				value = wanted
@@ -158,12 +238,14 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 		}
 		return nil
 	})
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		writeAPIError(c, http.StatusNotFound, "制作任务不存在")
+	if validationErr != nil {
+		writeAPIError(c, http.StatusConflict, validationErr.Error())
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		writeAPIError(c, http.StatusNotFound, "作品不存在")
 	} else if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "保存制作安排失败")
+		writeAPIError(c, http.StatusInternalServerError, "保存作品失败")
 	} else {
-		writeAPI(c, http.StatusOK, "制作安排已保存", gin.H{"id": id})
+		writeAPI(c, http.StatusOK, "作品安排已保存", gin.H{"id": id})
 	}
 }
 
@@ -181,7 +263,7 @@ type operationsArchive struct {
 // it never guesses that a public post belongs to an internal episode by title.
 func (h *OperationsProgressHandler) Works(c *gin.Context) {
 	platform := c.Query("platform")
-	if platform != "" && platform != "douyin" && platform != "bilibili" && platform != "wechat" {
+	if platform != "" && platform != "douyin" && platform != "bilibili" && platform != "wechat" && platform != "wechat_video" {
 		writeAPIError(c, http.StatusBadRequest, "平台不正确")
 		return
 	}

@@ -54,6 +54,7 @@ type operationsProgressView struct {
 	LastUpdate      *model.OperationsProgressUpdate `json:"lastUpdate"`
 	LastCompletedOn *string                         `json:"lastCompletedOn"`
 	Steps           []operationsStepView            `json:"steps"`
+	Publications    []model.OperationsPublication   `json:"publications"`
 }
 
 func validateOperationsProgress(input *operationsProgressInput) bool {
@@ -63,7 +64,7 @@ func validateOperationsProgress(input *operationsProgressInput) bool {
 	if input.Platforms != "" {
 		seen := map[string]bool{}
 		for _, platform := range strings.Split(input.Platforms, ",") {
-			if (platform != "douyin" && platform != "bilibili" && platform != "wechat") || seen[platform] {
+			if (platform != "douyin" && platform != "bilibili" && platform != "wechat" && platform != "wechat_video") || seen[platform] {
 				return false
 			}
 			seen[platform] = true
@@ -164,7 +165,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 	views := make([]operationsProgressView, len(items))
 	byID := make(map[uint64]int, len(items))
 	for i, item := range items {
-		views[i] = operationsProgressView{OperationsProgressItem: item, Steps: []operationsStepView{}}
+		views[i] = operationsProgressView{OperationsProgressItem: item, Steps: []operationsStepView{}, Publications: []model.OperationsPublication{}}
 		byID[item.ID] = i
 	}
 
@@ -203,6 +204,16 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 				}
 			}
 			views[at].Steps = append(views[at].Steps, operationsStepView{OperationsProgressStep: step, AssigneeName: name})
+		}
+	}
+	var publications []model.OperationsPublication
+	if err := h.db.WithContext(c.Request.Context()).Order("item_id, id").Find(&publications).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "发布计划读取失败")
+		return
+	}
+	for _, target := range publications {
+		if at, exists := byID[target.ItemID]; exists {
+			views[at].Publications = append(views[at].Publications, target)
 		}
 	}
 	for i := range views {
@@ -247,41 +258,38 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "账号历史数据读取失败")
 		return
 	}
-	var posts []model.OperationsPlatformPost
-	if err := h.db.WithContext(c.Request.Context()).Order("published_at DESC").Find(&posts).Error; err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "历史作品读取失败")
+	type platformLatest struct {
+		Platform string
+		Latest   time.Time
+	}
+	var published []platformLatest
+	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsPlatformPost{}).
+		Select("platform, MAX(published_at) AS latest").Group("platform").Scan(&published).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "平台发布数据读取失败")
 		return
 	}
-	channelNames := map[string]string{"bilibili": "B站运营", "wechat": "公众号运营", "douyin": "抖音运营"}
-	seenPlatforms := map[string]bool{}
-	for _, post := range posts {
-		channelName, supported := channelNames[post.Platform]
-		if !supported || seenPlatforms[post.Platform] {
-			continue
-		}
-		seenPlatforms[post.Platform] = true
-		day := post.PublishedAt.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
+	for _, entry := range published {
+		day := entry.Latest.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
 		for i := range views {
-			if views[i].Kind == "channel" && (views[i].Title == channelName ||
-				(views[i].SeedKey != nil && *views[i].SeedKey == "channel:"+post.Platform)) {
-				if views[i].LastCompletedOn == nil || *views[i].LastCompletedOn < day {
-					views[i].LastCompletedOn = &day
-				}
+			if views[i].Kind != "channel" {
+				continue
+			}
+			if views[i].Platforms != entry.Platform &&
+				(views[i].SeedKey == nil || *views[i].SeedKey != "channel:"+entry.Platform) {
+				continue
+			}
+			if views[i].LastCompletedOn == nil || *views[i].LastCompletedOn < day {
+				views[i].LastCompletedOn = &day
 			}
 		}
-	}
-	var updates []model.OperationsProgressUpdate
-	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Limit(15).Find(&updates).Error; err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "运营进展读取失败")
-		return
 	}
 	user, _ := middleware.CurrentSessionUser(c)
 	var viewerID uint64
 	if user != nil {
 		viewerID = user.ID
 	}
-	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots,
-		"posts": posts, "canManage": canManage, "viewerId": viewerID})
+	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "snapshots": snapshots,
+		"canManage": canManage, "viewerId": viewerID})
 }
 
 func (h *OperationsProgressHandler) Create(c *gin.Context) {

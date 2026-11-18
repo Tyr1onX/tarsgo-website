@@ -428,6 +428,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.POST("/operations/progress", operationsProgressHandler.Create)
 	workbenchAPI.PATCH("/operations/progress/:id", operationsProgressHandler.Update)
 	workbenchAPI.PATCH("/operations/progress/:id/setup", operationsProgressHandler.SetupEpisode)
+	workbenchAPI.PATCH("/operations/progress/:id/publications/:platform", operationsProgressHandler.UpdatePublication)
 	workbenchAPI.POST("/operations/progress/:id/updates", operationsProgressHandler.AddUpdate)
 	workbenchAPI.POST("/operations/progress/:id/steps", operationsProgressHandler.AddStep)
 	workbenchAPI.PATCH("/operations/progress/:id/steps/:stepId", operationsProgressHandler.UpdateStep)

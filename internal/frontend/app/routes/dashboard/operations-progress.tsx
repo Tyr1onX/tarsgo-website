@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
-  formatOperationsDay, getOperationsAttention, getOperationsBoard, operationsAttentionLabel,
+  getOperationsAttention, getOperationsBoard, operationsAttentionLabel, operationsPlatformNames,
   type OperationsBoard, type OperationsItem, type OperationsSnapshot,
 } from "~/lib/operations-progress-client";
 import { OperationsStageBar } from "./operations-stage-bar";
@@ -10,161 +10,129 @@ import "./operations-progress.css";
 export function meta() { return [{ title: "运营动态 | TARSGO" }]; }
 
 function OperationsProgressSkeleton() {
-  const line = "block h-3 rounded bg-[var(--admin-border)]";
-  return <div className="content-skeleton motion-safe:animate-pulse" role="status" aria-label="正在加载战队动态">
-    <div className="operations-progress__account-metrics" aria-hidden="true">
-      {[0, 1, 2].map((index) => <div key={index} className="operations-progress__follower-chart">
-        <span className={`${line} w-20`} />
-        <span className={`${line} mt-4 w-32`} />
-        <span className="mt-5 block h-20 rounded bg-[var(--admin-border-subtle)]" />
-      </div>)}
-    </div>
-    <div className="operations-progress__stats" aria-hidden="true">
-      {[0, 1, 2].map((index) => <div key={index}>
-        <span className="block h-7 w-12 rounded bg-[var(--admin-border)]" />
-        <span className={`${line} mt-2 w-20 max-w-full`} />
-      </div>)}
-    </div>
-    <div className="operations-progress__items" aria-hidden="true">
-      {[0, 1].map((index) => <div key={index} className="operations-progress__item">
-        <span className={`${line} w-40 max-w-full`} />
-        <span className={`${line} mt-3 w-24`} />
-        <span className="mt-6 block h-12 rounded bg-[var(--admin-border-subtle)]" />
-      </div>)}
-    </div>
+  return <div className="operations-progress__platform-grid content-skeleton motion-safe:animate-pulse"
+    role="status" aria-label="正在加载战队动态">
+    {[0,1,2,3].map((i) => <div className="operations-progress__item operations-progress__platform-card" key={i}>
+      <div className="h-4 w-24 rounded bg-[var(--admin-border)]" />
+      <div className="h-9 w-32 rounded bg-[var(--admin-border)]" />
+      <div className="h-20 rounded bg-[var(--admin-border)]" />
+      <div className="h-4 w-40 rounded bg-[var(--admin-border)]" />
+    </div>)}
   </div>;
 }
 
-function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["platform"]; snapshots: OperationsSnapshot[] }) {
-  const label = { douyin: "抖音", bilibili: "B站", wechat: "公众号" }[platform];
-  const values = snapshots.filter((entry) => entry.platform === platform);
-  if (!values.length) return null;
-  const maximum = Math.max(...values.map((entry) => entry.followers));
-  const minimum = Math.min(...values.map((entry) => entry.followers));
-  const span = Math.max(1, maximum - minimum);
-  const coords = values.map((entry, index) => {
-    const x = 12 + index * 296 / Math.max(1, values.length - 1);
-    const y = 66 - (entry.followers - minimum) / span * 54;
-    return { x, y, entry };
-  });
-  return <div className="operations-progress__follower-chart">
-    <div className="operations-progress__follower-head">
-      <strong>{label}</strong>
-      <span><b>{values[values.length - 1].followers.toLocaleString("zh-CN")}</b> {platform === "wechat" ? "关注" : "粉"} · {values[values.length - 1].observedOn}</span>
+function AccountTrend({ platform, snapshots }: { platform:string; snapshots: OperationsSnapshot[] }) {
+  const entries = snapshots.filter((entry) => entry.platform === platform);
+  if (!entries.length) return <p className="operations-progress__muted">暂无账号历史数据</p>;
+  const latest = entries[entries.length-1];
+  const cutoff = Date.parse(latest.observedOn) - 30 * 86400000;
+  const recent = entries.filter((entry) => Date.parse(entry.observedOn) >= cutoff);
+  const stride = Math.max(1, Math.ceil((recent.length - 1) / 8));
+  const samples = recent.filter((_, index) => index === 0 || index === recent.length - 1 || index % stride === 0);
+  const min = Math.min(...samples.map((entry) => entry.followers));
+  const span = Math.max(1, Math.max(...samples.map((entry) => entry.followers)) - min);
+  const points = samples.map((entry, index) =>
+    `${12+index*296/Math.max(1,samples.length-1)},${62-(entry.followers-min)/span*50}`).join(" ");
+  const start = [...entries].reverse().find((entry) => Math.abs(Date.parse(entry.observedOn)-cutoff) <= 3*86400000);
+  const delta = start ? latest.followers-start.followers : null;
+  return <div className="operations-progress__trend">
+    <div className="operations-progress__trend-head">
+      <strong>{latest.followers.toLocaleString("zh-CN")}</strong>
+      <span>{platform === "wechat" ? "关注" : "粉丝"}</span>
     </div>
-    {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注增长趋势，从${minimum}到${maximum}`}>
-      <polyline points={coords.map(({ x, y }) => `${x},${y}`).join(" ")} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}{entry.newFollowers !== null && entry.unfollows !== null ? `（净增 ${entry.newFollowers - entry.unfollows}，新增 ${entry.newFollowers}，取消 ${entry.unfollows}${entry.returningFans !== null ? `，回访 ${entry.returningFans}` : ""}）` : ""}</title></circle>)}
+    <div className="operations-progress__trend-meta">
+      <span>{delta === null ? "暂无可比较的30天数据" : `近30天 ${delta>0?"+":""}${delta.toLocaleString("zh-CN")}`}</span>
+      <small>{latest.observedOn}</small>
+    </div>
+    {entries.length > 1 ? <svg viewBox="0 0 320 78" preserveAspectRatio="none"
+      aria-label={`${operationsPlatformNames[platform]}关注趋势`} role="img">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2"
+        vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="308" cy={62-(latest.followers-min)/span*50} r="3" fill="currentColor" />
     </svg> : null}
-    {values.length > 1 ? <p className="operations-progress__muted">历史记录 {values.length} 个 · {values[0].observedOn} 起</p> : null}
   </div>;
 }
 
+function PlatformCard({ channel, works, snapshots }: {
+  channel: OperationsItem; works: OperationsItem[]; snapshots: OperationsSnapshot[];
+}) {
+  const active = works.filter((item) => item.steps.some((step) => step.status !== "pending"));
+  const pending = works.filter((item) => item.steps.every((step) => step.status === "pending"));
+  const selected = [...active].sort((a,b) => Number(getOperationsAttention(a) !== "blocked") -
+    Number(getOperationsAttention(b) !== "blocked") || b.id-a.id)[0];
+  return <section className="operations-progress__item operations-progress__platform-card">
+    <div className="operations-progress__item-head">
+      <div>
+        <p className="operations-progress__eyebrow">运营平台</p>
+        <h2>{operationsPlatformNames[channel.platforms] || channel.title}</h2>
+      </div>
+      <Link className="admin-button admin-button--secondary" to={`/dashboard/workbench/operations/channels/${channel.id}`}>
+        进入平台
+      </Link>
+    </div>
+    <AccountTrend platform={channel.platforms} snapshots={snapshots} />
+    <div className="operations-progress__channel-footer">
+      <span>{active.length} 期制作中 · {pending.length} 期待规划</span>
+    </div>
+    {selected ? <div className="operations-progress__platform-feature">
+      <Link className="operations-progress__featured-title" to={`/dashboard/workbench/operations/works/${selected.id}`}>{selected.title}</Link>
+      <OperationsStageBar item={selected} />
+    </div> : <p className="operations-progress__muted">当前没有正在制作的作品</p>}
+  </section>;
+}
 
 export default function OperationsProgressPage() {
   const [board, setBoard] = useState<OperationsBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [viewMode, setViewMode] = useState<"all" | "mine" | "blocked">("all");
-
   const load = useCallback(async () => {
-    try {
-      setBoard(await getOperationsBoard());
-      setError("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "运营动态加载失败");
-    } finally { setLoading(false); }
+    try { setBoard(await getOperationsBoard()); setError(""); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "运营动态加载失败"); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
   const items = board?.items ?? [];
   const channels = items.filter((item) => item.kind === "channel");
-  const episodes = items.filter((item) => item.channelId !== null && item.status !== "done");
-  const inProgress = episodes.filter((item) => item.steps.some((step) => step.status !== "pending")).length;
-  const drafts = episodes.length - inProgress;
-  const blocked = episodes.filter((item) => getOperationsAttention(item) === "blocked").length;
-  const otherItems = items.filter((item) => item.kind !== "channel" && item.channelId === null && item.status !== "done");
-
-  const selected = (item: OperationsItem) => viewMode === "all"
-    || (viewMode === "mine" && item.steps.some((step) => step.assigneeId === board?.viewerId))
-    || (viewMode === "blocked" && getOperationsAttention(item) === "blocked");
-  const prioritized = (values: OperationsItem[]) => [...values].sort((a, b) => {
-    const rank = (item: OperationsItem) => getOperationsAttention(item) === "blocked" ? 0
-      : item.steps.some((step) => step.status !== "pending") ? 1 : 2;
-    return rank(a) - rank(b) || b.episodeNo - a.episodeNo;
-  });
+  const works = items.filter((item) => (item.kind === "video" || item.kind === "article") && item.status !== "done");
+  const otherItems = items.filter((item) => item.kind !== "channel" && item.kind !== "video" && item.kind !== "article" && item.status !== "done");
 
   return <main className="operations-progress admin-design" aria-busy={loading && !board}>
     <header className="operations-progress__header">
-      <div><h1>运营动态</h1></div>
-      <Link className="operations-progress__library-link" to="/dashboard/workbench/operations/works">查看作品库</Link>
+      <h1>运营动态</h1>
+      <nav className="operations-progress__main-nav" aria-label="运营入口">
+        <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/tasks">我的任务</Link>
+        <Link className="admin-button admin-button--primary" to="/dashboard/workbench/operations/works">全部作品</Link>
+      </nav>
     </header>
-    {error ? <p className="operations-progress__error" role="alert">{error}
+    {error ? <p role="alert" className="operations-progress__error">{error}
       <button type="button" onClick={() => void load()}>重试</button></p> : null}
     {loading && !board ? <OperationsProgressSkeleton /> : null}
     {board ? <>
-      {board.snapshots.length > 0 ? <section className="operations-progress__account-metrics" aria-label="平台关注趋势">
-        <FollowerTrend platform="douyin" snapshots={board.snapshots} />
-        <FollowerTrend platform="bilibili" snapshots={board.snapshots} />
-        <FollowerTrend platform="wechat" snapshots={board.snapshots} />
-      </section> : null}
-      <div className="operations-progress__stats" aria-label="制作状态">
-        <div><strong>{inProgress}</strong><span>制作中</span></div>
-        <div><strong>{drafts}</strong><span>待启动</span></div>
-        <div><strong>{blocked}</strong><span>存在卡点</span></div>
-      </div>
-      <div className="operations-progress__section-head">
-        <h2>运营事项</h2>
-        <div className="operations-progress__filters" role="group" aria-label="任务筛选">
-          {([["all", "全部事项"], ["mine", "我的任务"], ["blocked", "卡点"]] as const).map(([key, label]) =>
-            <button type="button" className={viewMode === key ? "is-selected" : ""} aria-pressed={viewMode === key}
-              key={key} onClick={() => setViewMode(key)}>{label}</button>)}
+      <section className="operations-progress__platforms-section">
+        <h2>平台运营</h2>
+        <div className="operations-progress__platform-grid">
+          {channels.map((channel) => <PlatformCard key={channel.id} channel={channel}
+            snapshots={board.snapshots}
+            works={works.filter((item) => item.publications.some((target) => target.platform === channel.platforms))} />)}
         </div>
-      </div>
-      <div className="operations-progress__items">
-        {channels.map((channel) => {
-          const current = prioritized(episodes.filter((item) => item.channelId === channel.id && selected(item)));
-          if (viewMode !== "all" && current.length === 0) return null;
-          const featured = current[0];
-          return <section className="operations-progress__item operations-progress__channel-card" key={channel.id}>
-            <div className="operations-progress__item-head">
-              <div>
-                <p className="operations-progress__eyebrow">{({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[channel.platforms] || "平台运营"}</p>
-                <h3>{channel.title}</h3>
-              </div>
-              <span className="operations-progress__muted">{current.length} 期{viewMode === "all" ? "待推进" : "符合筛选"}</span>
-            </div>
-            {featured ? <div className="operations-progress__featured-episode">
-              <div className="operations-progress__item-head">
-                <h4>{featured.title}</h4>
-                <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(featured)}`}>
-                  {operationsAttentionLabel[getOperationsAttention(featured)]}
-                </span>
-              </div>
-              <OperationsStageBar item={featured} />
-              {current.length > 1 ? <p className="operations-progress__muted">另外 {current.length - 1} 期正在安排</p> : null}
-            </div> : <p className="operations-progress__muted">暂无待推进任务</p>}
-            <div className="operations-progress__channel-footer">
-              <span>最近发布 {formatOperationsDay(channel.lastCompletedOn)}</span>
-              <Link to={`/dashboard/workbench/operations/channels/${channel.id}`}>查看平台任务</Link>
-            </div>
-          </section>;
-        })}
-        {otherItems.filter(selected).length > 0 ? <section className="operations-progress__other-items">
-          <h2>其他事项</h2>
-          {otherItems.filter(selected).map((item) => <article className="operations-progress__item" key={item.id}>
-            <div className="operations-progress__item-head">
-              <h3>{item.title}</h3>
-              <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(item)}`}>
-                {operationsAttentionLabel[getOperationsAttention(item)]}
-              </span>
-            </div>
-            <OperationsStageBar item={item} />
-            {item.steps.length === 0 && item.nextAction ? <p className="operations-progress__muted">{item.nextAction}</p> : null}
-          </article>)}
-        </section> : null}
-      </div>
-      {channels.length === 0 ? <p className="operations-progress__muted">暂无运营平台</p> : null}
+      </section>
+      {otherItems.length ? <section className="operations-progress__other-items">
+        <h2>其他事务</h2>
+        {otherItems.map((item) => <article className="operations-progress__item" key={item.id} id={`operations-item-${item.id}`}>
+          <div className="operations-progress__item-head">
+            <h3>{item.title}</h3>
+            <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(item)}`}>
+              {operationsAttentionLabel[getOperationsAttention(item)]}
+            </span>
+          </div>
+          <OperationsStageBar item={item} />
+          {item.kind === "merchandise" ? <div className="operations-progress__item-footer">
+            <Link to={`/dashboard/workbench/operations/works/${item.id}`}>查看详情</Link>
+          </div> : null}
+          {!item.steps.length && item.nextAction ? <p className="operations-progress__muted">{item.nextAction}</p> : null}
+        </article>)}
+      </section> : null}
     </> : null}
   </main>;
 }

@@ -33,14 +33,14 @@ export default function OperationsChannelPage() {
     void getDouyinSyncStatus().then((value) => { if (active) setDouyinSync(value); }).catch(() => { if (active) setDouyinSync(null); });
     return () => { active = false; };
   }, [channel?.platforms]);
-  const episodes = board?.items.filter((item) => item.channelId === channel?.id) ?? [];
+  const episodes = board?.items.filter((item) => item.publications?.some((entry) => entry.platform === channel?.platforms)) ?? [];
   const active = episodes.filter((item) => item.status !== "done" && item.steps.some((step) => step.status !== "pending"));
   const drafts = episodes.filter((item) => item.status !== "done" && item.steps.every((step) => step.status === "pending"));
   const completed = episodes.filter((item) => item.status === "done");
   const visible = [...active.sort((a, b) => Number(getOperationsAttention(a) !== "blocked") - Number(getOperationsAttention(b) !== "blocked") || b.episodeNo - a.episodeNo),
     ...drafts.sort((a, b) => a.episodeNo - b.episodeNo),
     ...(showCompleted ? completed.sort((a, b) => b.episodeNo - a.episodeNo) : [])];
-  const workUrl = `/dashboard/workbench/operations/works?platform=${encodeURIComponent(channel?.platforms ?? "")}`;
+  const workUrl = `/dashboard/workbench/operations/works?tab=posts&platform=${encodeURIComponent(channel?.platforms ?? "")}`;
 
   return <main className="operations-progress admin-design">
     <Link className="operations-progress__back" to="/dashboard/workbench/operations">返回运营总览</Link>
@@ -50,17 +50,16 @@ export default function OperationsChannelPage() {
       : <>
         <header className="operations-progress__channel-head">
           <div>
-            <p className="operations-progress__muted">内容制作 · {channel.title}</p>
+            <p className="operations-progress__muted">运营平台</p>
             <h1>{channel.title}</h1>
             <p className="operations-progress__muted">{active.length} 期进行中 · {drafts.length} 期待启动 · 最近发布 {formatOperationsDay(channel.lastCompletedOn)}</p>
           </div>
           <div className="operations-progress__header-actions">
-            <Link to={workUrl}>查看作品库</Link>
-            {channel.platforms === "douyin" && board.canManage ? <Link to="/dashboard/workbench/operations/douyin/import">导入抖音数据</Link> : null}
-            {channel.platforms === "wechat" && board.canManage ? <Link to="/dashboard/workbench/operations/wechat/import">导入公众号关注数据</Link> : null}
+            <Link className="admin-button admin-button--secondary" to={workUrl}>历史发布</Link>
+            {channel.platforms === "douyin" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/douyin/import">导入抖音数据</Link> : null}
+            {channel.platforms === "wechat" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/wechat/import">导入公众号数据</Link> : null}
             {channel.platforms === "douyin" && douyinSync?.enabled && !douyinSync.connected
-              ? <Link to="/api/operations/douyin/authorize" reloadDocument>连接抖音自动同步</Link> : null}
-            {board.canManage ? <Link className="admin-button admin-button--primary" to={`/dashboard/workbench/operations/channels/${channel.id}/new`}>新建并行一期</Link> : null}
+              ? <Link className="admin-button admin-button--secondary" to="/api/operations/douyin/authorize" reloadDocument>连接抖音同步</Link> : null}
           </div>
         </header>
         <div className="operations-progress__section-head">
@@ -75,17 +74,17 @@ export default function OperationsChannelPage() {
             className="operations-progress__item operations-progress__episode">
             <div className="operations-progress__item-head">
               <div>
-                <p className="operations-progress__eyebrow">制作任务 #{item.episodeNo} · {stageSummary(item)}</p>
-                <h3>{item.title}</h3>
+                <p className="operations-progress__eyebrow">{item.seriesName ? `${item.seriesName} · ` : ""}{stageSummary(item)}</p>
+                <h3><Link to={`/dashboard/workbench/operations/works/${item.id}`}>{item.title}</Link></h3>
               </div>
               <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(item)}`}>
                 {operationsAttentionLabel[getOperationsAttention(item)]}
               </span>
             </div>
             <OperationsStageBar item={item} />
-            {board.canManage && item.status !== "done" ? <div className="operations-progress__item-footer">
-              <Link to={`/dashboard/workbench/operations/episodes/${item.id}/setup`}>安排选题与负责人</Link>
-            </div> : null}
+            <div className="operations-progress__item-footer">
+              <Link className="admin-button admin-button--secondary" to={`/dashboard/workbench/operations/works/${item.id}`}>查看作品详情</Link>
+            </div>
           </article>)}
         </div>
         {visible.length === 0 ? <p className="operations-progress__muted">当前没有制作中的任务</p> : null}

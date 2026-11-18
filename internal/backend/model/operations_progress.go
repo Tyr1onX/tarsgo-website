@@ -6,6 +6,8 @@ import "time"
 type OperationsProgressItem struct {
 	ID             uint64     `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	Title          string     `json:"title" gorm:"size:120;not null"`
+	SeriesName     string     `json:"seriesName" gorm:"size:80;not null;default:''"`
+	PredecessorID  *uint64    `json:"predecessorId" gorm:"type:bigint unsigned;default:null;uniqueIndex:uk_operations_predecessor"`
 	Kind           string     `json:"kind" gorm:"size:16;not null;default:'workstream'"`
 	Platforms      string     `json:"platforms" gorm:"size:80;not null;default:''"`
 	ChannelID      *uint64    `json:"channelId" gorm:"type:bigint unsigned;default:null;uniqueIndex:uk_operations_channel_episode,priority:1"`
@@ -20,6 +22,20 @@ type OperationsProgressItem struct {
 	Status         string     `json:"status" gorm:"size:16;not null;default:'active';index:idx_operations_progress_status"`
 	CreatedAt      time.Time  `json:"createdAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt      time.Time  `json:"updatedAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+}
+
+// OperationsPublication represents one publication target for a single shared work.
+// Production and platform publishing do not create duplicate work items.
+type OperationsPublication struct {
+	ID          uint64     `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	ItemID      uint64     `json:"itemId" gorm:"type:bigint unsigned;not null;uniqueIndex:uk_operations_work_platform,priority:1"`
+	Platform    string     `json:"platform" gorm:"size:24;not null;uniqueIndex:uk_operations_work_platform,priority:2"`
+	Status      string     `json:"status" gorm:"size:16;not null;default:'pending'"`
+	URL         string     `json:"url" gorm:"size:500;not null;default:''"`
+	VersionNote string     `json:"versionNote" gorm:"size:300;not null;default:''"`
+	UpdatedBy   *uint64    `json:"updatedBy" gorm:"type:bigint unsigned;default:null"`
+	CompletedAt *time.Time `json:"completedAt" gorm:"type:datetime;default:null"`
+	UpdatedAt   time.Time  `json:"updatedAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 }
 
 // OperationsProgressStep is the independent source of truth for a deliverable's workflow.

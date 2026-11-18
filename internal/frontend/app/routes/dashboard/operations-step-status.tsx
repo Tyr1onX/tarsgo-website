@@ -83,6 +83,8 @@ export default function OperationsStepStatusPage() {
     {!board ? <p className="operations-progress__muted">正在加载…</p>
       : !item || !step ? <p className="operations-progress__error">环节不存在</p>
       : !canUpdate ? <p className="operations-progress__error">只能更新自己负责的环节</p>
+      : step.key === "published" && item.publications.length > 0
+        ? <p><Link to={`/dashboard/workbench/operations/works/${item.id}/publish`}>前往登记平台发布</Link></p>
       : <form className="operations-progress__item operations-progress__status-editor" onSubmit={(event) => void submit(event)}>
         <p className="operations-progress__muted">{item.title} / {step.title}</p>
         <h1>更新状态</h1>

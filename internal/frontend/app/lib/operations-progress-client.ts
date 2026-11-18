@@ -21,7 +21,7 @@ export interface OperationsStep {
 
 export interface OperationsSnapshot {
   id: number;
-  platform: "bilibili" | "douyin" | "wechat";
+  platform: "bilibili" | "douyin" | "wechat" | "wechat_video";
   observedOn: string;
   followers: number;
   newFollowers: number | null;
@@ -64,9 +64,28 @@ export interface OperationsUpdate {
   createdAt: string;
 }
 
+export interface OperationsPublication {
+  id: number;
+  itemId: number;
+  platform: "douyin" | "bilibili" | "wechat" | "wechat_video";
+  status: "pending" | "done";
+  url: string;
+  versionNote: string;
+  updatedBy: number | null;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export const operationsPlatformNames: Record<string,string> = {
+  douyin: "抖音", bilibili: "B站", wechat: "公众号", wechat_video: "视频号",
+};
+
 export interface OperationsItem {
   id: number;
   title: string;
+  seriesName: string;
+  predecessorId: number | null;
+  publications: OperationsPublication[];
   kind: OperationsItemKind;
   platforms: string;
   channelId: number | null;
@@ -87,9 +106,7 @@ export interface OperationsItem {
 
 export interface OperationsBoard {
   items: OperationsItem[];
-  updates: OperationsUpdate[];
   snapshots: OperationsSnapshot[];
-  posts: OperationsPost[];
   canManage: boolean;
   viewerId: number;
 }
@@ -147,14 +164,22 @@ export interface OperationsWorks {
   page: number;
   pageSize: number;
 }
-export function createOperationsEpisode(channelId: number, title: string) {
-  return apiRequest<OperationsItem>(`/api/operations/channels/${channelId}/episodes`, { method: "POST", body: { title } });
+export function createOperationsEpisode(channelId: number, title: string, seriesName = "") {
+  return apiRequest<OperationsItem>(`/api/operations/channels/${channelId}/episodes`, { method: "POST", body: { title, seriesName } });
+}
+
+export function saveOperationsPublication(itemId: number, platform: string,
+  changes: { status: "pending"|"done"; url: string; versionNote: string }) {
+  return apiRequest<{ itemId: number; platform: string }>(`/api/operations/progress/${itemId}/publications/${platform}`,
+    { method: "PATCH", body: changes });
 }
 export function getOperationsMembers() {
   return apiRequest<OperationsMember[]>("/api/operations/members");
 }
-export function setupOperationsEpisode(itemId: number, title: string, owners: Array<{ stepId: number; assigneeId: number }>) {
-  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/setup`, { method: "PATCH", body: { title, owners } });
+export function setupOperationsEpisode(itemId: number, title: string, seriesName: string, platforms: string[],
+  owners: Array<{ stepId: number; assigneeId: number }>) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/setup`,
+    { method: "PATCH", body: { title, seriesName, platforms, owners } });
 }
 export function getOperationsStepActivity(itemId: number, stepId: number) {
   return apiRequest<OperationsStepActivity>(`/api/operations/progress/${itemId}/steps/${stepId}/activity`);
