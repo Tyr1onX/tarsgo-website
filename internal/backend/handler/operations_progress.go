@@ -51,6 +51,7 @@ type operationsUpdateInput struct {
 
 type operationsProgressView struct {
 	model.OperationsProgressItem
+	LeadName        string                          `json:"leadName"`
 	LastUpdate      *model.OperationsProgressUpdate `json:"lastUpdate"`
 	LastCompletedOn *string                         `json:"lastCompletedOn"`
 	Steps           []operationsStepView            `json:"steps"`
@@ -176,6 +177,12 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		return
 	}
 	needsMembers := false
+	for _, item := range items {
+		if item.LeadID != nil {
+			needsMembers = true
+			break
+		}
+	}
 	for _, step := range steps {
 		if step.AssigneeID != nil {
 			needsMembers = true
@@ -193,6 +200,14 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 	names := make(map[uint64]string, len(members))
 	for _, member := range members {
 		names[member.ID] = member.Name
+	}
+	for i := range views {
+		if views[i].LeadID != nil {
+			views[i].LeadName = names[*views[i].LeadID]
+			if views[i].LeadName == "" {
+				views[i].LeadName = "成员 #" + strconv.FormatUint(*views[i].LeadID, 10)
+			}
+		}
 	}
 	for _, step := range steps {
 		if at, exists := byID[step.ItemID]; exists {

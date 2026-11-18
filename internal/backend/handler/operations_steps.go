@@ -99,6 +99,11 @@ func operationsStepState(steps []operationsStepView) (status, stage string) {
 	return status, steps[current].Key
 }
 
+// Permissions follow the real member IDs, never the legacy display-only owner name.
+func operationsMayUpdate(canManage bool, leadID, assigneeID *uint64, actorID uint64) bool {
+	return canManage || leadID != nil && *leadID == actorID || assigneeID != nil && *assigneeID == actorID
+}
+
 func operationsStepID(c *gin.Context) (uint64, uint64, bool) {
 	itemID, itemErr := strconv.ParseUint(c.Param("id"), 10, 64)
 	stepID, stepErr := strconv.ParseUint(c.Param("stepId"), 10, 64)
@@ -109,68 +114,18 @@ func operationsStepID(c *gin.Context) (uint64, uint64, bool) {
 	return itemID, stepID, true
 }
 
-func (h *OperationsProgressHandler) AddStep(c *gin.Context) {
-	if !h.requireEditor(c) {
-		return
-	}
-	itemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	var input struct {
-		Title string `json:"title"`
-	}
-	if err != nil || itemID == 0 || c.ShouldBindJSON(&input) != nil {
-		writeAPIError(c, http.StatusBadRequest, "环节参数不正确")
-		return
-	}
-	input.Title = strings.TrimSpace(input.Title)
-	if input.Title == "" || len([]rune(input.Title)) > 80 {
-		writeAPIError(c, http.StatusBadRequest, "请填写环节名称")
-		return
-	}
-	user, _ := middleware.CurrentSessionUser(c)
-	var created model.OperationsProgressStep
-	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		var item model.OperationsProgressItem
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, itemID).Error; err != nil {
-			return err
-		}
-		var position int
-		if err := tx.Model(&model.OperationsProgressStep{}).Where("item_id = ?", itemID).
-			Select("COALESCE(MAX(position), -1) + 1").Scan(&position).Error; err != nil {
-			return err
-		}
-		created = model.OperationsProgressStep{
-			ItemID: itemID, Title: input.Title, Position: position, Status: "pending",
-		}
-		if err := tx.Create(&created).Error; err != nil {
-			return err
-		}
-		return tx.Create(&model.OperationsProgressUpdate{
-			ItemID: itemID, AuthorID: user.ID, Kind: "progress", Content: "新增环节：" + input.Title,
-		}).Error
-	})
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		writeAPIError(c, http.StatusNotFound, "运营事项不存在")
-	} else if err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "新增环节失败")
-	} else {
-		writeAPI(c, http.StatusCreated, "环节已添加", created)
-	}
-}
-
 func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 	itemID, stepID, ok := operationsStepID(c)
 	if !ok {
 		return
 	}
 	var input struct {
-		Title       *string `json:"title"`
-		AssigneeID  *uint64 `json:"assigneeId"`
 		Status      *string `json:"status"`
 		BlockReason *string `json:"blockReason"`
 		Note        string  `json:"note"`
 		EvidenceURL string  `json:"evidenceUrl"`
 	}
-	if c.ShouldBindJSON(&input) != nil || (input.Title == nil && input.AssigneeID == nil && input.Status == nil && input.BlockReason == nil && input.Note == "" && input.EvidenceURL == "") {
+	if c.ShouldBindJSON(&input) != nil || (input.Status == nil && input.BlockReason == nil && input.Note == "" && input.EvidenceURL == "") {
 		writeAPIError(c, http.StatusBadRequest, "环节修改参数不正确")
 		return
 	}
@@ -183,17 +138,6 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 	if !ok || user == nil {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
-	}
-	if !canManage && (input.Title != nil || input.AssigneeID != nil) {
-		writeAPIError(c, http.StatusForbidden, "只能更新自己负责环节的进度")
-		return
-	}
-	if input.Title != nil {
-		*input.Title = strings.TrimSpace(*input.Title)
-		if *input.Title == "" || len([]rune(*input.Title)) > 80 {
-			writeAPIError(c, http.StatusBadRequest, "环节名称不正确")
-			return
-		}
 	}
 	if input.Status != nil && *input.Status != "pending" && *input.Status != "active" && *input.Status != "blocked" && *input.Status != "done" {
 		writeAPIError(c, http.StatusBadRequest, "环节状态不正确")
@@ -212,24 +156,6 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "备注或成果链接不正确")
 		return
 	}
-	var assigneeName string
-	if input.AssigneeID != nil && *input.AssigneeID != 0 {
-		members, err := h.members(c.Request.Context())
-		if err != nil {
-			writeAPIError(c, http.StatusInternalServerError, "成员读取失败")
-			return
-		}
-		for _, member := range members {
-			if member.ID == *input.AssigneeID {
-				assigneeName = member.Name
-				break
-			}
-		}
-		if assigneeName == "" {
-			writeAPIError(c, http.StatusBadRequest, "只能分配给有效战队成员")
-			return
-		}
-	}
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var item model.OperationsProgressItem
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, itemID).Error; err != nil {
@@ -240,25 +166,11 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 			Where("id = ? AND item_id = ?", stepID, itemID).Take(&step).Error; err != nil {
 			return err
 		}
-		if !canManage && (step.AssigneeID == nil || *step.AssigneeID != user.ID) {
+		if !operationsMayUpdate(canManage, item.LeadID, step.AssigneeID, user.ID) {
 			return errOperationsStepForbidden
 		}
 		changes := make(map[string]any)
 		notes := make([]string, 0, 3)
-		if input.Title != nil && *input.Title != step.Title {
-			changes["title"] = *input.Title
-			notes = append(notes, "重命名为"+*input.Title)
-		}
-		if input.AssigneeID != nil && (step.AssigneeID == nil && *input.AssigneeID != 0 ||
-			step.AssigneeID != nil && *step.AssigneeID != *input.AssigneeID) {
-			if *input.AssigneeID == 0 {
-				changes["assignee_id"] = nil
-				notes = append(notes, "负责人待分配")
-			} else {
-				changes["assignee_id"] = *input.AssigneeID
-				notes = append(notes, "负责人："+assigneeName)
-			}
-		}
 		if step.Key == "published" {
 			var targetCount int64
 			if err := tx.Model(&model.OperationsPublication{}).Where("item_id = ?", itemID).Count(&targetCount).Error; err != nil {
@@ -363,53 +275,6 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 var (
 	errOperationsStepForbidden     = errors.New("step permission denied")
 	errOperationsStepReason        = errors.New("step block reason required")
-	errOperationsStepCompleted     = errors.New("completed step cannot be deleted")
-	errOperationsLastStep          = errors.New("last step cannot be deleted")
 	errOperationsPublishIncomplete = errors.New("publication steps incomplete")
 	errOperationsPublishTargets    = errors.New("platform publishing managed by targets")
 )
-
-func (h *OperationsProgressHandler) DeleteStep(c *gin.Context) {
-	if !h.requireEditor(c) {
-		return
-	}
-	itemID, stepID, ok := operationsStepID(c)
-	if !ok {
-		return
-	}
-	user, _ := middleware.CurrentSessionUser(c)
-	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		var step model.OperationsProgressStep
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND item_id = ?", stepID, itemID).Take(&step).Error; err != nil {
-			return err
-		}
-		if step.Status == "done" {
-			return errOperationsStepCompleted
-		}
-		var count int64
-		if err := tx.Model(&model.OperationsProgressStep{}).Where("item_id = ?", itemID).Count(&count).Error; err != nil {
-			return err
-		}
-		if count <= 1 {
-			return errOperationsLastStep
-		}
-		if err := tx.Delete(&step).Error; err != nil {
-			return err
-		}
-		return tx.Create(&model.OperationsProgressUpdate{
-			ItemID: itemID, AuthorID: user.ID, Kind: "progress", Content: "移除环节：" + step.Title,
-		}).Error
-	})
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		writeAPIError(c, http.StatusNotFound, "环节不存在")
-	} else if errors.Is(err, errOperationsStepCompleted) {
-		writeAPIError(c, http.StatusConflict, "已完成环节请先恢复为待处理")
-	} else if errors.Is(err, errOperationsLastStep) {
-		writeAPIError(c, http.StatusConflict, "至少保留一个环节")
-	} else if err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "移除环节失败")
-	} else {
-		writeAPI(c, http.StatusOK, "环节已移除", gin.H{"id": stepID})
-	}
-}

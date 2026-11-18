@@ -7,6 +7,7 @@ type OperationsProgressItem struct {
 	ID             uint64     `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	Title          string     `json:"title" gorm:"size:120;not null"`
 	SeriesName     string     `json:"seriesName" gorm:"size:80;not null;default:''"`
+	LeadID         *uint64    `json:"leadId" gorm:"type:bigint unsigned;default:null;index:idx_operations_progress_lead"`
 	PredecessorID  *uint64    `json:"predecessorId" gorm:"type:bigint unsigned;default:null;uniqueIndex:uk_operations_predecessor"`
 	Kind           string     `json:"kind" gorm:"size:16;not null;default:'workstream'"`
 	Platforms      string     `json:"platforms" gorm:"size:80;not null;default:''"`

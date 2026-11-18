@@ -112,7 +112,10 @@ func createEpisode(tx *gorm.DB, channel *model.OperationsProgressItem, title, se
 		if err := tx.Where("item_id = ?", previous.ID).Find(&steps).Error; err != nil {
 			return nil, err
 		}
-		ids := make([]uint64, 0, len(steps))
+		ids := make([]uint64, 0, len(steps)+1)
+		if previous.LeadID != nil {
+			ids = append(ids, *previous.LeadID)
+		}
 		for _, step := range steps {
 			if step.AssigneeID != nil {
 				ids = append(ids, *step.AssigneeID)
@@ -128,9 +131,17 @@ func createEpisode(tx *gorm.DB, channel *model.OperationsProgressItem, title, se
 				valid[id] = true
 			}
 		}
+		if previous.LeadID != nil && valid[*previous.LeadID] {
+			episode.LeadID = previous.LeadID
+		}
 		for _, step := range steps {
 			if step.AssigneeID != nil && valid[*step.AssigneeID] {
 				owners[step.Key] = step.AssigneeID
+			}
+		}
+		if episode.LeadID != nil {
+			if err := tx.Model(&episode).Update("lead_id", episode.LeadID).Error; err != nil {
+				return nil, err
 			}
 		}
 	}

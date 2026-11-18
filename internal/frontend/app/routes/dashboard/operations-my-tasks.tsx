@@ -16,7 +16,7 @@ export default function OperationsMyTasksPage() {
     return () => { active = false; };
   }, []);
   const tasks = board?.items.flatMap((item) =>
-    item.steps.filter((step) => step.assigneeId === board.viewerId && step.status !== "done")
+    item.steps.filter((step) => (step.assigneeId === board.viewerId || item.leadId === board.viewerId) && step.status !== "done")
       .map((step) => ({ item, step }))) ?? [];
   tasks.sort((a,b) => Number(b.step.status === "blocked") - Number(a.step.status === "blocked") ||
     Number(b.step.status === "active") - Number(a.step.status === "active"));
@@ -29,7 +29,7 @@ export default function OperationsMyTasksPage() {
     <div className="operations-progress__items">
       {tasks.map(({item,step}) => <Link
         className="operations-progress__item operations-progress__task-link"
-        key={step.id} to={`/dashboard/workbench/operations/${item.id}/steps/${step.id}`}>
+        key={step.id} to={`/dashboard/workbench/operations/works/${item.id}?step=${step.id}`}>
         <div>
           <p className="operations-progress__eyebrow">{item.seriesName ? item.seriesName + " · " : ""}{item.title}</p>
           <h2>{step.title}</h2>

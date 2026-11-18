@@ -125,7 +125,7 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 			Where("item_id = ? AND `key` = ?", itemID, "published").First(&step).Error; err != nil {
 			return err
 		}
-		if !canManage && (step.AssigneeID == nil || *step.AssigneeID != actor.ID) {
+		if !operationsMayUpdate(canManage, item.LeadID, step.AssigneeID, actor.ID) {
 			denied = true
 			return nil
 		}

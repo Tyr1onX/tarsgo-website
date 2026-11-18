@@ -90,9 +90,7 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/operations/progress",
 		"POST /api/operations/progress",
 		"PATCH /api/operations/progress/:id",
-		"POST /api/operations/progress/:id/steps",
 		"PATCH /api/operations/progress/:id/steps/:stepId",
-		"DELETE /api/operations/progress/:id/steps/:stepId",
 		"GET /api/operations/progress/:id/updates",
 		"POST /api/operations/progress/:id/updates",
 		"GET /api/weekly-reports",
@@ -128,6 +126,15 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 	} {
 		if !routes[route] {
 			t.Errorf("open workflow API was unexpectedly removed: %s", route)
+		}
+	}
+
+	for _, obsolete := range []string{
+		"POST /api/operations/progress/:id/steps",
+		"DELETE /api/operations/progress/:id/steps/:stepId",
+	} {
+		if routes[obsolete] {
+			t.Errorf("fixed workflow must not expose legacy stage editor: %s", obsolete)
 		}
 	}
 

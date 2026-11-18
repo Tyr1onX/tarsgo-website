@@ -4,34 +4,34 @@ import test from "node:test";
 
 const read = (name) => readFile(new URL(name, import.meta.url), "utf8");
 
-test("content center has explicit navigation to works and personal tasks", async () => {
-  const [routes, overview, platform, works, detail, editor, step, publishing] = await Promise.all([
+test("content center keeps management separate from one-page workflow execution", async () => {
+  const [routes, overview, platform, works, detail, editor, bar] = await Promise.all([
     read("../routes.ts"),
     read("../routes/dashboard/operations-progress.tsx"),
     read("../routes/dashboard/operations-channel.tsx"),
     read("../routes/dashboard/operations-works.tsx"),
     read("../routes/dashboard/operations-work-detail.tsx"),
     read("../routes/dashboard/operations-episode-setup.tsx"),
-    read("../routes/dashboard/operations-step-detail.tsx"),
-    read("../routes/dashboard/operations-publication-edit.tsx"),
+    read("../routes/dashboard/operations-stage-bar.tsx"),
   ]);
   for (const path of ["operations/works/new", "operations/works/:itemId",
-    "operations/works/:itemId/publish", "operations/tasks", "operations/episodes/:itemId/setup"]) {
+    "operations/tasks", "operations/episodes/:itemId/setup"]) {
     assert.ok(routes.includes(path), `missing explicit route ${path}`);
   }
+  assert.doesNotMatch(routes, /operations-step-detail|operations-step-status|operations-publication-edit/);
   assert.match(overview, />我的任务</);
   assert.match(overview, />全部作品</);
   assert.match(overview, /查看任务/);
-  assert.doesNotMatch(overview, /viewMode|全部事项|board\.posts\.slice/);
   assert.match(platform, /查看作品详情/);
   assert.match(works, /新建作品/);
   assert.match(works, /item\.seriesName/);
-  assert.match(detail, /编辑作品/);
-  assert.match(detail, /登记发布/);
-  assert.match(editor, /计划发布平台/);
+  assert.match(detail, /管理作品/);
+  assert.match(detail, /selectedStep/);
+  assert.match(detail, /getOperationsWorks/);
+  assert.match(detail, /await saveOperationsPublication/);
+  assert.match(editor, /总负责人/);
   assert.match(editor, /环节负责人/);
-  assert.match(step, /登记平台发布/);
-  assert.ok(publishing.indexOf("window.confirm") < publishing.indexOf("await saveOperationsPublication"));
+  assert.match(bar, /works\/\$\{item\.id\}\?step/);
 });
 
 test("chart has no point-per-day marker cloud and preserves empty data state", async () => {
@@ -67,7 +67,7 @@ test("other affairs retain their horizontal workflow and have an explicit detail
   ]);
   assert.match(overview, /item\.kind === "merchandise"/);
   assert.match(overview, />查看详情</);
-  assert.match(detail, /编辑事务/);
+  assert.match(detail, /管理作品/);
   assert.match(editor, /编辑事务/);
   assert.match(editor, /isOtherWork \? \[\]/);
   assert.match(backend, /item\.Kind != "merchandise"/);

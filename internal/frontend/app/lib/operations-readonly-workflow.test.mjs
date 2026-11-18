@@ -25,24 +25,28 @@ test("the operations overview stays read-only and reuses its horizontal progress
   assert.doesNotMatch(view, /历史发布|board\.posts\.slice/);
 });
 
-test("step detail is read-only, status updates confirm first and accept optional evidence", async () => {
-  const [routes, detail, form, client] = await Promise.all([
+test("one work detail supports inline owner updates and keeps historical evidence accessible", async () => {
+  const [routes, detail, bar, client] = await Promise.all([
     read("../routes.ts"),
-    read("../routes/dashboard/operations-step-detail.tsx"),
-    read("../routes/dashboard/operations-step-status.tsx"),
+    read("../routes/dashboard/operations-work-detail.tsx"),
+    read("../routes/dashboard/operations-stage-bar.tsx"),
     read("./operations-progress-client.ts"),
   ]);
-  assert.match(routes, /route\("workbench\/operations\/:itemId\/steps\/:stepId",/);
-  assert.match(routes, /route\("workbench\/operations\/:itemId\/steps\/:stepId\/status",/);
-  assert.match(detail, /canUpdate \? <Link/);
-  assert.doesNotMatch(detail, /<form|saveOperationsStep/);
-  assert.match(form, /!canUpdate \? <p/);
-  assert.match(form, /status === "blocked" \? <label>卡点原因/);
-  assert.match(form, /disabled=\{saving \|\| !changed\}/);
-  assert.ok(form.indexOf("window.confirm(summary)") < form.indexOf("await saveOperationsStep("));
-  assert.match(form, /await uploadOperationsStepFile/);
-  assert.match(client, /changes: \{ status: OperationsStepStatus; blockReason\?: string; note\?: string; evidenceUrl\?: string \}/);
-  assert.doesNotMatch(client, /export function (createOperationsItem|addOperationsStep|deleteOperationsStep|recordOperationsUpdate)/);
+  assert.match(routes, /route\("workbench\/operations\/works\/:itemId",/);
+  assert.doesNotMatch(routes, /operations-step-detail|operations-step-status|operations-publication-edit/);
+  assert.match(bar, /works\/\$\{item\.id\}\?step=\$\{step\.id\}/);
+  assert.match(detail, /item\?\.leadId === board\.viewerId/);
+  assert.match(detail, /selectedStep\.assigneeId === board\.viewerId/);
+  assert.match(detail, /status === "blocked"/);
+  assert.match(detail, /await saveOperationsStep\(/);
+  assert.match(detail, /await saveOperationsPublication\(/);
+  assert.match(detail, /getOperationsStepActivity/);
+  assert.match(detail, /operationsStepFileURL/);
+  assert.ok(detail.indexOf("window.confirm") < detail.indexOf("await saveOperationsStep("));
+  assert.match(detail, /availablePosts\.map\(/);
+  assert.doesNotMatch(detail, /uploadOperationsStepFile/);
+  assert.match(client, /leadId: number \| null/);
+  assert.doesNotMatch(client, /export function uploadOperationsStepFile/);
 });
 
 test("platform production, artwork library and Douyin import are separate surfaces", async () => {

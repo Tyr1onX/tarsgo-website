@@ -434,3 +434,40 @@
   .operations-progress__main-nav > a { flex: 1; justify-content: center; }
   .operations-progress__trend svg { height: 64px; }
 }
+
+/* One work detail is the daily execution surface; configuration stays separate. */
+.operations-progress__inline-editor {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+  padding: 1rem 0 0;
+  border-top: 1px solid var(--admin-border-subtle);
+}
+.operations-progress__inline-editor h3 { margin: 0; font-size: 1rem; }
+.operations-progress__inline-editor .operations-progress__muted { margin: 0.25rem 0 0; }
+.operations-progress__inline-form { display: grid; gap: 0.85rem; max-width: 33rem; }
+.operations-progress__inline-form label { display: grid; gap: 0.35rem; font-size: 0.85rem; font-weight: 550; }
+.operations-progress__inline-form :is(input, select, textarea) {
+  width: 100%; min-width: 0;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-surface); color: var(--admin-text);
+  padding: 0.6rem 0.7rem; font: inherit;
+}
+.operations-progress__inline-form .admin-button { justify-self: start; }
+.operations-progress__subtle-button {
+  justify-self: start; background: transparent;
+  color: var(--admin-muted); border: 0; padding: 0.25rem 0;
+  font: inherit; font-size: 0.8rem; cursor: pointer;
+}
+.operations-progress__subtle-button:hover { color: var(--admin-text); }
+.operations-progress__inline-editor .operations-progress__item-head > .operations-progress__subtle-button { margin-left: auto; }
+.operations-progress__history {
+  border-top: 1px solid var(--admin-border-subtle); padding-top: 0.7rem;
+}
+.operations-progress__history .operations-progress__activity :is(time, strong) { display: inline-block; margin-right: 0.75rem; }
+.operations-progress__history .operations-progress__activity time { color: var(--admin-muted); font-size: 0.75rem; }
+@media (max-width: 560px) {
+  .operations-progress__inline-editor { padding-top: 0.85rem; }
+  .operations-progress__inline-form .admin-button { justify-self: stretch; }
+}

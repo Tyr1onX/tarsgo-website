@@ -84,6 +84,8 @@ export interface OperationsItem {
   id: number;
   title: string;
   seriesName: string;
+  leadId: number | null;
+  leadName: string;
   predecessorId: number | null;
   publications: OperationsPublication[];
   kind: OperationsItemKind;
@@ -178,17 +180,12 @@ export function getOperationsMembers() {
   return apiRequest<OperationsMember[]>("/api/operations/members");
 }
 export function setupOperationsEpisode(itemId: number, title: string, seriesName: string, platforms: string[],
-  owners: Array<{ stepId: number; assigneeId: number }>) {
+  leadId: number, owners: Array<{ stepId: number; assigneeId: number }>) {
   return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/setup`,
-    { method: "PATCH", body: { title, seriesName, platforms, owners } });
+    { method: "PATCH", body: { title, seriesName, platforms, leadId, owners } });
 }
 export function getOperationsStepActivity(itemId: number, stepId: number) {
   return apiRequest<OperationsStepActivity>(`/api/operations/progress/${itemId}/steps/${stepId}/activity`);
-}
-export function uploadOperationsStepFile(itemId: number, stepId: number, file: File) {
-  const body = new FormData();
-  body.append("file", file);
-  return apiRequest<OperationsStepAttachment>(`/api/operations/progress/${itemId}/steps/${stepId}/attachments`, { method: "POST", body });
 }
 export function operationsStepFileURL(fileId: number) {
   return `/api/operations/attachments/${fileId}`;
