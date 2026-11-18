@@ -9,9 +9,9 @@ import (
 	"tarsgo-backend/model"
 )
 
-// V75 keeps every existing work and progress record. The publication table is
+// V80 keeps every existing work and progress record. The publication table is
 // the only writable source of platform-specific status for new production.
-func migrateOperationsContentV75(db *gorm.DB) error {
+func migrateOperationsContentV80(db *gorm.DB) error {
 	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").
 		AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsPublication{}); err != nil {
 		return err

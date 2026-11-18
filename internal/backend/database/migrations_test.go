@@ -18,10 +18,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 75 {
-		t.Fatalf("expected 75 registered migrations, got %d", len(items))
+	if len(items) != 80 {
+		t.Fatalf("expected 80 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -34,6 +34,68 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 		if items[index-1].version >= items[index].version {
 			t.Fatalf("migrations must be strictly ordered at index %d", index)
 		}
+	}
+}
+
+
+// TestMigration79DropsRetiredDailySignalTable locks in the irreversible cleanup.
+// V14 still creates the historical schema when replaying an empty database.
+func TestMigration79DropsRetiredDailySignalTable(t *testing.T) {
+	items := migrationRegistry("test")
+	if got := (dailySignalV14{}).TableName(); got != "daily_signals" {
+		t.Fatalf("historical v14 table = %q", got)
+	}
+	if len(items) < 79 || items[13].version != 14 || items[78].version != 79 {
+		t.Fatal("daily signal creation and retirement migrations must remain ordered")
+	}
+
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+	if err != nil {
+		_ = sqlDB.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectation: %v", err)
+		}
+		_ = sqlDB.Close()
+	})
+	mock.ExpectExec("DROP TABLE IF EXISTS daily_signals").WillReturnResult(sqlmock.NewResult(0, 0))
+	if err := items[78].apply(db); err != nil {
+		t.Fatalf("apply migration 79: %v", err)
+	}
+}
+
+func TestMariaDBRetiredDailySignalTableIsAbsent(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("TARSGO_QA_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("TARSGO_QA_TEST_DSN is not set")
+	}
+	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
+		t.Fatal("refusing daily signal retirement check outside isolated acceptance database")
+	}
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if db.Migrator().HasTable(&dailySignalV14{}) {
+		t.Fatal("daily_signals table remains after migration 79")
+	}
+	var count int64
+	if err := db.Table("schema_migrations").Where("version = ?", 79).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("migration 79 recorded %d times, want 1", count)
 	}
 }
 

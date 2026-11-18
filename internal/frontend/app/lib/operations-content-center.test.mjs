@@ -57,3 +57,28 @@ test("platform targets are one work with per-platform publishing writes and seri
   assert.match(service, /series_name = \?/);
   assert.match(board, /Publications\s+\[\]model\.OperationsPublication/);
 });
+
+test("other affairs retain their horizontal workflow and have an explicit details and assignment path", async () => {
+  const [overview, detail, editor, backend] = await Promise.all([
+    read("../routes/dashboard/operations-progress.tsx"),
+    read("../routes/dashboard/operations-work-detail.tsx"),
+    read("../routes/dashboard/operations-episode-setup.tsx"),
+    read("../../../backend/handler/operations_production.go"),
+  ]);
+  assert.match(overview, /item\.kind === "merchandise"/);
+  assert.match(overview, />查看详情</);
+  assert.match(detail, /编辑事务/);
+  assert.match(editor, /编辑事务/);
+  assert.match(editor, /isOtherWork \? \[\]/);
+  assert.match(backend, /item\.Kind != "merchandise"/);
+  assert.match(backend, /item\.Kind != "merchandise" \{/);
+});
+
+test("follower curves use a concise recent window without inventing historical points", async () => {
+  const view = await read("../routes/dashboard/operations-progress.tsx");
+  assert.match(view, /const recent = entries\.filter/);
+  assert.match(view, /const stride = Math\.max/);
+  assert.match(view, /const samples = recent\.filter/);
+  assert.match(view, /const points = samples\.map/);
+  assert.equal((view.match(/<circle /g) ?? []).length, 1);
+});

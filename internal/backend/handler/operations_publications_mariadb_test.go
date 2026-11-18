@@ -152,4 +152,9 @@ func TestMariaDBOperationsMultiPlatformPublicationAndSingleContinuation(t *testi
 	if len(updates) != 2 || updates[0].AuthorID != 42 || updates[1].AuthorID != 42 {
 		t.Fatalf("one audit record per actual platform transition: %+v", updates)
 	}
+	for _, update := range updates {
+		if update.FromStage != "pending" || update.ToStage != "done" {
+			t.Fatalf("audit must preserve original publication status: %+v", update)
+		}
+	}
 }

@@ -40,7 +40,8 @@ export default function OperationsEpisodeSetupPage() {
   }, [itemId]);
 
   const item = board?.items.find((entry) => entry.id === Number(itemId));
-  const validPlatforms = item?.kind === "article" ? ["wechat"] : ["douyin", "bilibili", "wechat_video"];
+  const isOtherWork = item?.kind === "merchandise";
+  const validPlatforms = item?.kind === "article" ? ["wechat"] : isOtherWork ? [] : ["douyin", "bilibili", "wechat_video"];
   const changed = Boolean(item && (
     item.title !== title.trim() || (item.seriesName || "") !== seriesName.trim() ||
     item.publications.length !== platforms.length ||
@@ -50,8 +51,8 @@ export default function OperationsEpisodeSetupPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!item || !board?.canManage || !changed || saving || !title.trim() || platforms.length === 0) return;
-    if (!window.confirm("确认保存作品安排和发布平台？")) return;
+    if (!item || !board?.canManage || !changed || saving || !title.trim() || (!isOtherWork && platforms.length === 0)) return;
+    if (!window.confirm(isOtherWork ? "确认保存事务分工？" : "确认保存作品安排和发布平台？")) return;
     setSaving(true);
     setError("");
     try {
@@ -67,18 +68,18 @@ export default function OperationsEpisodeSetupPage() {
     <Link className="operations-progress__back" to={back}>返回作品详情</Link>
     {error ? <p className="operations-progress__error" role="alert">{error}</p> : null}
     {!board ? <p className="operations-progress__muted">正在加载…</p>
-      : !board.canManage || !item || (item.kind !== "video" && item.kind !== "article")
+      : !board.canManage || !item || (item.kind !== "video" && item.kind !== "article" && item.kind !== "merchandise")
         ? <p className="operations-progress__error">没有编辑此作品的权限</p>
         : <form className="operations-progress__item operations-progress__status-editor" onSubmit={(event) => void submit(event)}>
-          <h1>编辑作品</h1>
+          <h1>{isOtherWork ? "编辑事务" : "编辑作品"}</h1>
           <label>作品名称
             <input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
-          <label>所属系列（选填）
+          {!isOtherWork ? <label>所属系列（选填）
             <input maxLength={80} placeholder="例如 RMer" value={seriesName}
               onChange={(event) => setSeriesName(event.target.value)} />
-          </label>
-          <fieldset className="operations-progress__platform-choices">
+          </label> : null}
+          {!isOtherWork ? <fieldset className="operations-progress__platform-choices">
             <legend>计划发布平台</legend>
             {validPlatforms.map((key) => <label key={key}>
               <input type="checkbox" checked={platforms.includes(key)}
@@ -86,7 +87,7 @@ export default function OperationsEpisodeSetupPage() {
                   ? [...current, key] : current.filter((entry) => entry !== key))} />
               {operationsPlatformNames[key]}
             </label>)}
-          </fieldset>
+          </fieldset> : null}
           <h2>环节负责人</h2>
           <div className="operations-progress__setup-steps">
             {item.steps.map((step) => <label key={step.id}>{step.title}
@@ -99,7 +100,7 @@ export default function OperationsEpisodeSetupPage() {
             </label>)}
           </div>
           <button className="admin-button admin-button--primary" type="submit"
-            disabled={saving || !changed || !title.trim() || platforms.length === 0}>
+            disabled={saving || !changed || !title.trim() || (!isOtherWork && platforms.length === 0)}>
             {saving ? "保存中…" : "保存作品"}
           </button>
         </form>}

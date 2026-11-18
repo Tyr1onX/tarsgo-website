@@ -14,7 +14,7 @@ import (
 	"tarsgo-backend/model"
 )
 
-func TestMariaDBOperationsContentV75PreservesHistoryAndBackfillsTargets(t *testing.T) {
+func TestMariaDBOperationsContentV80PreservesHistoryAndBackfillsTargets(t *testing.T) {
 	dsn := os.Getenv("TARSGO_QA_TEST_DSN")
 	if dsn == "" {
 		t.Skip("requires isolated MariaDB")
@@ -55,7 +55,7 @@ func TestMariaDBOperationsContentV75PreservesHistoryAndBackfillsTargets(t *testi
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
-		if err := migrateOperationsContentV75(db); err != nil {
+		if err := migrateOperationsContentV80(db); err != nil {
 			t.Fatal(err)
 		}
 	}

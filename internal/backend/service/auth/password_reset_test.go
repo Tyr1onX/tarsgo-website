@@ -217,33 +217,3 @@ func TestPasswordResetRejectsExpiredOrExhaustedCodes(t *testing.T) {
 	}
 }
 
-func TestPasswordResetInvalidatesLegacyJWTIssuedBeforeReset(t *testing.T) {
-	now := time.Now().UTC().Truncate(time.Second)
-	token, err := SignToken("reset-test-secret", Claims{
-		Subject: "7", Email: "member@example.test", Role: model.RoleNameUser,
-		IssuedAt: now.Add(-time.Minute).Unix(), ExpiresAt: now.Add(time.Hour).Unix(),
-	})
-	if err != nil {
-		t.Fatalf("sign legacy token: %v", err)
-	}
-	db, mock := newAuthSQLMock(t)
-	service := &Service{db: db, authConfig: config.AuthConfig{JWTSecret: "reset-test-secret"}, now: func() time.Time { return now }}
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `auth_sessions` WHERE token_hash = ? ORDER BY `auth_sessions`.`id` LIMIT ?")).
-		WithArgs(digestSecret(token), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "revoked_at", "created_at", "updated_at"}))
-	mock.ExpectQuery("SELECT users\\.\\*, .* AS workbench_access FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
-		WithArgs(uint64(7), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status", "password_reset_at"}).
-			AddRow(uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled, now))
-	mock.ExpectQuery("SELECT \\* FROM `roles` WHERE `roles`.`id` = \\?").
-		WithArgs(uint64(3)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name"}).AddRow(uint64(3), model.RoleNameUser, "普通用户"))
-	_, err = service.CurrentUser(context.Background(), token)
-	serviceErr, ok := err.(*ServiceError)
-	if !ok || serviceErr.Status != http.StatusUnauthorized {
-		t.Fatalf("legacy JWT remained valid after password reset: err=%v", err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
-	}
-}

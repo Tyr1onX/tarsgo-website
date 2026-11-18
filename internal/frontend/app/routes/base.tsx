@@ -12,7 +12,7 @@ import {
 } from "~/lib/auth-client";
 
 export function meta() {
-  return [{ title: "每日通信 | TARSGO" }];
+  return [{ title: "个人工作台 | TARSGO" }];
 }
 
 function getInitialUser() {

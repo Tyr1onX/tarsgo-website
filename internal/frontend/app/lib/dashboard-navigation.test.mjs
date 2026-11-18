@@ -154,9 +154,8 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(layout, /if \(legacyOrganizationAlias\) \{\s*throw redirect\("\/dashboard\/workbench\/organization"\)/);
   assert.doesNotMatch(routes, /team-redirect\.tsx/);
   assert.match(timetable, /tab=settings#timetable/);
-  const base = await readFile(new URL("../routes/dashboard/base.tsx", import.meta.url), "utf8");
-  assert.match(base, /location\.search\}\$\{location\.hash\}/);
-  assert.match(layout, /skipGroupResolution[\s\S]*?currentPath\.pathname === "\/dashboard\/base"/);
+  assert.doesNotMatch(routes, /route\("base", "routes\/dashboard\/base\.tsx"\)/);
+  assert.doesNotMatch(layout, /currentPath\.pathname === "\/dashboard\/base"/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.match(layout, /帮助与工作手册/);
   assert.match(layout, /<AccountMenuActionIcon name="my-profile" \/>[\s\S]*?我的主页/);

@@ -14,12 +14,10 @@ const eventsRoute = await readFile(new URL("../routes/events-and-honors.tsx", im
 const historyRoute = await readFile(new URL("../routes/team-history.tsx", import.meta.url), "utf8");
 const joinRoute = await readFile(new URL("../routes/join.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
-const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
 const workbenchUpdatesRoute = await readFile(new URL("../routes/dashboard/updates.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const dashboardNavigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
 const dashboardHome = await readFile(new URL("../routes/dashboard/index.tsx", import.meta.url), "utf8");
-const dashboardBase = await readFile(new URL("../routes/dashboard/base.tsx", import.meta.url), "utf8");
 const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const joinExperience = await readFile(new URL("../components/join-experience.tsx", import.meta.url), "utf8");
@@ -242,7 +240,6 @@ test("旧公告深链直达现有工作手册，不保留重复说明组件", ()
 
 test("公开基地入口已移除，旧链接只导向登录或统一工作台", () => {
   assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
-  assert.match(routes, /route\("dashboard", "routes\/dashboard\/layout\.tsx", \[[\s\S]*?route\("base", "routes\/dashboard\/base\.tsx"\)/);
   assert.doesNotMatch(navbar, /label: "吉甲基地", href: "\/base"|href: "\/base"/);
   assert.doesNotMatch(navbar, /pathname === "\/daily-signal"/);
   assert.doesNotMatch(home, /home-base-feature|to="\/base"|进入基地/);
@@ -256,8 +253,8 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(basePage, /Navbar|PublicFooter|gijia-base|guest-welcome|<Link/);
   assert.doesNotMatch(styles, /home-base-feature|gijia-base__/);
   assert.doesNotMatch(home, /to="\/base"/);
-  assert.match(routes, /route\("daily-signal", "routes\/daily-signal\.tsx"\)/);
-  assert.match(dailySignalRoute, /export \{ default, meta \} from "\.\/base";/);
+  assert.doesNotMatch(routes, /route\("daily-signal",/);
+  assert.doesNotMatch(routes, /route\("base", "routes\/dashboard\/base\.tsx"\)/);
   assert.match(dashboardLayout, /getDashboardSectionMenu\(currentUser\)/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
   assert.match(dashboardNavigation, /label: "社区", href: "\/dashboard"/);
@@ -265,7 +262,6 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dashboardLayout, /aria-label="主要入口"/);
   assert.match(dashboardLayout, /aria-label=\{sidebarOpen \? "收起侧边栏" : "展开侧边栏"\}/);
   assert.doesNotMatch(dashboardLayout, /cursor-col-resize/);
-  assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
   assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
@@ -469,19 +465,23 @@ test("the 8421 BCD coordinate code is a pair of quiet decorative traces in publi
   assert.match(styles, /\.public-footer-signature/);
 });
 
-test("the join guide shows the verified current cycle and only a truthful next action", () => {
+test("the join guide shows the verified cycle and separate permanent-interest registration", async () => {
   assert.match(joinExperience, /phase: "between-cycles"/);
   assert.match(joinExperience, /cycle: "2026 纳新"/);
   assert.match(joinExperience, /本轮结果通知已基本完成；下一轮安排尚未发布/);
   assert.doesNotMatch(joinExperience, /to="\/register"/);
-  assert.match(joinExperience, /当届报名开放后/);
+  assert.match(joinExperience, /正式招新开放后/);
   assert.match(joinExperience, /to="\/dashboard\/users\/registrations"/);
-  assert.match(joinExperience, /href="#footer-social-heading"/);
+  assert.ok(joinExperience.includes('to="/join/interest"'));
+  const joinInterestPage = await readFile(new URL("../routes/join-interest.tsx", import.meta.url), "utf8");
+  assert.ok(joinInterestPage.includes("throw redirect("));
+  assert.ok(joinInterestPage.includes("/api/join-interest"));
+  assert.ok(joinInterestPage.includes("/dashboard/users/registrations"));
   assert.match(joinExperience, /publicRecruitmentState\.phase === "open"/);
   assert.match(joinExperience, /材料初筛/);
   assert.match(joinExperience, /确认面试/);
   assert.match(joinExperience, /查看结果/);
-  assert.match(joinExperience, /注册完成后仍要单独提交报名/);
+  assert.match(joinExperience, /正式招新开放后，使用同一账号提交当届报名/);
   assert.match(joinStyles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(joinStyles, /@media \(min-width: 768px\) and \(max-width: 1023px\)[\s\S]*?\.join-growth-path\s*\{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 });

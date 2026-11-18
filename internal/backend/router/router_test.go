@@ -119,6 +119,11 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/admin/leave/users/:id/profile",
 		"POST /api/admin/leave/users/:id/document",
 		"GET /api/admin/registrations",
+		"GET /api/join-interest",
+		"PUT /api/join-interest",
+		"DELETE /api/join-interest",
+		"GET /api/admin/join-interests",
+		"PATCH /api/admin/join-interests/:id",
 		"GET /api/admin/organization-preview",
 	} {
 		if !routes[route] {
@@ -135,6 +140,11 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		{http.MethodGet, "/api/work-manual/operations"},
 		{http.MethodGet, "/api/team/organization-preview"},
 		{http.MethodGet, "/api/admin/organization-preview"},
+		{http.MethodGet, "/api/join-interest"},
+		{http.MethodPut, "/api/join-interest"},
+		{http.MethodDelete, "/api/join-interest"},
+		{http.MethodGet, "/api/admin/join-interests"},
+		{http.MethodPatch, "/api/admin/join-interests/12"},
 		{http.MethodGet, "/api/work-manual/operations/templates/campus-network-window-application.doc"},
 		{http.MethodGet, "/api/me/co-builder-badge"},
 		{http.MethodGet, "/api/community/posts"},

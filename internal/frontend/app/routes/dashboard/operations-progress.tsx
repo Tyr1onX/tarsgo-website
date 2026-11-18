@@ -25,11 +25,14 @@ function AccountTrend({ platform, snapshots }: { platform:string; snapshots: Ope
   const entries = snapshots.filter((entry) => entry.platform === platform);
   if (!entries.length) return <p className="operations-progress__muted">暂无账号历史数据</p>;
   const latest = entries[entries.length-1];
-  const min = Math.min(...entries.map((entry) => entry.followers));
-  const span = Math.max(1, Math.max(...entries.map((entry) => entry.followers)) - min);
-  const points = entries.map((entry,i) =>
-    `${12+i*296/Math.max(1,entries.length-1)},${62-(entry.followers-min)/span*50}`).join(" ");
   const cutoff = Date.parse(latest.observedOn) - 30 * 86400000;
+  const recent = entries.filter((entry) => Date.parse(entry.observedOn) >= cutoff);
+  const stride = Math.max(1, Math.ceil((recent.length - 1) / 8));
+  const samples = recent.filter((_, index) => index === 0 || index === recent.length - 1 || index % stride === 0);
+  const min = Math.min(...samples.map((entry) => entry.followers));
+  const span = Math.max(1, Math.max(...samples.map((entry) => entry.followers)) - min);
+  const points = samples.map((entry, index) =>
+    `${12+index*296/Math.max(1,samples.length-1)},${62-(entry.followers-min)/span*50}`).join(" ");
   const start = [...entries].reverse().find((entry) => Math.abs(Date.parse(entry.observedOn)-cutoff) <= 3*86400000);
   const delta = start ? latest.followers-start.followers : null;
   return <div className="operations-progress__trend">
@@ -124,6 +127,9 @@ export default function OperationsProgressPage() {
             </span>
           </div>
           <OperationsStageBar item={item} />
+          {item.kind === "merchandise" ? <div className="operations-progress__item-footer">
+            <Link to={`/dashboard/workbench/operations/works/${item.id}`}>查看详情</Link>
+          </div> : null}
           {!item.steps.length && item.nextAction ? <p className="operations-progress__muted">{item.nextAction}</p> : null}
         </article>)}
       </section> : null}

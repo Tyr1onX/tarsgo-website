@@ -148,6 +148,7 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 		if target.Status == input.Status && target.URL == input.URL && target.VersionNote == input.VersionNote {
 			return nil
 		}
+		previousStatus := target.Status
 		now := time.Now().UTC()
 		var completed any
 		if input.Status == "done" {
@@ -167,7 +168,7 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 		if err := tx.Create(&model.OperationsProgressUpdate{
 			ItemID: itemID, StepID: &ref, AuthorID: actor.ID, Kind: "progress",
 			Content: fmt.Sprintf("%s · %s", operationsPlatforms[platform], label),
-			Link:    input.URL, FromStage: target.Status, ToStage: input.Status,
+			Link:    input.URL, FromStage: previousStatus, ToStage: input.Status,
 		}).Error; err != nil {
 			return err
 		}

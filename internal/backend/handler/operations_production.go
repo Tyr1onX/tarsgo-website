@@ -114,7 +114,7 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, id).Error; err != nil {
 			return err
 		}
-		if item.Kind != "video" && item.Kind != "article" {
+		if item.Kind != "video" && item.Kind != "article" && item.Kind != "merchandise" {
 			validationErr = errors.New("该事务不属于内容制作")
 			return nil
 		}
@@ -142,10 +142,14 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 				requested = append(requested, target.Platform)
 			}
 		}
-		targets, bad := parseOperationsPlatforms(requested, item.Kind)
-		if bad != nil {
-			validationErr = bad
-			return nil
+		targets := []string{}
+		if item.Kind != "merchandise" {
+			var bad error
+			targets, bad = parseOperationsPlatforms(requested, item.Kind)
+			if bad != nil {
+				validationErr = bad
+				return nil
+			}
 		}
 		expected := make(map[string]bool, len(targets))
 		for _, platform := range targets {

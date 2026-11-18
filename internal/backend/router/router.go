@@ -22,7 +22,6 @@ import (
 	"tarsgo-backend/service/availability"
 	"tarsgo-backend/service/cobuilderbadge"
 	"tarsgo-backend/service/community"
-	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
 	"tarsgo-backend/service/leave"
@@ -136,11 +135,11 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	operationsDouyinHandler := handler.NewOperationsDouyinHandler(operationssync.NewDouyin(db, cfg.Douyin.ClientKey, cfg.Douyin.ClientSecret, cfg.Auth.JWTSecret))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
+	joinInterestHandler := handler.NewJoinInterestHandler(db)
 	recruitmentAnalyticsHandler := handler.NewRecruitmentAnalyticsHandler(recruitmentanalytics.NewService(db))
 	templateStore := emailtemplate.NewGormStore(db)
 	systemConfigService := systemconfig.NewServiceWithTemplateStore(cfg.Email, templateStore, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
-	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 	weeklyReportFiles, err := privatefile.NewStore(filepath.Join("upload", "weekly-reports"))
 	if err != nil {
 		panic(err)
@@ -183,14 +182,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	accountSessionAPI.POST("/switch", authHandler.SwitchAccountSession)
 	accountSessionAPI.DELETE("/:id", authHandler.RemoveAccountSession)
 	accountSessionAPI.POST("/logout-all", authHandler.LogoutAllAccounts)
-
-	dailySignalPublicAPI := api.Group("/daily-signals")
-	dailySignalPublicAPI.Use(middleware.OptionalAuthenticated(authService))
-	dailySignalPublicAPI.GET("", dailySignalHandler.GetArchive)
-	dailySignalWriteAPI := api.Group("/daily-signals")
-	dailySignalWriteAPI.Use(requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService), middleware.RequireWorkbench())
-	dailySignalWriteAPI.POST("", dailySignalHandler.SendToday)
-	dailySignalWriteAPI.PATCH("/today/mood", dailySignalHandler.SetTodayMood)
 
 	api.GET("/leave/colleges", leaveHandler.Colleges)
 	api.GET("/daily-leave/public/:token", leaveHandler.PublicDailyWindow)
@@ -359,6 +350,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.DELETE("/user-groups/:id/admission-qr", userGroupHandler.RemoveAdmissionQRCode)
 	superAdminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
 	superAdminAPI.GET("/recruitment-analytics", recruitmentAnalyticsHandler.GetReport)
+	superAdminAPI.GET("/join-interests", joinInterestHandler.List)
+	superAdminAPI.PATCH("/join-interests/:id", joinInterestHandler.SetStatus)
 	superAdminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
 	superAdminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
 	superAdminAPI.GET("/registration-forms/:id", registrationFormHandler.GetForm)
@@ -452,6 +445,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.GET("/weekly-reports/:id/attachments/:fileId", weeklyReportHandler.OpenAttachment)
 	workbenchAPI.PUT("/weekly-reports/current", weeklyReportHandler.SaveCurrent)
 	workbenchAPI.PUT("/weekly-reports/:id", weeklyReportHandler.Update)
+	authenticatedAPI.GET("/join-interest", joinInterestHandler.Mine)
+	authenticatedAPI.PUT("/join-interest", joinInterestHandler.Save)
+	authenticatedAPI.DELETE("/join-interest", joinInterestHandler.Withdraw)
 	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetRecruitmentPageData)
 	authenticatedAPI.POST("/recruitment/registrations", registrationHandler.SubmitRegistration)
 	authenticatedAPI.PATCH("/recruitment/registrations/:id", registrationHandler.UpdateRecruitmentRegistration)
