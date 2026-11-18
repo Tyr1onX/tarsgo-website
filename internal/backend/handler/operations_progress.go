@@ -244,20 +244,21 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "历史作品读取失败")
 		return
 	}
+	channelNames := map[string]string{"bilibili": "B站运营", "wechat": "公众号运营"}
 	for _, post := range posts {
-		if post.Platform != "bilibili" {
+		channelName, supported := channelNames[post.Platform]
+		if !supported {
 			continue
 		}
 		day := post.PublishedAt.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
 		for i := range views {
-			if views[i].Kind == "channel" && (views[i].Title == "B站运营" ||
-				(views[i].SeedKey != nil && *views[i].SeedKey == "channel:bilibili")) {
+			if views[i].Kind == "channel" && (views[i].Title == channelName ||
+				(views[i].SeedKey != nil && *views[i].SeedKey == "channel:"+post.Platform)) {
 				if views[i].LastCompletedOn == nil || *views[i].LastCompletedOn < day {
 					views[i].LastCompletedOn = &day
 				}
 			}
 		}
-		break
 	}
 	var updates []model.OperationsProgressUpdate
 	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Limit(15).Find(&updates).Error; err != nil {
@@ -397,74 +398,3 @@ func (h *OperationsProgressHandler) Update(c *gin.Context) {
 func (h *OperationsProgressHandler) AddUpdate(c *gin.Context) {
 	if !h.requireEditor(c) {
 		return
-	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
-		writeAPIError(c, http.StatusBadRequest, "事项编号不正确")
-		return
-	}
-	var input operationsUpdateInput
-	if c.ShouldBindJSON(&input) != nil || !validateOperationsUpdate(&input) {
-		writeAPIError(c, http.StatusBadRequest, "请填写进展内容并检查链接")
-		return
-	}
-	var item model.OperationsProgressItem
-	if err := h.db.WithContext(c.Request.Context()).First(&item, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			writeAPIError(c, http.StatusNotFound, "事项不存在")
-		} else {
-			writeAPIError(c, http.StatusInternalServerError, "读取事项失败")
-		}
-		return
-	}
-	if item.Status == "done" {
-		writeAPIError(c, http.StatusConflict, "已结束的事项不能追加进展")
-		return
-	}
-	var counts struct{ Total, Open int64 }
-	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressStep{}).
-		Select("COUNT(*) AS total, COALESCE(SUM(CASE WHEN status != 'done' THEN 1 ELSE 0 END), 0) AS open").
-		Where("item_id = ?", id).Scan(&counts).Error; err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "读取环节状态失败")
-		return
-	}
-	if counts.Total > 0 && counts.Open == 0 {
-		writeAPIError(c, http.StatusConflict, "已完成的事项不能追加进展")
-		return
-	}
-	if input.Kind == "completed" && item.IntervalDays == 0 && item.Kind != "channel" {
-		writeAPIError(c, http.StatusBadRequest, "此事项只能记录进展")
-		return
-	}
-	user, _ := middleware.CurrentSessionUser(c)
-	entry := model.OperationsProgressUpdate{ItemID: id, AuthorID: user.ID,
-		Content: input.Content, Kind: input.Kind, Link: input.Link, PublishedOn: input.PublishedOn}
-	if err := h.db.WithContext(c.Request.Context()).Create(&entry).Error; err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "记录进展失败")
-		return
-	}
-	writeAPI(c, http.StatusCreated, "进展已记录", entry)
-}
-
-func (h *OperationsProgressHandler) History(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
-		writeAPIError(c, http.StatusBadRequest, "事项编号不正确")
-		return
-	}
-	var item model.OperationsProgressItem
-	if err := h.db.WithContext(c.Request.Context()).First(&item, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			writeAPIError(c, http.StatusNotFound, "事项不存在")
-		} else {
-			writeAPIError(c, http.StatusInternalServerError, "读取事项失败")
-		}
-		return
-	}
-	var updates []model.OperationsProgressUpdate
-	if err := h.db.WithContext(c.Request.Context()).Where("item_id = ?", id).Order("id DESC").Limit(100).Find(&updates).Error; err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "历史进展读取失败")
-		return
-	}
-	writeAPI(c, http.StatusOK, "历史进展", updates)
-}
