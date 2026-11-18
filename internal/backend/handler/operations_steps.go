@@ -259,6 +259,15 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 				notes = append(notes, "负责人："+assigneeName)
 			}
 		}
+		if step.Key == "published" {
+			var targetCount int64
+			if err := tx.Model(&model.OperationsPublication{}).Where("item_id = ?", itemID).Count(&targetCount).Error; err != nil {
+				return err
+			}
+			if targetCount > 0 {
+				return errOperationsPublishTargets
+			}
+		}
 		previousStatus := step.Status
 		status := previousStatus
 		if input.Status != nil {
@@ -338,6 +347,8 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		writeAPIError(c, http.StatusNotFound, "环节不存在")
 	} else if errors.Is(err, errOperationsStepForbidden) {
 		writeAPIError(c, http.StatusForbidden, "只能更新自己负责环节的进度")
+	} else if errors.Is(err, errOperationsPublishTargets) {
+		writeAPIError(c, http.StatusConflict, "请在作品详情中登记各平台发布状态")
 	} else if errors.Is(err, errOperationsPublishIncomplete) {
 		writeAPIError(c, http.StatusConflict, "请先完成审核和此前环节，再确认发布")
 	} else if errors.Is(err, errOperationsStepReason) {
@@ -355,6 +366,7 @@ var (
 	errOperationsStepCompleted     = errors.New("completed step cannot be deleted")
 	errOperationsLastStep          = errors.New("last step cannot be deleted")
 	errOperationsPublishIncomplete = errors.New("publication steps incomplete")
+	errOperationsPublishTargets    = errors.New("platform publishing managed by targets")
 )
 
 func (h *OperationsProgressHandler) DeleteStep(c *gin.Context) {

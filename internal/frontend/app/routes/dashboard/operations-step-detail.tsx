@@ -24,8 +24,8 @@ export default function OperationsStepDetailPage() {
   const item = board?.items.find((entry) => entry.id === Number(itemId));
   const step = item?.steps.find((entry) => entry.id === Number(stepId));
   const canUpdate = Boolean(step && (board?.canManage || step.assigneeId === board?.viewerId));
-  const parentUrl = item?.channelId
-    ? `/dashboard/workbench/operations/channels/${item.channelId}#operations-item-${item.id}`
+  const parentUrl = item?.kind === "video" || item?.kind === "article"
+    ? `/dashboard/workbench/operations/works/${item.id}`
     : `/dashboard/workbench/operations#operations-item-${itemId}`;
 
   return <main className="operations-progress operations-progress__step-page admin-design">
@@ -47,7 +47,11 @@ export default function OperationsStepDetailPage() {
           {step.completedAt ? <p><span>完成时间</span>{formatOperationsDate(step.completedAt)}</p> : null}
         </div>
         {canUpdate ? <Link className="admin-button admin-button--primary operations-progress__edit-link"
-          to={`/dashboard/workbench/operations/${item.id}/steps/${step.id}/status`}>更新进度</Link> : null}
+          to={step.key === "published" && item.publications.length > 0
+            ? `/dashboard/workbench/operations/works/${item.id}/publish`
+            : `/dashboard/workbench/operations/${item.id}/steps/${step.id}/status`}>
+          {step.key === "published" && item.publications.length > 0 ? "登记平台发布" : "更新进度"}
+        </Link> : null}
         {activity?.attachments.length ? <section className="operations-progress__detail-section">
           <h2>提交的成果</h2>
           <ul className="operations-progress__files">

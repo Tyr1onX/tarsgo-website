@@ -12,7 +12,7 @@ import (
 
 func ProductionKind(platform string) string {
 	switch platform {
-	case "douyin", "bilibili":
+	case "douyin", "bilibili", "wechat_video":
 		return "video"
 	case "wechat":
 		return "article"
@@ -21,21 +21,22 @@ func ProductionKind(platform string) string {
 }
 
 // Both manual creation and automatic replenishment serialize on the channel row.
-func CreateEpisode(tx *gorm.DB, channelID uint64, title string) (*model.OperationsProgressItem, error) {
+func CreateEpisode(tx *gorm.DB, channelID uint64, title string, series ...string) (*model.OperationsProgressItem, error) {
 	channel, err := lockChannel(tx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	return createEpisode(tx, channel, title)
+	return createEpisode(tx, channel, title, seriesName(series))
 }
 
-func EnsureUpcoming(tx *gorm.DB, channelID uint64) (*model.OperationsProgressItem, error) {
+func EnsureUpcoming(tx *gorm.DB, channelID uint64, series ...string) (*model.OperationsProgressItem, error) {
 	channel, err := lockChannel(tx, channelID)
 	if err != nil {
 		return nil, err
 	}
 	var episodes []model.OperationsProgressItem
-	if err := tx.Where("channel_id = ?", channelID).Order("episode_no DESC").Find(&episodes).Error; err != nil {
+	name := seriesName(series)
+	if err := tx.Where("channel_id = ? AND series_name = ?", channelID, name).Order("episode_no DESC").Find(&episodes).Error; err != nil {
 		return nil, err
 	}
 	if len(episodes) > 0 {
@@ -58,7 +59,14 @@ func EnsureUpcoming(tx *gorm.DB, channelID uint64) (*model.OperationsProgressIte
 			}
 		}
 	}
-	return createEpisode(tx, channel, "")
+	return createEpisode(tx, channel, "", name)
+}
+
+func seriesName(series []string) string {
+	if len(series) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(series[0])
 }
 
 func lockChannel(tx *gorm.DB, id uint64) (*model.OperationsProgressItem, error) {
@@ -72,23 +80,28 @@ func lockChannel(tx *gorm.DB, id uint64) (*model.OperationsProgressItem, error) 
 	return &channel, nil
 }
 
-func createEpisode(tx *gorm.DB, channel *model.OperationsProgressItem, title string) (*model.OperationsProgressItem, error) {
+func createEpisode(tx *gorm.DB, channel *model.OperationsProgressItem, title, series string) (*model.OperationsProgressItem, error) {
 	var previous model.OperationsProgressItem
-	if err := tx.Where("channel_id = ?", channel.ID).Order("episode_no DESC").First(&previous).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := tx.Where("channel_id = ? AND series_name = ?", channel.ID, series).
+		Order("episode_no DESC").First(&previous).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
-	next := previous.EpisodeNo + 1
+	var latest model.OperationsProgressItem
+	if err := tx.Where("channel_id = ?", channel.ID).Order("episode_no DESC").First(&latest).Error; err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+	next := latest.EpisodeNo + 1
 	title = strings.TrimSpace(title)
 	if title == "" {
 		title = "下一期 · 选题待定"
 	}
-	if len([]rune(title)) > 120 {
+	if len([]rune(title)) > 120 || len([]rune(series)) > 80 {
 		return nil, fmt.Errorf("episode title too long")
 	}
 	channelID := channel.ID
 	episode := model.OperationsProgressItem{
 		Title: title, Kind: ProductionKind(channel.Platforms), Platforms: channel.Platforms,
-		ChannelID: &channelID, EpisodeNo: next, Stage: "unconfirmed", Status: "active",
+		ChannelID: &channelID, EpisodeNo: next, SeriesName: series, Stage: "unconfirmed", Status: "active",
 	}
 	if err := tx.Create(&episode).Error; err != nil {
 		return nil, err

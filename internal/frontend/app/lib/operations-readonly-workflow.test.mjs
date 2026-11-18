@@ -11,7 +11,7 @@ test("the operations overview stays read-only and reuses its horizontal progress
     read("../routes/dashboard/operations-stage-bar.tsx"),
     read("../routes/dashboard/operations-progress.css"),
   ]);
-  assert.match(view, /<OperationsStageBar item=\{featured\}/);
+  assert.match(view, /<OperationsStageBar item=\{selected\}/);
   assert.match(channel, /<OperationsStageBar item=\{item\}/);
   assert.match(bar, /className="operations-progress__video-stages"/);
   assert.match(bar, /gridTemplateColumns: `repeat\(\$\{item\.steps\.length\}, minmax\(6rem, 1fr\)\)`/);
@@ -58,8 +58,8 @@ test("platform production, artwork library and Douyin import are separate surfac
   }
   assert.ok(channel.includes("/dashboard/workbench/operations/douyin/import"));
   assert.ok(channel.includes("/api/operations/douyin/authorize"));
-  assert.match(library, /已发布作品/);
-  assert.match(library, /制作档案/);
+  assert.match(library, /制作作品/);
+  assert.match(library, /平台发布记录/);
   assert.match(importer, /window.confirm/);
   assert.match(importer, /await importDouyinPosts\(file\)/);
   assert.match(client, /export function importDouyinPosts\(file: File\)/);
