@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import {
   daysSinceOperationsPublish, formatOperationsDate, formatOperationsDay,
-  formatOperationsUpdateDate, getOperationsAttention, getOperationsBoard,
+  formatOperationsUpdateDate, getOperationsAttention, getOperationsBoard, getDouyinSyncStatus,
   nextOperationsDate, operationsAttentionLabel, sortOperationsItems,
   type OperationsBoard, type OperationsSnapshot, type OperationsStepStatus,
 } from "~/lib/operations-progress-client";
@@ -69,6 +69,7 @@ const statusLabels: Record<OperationsStepStatus, string> = {
 export default function OperationsProgressPage() {
   const location = useLocation();
   const [board, setBoard] = useState<OperationsBoard | null>(null);
+  const [douyinSync, setDouyinSync] = useState<{ enabled: boolean; connected: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -76,7 +77,9 @@ export default function OperationsProgressPage() {
   const [platformFilter, setPlatformFilter] = useState("all");
   const load = useCallback(async () => {
     try {
-      setBoard(await getOperationsBoard());
+      const result = await getOperationsBoard();
+      setBoard(result);
+      void getDouyinSyncStatus().then(setDouyinSync).catch(() => setDouyinSync(null));
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "运营进展加载失败");
@@ -190,6 +193,9 @@ export default function OperationsProgressPage() {
               const count = board.posts.filter((post) => post.platform === platform).length;
               return count > 0 ? `${({ douyin: "抖音", bilibili: "B站", wechat: "公众号" })[platform]} ${count} 条` : "";
             }).filter(Boolean).join(" · ")}</span>
+            {douyinSync?.enabled ? douyinSync.connected
+              ? <span className="operations-progress__muted">抖音自动同步已连接</span>
+              : <Link to="/api/operations/douyin/authorize" reloadDocument>连接抖音自动同步</Link> : null}
             {board.canManage ? <Link to="/dashboard/workbench/operations/douyin/import">导入抖音作品</Link> : null}
           </div>
         </div>

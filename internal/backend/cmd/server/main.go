@@ -53,7 +53,7 @@ func run() error {
 	auth.StartSessionCleanup(cleanupContext, db)
 	leave.StartResultCleanup(cleanupContext, db)
 	leave.StartDailyCollection(cleanupContext, leave.NewService(db))
-	operationssync.Start(cleanupContext, db)
+	operationssync.Start(cleanupContext, db, operationssync.NewDouyin(db, cfg.Douyin.ClientKey, cfg.Douyin.ClientSecret, cfg.Auth.JWTSecret))
 
 	engine := router.New(cfg, db)
 	addr := cfg.App.Address()

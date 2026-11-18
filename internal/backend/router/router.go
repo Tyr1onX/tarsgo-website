@@ -26,6 +26,7 @@ import (
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
 	"tarsgo-backend/service/leave"
+	"tarsgo-backend/service/operationssync"
 	"tarsgo-backend/service/privatefile"
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/recruitmentrecords"
@@ -128,6 +129,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	collectionFormHandler := handler.NewCollectionFormHandler(db)
 	operationsProgressHandler := handler.NewOperationsProgressHandler(db)
+	operationsDouyinHandler := handler.NewOperationsDouyinHandler(operationssync.NewDouyin(db, cfg.Douyin.ClientKey, cfg.Douyin.ClientSecret, cfg.Auth.JWTSecret))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
 	recruitmentAnalyticsHandler := handler.NewRecruitmentAnalyticsHandler(recruitmentanalytics.NewService(db))
@@ -415,6 +417,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.Use(middleware.RequireWorkbench())
 	workbenchAPI.GET("/operations/progress", operationsProgressHandler.List)
 	workbenchAPI.POST("/operations/douyin/import", operationsProgressHandler.ImportDouyin)
+	workbenchAPI.GET("/operations/douyin/status", operationsDouyinHandler.Status)
+	workbenchAPI.GET("/operations/douyin/authorize", operationsDouyinHandler.Authorize)
+	workbenchAPI.GET("/operations/douyin/callback", operationsDouyinHandler.Callback)
 	workbenchAPI.GET("/operations/progress/:id/updates", operationsProgressHandler.History)
 	workbenchAPI.POST("/operations/progress", operationsProgressHandler.Create)
 	workbenchAPI.PATCH("/operations/progress/:id", operationsProgressHandler.Update)

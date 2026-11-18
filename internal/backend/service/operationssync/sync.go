@@ -38,7 +38,7 @@ func New(db *gorm.DB) *Collector {
 
 // Start checks public posts on startup and every six hours; followers are
 // captured only once per Beijing calendar day.
-func Start(ctx context.Context, db *gorm.DB) {
+func Start(ctx context.Context, db *gorm.DB, douyin *Douyin) {
 	collector := New(db)
 	go func() {
 		ticker := time.NewTicker(6 * time.Hour)
@@ -46,6 +46,11 @@ func Start(ctx context.Context, db *gorm.DB) {
 		for {
 			if err := collector.Sync(ctx); err != nil && ctx.Err() == nil {
 				log.Printf("operations public sync: %v", err)
+			}
+			if douyin != nil {
+				if err := douyin.Sync(ctx); err != nil && ctx.Err() == nil {
+					log.Printf("operations Douyin sync: %v", err)
+				}
 			}
 			select {
 			case <-ctx.Done():
