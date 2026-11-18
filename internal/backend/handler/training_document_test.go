@@ -86,7 +86,7 @@ func TestTrainingDocumentUploadPersistsImageAndRejectsUnknownToken(t *testing.T)
 	router.PUT("/docs/:slug", func(c *gin.Context) {
 		c.Set("sessionUser", &auth.SessionUser{ID: 42, Role: auth.SessionRole{Name: "super_admin"}})
 	}, handler.Save)
-	router.GET("/api/training-documents/images/:scope/:owner/:filename", handler.Image)
+	router.GET("/api/training-document-images/:scope/:owner/:filename", handler.Image)
 
 	// A minimal PNG header is enough to exercise server-side content-type validation.
 	png := append([]byte{137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82}, bytes.Repeat([]byte{0}, 24)...)
@@ -103,7 +103,7 @@ func TestTrainingDocumentUploadPersistsImageAndRejectsUnknownToken(t *testing.T)
 		t.Fatalf("image upload failed: status=%d body=%s", ok.Code, ok.Body.String())
 	}
 	markdown := store["training_document_git"]
-	prefix := "/api/training-documents/images/2/42/"
+	prefix := "/api/training-document-images/2/42/"
 	if !strings.Contains(markdown, prefix) || strings.Contains(markdown, "community-upload://") {
 		t.Fatalf("image URL not persisted: %q", markdown)
 	}
