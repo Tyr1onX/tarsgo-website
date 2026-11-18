@@ -2113,10 +2113,12 @@ html[data-theme-transition] :is(
 
 .theme-glass-switch__canvas {
   position: absolute;
-  inset: 6px 0 auto;
+  top: 0;
+  left: -6px;
   display: block;
-  width: 100%;
-  height: 32px;
+  width: 72px;
+  height: 44px;
+  background: transparent;
   pointer-events: none;
 }
 
