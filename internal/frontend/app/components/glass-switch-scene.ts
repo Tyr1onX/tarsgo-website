@@ -123,19 +123,37 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
   moon.forEach((p,i) => { if (!usedMoon.has(i)) paired.push([p,{...p,a:0}]); });
   sun.forEach((p,i) => { if (!usedSun.has(i)) paired.push([{...p,a:0},p]); });
 
-  function render(position: number, now: number) {
-    const p = clamp(position), a = ease(p), cx = knob.left + knob.travel*p;
-    const light = color('light',p), pointColor = color('points',p);
-    const u0 = .60 + .53*a, haloPoint = perimeter(cx-1.5,knob.y-1.5,143,47.5,u0);
+  // Random offsets and perimeter points are invariant during every drag frame.
+  const grains = paired.map(([m, s], i) => ({
+    m, s,
+    delay: hash(i+11)*.25,
+    spin: .6+hash(i+43)*.8,
+    driftX: 2*hash(i+71)-1,
+    driftY: 2*hash(i+93)-1,
+  }));
+  // The compact ~60px track does not resolve the original 90 blurred segments.
+  const edgeSteps = 40;
+  const edgePoints = Array.from({ length: edgeSteps + 1 }, (_, i) =>
+    perimeter(0, 0, 143, 47.5, i / edgeSteps),
+  );
+
+  let width = 0, height = 0;
+  function resize() {
     const bounds = canvas.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 3);
-    const width = Math.round(bounds.width * ratio);
-    const height = Math.round(bounds.height * ratio);
+    width = Math.round(bounds.width * ratio);
+    height = Math.round(bounds.height * ratio);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
     }
+  }
+
+  function render(position: number, now: number) {
+    const p = clamp(position), a = ease(p), cx = knob.left + knob.travel*p;
+    const light = color('light',p), pointColor = color('points',p);
+    const u0 = .60 + .53*a, haloPoint = perimeter(cx-1.5,knob.y-1.5,143,47.5,u0);
+    if (!width || !height) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.save();
@@ -194,15 +212,14 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
       ctx.shadowColor = rgba([212,239,255], mix(.52,0,p/.6));
       ctx.shadowBlur = mix(5,0,p/.6);
     }
-    paired.forEach(([m,s],i) => {
-      const delay = hash(i+11)*.25;
+    grains.forEach(({m,s,delay,spin,driftX,driftY}) => {
       const f = ease(clamp((p-delay)/(1-delay)));
-      let x = mix(m.x,s.x,f)-7, y = mix(m.y,s.y,f)-7;
-      const theta = Math.sin(Math.PI*f)*1.1*(.6+hash(i+43)*.8);
+      const x = mix(m.x,s.x,f)-7, y = mix(m.y,s.y,f)-7;
+      const theta = Math.sin(Math.PI*f)*1.1*spin;
       const c = Math.cos(theta), sn = Math.sin(theta);
       const drift = Math.sin(Math.PI*f)*2.2;
-      const px = (x*c-y*sn+drift*(2*hash(i+71)-1))*dotSpacing;
-      const py = (x*sn+y*c+drift*(2*hash(i+93)-1))*dotSpacing;
+      const px = (x*c-y*sn+drift*driftX)*dotSpacing;
+      const py = (x*sn+y*c+drift*driftY)*dotSpacing;
       const alpha = mix(m.a,s.a,f)*(m.star ? mix(starPulse,1,f) : 1);
       if (alpha <= .007) return;
       const size = 4.3*(1-.15*Math.sin(Math.PI*f));
@@ -211,8 +228,8 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
     });
     ctx.restore();
 
-    // Traveling perimeter light: 90 short segments, soft aura and a white core.
-    const half = mix(.22,.19,a), steps = 90;
+    // Screen-resolution-adaptive rim, with the original soft aura and white core.
+    const half = mix(.22,.19,a);
     for (let pass = 0; pass < 2; pass++) {
       ctx.save();
       if (p < .6) ctx.globalCompositeOperation = 'lighter';
@@ -220,16 +237,18 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
       ctx.lineWidth = pass ? 2.2 : 4.2;
       ctx.shadowBlur = pass ? 8 : 26;
       ctx.shadowColor = pass ? 'rgba(255,255,255,.78)' : rgba(light,.85);
-      for (let i = 0; i < steps; i++) {
-        const u = (i+.5)/steps;
+      for (let i = 0; i < edgeSteps; i++) {
+        const u = (i+.5)/edgeSteps;
         const d = ((u-u0+.5)%1+1)%1-.5;
         if (Math.abs(d) > half) continue;
         const fade = Math.exp(-2.6*(d/half)**2);
         ctx.strokeStyle = pass ? `rgba(255,255,255,${fade*mix(.90,.55,a)})`
                                : rgba(light,fade*.72);
-        const one = perimeter(cx-1.5,knob.y-1.5,143,47.5,i/steps);
-        const two = perimeter(cx-1.5,knob.y-1.5,143,47.5,(i+1)/steps);
-        ctx.beginPath(); ctx.moveTo(...one); ctx.lineTo(...two); ctx.stroke();
+        const one = edgePoints[i], two = edgePoints[i + 1];
+        ctx.beginPath();
+        ctx.moveTo(cx - 1.5 + one[0], knob.y - 1.5 + one[1]);
+        ctx.lineTo(cx - 1.5 + two[0], knob.y - 1.5 + two[1]);
+        ctx.stroke();
       }
       ctx.restore();
     }
@@ -237,5 +256,5 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
   }
 
 
-  return { render };
+  return { resize, render };
 }
