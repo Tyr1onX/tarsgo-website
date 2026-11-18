@@ -100,22 +100,28 @@ func (h *JoinInterestHandler) Save(c *gin.Context) {
 		return
 	}
 	var input joinInterestInput
-	if err := c.ShouldBindJSON(&input); err != nil || !normalizeJoinInterestInput(&input) {
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请检查填写内容")
+		return
+	}
+	if input.PreferredGroupID == nil || *input.PreferredGroupID == 0 {
+		writeAPIError(c, http.StatusBadRequest, "请选择意向组别")
+		return
+	}
+	if !normalizeJoinInterestInput(&input) {
 		writeAPIError(c, http.StatusBadRequest, "请检查 QQ 号及填写内容")
 		return
 	}
-	if input.PreferredGroupID != nil {
-		var count int64
-		if err := h.db.WithContext(c.Request.Context()).Model(&model.UserGroup{}).
-			Where("id = ? AND status = ? AND `show` = ? AND is_default = ?", *input.PreferredGroupID, model.UserGroupStatusActive, 1, false).
-			Count(&count).Error; err != nil {
-			writeAPIError(c, http.StatusInternalServerError, "验证组别失败")
-			return
-		}
-		if count == 0 {
-			writeAPIError(c, http.StatusBadRequest, "请选择有效的意向组别")
-			return
-		}
+	var count int64
+	if err := h.db.WithContext(c.Request.Context()).Model(&model.UserGroup{}).
+		Where("id = ? AND status = ? AND `show` = ? AND is_default = ?", *input.PreferredGroupID, model.UserGroupStatusActive, 1, false).
+		Count(&count).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "验证组别失败")
+		return
+	}
+	if count == 0 {
+		writeAPIError(c, http.StatusBadRequest, "请选择有效的意向组别")
+		return
 	}
 	interest := model.JoinInterest{
 		UserID: user.ID, PreferredGroupID: input.PreferredGroupID, QQ: input.QQ,

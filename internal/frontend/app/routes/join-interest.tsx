@@ -64,7 +64,7 @@ export default function JoinInterestPage({ loaderData }: Route.ComponentProps) {
       const saved = await apiRequest<JoinInterest>("/api/join-interest", {
         method: "PUT",
         body: {
-          preferredGroupId: groupId ? Number(groupId) : null,
+          preferredGroupId: Number(groupId),
           qq: qq.trim(),
           motivation: motivation.trim(),
           background: background.trim(),
@@ -109,8 +109,8 @@ export default function JoinInterestPage({ loaderData }: Route.ComponentProps) {
             {interest ? <p className="join-interest__saved" role="status">已登记 · {interest.status === "pending" ? "待联系" : interest.status === "contacted" ? "已联系" : "已结束"}</p> : null}
             <label>
               <span>意向组别</span>
-              <select value={groupId} onChange={(event) => setGroupId(event.target.value)} disabled={saving}>
-                <option value="">暂未确定</option>
+              <select value={groupId} onChange={(event) => setGroupId(event.target.value)} required disabled={saving}>
+                <option value="" disabled>请选择意向组别</option>
                 {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
             </label>
