@@ -19,6 +19,7 @@ export default function OperationsEpisodeSetupPage() {
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [owners, setOwners] = useState<Record<number, number>>({});
   const [error, setError] = useState("");
+  const [unmatched, setUnmatched] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const back = `/dashboard/workbench/operations/works/${itemId}`;
 
@@ -50,6 +51,36 @@ export default function OperationsEpisodeSetupPage() {
     platforms.some((key) => !item.publications.some((entry) => entry.platform === key)) ||
     item.steps.some((step) => (step.assigneeId ?? 0) !== (owners[step.id] ?? 0))
   ));
+
+  function applyOperationsRoles() {
+    if (!board || !item || isOtherWork) return;
+    const roles: Record<string, string> = item.kind === "video"
+      ? { planning: "马鹤铭", materials: "安博", editing: "王钰涵" }
+      : { planning: "马鹤铭" };
+    const next = { ...owners };
+    const missing: string[] = [];
+
+    for (const step of item.steps) {
+      if (step.key === "published") {
+        next[step.id] = 0;
+      } else if (step.key === "review") {
+        if (members.some((member) => member.id === board.viewerId)) {
+          next[step.id] = board.viewerId;
+        } else {
+          missing.push("审核：当前账号不在可分配成员中");
+        }
+      } else if (roles[step.key]) {
+        const matches = members.filter((member) => member.name.trim() === roles[step.key]);
+        if (matches.length === 1) {
+          next[step.id] = matches[0].id;
+        } else {
+          missing.push(`${roles[step.key]}：${matches.length ? "存在同名账号" : "未找到账号"}`);
+        }
+      }
+    }
+    setOwners(next);
+    setUnmatched(missing);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,12 +127,20 @@ export default function OperationsEpisodeSetupPage() {
               {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
             </select>
           </label>
-          <h2>环节负责人</h2>
+          <div className="operations-progress__section-head">
+            <h2>环节负责人</h2>
+            {!isOtherWork ? <button type="button" className="admin-button admin-button--secondary"
+              onClick={applyOperationsRoles}>套用分工（由我审核）</button> : null}
+          </div>
+          {unmatched.length ? <p className="operations-progress__muted">
+            {unmatched.join("；")}。请在下方手动选择。
+          </p> : null}
           <div className="operations-progress__setup-steps">
             {item.steps.map((step) => <label key={step.id}>{step.title}
-              <select value={owners[step.id] ?? 0} onChange={(event) => setOwners((current) => ({
-                ...current, [step.id]: Number(event.target.value),
-              }))}>
+              <select value={owners[step.id] ?? 0} onChange={(event) => {
+                setUnmatched([]);
+                setOwners((current) => ({ ...current, [step.id]: Number(event.target.value) }));
+              }}>
                 <option value={0}>待分配</option>
                 {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
               </select>
