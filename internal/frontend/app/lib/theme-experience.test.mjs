@@ -29,7 +29,7 @@ test("both navigations use one lightweight theme control and the existing theme 
 test("pixel glass switch retains day-left night-right and respects reduced motion", () => {
   assert.match(styles, /\.theme-light-switch\s*\{/);
   assert.match(styles, /\.theme-light-switch__thumb\s*\{[^}]*transform: translateX\(0\)/s);
-  assert.match(styles, /\[aria-checked="true"\] \.theme-light-switch__thumb\s*\{[^}]*transform: translateX\(36px\)/s);
+  assert.match(styles, /:root\[data-theme="dark"\] \.theme-light-switch__thumb\s*\{[^}]*transform: translateX\(36px\)/s);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.theme-light-switch__thumb,[\s\S]*?transition: none;/);
   assert.doesNotMatch(styles, /\.theme-lab-switch\s*\{/);
   assert.match(themeControl, /theme-light-switch__sun/);
