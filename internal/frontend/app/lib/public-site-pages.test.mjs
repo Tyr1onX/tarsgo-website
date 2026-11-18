@@ -14,12 +14,10 @@ const eventsRoute = await readFile(new URL("../routes/events-and-honors.tsx", im
 const historyRoute = await readFile(new URL("../routes/team-history.tsx", import.meta.url), "utf8");
 const joinRoute = await readFile(new URL("../routes/join.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
-const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
 const workbenchUpdatesRoute = await readFile(new URL("../routes/dashboard/updates.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const dashboardNavigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
 const dashboardHome = await readFile(new URL("../routes/dashboard/index.tsx", import.meta.url), "utf8");
-const dashboardBase = await readFile(new URL("../routes/dashboard/base.tsx", import.meta.url), "utf8");
 const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const joinExperience = await readFile(new URL("../components/join-experience.tsx", import.meta.url), "utf8");
@@ -242,7 +240,6 @@ test("旧公告深链直达现有工作手册，不保留重复说明组件", ()
 
 test("公开基地入口已移除，旧链接只导向登录或统一工作台", () => {
   assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
-  assert.match(routes, /route\("dashboard", "routes\/dashboard\/layout\.tsx", \[[\s\S]*?route\("base", "routes\/dashboard\/base\.tsx"\)/);
   assert.doesNotMatch(navbar, /label: "吉甲基地", href: "\/base"|href: "\/base"/);
   assert.doesNotMatch(navbar, /pathname === "\/daily-signal"/);
   assert.doesNotMatch(home, /home-base-feature|to="\/base"|进入基地/);
@@ -256,8 +253,8 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(basePage, /Navbar|PublicFooter|gijia-base|guest-welcome|<Link/);
   assert.doesNotMatch(styles, /home-base-feature|gijia-base__/);
   assert.doesNotMatch(home, /to="\/base"/);
-  assert.match(routes, /route\("daily-signal", "routes\/daily-signal\.tsx"\)/);
-  assert.match(dailySignalRoute, /export \{ default, meta \} from "\.\/base";/);
+  assert.doesNotMatch(routes, /route\("daily-signal",/);
+  assert.doesNotMatch(routes, /route\("base", "routes\/dashboard\/base\.tsx"\)/);
   assert.match(dashboardLayout, /getDashboardSectionMenu\(currentUser\)/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
   assert.match(dashboardNavigation, /label: "社区", href: "\/dashboard"/);
@@ -265,7 +262,6 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dashboardLayout, /aria-label="主要入口"/);
   assert.match(dashboardLayout, /aria-label=\{sidebarOpen \? "收起侧边栏" : "展开侧边栏"\}/);
   assert.doesNotMatch(dashboardLayout, /cursor-col-resize/);
-  assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
   assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
