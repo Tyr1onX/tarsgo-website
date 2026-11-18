@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
   getOperationsAttention, getOperationsBoard, operationsAttentionLabel, operationsPlatformNames,
-  type OperationsBoard, type OperationsItem, type OperationsSnapshot,
+  type OperationsBoard, type OperationsItem, type OperationsPost, type OperationsSnapshot,
 } from "~/lib/operations-progress-client";
 import { OperationsStageBar } from "./operations-stage-bar";
 import "./operations-progress.css";
@@ -23,7 +23,7 @@ function OperationsProgressSkeleton() {
 
 function AccountTrend({ platform, snapshots }: { platform:string; snapshots: OperationsSnapshot[] }) {
   const entries = snapshots.filter((entry) => entry.platform === platform);
-  if (!entries.length) return <p className="operations-progress__muted">暂无账号历史数据</p>;
+  if (!entries.length) return <p className="operations-progress__muted operations-progress__trend-empty">暂无账号数据</p>;
   const latest = entries[entries.length-1];
   const cutoff = Date.parse(latest.observedOn) - 30 * 86400000;
   const recent = entries.filter((entry) => Date.parse(entry.observedOn) >= cutoff);
@@ -53,31 +53,52 @@ function AccountTrend({ platform, snapshots }: { platform:string; snapshots: Ope
   </div>;
 }
 
-function PlatformCard({ channel, works, snapshots }: {
+function PlatformCard({ channel, works, snapshots, latestPost }: {
   channel: OperationsItem; works: OperationsItem[]; snapshots: OperationsSnapshot[];
+  latestPost?: OperationsPost;
 }) {
   const active = works.filter((item) => item.steps.some((step) => step.status !== "pending"));
-  const pending = works.filter((item) => item.steps.every((step) => step.status === "pending"));
+  const pendingCount = works.length - active.length;
   const selected = [...active].sort((a,b) => Number(getOperationsAttention(a) !== "blocked") -
     Number(getOperationsAttention(b) !== "blocked") || b.id-a.id)[0];
+  const currentStep = selected?.steps.find((step) => step.status === "blocked") ||
+    selected?.steps.find((step) => step.status === "active") ||
+    selected?.steps.find((step) => step.status === "pending");
+  const postDate = latestPost ? new Date(latestPost.publishedAt).toLocaleDateString("zh-CN", {
+    timeZone: "Asia/Shanghai", year: "numeric", month: "numeric", day: "numeric",
+  }) : "";
+  const postMetric = latestPost?.platform === "wechat" ? "阅读" :
+    latestPost?.mediaType === "image" ? "浏览" : "播放";
+
   return <section className="operations-progress__item operations-progress__platform-card">
     <div className="operations-progress__item-head">
-      <div>
-        <p className="operations-progress__eyebrow">运营平台</p>
-        <h2>{operationsPlatformNames[channel.platforms] || channel.title}</h2>
-      </div>
-      <Link className="admin-button admin-button--secondary" to={`/dashboard/workbench/operations/channels/${channel.id}`}>
-        进入平台
-      </Link>
+      <h2>{operationsPlatformNames[channel.platforms] || channel.title}</h2>
+      <Link className="operations-progress__platform-link"
+        to={`/dashboard/workbench/operations/channels/${channel.id}`}>查看任务</Link>
     </div>
     <AccountTrend platform={channel.platforms} snapshots={snapshots} />
-    <div className="operations-progress__channel-footer">
-      <span>{active.length} 期制作中 · {pending.length} 期待规划</span>
-    </div>
     {selected ? <div className="operations-progress__platform-feature">
-      <Link className="operations-progress__featured-title" to={`/dashboard/workbench/operations/works/${selected.id}`}>{selected.title}</Link>
+      <div className="operations-progress__feature-heading">
+        <span className="operations-progress__eyebrow">正在制作</span>
+        {active.length > 1 ? <span className="operations-progress__muted">另有 {active.length - 1} 期</span> : null}
+      </div>
+      <Link className="operations-progress__featured-title"
+        to={`/dashboard/workbench/operations/works/${selected.id}`}>{selected.title}</Link>
       <OperationsStageBar item={selected} />
-    </div> : <p className="operations-progress__muted">当前没有正在制作的作品</p>}
+      {currentStep ? <p className="operations-progress__feature-status">
+        {currentStep.status === "blocked" ? "当前卡点" : "当前环节"}：{currentStep.title}
+        {currentStep.assigneeName ? ` · ${currentStep.assigneeName}` : ""}
+      </p> : null}
+    </div> : latestPost ? <div className="operations-progress__last-post">
+      <span className="operations-progress__eyebrow">最近发布 · {postDate}</span>
+      {latestPost.url ? <a className="operations-progress__last-post-title"
+        href={latestPost.url} target="_blank" rel="noopener noreferrer">{latestPost.title}</a> :
+        <strong className="operations-progress__last-post-title">{latestPost.title}</strong>}
+      <span className="operations-progress__muted">{latestPost.viewCount.toLocaleString("zh-CN")} {postMetric}</span>
+    </div> : <p className="operations-progress__muted operations-progress__empty-work">暂无发布作品</p>}
+    {pendingCount > 0 ? <div className="operations-progress__platform-footer">
+      {pendingCount} 期待规划
+    </div> : null}
   </section>;
 }
 
@@ -114,6 +135,7 @@ export default function OperationsProgressPage() {
         <div className="operations-progress__platform-grid">
           {channels.map((channel) => <PlatformCard key={channel.id} channel={channel}
             snapshots={board.snapshots}
+            latestPost={board.latestPosts.find((post) => post.platform === channel.platforms)}
             works={works.filter((item) => item.publications.some((target) => target.platform === channel.platforms))} />)}
         </div>
       </section>

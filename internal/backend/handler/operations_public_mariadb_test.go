@@ -61,6 +61,26 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	if err := db.Create(&post).Error; err != nil {
 		t.Fatal(err)
 	}
+	// Import order is not necessarily publication order. The overview must
+	// pick the most recently published work per platform, not the highest ID.
+	latestBili := model.OperationsPlatformPost{
+		Platform: "bilibili", ExternalID: "BV2LATEST", Title: "最近的B站作品",
+		PublishedAt: time.Date(2026, 11, 16, 8, 0, 0, 0, time.UTC),
+		ViewCount:   520, SyncedAt: time.Now(),
+	}
+	olderBili := model.OperationsPlatformPost{
+		Platform: "bilibili", ExternalID: "BV3OLDER", Title: "较早的B站作品",
+		PublishedAt: time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC),
+		SyncedAt:    time.Now(),
+	}
+	latestWeChat := model.OperationsPlatformPost{
+		Platform: "wechat", ExternalID: "WECHAT-LATEST", Title: "最近的公众号作品",
+		PublishedAt: time.Date(2026, 11, 17, 8, 0, 0, 0, time.UTC),
+		ViewCount:   293, SyncedAt: time.Now(),
+	}
+	if err := db.Create(&[]model.OperationsPlatformPost{latestBili, olderBili, latestWeChat}).Error; err != nil {
+		t.Fatal(err)
+	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	handler := NewOperationsProgressHandler(db)
@@ -91,7 +111,8 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	}
 	var wrapper struct {
 		Data struct {
-			Items []operationsProgressView `json:"items"`
+			Items       []operationsProgressView       `json:"items"`
+			LatestPosts []model.OperationsPlatformPost `json:"latestPosts"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &wrapper); err != nil {
@@ -99,6 +120,18 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	}
 	if len(wrapper.Data.Items) != 2 {
 		t.Fatalf("workbench overview incorrect items=%d", len(wrapper.Data.Items))
+	}
+	if len(wrapper.Data.LatestPosts) != 2 {
+		t.Fatalf("expected latest post for each platform, got %+v", wrapper.Data.LatestPosts)
+	}
+	latestByPlatform := make(map[string]model.OperationsPlatformPost)
+	for _, entry := range wrapper.Data.LatestPosts {
+		latestByPlatform[entry.Platform] = entry
+	}
+	if latestByPlatform["bilibili"].Title != latestBili.Title ||
+		latestByPlatform["bilibili"].ViewCount != 520 ||
+		latestByPlatform["wechat"].Title != latestWeChat.Title {
+		t.Fatalf("incorrect latest posts: %+v", latestByPlatform)
 	}
 	works := httptest.NewRecorder()
 	router.ServeHTTP(works, httptest.NewRequest(http.MethodGet, "/api/operations/works?platform=bilibili", nil))
@@ -113,7 +146,7 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	if err := json.Unmarshal(works.Body.Bytes(), &published); err != nil {
 		t.Fatal(err)
 	}
-	if len(published.Data.Posts) != 1 {
-		t.Fatalf("works API missing historical post: %+v", published.Data.Posts)
+	if len(published.Data.Posts) != 3 {
+		t.Fatalf("works API missing historical posts: %+v", published.Data.Posts)
 	}
 }
