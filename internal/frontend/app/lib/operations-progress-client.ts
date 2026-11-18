@@ -24,6 +24,8 @@ export interface OperationsSnapshot {
   platform: "bilibili" | "douyin" | "wechat";
   observedOn: string;
   followers: number;
+  newFollowers: number | null;
+  unfollows: number | null;
   source: string;
 }
 
@@ -37,6 +39,7 @@ export interface OperationsPost {
   viewCount: number;
   mediaType: string;
   likeCount: number;
+  recommendCount: number;
   commentCount: number;
   shareCount: number;
   favoriteCount: number;

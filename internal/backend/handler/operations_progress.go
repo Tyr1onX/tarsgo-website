@@ -240,7 +240,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		return
 	}
 	var posts []model.OperationsPlatformPost
-	if err := h.db.WithContext(c.Request.Context()).Order("published_at DESC").Limit(300).Find(&posts).Error; err != nil {
+	if err := h.db.WithContext(c.Request.Context()).Order("published_at DESC").Find(&posts).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "历史作品读取失败")
 		return
 	}

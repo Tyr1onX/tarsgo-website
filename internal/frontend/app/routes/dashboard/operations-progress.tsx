@@ -43,6 +43,7 @@ function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["
   const maximum = Math.max(...values.map((entry) => entry.followers));
   const minimum = Math.min(...values.map((entry) => entry.followers));
   const span = Math.max(1, maximum - minimum);
+  const change = values[values.length - 1].followers - values[0].followers;
   const coords = values.map((entry, index) => {
     const x = 12 + index * 296 / Math.max(1, values.length - 1);
     const y = 66 - (entry.followers - minimum) / span * 54;
@@ -53,11 +54,11 @@ function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["
       <strong>{label}</strong>
       <span><b>{values[values.length - 1].followers.toLocaleString("zh-CN")}</b> {platform === "wechat" ? "关注" : "粉"} · {values[values.length - 1].observedOn}</span>
     </div>
-    {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注增长趋势，从${minimum}到${maximum}`}>
+    {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注趋势，从${values[0].followers}到${values[values.length - 1].followers}`}>
       <polyline points={coords.map(({ x, y }) => `${x},${y}`).join(" ")} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}</title></circle>)}
+      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}{entry.newFollowers !== null && entry.unfollows !== null ? `（新增 ${entry.newFollowers}，取消 ${entry.unfollows}）` : ""}</title></circle>)}
     </svg> : null}
-    {values.length > 1 ? <p className="operations-progress__muted">历史记录 {values.length} 个 · {values[0].observedOn} 起</p> : null}
+    {values.length > 1 ? <p className="operations-progress__muted">净变化 {change >= 0 ? "+" : ""}{change.toLocaleString("zh-CN")} · {values[0].observedOn} 起</p> : null}
   </div>;
 }
 
@@ -213,6 +214,7 @@ export default function OperationsProgressPage() {
             ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
             : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : post.mediaType === "image" ? "浏览" : "播放"}
             {post.platform === "douyin" && post.mediaType ? ` · ${post.likeCount} 赞 · ${post.commentCount} 评论 · ${post.shareCount} 分享 · ${post.favoriteCount} 收藏` : ""}
+            {post.platform === "wechat" ? ` · ${post.likeCount} 赞 · ${post.shareCount} 分享 · ${post.recommendCount} 推荐` : ""}
             {post.platform === "douyin" && post.profileVisits !== null ? ` · 主页访问 ${post.profileVisits}` : ""}
             {post.platform === "douyin" && post.followerGain !== null ? ` · 吸粉 ${post.followerGain}` : ""}
           </span>
