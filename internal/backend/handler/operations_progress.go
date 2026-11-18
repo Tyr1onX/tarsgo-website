@@ -166,10 +166,20 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "运营环节读取失败")
 		return
 	}
-	members, err := h.members(c.Request.Context())
-	if err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "运营成员读取失败")
-		return
+	needsMembers := canManage
+	for _, step := range steps {
+		if step.AssigneeID != nil {
+			needsMembers = true
+			break
+		}
+	}
+	var members []operationsMember
+	if needsMembers {
+		members, err = h.members(c.Request.Context())
+		if err != nil {
+			writeAPIError(c, http.StatusInternalServerError, "运营成员读取失败")
+			return
+		}
 	}
 	names := make(map[uint64]string, len(members))
 	for _, member := range members {
