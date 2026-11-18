@@ -465,19 +465,23 @@ test("the 8421 BCD coordinate code is a pair of quiet decorative traces in publi
   assert.match(styles, /\.public-footer-signature/);
 });
 
-test("the join guide shows the verified current cycle and only a truthful next action", () => {
+test("the join guide shows the verified cycle and separate permanent-interest registration", async () => {
   assert.match(joinExperience, /phase: "between-cycles"/);
   assert.match(joinExperience, /cycle: "2026 纳新"/);
   assert.match(joinExperience, /本轮结果通知已基本完成；下一轮安排尚未发布/);
   assert.doesNotMatch(joinExperience, /to="\/register"/);
-  assert.match(joinExperience, /当届报名开放后/);
+  assert.match(joinExperience, /正式招新开放后/);
   assert.match(joinExperience, /to="\/dashboard\/users\/registrations"/);
-  assert.match(joinExperience, /href="#footer-social-heading"/);
+  assert.ok(joinExperience.includes('to="/join/interest"'));
+  const joinInterestPage = await readFile(new URL("../routes/join-interest.tsx", import.meta.url), "utf8");
+  assert.ok(joinInterestPage.includes("throw redirect("));
+  assert.ok(joinInterestPage.includes("/api/join-interest"));
+  assert.ok(joinInterestPage.includes("/dashboard/users/registrations"));
   assert.match(joinExperience, /publicRecruitmentState\.phase === "open"/);
   assert.match(joinExperience, /材料初筛/);
   assert.match(joinExperience, /确认面试/);
   assert.match(joinExperience, /查看结果/);
-  assert.match(joinExperience, /注册完成后仍要单独提交报名/);
+  assert.match(joinExperience, /正式招新开放后，使用同一账号提交当届报名/);
   assert.match(joinStyles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(joinStyles, /@media \(min-width: 768px\) and \(max-width: 1023px\)[\s\S]*?\.join-growth-path\s*\{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 });

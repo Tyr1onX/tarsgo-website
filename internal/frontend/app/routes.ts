@@ -7,6 +7,7 @@ export default [
   route("events-and-honors", "routes/events-and-honors.tsx"),
   route("team-history", "routes/team-history.tsx"),
   route("join", "routes/join.tsx"),
+  route("join/interest", "routes/join-interest.tsx"),
   route("base", "routes/base.tsx"),
   route("programs", "routes/programs.tsx"),
   route("programs/ai-salon", "routes/ai-salon.tsx"),

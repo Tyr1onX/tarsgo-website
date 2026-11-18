@@ -58,7 +58,7 @@ const recruitmentSteps = [
   {
     number: "02",
     title: "提交当届报名",
-    description: "当届报名开放后，通过 TARSGO 平台登录并填写该届表单；如需注册账号，注册完成后仍要单独提交报名。",
+    description: "全年可以先登记加入意向。正式招新开放后，使用同一账号提交当届报名。",
   },
   {
     number: "03",
@@ -299,10 +299,11 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
                 进入当届报名 <span aria-hidden="true">→</span>
               </Link>
             ) : (
-              <a className="join-action join-action--primary" href="#footer-social-heading">
-                关注官方账号，留意下一轮信息 <span aria-hidden="true">↓</span>
-              </a>
+              <Link className="join-action join-action--primary" to="/join/interest">
+                登记加入意向 <span aria-hidden="true">→</span>
+              </Link>
             )}
+            {publicRecruitmentState.phase === "open" ? <Link className="join-action join-action--secondary" to="/join/interest">登记加入意向</Link> : null}
             <Link className="join-action join-action--secondary" to="/dashboard/users/registrations">
               已提交报名？查看进度
             </Link>
