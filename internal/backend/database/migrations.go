@@ -294,6 +294,7 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Migrator().DropTable(&assignmentLateWindowV64{})
 		}},
 		{version: 67, apply: migrateOperationsStepsV67},
+		{version: 68, apply: migrateWeChatOperationsV68},
 	}
 }
 

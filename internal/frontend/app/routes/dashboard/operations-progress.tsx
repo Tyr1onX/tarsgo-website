@@ -41,7 +41,7 @@ function OperationsProgressSkeleton() {
   const line = "block h-3 rounded bg-[var(--admin-border)]";
   return <div className="content-skeleton motion-safe:animate-pulse" role="status" aria-label="正在加载战队动态">
     <div className="operations-progress__account-metrics" aria-hidden="true">
-      {[0, 1].map((index) => <div key={index} className="operations-progress__follower-chart">
+      {[0, 1, 2].map((index) => <div key={index} className="operations-progress__follower-chart">
         <span className={`${line} w-20`} />
         <span className={`${line} mt-4 w-32`} />
         <span className="mt-5 block h-20 rounded bg-[var(--admin-border-subtle)]" />
@@ -67,7 +67,8 @@ function localDateTime(date: string | null) {
   return date ? shanghaiDateTimeLocal(date) : "";
 }
 
-function FollowerTrend({ platform, snapshots }: { platform: "bilibili" | "douyin"; snapshots: OperationsSnapshot[] }) {
+function FollowerTrend({ platform, snapshots }: { platform: OperationsSnapshot["platform"]; snapshots: OperationsSnapshot[] }) {
+  const label = { douyin: "抖音", bilibili: "B站", wechat: "公众号" }[platform];
   const values = snapshots.filter((entry) => entry.platform === platform);
   if (!values.length) return null;
   const maximum = Math.max(...values.map((entry) => entry.followers));
@@ -80,14 +81,14 @@ function FollowerTrend({ platform, snapshots }: { platform: "bilibili" | "douyin
   });
   return <div className="operations-progress__follower-chart">
     <div className="operations-progress__follower-head">
-      <strong>{platform === "bilibili" ? "B站" : "抖音"}</strong>
-      <span><b>{values[values.length - 1].followers.toLocaleString("zh-CN")}</b> 粉 · {values[values.length - 1].observedOn}</span>
+      <strong>{label}</strong>
+      <span><b>{values[values.length - 1].followers.toLocaleString("zh-CN")}</b> {platform === "wechat" ? "关注" : "粉"} · {values[values.length - 1].observedOn}</span>
     </div>
-    <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${platform === "bilibili" ? "B站" : "抖音"}粉丝增长趋势，从${minimum}到${maximum}`}>
+    {values.length > 1 ? <svg viewBox="0 0 320 82" preserveAspectRatio="none" role="img" aria-label={`${label}关注增长趋势，从${minimum}到${maximum}`}>
       <polyline points={coords.map(({ x, y }) => `${x},${y}`).join(" ")} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} 粉</title></circle>)}
-    </svg>
-    <p className="operations-progress__muted">历史记录 {values.length} 个 · {values[0].observedOn} 起</p>
+      {coords.map(({ x, y, entry }) => <circle key={entry.observedOn} cx={x} cy={y} r="3" fill="currentColor"><title>{entry.observedOn}：{entry.followers} {platform === "wechat" ? "关注" : "粉"}</title></circle>)}
+    </svg> : null}
+    {values.length > 1 ? <p className="operations-progress__muted">历史记录 {values.length} 个 · {values[0].observedOn} 起</p> : null}
   </div>;
 }
 
@@ -332,9 +333,10 @@ export default function OperationsProgressPage() {
       {loading && !board ? <OperationsProgressSkeleton /> : null}
 
       {board ? <>
-        {board.snapshots.length > 0 ? <section className="operations-progress__account-metrics" aria-label="宣传平台粉丝趋势">
+        {board.snapshots.length > 0 ? <section className="operations-progress__account-metrics" aria-label="宣传平台关注数据">
           <FollowerTrend platform="douyin" snapshots={board.snapshots} />
           <FollowerTrend platform="bilibili" snapshots={board.snapshots} />
+          <FollowerTrend platform="wechat" snapshots={board.snapshots} />
         </section> : null}
         <div className="operations-progress__stats" aria-label="事项状态">
           <div><strong>{board.items.filter((item) => item.status !== "done").length - attentionCount - blockedCount}</strong><span>正常 / 待启动</span></div>
@@ -461,10 +463,14 @@ export default function OperationsProgressPage() {
         </div>
 
         {board.posts.length > 0 ? <section className="operations-progress__posts" aria-labelledby="operations-posts-title">
-          <div className="operations-progress__section-head"><h2 id="operations-posts-title">历史发布</h2><span className="operations-progress__muted">已同步 B站 {board.posts.length} 条作品</span></div>
+          <div className="operations-progress__section-head"><h2 id="operations-posts-title">历史发布</h2>
+            {board.posts.some((post) => post.platform === "wechat") ? <span className="operations-progress__muted">公众号阅读数据核实于 2026-11-18</span> : null}
+          </div>
           <ol>{board.posts.slice(0, 10).map((post) => <li key={`${post.platform}:${post.externalId}`}>
             <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a>
-            <span>{formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} 播放</span>
+            <span>{post.platform === "wechat" ? "公众号" : "B站"} · {post.platform === "wechat"
+              ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
+              : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : "播放"}</span>
           </li>)}</ol>
         </section> : null}
 

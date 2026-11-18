@@ -244,20 +244,21 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "历史作品读取失败")
 		return
 	}
+	channelNames := map[string]string{"bilibili": "B站运营", "wechat": "公众号运营"}
 	for _, post := range posts {
-		if post.Platform != "bilibili" {
+		channelName, supported := channelNames[post.Platform]
+		if !supported {
 			continue
 		}
 		day := post.PublishedAt.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
 		for i := range views {
-			if views[i].Kind == "channel" && (views[i].Title == "B站运营" ||
-				(views[i].SeedKey != nil && *views[i].SeedKey == "channel:bilibili")) {
+			if views[i].Kind == "channel" && (views[i].Title == channelName ||
+				(views[i].SeedKey != nil && *views[i].SeedKey == "channel:"+post.Platform)) {
 				if views[i].LastCompletedOn == nil || *views[i].LastCompletedOn < day {
 					views[i].LastCompletedOn = &day
 				}
 			}
 		}
-		break
 	}
 	var updates []model.OperationsProgressUpdate
 	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Limit(15).Find(&updates).Error; err != nil {
