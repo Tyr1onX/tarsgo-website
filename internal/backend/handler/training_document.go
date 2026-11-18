@@ -113,7 +113,7 @@ func (h *TrainingDocumentHandler) Save(c *gin.Context) {
 			}
 		}
 	}()
-	for i, file := range files {
+	for _, file := range files {
 		stored, err := h.files.Save(c.Request.Context(), scopeID, user.ID, privatefile.Upload{
 			Header: file, FileName: file.Filename,
 		})
