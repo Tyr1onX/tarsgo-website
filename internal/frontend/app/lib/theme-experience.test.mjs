@@ -48,8 +48,8 @@ test("glass light switch restores the source's detailed renderer and continuous 
 });
 
 test("retired light lab is fully removed from routes, footer and source", () => {
-  assert.doesNotMatch(routes, /route\\("lab",/);
-  assert.doesNotMatch(footer, /to="\\/lab"/);
+  assert.doesNotMatch(routes, /route\("lab",/);
+  assert.doesNotMatch(footer, /to="\/lab"/);
   for (const file of ["../routes/lab.tsx", "../routes/lab.css", "../components/theme-lab-scene.ts"]) {
     assert.equal(existsSync(new URL(file, import.meta.url)), false, `unused ${file} must be deleted`);
   }
@@ -87,10 +87,10 @@ test("page transition no longer assigns effects to every descendant", () => {
 });
 
 test("transparent overscan preserves track size while leaving shadow clearance", () => {
-  assert.match(glassScene, /ctx\\.setTransform\\(width \\/ 420, 0, 0, height \\/ 260/);
-  assert.match(glassScene, /ctx\\.translate\\(-10, -10\\)/);
-  assert.match(glassScene, /ctx\\.clearRect\\(0, 0, width, height\\)/);
-  assert.doesNotMatch(styles, /\\.theme-glass-switch__canvas\\s*\\{[^}]*background:/s);
+  assert.match(glassScene, /ctx\.setTransform\(width \/ 420, 0, 0, height \/ 260/);
+  assert.match(glassScene, /ctx\.translate\(-10, -10\)/);
+  assert.match(glassScene, /ctx\.clearRect\(0, 0, width, height\)/);
+  assert.doesNotMatch(styles, /\.theme-glass-switch__canvas\s*\{[^}]*background:/s);
   // The visible track remains essentially unchanged; only the transparent buffer grows.
   const previous = [(60 - 45) * 60 / 350, 6 + (58 - 43) * 32 / 190, 320 * 60 / 350, 164 * 32 / 190];
   const withBleed = [-6 + (60 - 10) * 72 / 420, (58 - 10) * 44 / 260, 320 * 72 / 420, 164 * 44 / 260];
