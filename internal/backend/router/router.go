@@ -268,6 +268,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/timetable-availability/cleanup", timetableHandler.CleanupCount)
 	adminAPI.POST("/timetable-availability/cleanup", timetableHandler.ClearAll)
 	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
+	adminAPI.GET("/assignment-cohorts", assignmentHandler.ListCohorts)
 	adminAPI.GET("/training-assessments", trainingAssessmentHandler.Snapshot)
 	adminAPI.POST("/training-assessments/dimensions", trainingAssessmentHandler.AddDimension)
 	adminAPI.DELETE("/training-assessments/dimensions/:id", trainingAssessmentHandler.RemoveDimension)

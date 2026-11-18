@@ -27,7 +27,7 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (*
 	now := s.now().UTC()
 	item := model.Assignment{
 		GroupID: input.GroupID, CreatorID: actor.ID, Title: input.Title, Description: input.Description,
-		DueAt: storeUTCWall(input.DueAt), AttachmentRequirements: input.AttachmentRequirements, IsGroupWide: input.IsGroupWide,
+		DueAt: storeUTCWall(input.DueAt), AttachmentRequirements: input.AttachmentRequirements, IsGroupWide: input.IsGroupWide, CohortFormIDs: input.CohortFormIDs,
 		PublicationStatus: model.AssignmentPublicationPublished,
 		CreatedAt:         now, UpdatedAt: now,
 	}
@@ -35,7 +35,13 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (*
 		if err := s.requireManagerGroupAccessWithDB(tx, actor, input.GroupID); err != nil {
 			return err
 		}
-		resolved, err := s.resolveTargetsWithDB(tx, input.GroupID, input.IsGroupWide, input.TargetUserIDs)
+		var resolved []uint64
+		var err error
+		if len(input.CohortFormIDs) > 0 {
+			resolved, err = s.resolveCohortTargetsWithDB(tx, input.GroupID, input.CohortFormIDs)
+		} else {
+			resolved, err = s.resolveTargetsWithDB(tx, input.GroupID, input.IsGroupWide, input.TargetUserIDs)
+		}
 		if err != nil {
 			return err
 		}
@@ -124,7 +130,13 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 		if err := s.requireManagerGroupAccessWithDB(tx, actor, input.GroupID); err != nil {
 			return err
 		}
-		resolved, err := s.resolveTargetsWithDB(tx, input.GroupID, input.IsGroupWide, input.TargetUserIDs)
+		var resolved []uint64
+		var err error
+		if len(input.CohortFormIDs) > 0 {
+			resolved, err = s.resolveCohortTargetsWithDB(tx, input.GroupID, input.CohortFormIDs)
+		} else {
+			resolved, err = s.resolveTargetsWithDB(tx, input.GroupID, input.IsGroupWide, input.TargetUserIDs)
+		}
 		if err != nil {
 			return err
 		}
@@ -133,7 +145,7 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 		item = model.Assignment{
 			PublishRequestID: &requestIDCopy, PublishRequestHash: &requestHashCopy,
 			GroupID: input.GroupID, CreatorID: actor.ID, Title: input.Title, Description: input.Description,
-			DueAt: storeUTCWall(input.DueAt), AttachmentRequirements: input.AttachmentRequirements, IsGroupWide: input.IsGroupWide,
+			DueAt: storeUTCWall(input.DueAt), AttachmentRequirements: input.AttachmentRequirements, IsGroupWide: input.IsGroupWide, CohortFormIDs: input.CohortFormIDs,
 			PublicationStatus: model.AssignmentPublicationPublished,
 			CreatedAt:         now, UpdatedAt: now,
 		}
@@ -247,6 +259,7 @@ func validPublishRequestID(value string) bool {
 func assignmentPublishHash(input CreateInput, files []validatedUpload) (string, error) {
 	targetIDs := append([]uint64(nil), input.TargetUserIDs...)
 	sort.Slice(targetIDs, func(i, j int) bool { return targetIDs[i] < targetIDs[j] })
+	cohortIDs := uniqueSortedIDs(input.CohortFormIDs)
 	type fileFingerprint struct {
 		Name string `json:"name"`
 		Size int64  `json:"size"`
@@ -264,11 +277,12 @@ func assignmentPublishHash(input CreateInput, files []validatedUpload) (string, 
 		AttachmentRequirements string            `json:"attachmentRequirements"`
 		IsGroupWide            bool              `json:"isGroupWide"`
 		TargetUserIDs          []uint64          `json:"targetUserIds"`
+		CohortFormIDs          []uint64          `json:"cohortFormIds"`
 		Files                  []fileFingerprint `json:"files"`
 	}{
 		GroupID: input.GroupID, Title: input.Title, Description: input.Description,
 		DueAt: input.DueAt.UTC().Format(time.RFC3339Nano), AttachmentRequirements: input.AttachmentRequirements,
-		IsGroupWide: input.IsGroupWide, TargetUserIDs: targetIDs, Files: fingerprints,
+		IsGroupWide: input.IsGroupWide, TargetUserIDs: targetIDs, CohortFormIDs: cohortIDs, Files: fingerprints,
 	}
 	body, err := json.Marshal(request)
 	if err != nil {
@@ -320,8 +334,11 @@ func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, 
 		if len(userIDs) == 0 {
 			return conflict("作业缺少接收成员记录，接收范围已锁定，请新建作业")
 		}
-		if !item.IsGroupWide && !sameUserIDs(requestedUserIDs, userIDs) {
-			return conflict("定向作业的接收成员在发布时确定，不能通过编辑更改")
+		if !sameUserIDs(input.CohortFormIDs, item.CohortFormIDs) {
+			return conflict("作业纳新届次在发布时确定，不能通过编辑更改")
+		}
+		if !item.IsGroupWide && len(item.CohortFormIDs) == 0 && !sameUserIDs(requestedUserIDs, userIDs) {
+			return conflict("历史定向作业的接收成员在发布时确定，不能通过编辑更改")
 		}
 		var submissionCount int64
 		if err := tx.Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", item.ID).Count(&submissionCount).Error; err != nil {

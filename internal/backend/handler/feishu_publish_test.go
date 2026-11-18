@@ -36,7 +36,7 @@ func TestFeishuAssignmentPublishCardIncludesRequiredSiteFields(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"title", "description", "group_id", "due_at", "target_user_ids", "attachment_requirements", "publish_assignment"} {
+	for _, name := range []string{"title", "description", "group_id", "due_at", "cohort_form_ids", "attachment_requirements", "publish_assignment"} {
 		if !got[name] {
 			t.Errorf("publish card is missing %q", name)
 		}
@@ -69,20 +69,20 @@ func TestFeishuCardActionsMatchTheirFormType(t *testing.T) {
 	}
 }
 
-func TestParseFeishuRecipientIDs(t *testing.T) {
+func TestParseFeishuCohortIDs(t *testing.T) {
 	for _, tc := range []struct {
 		input string
 		want  []uint64
 		bad   bool
 	}{
-		{input: "", want: nil},
-		{input: "全组", want: nil},
+		{input: "", bad: true},
+		{input: "全组", bad: true},
 		{input: "11, 12，11", want: []uint64{11, 12}},
 		{input: "11;12", want: []uint64{11, 12}},
 		{input: "11, zero", bad: true},
 		{input: "0", bad: true},
 	} {
-		got, err := parseFeishuRecipientIDs(tc.input)
+		got, err := parseFeishuCohortIDs(tc.input)
 		if (err != nil) != tc.bad {
 			t.Fatalf("parse(%q) err=%v, bad=%t", tc.input, err, tc.bad)
 		}
