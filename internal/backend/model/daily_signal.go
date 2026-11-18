@@ -41,7 +41,8 @@ func (date DailySignalDate) Value() (driver.Value, error) {
 	return string(date), nil
 }
 
-// DailySignal stores one private, voluntary signal per user and Beijing date.
+// DailySignal is retained only for the historical v14 database migration.
+// The daily-signal feature is retired; do not create new runtime endpoints.
 // The date is stored independently from the server/database timezone.
 type DailySignal struct {
 	ID         uint64          `json:"-" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
