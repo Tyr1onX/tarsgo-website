@@ -65,6 +65,7 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	router := gin.New()
 	handler := NewOperationsProgressHandler(db)
 	router.GET("/api/operations/progress", handler.List)
+	router.GET("/api/operations/progress/:id/updates", handler.History)
 	router.GET("/api/operations/works", handler.Works)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/operations/progress", nil))
@@ -72,10 +73,21 @@ func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 		t.Fatalf("unexpected HTTP %d: %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	for _, content := range []string{"内部备注不得公开", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
+	for _, content := range []string{"公开培训视频", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
 		if !strings.Contains(body, content) {
 			t.Errorf("workbench missing internal field %s", content)
 		}
+	}
+	// The overview only needs the latest progress. Older internal notes are
+	// retained in item history, not repeated in every overview payload.
+	if strings.Contains(body, "内部备注不得公开") {
+		t.Fatal("older internal note must not be expanded in the overview")
+	}
+	history := httptest.NewRecorder()
+	router.ServeHTTP(history, httptest.NewRequest(http.MethodGet,
+		fmt.Sprintf("/api/operations/progress/%d/updates", item.ID), nil))
+	if history.Code != http.StatusOK || !strings.Contains(history.Body.String(), "内部备注不得公开") {
+		t.Fatalf("historical internal note must remain retrievable: %d %s", history.Code, history.Body.String())
 	}
 	var wrapper struct {
 		Data struct {
