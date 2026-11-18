@@ -301,6 +301,8 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 72, apply: migrateOperationsProductionV72},
 		{version: 73, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsAccountSnapshot{}) }},
 		{version: 74, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.Assignment{}) }},
+		{version: 75, apply: func(db *gorm.DB) error { return db.AutoMigrate(&legacyAssignmentTargetArchiveV75{}) }},
+		{version: 76, apply: migrateLegacyAssignmentRecipientsV76},
 	}
 }
 
