@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills, summarizeTrainingScores, rankTrainingAssessment, sortGradebookMembers } from "./training-assessment-summary.ts";
+import { buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills, prepareTrainingSnapshot, summarizeTrainingScores, rankTrainingAssessment, sortGradebookMembers } from "./training-assessment-summary.ts";
 
 test("groups existing scores by assessment and distinguishes missing from zero", () => {
   const result = summarizeTrainingScores({
@@ -221,7 +221,7 @@ test("selecting one assessment paginates its ranking without changing the indivi
   assert.match(page, /rawSummaries\.map/);
   assert.match(page, /成绩排名/);
   assert.match(page, /const PAGE_SIZE = 20/);
-  assert.match(page, /setAssessmentKey\(event\.target\.value\); setShowAllMembers\(false\); setPage\(1\)/);
+  assert.match(page, /setAssessmentKey\(event\.target\.value\); setShowAllMembers\(true\); setPage\(1\)/);
   assert.match(page, /aria-label="成员范围"/);
   assert.match(page, /Math\.min\(page, totalPages\)/);
   assert.match(page, /visibleRows\.slice\(/);
@@ -253,4 +253,72 @@ test("training analysis no longer offers batch-grade imports", () => {
   assert.doesNotMatch(route, /批量成绩|同步成绩|未来版本？|parseTrainingGradeText/);
   assert.doesNotMatch(client, /importGrades/);
   assert.doesNotMatch(router, /training-assessments\/import/);
+});
+
+test("only members with historical scores or current submissions enter analysis", () => {
+  const snapshot = {
+    members: [1, 2, 3, 4, 5].map((userId) => ({ userId, name: String(userId) })),
+    grades: [
+      { id: 1, groupId: 4, assessmentName: "第一次培训作业", userId: 1, score: 80, note: "", updatedAt: "" },
+      { id: 2, groupId: 4, assessmentName: "第一次培训作业", userId: 2, score: null, note: "成绩待核实", updatedAt: "" },
+      { id: 3, groupId: 4, assessmentName: "第一次培训作业", userId: 4, score: 0, note: "", updatedAt: "" },
+    ],
+    assignmentGrades: [
+      { assignmentId: 8, assessmentName: "第三次作业", userId: 3, score: null, decision: null },
+    ],
+    assignments: [
+      { id: 8, title: "第三次作业", dueAt: "2026-11-01T00:00:00Z", isGroupWide: false, publicationStatus: "published" },
+      { id: 16, title: "轴系设计作业", dueAt: "2026-12-01T00:00:00Z", isGroupWide: false, publicationStatus: "published" },
+    ],
+    assignmentTargets: [1, 3, 4].map((userId) => ({ assignmentId: 8, userId })),
+    memberJoinedAt: [],
+    dimensions: [], ratings: [],
+  };
+  const prepared = prepareTrainingSnapshot(snapshot, new Date("2026-11-18T00:00:00Z"));
+  assert.deepEqual(prepared.members.map((member) => member.userId), [1, 3, 4]);
+  assert.deepEqual(snapshot.members.map((member) => member.userId), [1, 2, 3, 4, 5], "original roster is unchanged");
+  assert.equal(prepared.grades.find((grade) => grade.userId === 3).score, 0, "past offline assessment without a record is zero");
+  assert.equal(prepared.assignmentGrades.find((item) => item.userId === 3 && item.assignmentId === 8).score, null, "submitted but ungraded stays pending");
+  assert.equal(prepared.assignmentGrades.find((item) => item.userId === 1 && item.assignmentId === 8).overdueMissing, true);
+  assert.equal(prepared.assignmentGrades.find((item) => item.assignmentId === 16), undefined, "future work does not become zero");
+  const book = buildTrainingGradebook(prepared, 4);
+  assert.equal(book.members.length, 3);
+  assert.equal(book.members.find((member) => member.userId === 3).results.find((item) => item.key === "assignment:8").status, "pending");
+  assert.equal(book.members.find((member) => member.userId === 1).results.find((item) => item.key === "assignment:8").score, 0);
+  assert.equal(book.members.find((member) => member.userId === 1).results.find((item) => item.key === "assignment:8").note, "逾期未交");
+});
+
+test("late-joined members are not retroactively failed on group-wide assignments", () => {
+  const snapshot = {
+    members: [1, 2, 3].map((userId) => ({ userId, name: String(userId) })),
+    grades: [1, 2, 3].map((userId) => ({ id: userId, groupId: 4, assessmentName: "旧培训", userId, score: 80, note: "", updatedAt: "" })),
+    assignmentGrades: [],
+    assignments: [{ id: 8, title: "已截止作业", dueAt: "2026-11-01T00:00:00Z", isGroupWide: true, publicationStatus: "published" }],
+    assignmentTargets: [{ assignmentId: 8, userId: 3 }],
+    memberJoinedAt: [
+      { userId: 1, joinedAt: "2026-10-01T00:00:00Z" },
+      { userId: 2, joinedAt: "2026-11-10T00:00:00Z" },
+      { userId: 3, joinedAt: "2026-10-01T00:00:00Z" },
+    ],
+    dimensions: [], ratings: [],
+  };
+  const prepared = prepareTrainingSnapshot(snapshot, new Date("2026-11-18T00:00:00Z"));
+  assert.deepEqual(prepared.assignmentGrades.map((item) => item.userId), [1, 3]);
+  assert.equal(prepared.assignmentGrades[0].score, 0);
+});
+
+test("historical null scores stay ungraded instead of becoming invented zeros", () => {
+  const snapshot = {
+    members: [{ userId: 1, name: "甲" }, { userId: 2, name: "乙" }],
+    grades: [
+      { id: 1, groupId: 4, assessmentName: "旧培训", userId: 1, score: null, note: "待核实", updatedAt: "" },
+      { id: 2, groupId: 4, assessmentName: "旧培训", userId: 2, score: 90, note: "", updatedAt: "" },
+    ],
+    assignmentGrades: [{ assignmentId: 8, assessmentName: "新作业", userId: 1, score: null, decision: null }],
+    dimensions: [], ratings: [],
+  };
+  const prepared = prepareTrainingSnapshot(snapshot);
+  assert.deepEqual(prepared.members.map((member) => member.userId), [1, 2]);
+  assert.equal(prepared.grades[0].score, null);
+  assert.equal(prepared.assignmentGrades[0].score, null);
 });
