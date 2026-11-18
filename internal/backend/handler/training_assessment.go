@@ -41,6 +41,24 @@ type assignmentSubmissionGrade struct {
 	Decision       *string `json:"decision"`
 }
 
+type trainingAssessmentAssignment struct {
+	ID                uint64    `json:"id"`
+	Title             string    `json:"title"`
+	DueAt             time.Time `json:"dueAt"`
+	IsGroupWide       bool      `json:"isGroupWide"`
+	PublicationStatus string    `json:"publicationStatus"`
+}
+
+type trainingAssessmentTarget struct {
+	AssignmentID uint64 `json:"assignmentId"`
+	UserID       uint64 `json:"userId"`
+}
+
+type trainingMemberJoinedAt struct {
+	UserID   uint64    `json:"userId"`
+	JoinedAt time.Time `json:"joinedAt"`
+}
+
 func (h *TrainingAssessmentHandler) fail(c *gin.Context, err error) {
 	var serviceErr *assignment.ServiceError
 	if errors.As(err, &serviceErr) {
@@ -113,6 +131,49 @@ func (h *TrainingAssessmentHandler) Snapshot(c *gin.Context) {
 			return
 		}
 	}
+	// Keep the original scores untouched. Assignment deadlines and recipients
+	// let the gradebook derive overdue zeros only for members assigned the work.
+	var assignmentRows []model.Assignment
+	if err := db.Where("group_id = ?", groupID).Order("id ASC").Find(&assignmentRows).Error; err != nil {
+		h.fail(c, err)
+		return
+	}
+	assignments := make([]trainingAssessmentAssignment, 0, len(assignmentRows))
+	for _, item := range assignmentRows {
+		// Assignment due_at is stored as a UTC wall-clock DATETIME.
+		dueAt := time.Date(item.DueAt.Year(), item.DueAt.Month(), item.DueAt.Day(),
+			item.DueAt.Hour(), item.DueAt.Minute(), item.DueAt.Second(), item.DueAt.Nanosecond(), time.UTC)
+		assignments = append(assignments, trainingAssessmentAssignment{
+			ID: item.ID, Title: item.Title, DueAt: dueAt,
+			IsGroupWide: item.IsGroupWide, PublicationStatus: item.PublicationStatus,
+		})
+	}
+	var assignmentTargets []trainingAssessmentTarget
+	if err := db.Table("assignment_targets AS t").
+		Select("t.assignment_id, t.user_id").
+		Joins("JOIN assignments AS a ON a.id = t.assignment_id").
+		Where("a.group_id = ?", groupID).Scan(&assignmentTargets).Error; err != nil {
+		h.fail(c, err)
+		return
+	}
+	var memberJoinedAt []trainingMemberJoinedAt
+	if err := db.Table("user_group_members").
+		Select("user_id, joined_at").
+		Where("group_id = ?", groupID).Scan(&memberJoinedAt).Error; err != nil {
+		h.fail(c, err)
+		return
+	}
+	for i := range memberJoinedAt {
+		date := memberJoinedAt[i].JoinedAt
+		memberJoinedAt[i].JoinedAt = time.Date(date.Year(), date.Month(), date.Day(),
+			date.Hour(), date.Minute(), date.Second(), date.Nanosecond(), time.UTC)
+	}
+	if assignmentTargets == nil {
+		assignmentTargets = []trainingAssessmentTarget{}
+	}
+	if memberJoinedAt == nil {
+		memberJoinedAt = []trainingMemberJoinedAt{}
+	}
 	if grades == nil {
 		grades = []model.TrainingGrade{}
 	}
@@ -125,7 +186,7 @@ func (h *TrainingAssessmentHandler) Snapshot(c *gin.Context) {
 	if ratings == nil {
 		ratings = []model.CapabilityRating{}
 	}
-	writeAPI(c, http.StatusOK, "读取培训成绩与能力评价成功", gin.H{"members": members, "grades": grades, "assignmentGrades": assignmentGrades, "dimensions": dimensions, "ratings": ratings})
+	writeAPI(c, http.StatusOK, "读取培训成绩与能力评价成功", gin.H{"members": members, "grades": grades, "assignmentGrades": assignmentGrades, "assignments": assignments, "assignmentTargets": assignmentTargets, "memberJoinedAt": memberJoinedAt, "dimensions": dimensions, "ratings": ratings})
 }
 
 func (h *TrainingAssessmentHandler) AddDimension(c *gin.Context) {

@@ -21,6 +21,7 @@ export interface AssignmentSubmissionGrade {
   userId: number;
   score: number | null;
   decision: "passed" | "needs_redo" | null;
+  overdueMissing?: boolean;
 }
 
 export interface CapabilityDimension {
@@ -38,10 +39,31 @@ export interface CapabilityRating {
   updatedAt: string;
 }
 
+export interface TrainingAssignment {
+  id: number;
+  title: string;
+  dueAt: string;
+  isGroupWide: boolean;
+  publicationStatus: "published" | "withdrawn";
+}
+
+export interface TrainingAssignmentTarget {
+  assignmentId: number;
+  userId: number;
+}
+
+export interface TrainingMemberJoinedAt {
+  userId: number;
+  joinedAt: string;
+}
+
 export interface TrainingSnapshot {
   members: TrainingMember[];
   grades: TrainingGrade[];
   assignmentGrades: AssignmentSubmissionGrade[];
+  assignments?: TrainingAssignment[];
+  assignmentTargets?: TrainingAssignmentTarget[];
+  memberJoinedAt?: TrainingMemberJoinedAt[];
   dimensions: CapabilityDimension[];
   ratings: CapabilityRating[];
 }

@@ -8,7 +8,7 @@ import {
   trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
-import { MECHANICAL_TRAINING_GROUP_ID, buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills } from "~/lib/training-assessment-summary";
+import { MECHANICAL_TRAINING_GROUP_ID, buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills, prepareTrainingSnapshot } from "~/lib/training-assessment-summary";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
@@ -101,7 +101,7 @@ export default function TrainingAssessmentRoute() {
   const [memberId, setMemberId] = useState(0);
   const [memberQuery, setMemberQuery] = useState("");
   const [assessmentKey, setAssessmentKey] = useState("");
-  const [showAllMembers, setShowAllMembers] = useState(false);
+  const [showAllMembers, setShowAllMembers] = useState(true);
   const [page, setPage] = useState(1);
   const [draftRatings, setDraftRatings] = useState<Record<number, CapabilityRatingInput>>({});
   const [dimensionName, setDimensionName] = useState("");
@@ -114,7 +114,7 @@ export default function TrainingAssessmentRoute() {
   }, [assignmentGroups]);
 
   useEffect(() => {
-    setShowAllMembers(false);
+    setShowAllMembers(true);
     setPage(1);
     if (!groupId) { setSnapshot(null); return; }
     let active = true;
@@ -128,7 +128,8 @@ export default function TrainingAssessmentRoute() {
     return () => { active = false; };
   }, [groupId, currentUser.id]);
 
-  const gradebook = useMemo(() => snapshot ? buildTrainingGradebook(snapshot, groupId) : { assessments: [], members: [] }, [snapshot, groupId]);
+  const trainingSnapshot = useMemo(() => snapshot ? prepareTrainingSnapshot(snapshot) : null, [snapshot]);
+  const gradebook = useMemo(() => trainingSnapshot ? buildTrainingGradebook(trainingSnapshot, groupId) : { assessments: [], members: [] }, [trainingSnapshot, groupId]);
   const summaries = gradebook.assessments;
   const rawSummaries = summaries.filter((item) => item.source === "training" || item.source === "assignment");
   const selectedMember = gradebook.members.find((member) => member.userId === memberId);
@@ -177,8 +178,8 @@ export default function TrainingAssessmentRoute() {
   ));
   const radarScores = savedRatings.map((rating) => rating?.score ?? null);
   const radarReady = dimensions.length >= 3 && radarScores.some((score) => score !== null);
-  const trainingSkills = useMemo(() => groupId === MECHANICAL_TRAINING_GROUP_ID && snapshot && selectedMemberId
-    ? mechanicalTrainingSkills(snapshot, selectedMemberId) : [], [groupId, snapshot, selectedMemberId]);
+  const trainingSkills = useMemo(() => groupId === MECHANICAL_TRAINING_GROUP_ID && trainingSnapshot && selectedMemberId
+    ? mechanicalTrainingSkills(trainingSnapshot, selectedMemberId) : [], [groupId, trainingSnapshot, selectedMemberId]);
 
   async function refresh() {
     setSnapshot(await trainingAssessmentClient.snapshot(groupId));
@@ -348,7 +349,7 @@ export default function TrainingAssessmentRoute() {
               {selectedAssessment ? <label className="block w-full min-w-0 sm:w-72">
                 <span className="sr-only">选择考核</span>
                 <select className="admin-field" value={selectedAssessment.key}
-                  onChange={(event) => { setAssessmentKey(event.target.value); setShowAllMembers(false); setPage(1); }}>
+                  onChange={(event) => { setAssessmentKey(event.target.value); setShowAllMembers(true); setPage(1); }}>
                   {groupId === MECHANICAL_TRAINING_GROUP_ID ? <optgroup label="综合与能力维度">
                     {summaries.filter((item) => item.source === "overall" || item.source === "skill").map((item) =>
                       <option key={item.key} value={item.key}>{item.name}</option>)}
@@ -386,7 +387,7 @@ export default function TrainingAssessmentRoute() {
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <div className="inline-flex shrink-0 gap-1 rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-1" role="group" aria-label="成员范围">
-                  {([{ value: false, label: selectedAssessment?.source === "assignment" ? "已提交" : selectedAssessment?.source === "training" ? "有成绩" : "有排名" }, { value: true, label: "全部成员" }] as const)
+                  {([{ value: false, label: selectedAssessment?.source === "assignment" ? "已提交或计分" : selectedAssessment?.source === "training" ? "有成绩" : "有排名" }, { value: true, label: "本期参训" }] as const)
                     .map((option) => <button key={String(option.value)} type="button" aria-pressed={showAllMembers === option.value}
                       className={"rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 " + (showAllMembers === option.value
                         ? "bg-[var(--admin-surface)] text-[var(--admin-text)] shadow-sm"

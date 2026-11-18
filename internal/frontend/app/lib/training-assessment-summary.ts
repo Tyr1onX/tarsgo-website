@@ -1,5 +1,56 @@
 import type { TrainingSnapshot } from "./training-assessment-client";
 
+// Derive the current participants from existing evidence, not group membership.
+// Historical grade imports have finished; absent historical rows count as zero.
+// A submitted but ungraded online assignment stays pending, never zero.
+export function prepareTrainingSnapshot(snapshot: TrainingSnapshot, now = new Date()): TrainingSnapshot {
+  const currentIDs = new Set(snapshot.members.map((member) => member.userId));
+  const participantIDs = new Set<number>();
+  for (const grade of snapshot.grades) {
+    if (grade.score !== null && currentIDs.has(grade.userId)) participantIDs.add(grade.userId);
+  }
+  for (const submission of snapshot.assignmentGrades) {
+    if (currentIDs.has(submission.userId)) participantIDs.add(submission.userId);
+  }
+
+  const members = snapshot.members.filter((member) => participantIDs.has(member.userId));
+  const grades = snapshot.grades.filter((item) => participantIDs.has(item.userId));
+  const assignmentGrades = snapshot.assignmentGrades.filter((item) => participantIDs.has(item.userId));
+  const historyNames = new Set(snapshot.grades.map((item) => item.assessmentName));
+  const recordedHistory = new Set(grades.map((item) => item.userId + ":" + item.assessmentName));
+  for (const member of members) {
+    for (const assessmentName of historyNames) {
+      if (recordedHistory.has(member.userId + ":" + assessmentName)) continue;
+      grades.push({
+        id: 0, groupId: 0, assessmentName, userId: member.userId,
+        score: 0, note: "历史考核未交", updatedAt: "",
+      });
+    }
+  }
+
+  const submitted = new Set(assignmentGrades.map((item) => item.assignmentId + ":" + item.userId));
+  const targetKeys = new Set((snapshot.assignmentTargets ?? []).map((item) => item.assignmentId + ":" + item.userId));
+  const joinedAt = new Map((snapshot.memberJoinedAt ?? []).map((item) => [item.userId, new Date(item.joinedAt).getTime()]));
+  for (const assignment of snapshot.assignments ?? []) {
+    if (assignment.publicationStatus !== "published") continue;
+    const due = new Date(assignment.dueAt).getTime();
+    if (!Number.isFinite(due) || now.getTime() <= due) continue;
+    for (const member of members) {
+      const key = assignment.id + ":" + member.userId;
+      if (submitted.has(key)) continue;
+      const joined = joinedAt.get(member.userId);
+      const required = targetKeys.has(key) ||
+        (assignment.isGroupWide && joined !== undefined && joined <= due);
+      if (!required) continue;
+      assignmentGrades.push({
+        assignmentId: assignment.id, assessmentName: assignment.title,
+        userId: member.userId, score: 0, decision: null, overdueMissing: true,
+      });
+    }
+  }
+  return { ...snapshot, members, grades, assignmentGrades };
+}
+
 export interface TrainingScoreSummary {
   key: string;
   name: string;
@@ -93,7 +144,7 @@ export function rankTrainingAssessment(snapshot: TrainingSnapshot, key: string):
       .map((grade) => ({ userId: grade.userId, score: grade.score, note: grade.note }))
     : snapshot.assignmentGrades
       .filter((grade) => "assignment:" + grade.assignmentId === key)
-      .map((grade) => ({ userId: grade.userId, score: grade.score, note: "" }));
+      .map((grade) => ({ userId: grade.userId, score: grade.score, note: grade.overdueMissing ? "逾期未交" : "" }));
 
   const sorted = entries
     .filter((entry) => names.has(entry.userId))
