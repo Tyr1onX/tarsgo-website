@@ -113,7 +113,7 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 	for column, name := range header {
 		columns[name] = column
 	}
-	for _, name := range []string{"作品名称", "发布时间", "审核状态", "播放量"} {
+	for _, name := range []string{"作品名称", "发布时间", "体裁", "审核状态", "播放量", "点赞量", "评论量", "分享量", "收藏量", "主页访问量", "粉丝增量"} {
 		if columns[name] == "" {
 			return nil, errors.New("请选择抖音创作者中心导出的作品列表")
 		}
@@ -149,10 +149,44 @@ func parseDouyinExport(file io.ReaderAt, size int64, now time.Time) ([]model.Ope
 			return nil, errors.New("作品发布日期重复，无法区分作品")
 		}
 		seen[externalID] = true
-		posts = append(posts, model.OperationsPlatformPost{
+		mediaType := "video"
+		if strings.TrimSpace(row[columns["体裁"]]) == "图文" {
+			mediaType = "image"
+		}
+		post := model.OperationsPlatformPost{
 			Platform: "douyin", ExternalID: externalID, Title: title,
-			PublishedAt: published.UTC(), ViewCount: views, SyncedAt: now.UTC(),
-		})
+			PublishedAt: published.UTC(), ViewCount: views, MediaType: mediaType, SyncedAt: now.UTC(),
+		}
+		for _, metric := range []struct {
+			name   string
+			target *int64
+		}{
+			{"点赞量", &post.LikeCount}, {"评论量", &post.CommentCount},
+			{"分享量", &post.ShareCount}, {"收藏量", &post.FavoriteCount},
+		} {
+			n, err := strconv.ParseInt(strings.TrimSpace(row[columns[metric.name]]), 10, 64)
+			if err != nil || n < 0 {
+				return nil, fmt.Errorf("%s格式不正确", metric.name)
+			}
+			*metric.target = n
+		}
+		for _, metric := range []struct {
+			name   string
+			target **int64
+		}{
+			{"主页访问量", &post.ProfileVisits}, {"粉丝增量", &post.FollowerGain},
+		} {
+			raw := strings.TrimSpace(row[columns[metric.name]])
+			if raw == "-" || raw == "" {
+				continue
+			}
+			n, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || n < 0 {
+				return nil, fmt.Errorf("%s格式不正确", metric.name)
+			}
+			*metric.target = &n
+		}
+		posts = append(posts, post)
 	}
 	if len(posts) == 0 {
 		return nil, errors.New("作品表没有公开作品")
@@ -183,10 +217,11 @@ func (h *OperationsProgressHandler) ImportDouyin(c *gin.Context) {
 	}
 	if err := h.db.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "platform"}, {Name: "external_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"title", "view_count", "synced_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"title", "view_count", "media_type", "like_count", "comment_count", "share_count", "favorite_count", "profile_visits", "follower_gain", "synced_at"}),
 	}).CreateInBatches(posts, 100).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "作品数据保存失败")
 		return
 	}
 	writeAPI(c, http.StatusOK, "作品数据已更新", gin.H{"count": len(posts)})
 }
+

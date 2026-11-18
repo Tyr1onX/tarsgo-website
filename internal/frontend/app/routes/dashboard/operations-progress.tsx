@@ -75,6 +75,8 @@ export default function OperationsProgressPage() {
   const [showDone, setShowDone] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "mine" | "blocked">("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [postFilter, setPostFilter] = useState("all");
+  const [showAllPosts, setShowAllPosts] = useState(false);
   const load = useCallback(async () => {
     try {
       const result = await getOperationsBoard();
@@ -102,6 +104,7 @@ export default function OperationsProgressPage() {
   const blockedCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "blocked").length;
   const doneCount = (board?.items ?? []).filter((item) => item.status === "done").length;
   const itemNames = new Map((board?.items ?? []).map((item) => [item.id, item.title]));
+  const historyPosts = (board?.posts ?? []).filter((post) => postFilter === "all" || post.platform === postFilter);
 
   return <main className="operations-progress admin-design" aria-labelledby="operations-progress-title" aria-busy={loading && !board}>
     <header className="operations-progress__header">
@@ -196,16 +199,27 @@ export default function OperationsProgressPage() {
             {douyinSync?.enabled ? douyinSync.connected
               ? <span className="operations-progress__muted">抖音自动同步已连接</span>
               : <Link to="/api/operations/douyin/authorize" reloadDocument>连接抖音自动同步</Link> : null}
+            <select aria-label="筛选历史发布平台" value={postFilter} onChange={(event) => { setPostFilter(event.target.value); setShowAllPosts(false); }}>
+              <option value="all">全部平台</option><option value="douyin">抖音</option>
+              <option value="bilibili">B站</option><option value="wechat">公众号</option>
+            </select>
             {board.canManage ? <Link to="/dashboard/workbench/operations/douyin/import">导入抖音作品</Link> : null}
           </div>
         </div>
         {board.posts.some((post) => post.platform === "wechat") ? <p className="operations-progress__muted">公众号阅读数据核实于 2026-11-18</p> : null}
-        {board.posts.length ? <ol>{board.posts.slice(0, 10).map((post) => <li key={`${post.platform}:${post.externalId}`}>
+        {historyPosts.length ? <ol>{(showAllPosts ? historyPosts : historyPosts.slice(0, 10)).map((post) => <li key={`${post.platform}:${post.externalId}`}>
           {post.url ? <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a> : <strong>{post.title}</strong>}
           <span>{({ douyin: "抖音", bilibili: "B站", wechat: "公众号" } as Record<string, string>)[post.platform] || post.platform} · {post.platform === "wechat"
             ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
-            : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : "播放"}</span>
+            : formatOperationsDate(post.publishedAt)} · {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "人阅读" : post.mediaType === "image" ? "浏览" : "播放"}
+            {post.platform === "douyin" && post.mediaType ? ` · ${post.likeCount} 赞 · ${post.commentCount} 评论 · ${post.shareCount} 分享 · ${post.favoriteCount} 收藏` : ""}
+            {post.platform === "douyin" && post.profileVisits !== null ? ` · 主页访问 ${post.profileVisits}` : ""}
+            {post.platform === "douyin" && post.followerGain !== null ? ` · 吸粉 ${post.followerGain}` : ""}
+          </span>
         </li>)}</ol> : <p className="operations-progress__muted">暂无发布记录</p>}
+        {historyPosts.length > 10 ? <button type="button" className="admin-button admin-button--secondary" onClick={() => setShowAllPosts((value) => !value)}>
+          {showAllPosts ? "收起历史" : `查看全部 ${historyPosts.length} 条`}
+        </button> : null}
       </section>
       {board.updates.length > 0 ? <section className="operations-progress__feed" aria-labelledby="operations-progress-feed-title">
         <h2 id="operations-progress-feed-title">最近动态</h2>

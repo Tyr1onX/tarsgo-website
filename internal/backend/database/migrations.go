@@ -296,6 +296,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 67, apply: migrateOperationsStepsV67},
 		{version: 68, apply: migrateWeChatOperationsV68},
 		{version: 69, apply: migrateDouyinOperationsV69},
+		{version: 70, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsPlatformPost{}) }},
 	}
 }
 
@@ -682,3 +683,4 @@ func RunMigrations(ctx context.Context, db *gorm.DB, appEnv string) error {
 	}
 	return nil
 }
+
