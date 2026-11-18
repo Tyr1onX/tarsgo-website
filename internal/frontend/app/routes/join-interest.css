@@ -1,0 +1,112 @@
+.join-interest {
+  min-height: 72vh;
+  padding: calc(var(--site-nav-height, 68px) + 3rem) 0 5rem;
+}
+
+.join-interest__header,
+.join-interest__form,
+.join-interest__next {
+  width: min(100%, 42rem);
+  margin-inline: auto;
+}
+
+.join-interest__back {
+  color: var(--theme-muted);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.join-interest__header h1 {
+  margin: 1.5rem 0 0.7rem;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+
+.join-interest__header p,
+.join-interest__next {
+  color: var(--theme-muted);
+  line-height: 1.7;
+  font-size: 0.88rem;
+}
+
+.join-interest__form {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2rem;
+  padding: clamp(1.25rem, 3.5vw, 2.2rem);
+  border: 1px solid var(--theme-border-subtle);
+  background: var(--theme-surface);
+}
+
+.join-interest__form label {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.join-interest__form input,
+.join-interest__form textarea,
+.join-interest__form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--theme-border-subtle);
+  border-radius: 0;
+  background: var(--theme-canvas);
+  color: var(--theme-text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.join-interest__form textarea {
+  resize: vertical;
+}
+
+.join-interest__form :is(input, textarea, select):focus-visible {
+  outline: 2px solid var(--theme-accent-contrast);
+  outline-offset: 2px;
+}
+
+.join-interest__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.join-interest__actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.join-interest__withdraw {
+  border: 0;
+  background: transparent;
+  color: var(--theme-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.join-interest__saved,
+.join-interest__success {
+  color: var(--theme-accent-contrast);
+  font-size: 0.88rem;
+}
+
+.join-interest__error {
+  color: #cd4b4b;
+  font-size: 0.88rem;
+}
+
+.join-interest__next {
+  margin-top: 1.2rem;
+}
+
+.join-interest__next a {
+  margin-left: 0.25rem;
+  color: var(--theme-text);
+  text-decoration: underline;
+}

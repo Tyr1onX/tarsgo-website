@@ -304,6 +304,9 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 75, apply: func(db *gorm.DB) error { return db.AutoMigrate(&legacyAssignmentTargetArchiveV75{}) }},
 		{version: 76, apply: migrateLegacyAssignmentRecipientsV76},
 		{version: 77, apply: auditLegacyAssignmentCohortsV77},
+		{version: 78, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.JoinInterest{})
+		}},
 	}
 }
 
