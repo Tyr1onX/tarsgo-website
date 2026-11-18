@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"tarsgo-backend/middleware"
 	"tarsgo-backend/service/privatefile"
 )
 
@@ -97,6 +98,12 @@ func (h *TrainingDocumentHandler) Save(c *gin.Context) {
 		}
 	}
 
+	user, hasSession := middleware.CurrentSessionUser(c)
+	if !hasSession || user == nil || user.ID == 0 {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
 	saved := make([]string, 0, len(files))
 	committed := false
 	defer func() {
@@ -107,7 +114,7 @@ func (h *TrainingDocumentHandler) Save(c *gin.Context) {
 		}
 	}()
 	for i, file := range files {
-		stored, err := h.files.Save(c.Request.Context(), scopeID, uint64(i+1), privatefile.Upload{
+		stored, err := h.files.Save(c.Request.Context(), scopeID, user.ID, privatefile.Upload{
 			Header: file, FileName: file.Filename,
 		})
 		if err != nil {
