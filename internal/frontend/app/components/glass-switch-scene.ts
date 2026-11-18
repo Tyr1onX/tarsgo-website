@@ -157,8 +157,10 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.save();
-    ctx.setTransform(width / 350, 0, 0, height / 190, 0, 0);
-    ctx.translate(-45, -43);
+    // Keep the original track size, but render the shadow into an overscanned
+    // transparent canvas so the blur fades out before reaching bitmap edges.
+    ctx.setTransform(width / 420, 0, 0, height / 260, 0, 0);
+    ctx.translate(-10, -10);
 
     // Recessed track: cast shadow, inner cavity, and a thin ambient rim.
     ctx.save();
