@@ -31,6 +31,7 @@ export default [
     route("workbench/operations/channels/:channelId/new", "routes/dashboard/operations-episode-new.tsx"),
     route("workbench/operations/episodes/:itemId/setup", "routes/dashboard/operations-episode-setup.tsx"),
     route("workbench/operations/douyin/import", "routes/dashboard/operations-douyin-import.tsx"),
+    route("workbench/operations/wechat/import", "routes/dashboard/operations-wechat-import.tsx"),
     route("workbench/operations/:itemId/steps/:stepId", "routes/dashboard/operations-step-detail.tsx"),
     route("workbench/operations/:itemId/steps/:stepId/status", "routes/dashboard/operations-step-status.tsx"),
     route("updates", "routes/dashboard/updates.tsx"),

@@ -114,6 +114,12 @@ export function importDouyinFans(file: File) {
   return apiRequest<{ count: number }>("/api/operations/douyin/fans/import", { method: "POST", body });
 }
 
+export function importWeChatFollowers(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return apiRequest<{ count: number; first: string; last: string }>("/api/operations/wechat/import", { method: "POST", body });
+}
+
 export function saveOperationsStep(itemId: number, stepId: number, changes: { status: OperationsStepStatus; blockReason?: string; note?: string; evidenceUrl?: string }) {
   return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, {
     method: "PATCH", body: changes,
