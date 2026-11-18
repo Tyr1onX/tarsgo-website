@@ -103,3 +103,19 @@ test("platform cards prioritize current production then the real latest publishe
   assert.match(css, /align-items: start/);
   assert.match(css, /operations-progress__last-post-title/);
 });
+
+test("operations role shortcut maps unique real member accounts without assigning publication", async () => {
+  const editor = await read("../routes/dashboard/operations-episode-setup.tsx");
+  assert.match(editor, /planning: "马鹤铭"/);
+  assert.match(editor, /materials: "安博"/);
+  assert.match(editor, /editing: "王钰涵"/);
+  assert.match(editor, /member\.name\.trim\(\) === roles\[step\.key\]/);
+  assert.match(editor, /matches\.length === 1/);
+  assert.match(editor, /board\.viewerId/);
+  assert.match(editor, /step\.key === "review"/);
+  assert.match(editor, /step\.key === "published"/);
+  assert.match(editor, /next\[step\.id\] = 0/);
+  assert.match(editor, /套用分工（由我审核）/);
+  assert.match(editor, /setUnmatched\(missing\)/);
+  assert.match(editor, /await setupOperationsEpisode\(/);
+});
