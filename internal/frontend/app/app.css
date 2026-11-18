@@ -2230,7 +2230,6 @@ html[data-theme-transition] body *::after {
 }
 
 @media (max-width: 639px) {
-  .theme-lab-switch { width: 82px; height: 36px; }
   .navbar-profile-button { padding: 0.3rem; }
   .navbar-profile-button > .navbar-profile-identity,
   .navbar-profile-button > svg { display: none; }
