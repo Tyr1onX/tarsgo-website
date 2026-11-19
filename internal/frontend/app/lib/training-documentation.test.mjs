@@ -61,9 +61,39 @@ test("document layout still allows independent left and right collapse", async (
   assert.match(page, /setRightContentsOpen\(\(open\) => !open\)/);
   assert.match(page, /<TrainingDocumentTree/);
   assert.match(page, /rightContentsOpen \? sections\.map/);
-  assert.match(stylesheet, /\.training-docs__layout\.is-left-collapsed\s*\{\s*--training-nav-width: 40px;/);
-  assert.match(stylesheet, /\.training-docs__layout\.is-right-collapsed\s*\{\s*--training-toc-width: 40px;/);
+  assert.match(stylesheet, /\.training-docs__layout\.is-left-collapsed\s*\{\s*--training-nav-width: 44px;/);
+  assert.match(stylesheet, /\.training-docs__layout\.is-right-collapsed\s*\{\s*--training-toc-width: 44px;/);
   assert.match(stylesheet, /grid-template-columns: var\(--training-nav-width\) minmax\(0, 1fr\) var\(--training-toc-width\)/);
   assert.match(stylesheet, /@media \(max-width: 720px\)/);
   assert.match(stylesheet, /\.training-docs__sidebar \{ display: none; \}/);
+});
+
+test("document sidebar keeps its instance and scroll position when collapsed", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const tree = await read("../components/training-document-tree.tsx");
+  const css = await read("../routes/dashboard/training-materials.css");
+  assert.match(page, /className="training-docs__sidebar-body" aria-hidden=\{!leftNavigationOpen\} inert=\{!leftNavigationOpen\}/);
+  assert.doesNotMatch(page, /leftNavigationOpen \? <TrainingDocumentTree/);
+  assert.match(page, /<TrainingDocumentTree/);
+  assert.match(css, /\.training-docs__sidebar-body \{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: stable;/);
+  assert.match(css, /\.training-docs__layout\.is-left-collapsed \.training-docs__sidebar-body \{ visibility: hidden; pointer-events: none; \}/);
+  assert.match(css, /\.training-docs__sidebar-control \{ position: absolute; top: 0;/);
+  assert.match(css, /\.training-tree__toolbar \{ position: absolute; top: 0;/);
+  assert.doesNotMatch(css, /\.training-docs__sidebar, \.training-docs__toc \{[^}]*overflow-y: auto;/);
+  assert.match(tree, /title=\{node\.title\}/);
+});
+
+test("reader reuses visited document bodies and avoids redundant helper text", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const css = await read("../routes/dashboard/training-materials.css");
+  assert.match(page, /\[documentCache, setDocumentCache\] = useState<Record<string, \{ body: string; error\?: string \}>>\(\{\}\)/);
+  assert.match(page, /if \(!documentSlug \|\| documentCache\[documentSlug\]\) return;/);
+  assert.match(page, /setDocumentCache\(\(cache\) => \(\{ \.\.\.cache, \[documentSlug\]: \{ body \} \}\)\)/);
+  assert.match(page, /setDocumentCache\(\(cache\) => \(\{ \.\.\.cache, \[selectedDocument\.id\]: \{ body: saved\.body \} \}\)\)/);
+  assert.match(page, /documentRecord\.error/);
+  assert.match(page, /training-docs__placeholder/);
+  assert.doesNotMatch(page, /面向本届纳新同学|training-docs__breadcrumb|资料原文保留/);
+  assert.doesNotMatch(css, /max-width: 780px|training-docs__breadcrumb|training-docs__original-label/);
+  assert.match(css, /\.training-docs__article \{[^}]*max-width: 800px;[^}]*margin-inline: auto;/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
 });

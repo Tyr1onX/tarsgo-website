@@ -143,7 +143,6 @@ export function TrainingDocumentTree({
 
   return <nav aria-label="培训文档目录" className="training-tree">
     <div className="training-tree__toolbar">
-      <span>文档目录</span>
       {canEdit ? <div className="training-tree__tools">
         <button type="button" aria-label="新增根级模块或文档" title="新增" onClick={() => setMenu(menu === "root" ? null : "root")}>＋</button>
       </div> : null}
@@ -164,8 +163,8 @@ export function TrainingDocumentTree({
             aria-expanded={expanded.has(node.id)} onClick={() => toggle(node.id)}>{expanded.has(node.id) ? "⌄" : "›"}</button>
             : <span className="training-tree__chevron" aria-hidden="true" />}
           {node.kind === "folder"
-            ? <button type="button" className="training-tree__title is-folder" onClick={() => toggle(node.id)}>{node.title}</button>
-            : <Link className="training-tree__title" to={trainingNodeHref(node)}
+            ? <button type="button" className="training-tree__title is-folder" title={node.title} onClick={() => toggle(node.id)}>{node.title}</button>
+            : <Link className="training-tree__title" title={node.title} to={trainingNodeHref(node)}
               aria-current={current ? "page" : undefined}
               onClick={(event) => { if (!canNavigate()) event.preventDefault(); }}>{node.title}</Link>}
           {canEdit ? <div className="training-tree__tools">
