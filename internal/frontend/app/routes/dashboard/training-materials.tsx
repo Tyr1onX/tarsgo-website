@@ -16,6 +16,33 @@ import pathMechanicalMarkdown from "~/content/training/path-mechanical.md?raw";
 import pathJointMarkdown from "~/content/training/path-joint.md?raw";
 import pathVisionMarkdown from "~/content/training/path-vision.md?raw";
 import pathAiMarkdown from "~/content/training/path-ai.md?raw";
+import termCMarkdown from "~/content/training/concepts/term-c.md?raw";
+import termStm32Markdown from "~/content/training/concepts/term-stm32.md?raw";
+import termPeripheralsMarkdown from "~/content/training/concepts/term-peripherals.md?raw";
+import termBusMarkdown from "~/content/training/concepts/term-bus.md?raw";
+import termPidMarkdown from "~/content/training/concepts/term-pid.md?raw";
+import termRtosMarkdown from "~/content/training/concepts/term-rtos.md?raw";
+import termPcbMarkdown from "~/content/training/concepts/term-pcb.md?raw";
+import termPowerMarkdown from "~/content/training/concepts/term-power.md?raw";
+import termBringupMarkdown from "~/content/training/concepts/term-bringup.md?raw";
+import termCadMarkdown from "~/content/training/concepts/term-cad.md?raw";
+import termMechanismMarkdown from "~/content/training/concepts/term-mechanism.md?raw";
+import termMaterialsMarkdown from "~/content/training/concepts/term-materials.md?raw";
+import termFeaMarkdown from "~/content/training/concepts/term-fea.md?raw";
+import termLinuxMarkdown from "~/content/training/concepts/term-linux.md?raw";
+import termPythonMarkdown from "~/content/training/concepts/term-python.md?raw";
+import termCppMarkdown from "~/content/training/concepts/term-cpp.md?raw";
+import termOpencvMarkdown from "~/content/training/concepts/term-opencv.md?raw";
+import termNeuralMarkdown from "~/content/training/concepts/term-neural.md?raw";
+import termConcurrencyMarkdown from "~/content/training/concepts/term-concurrency.md?raw";
+import termFilterMarkdown from "~/content/training/concepts/term-filter.md?raw";
+import termRos2Markdown from "~/content/training/concepts/term-ros2.md?raw";
+import termOdometryMarkdown from "~/content/training/concepts/term-odometry.md?raw";
+import termNavigationMarkdown from "~/content/training/concepts/term-navigation.md?raw";
+import termEstimationMarkdown from "~/content/training/concepts/term-estimation.md?raw";
+import termDecisionMarkdown from "~/content/training/concepts/term-decision.md?raw";
+import termPointcloudMarkdown from "~/content/training/concepts/term-pointcloud.md?raw";
+import termEngineeringMarkdown from "~/content/training/concepts/term-engineering.md?raw";
 import "./training-materials.css";
 
 export function meta() {
@@ -228,6 +255,33 @@ const defaultMarkdown: Record<string, string> = {
   "path-joint": pathJointMarkdown,
   "path-vision": pathVisionMarkdown,
   "path-ai": pathAiMarkdown,
+  "term-c": termCMarkdown,
+  "term-stm32": termStm32Markdown,
+  "term-peripherals": termPeripheralsMarkdown,
+  "term-bus": termBusMarkdown,
+  "term-pid": termPidMarkdown,
+  "term-rtos": termRtosMarkdown,
+  "term-pcb": termPcbMarkdown,
+  "term-power": termPowerMarkdown,
+  "term-bringup": termBringupMarkdown,
+  "term-cad": termCadMarkdown,
+  "term-mechanism": termMechanismMarkdown,
+  "term-materials": termMaterialsMarkdown,
+  "term-fea": termFeaMarkdown,
+  "term-linux": termLinuxMarkdown,
+  "term-python": termPythonMarkdown,
+  "term-cpp": termCppMarkdown,
+  "term-opencv": termOpencvMarkdown,
+  "term-neural": termNeuralMarkdown,
+  "term-concurrency": termConcurrencyMarkdown,
+  "term-filter": termFilterMarkdown,
+  "term-ros2": termRos2Markdown,
+  "term-odometry": termOdometryMarkdown,
+  "term-navigation": termNavigationMarkdown,
+  "term-estimation": termEstimationMarkdown,
+  "term-decision": termDecisionMarkdown,
+  "term-pointcloud": termPointcloudMarkdown,
+  "term-engineering": termEngineeringMarkdown,
 };
 
 function headingId(title: string) {
@@ -259,6 +313,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
 }
 
 function DocumentationArticle({ source, title }: { source: string; title: string }) {
+  const articleTitle = source.match(/^# ([^\n]+)(?:\n|$)/)?.[1] ?? title;
   const components: Components = {
     h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
     h3: ({ children }) => <h3 id={headingId(String(children))}>{children}</h3>,
@@ -278,7 +333,7 @@ function DocumentationArticle({ source, title }: { source: string; title: string
   };
 
   return <div className="training-docs__markdown">
-    <h1>{title}</h1>
+    <h1>{articleTitle}</h1>
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{source.replace(/^# [^\n]*(?:\n|$)/, "")}</ReactMarkdown>
   </div>;
 }
