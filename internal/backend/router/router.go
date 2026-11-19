@@ -438,6 +438,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.POST("/operations/douyin/import", operationsProgressHandler.ImportDouyin)
 	workbenchAPI.POST("/operations/douyin/fans/import", operationsProgressHandler.ImportDouyinFans)
 	workbenchAPI.POST("/operations/wechat/import", operationsProgressHandler.ImportWeChatFollowers)
+	workbenchAPI.POST("/operations/wechat-video/import", operationsProgressHandler.ImportWeChatVideoFollowers)
 	workbenchAPI.GET("/operations/douyin/status", operationsDouyinHandler.Status)
 	workbenchAPI.GET("/operations/douyin/authorize", operationsDouyinHandler.Authorize)
 	workbenchAPI.GET("/operations/douyin/callback", operationsDouyinHandler.Callback)
