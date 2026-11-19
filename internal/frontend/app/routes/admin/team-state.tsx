@@ -1,4 +1,16 @@
 import { useEffect, useState } from "react";
+import { Icon } from "@iconify/react";
+import type { IconifyIcon } from "@iconify/react";
+import cpu from "@iconify-icons/lucide/cpu";
+import megaphone from "@iconify-icons/lucide/megaphone";
+import users from "@iconify-icons/lucide/users";
+import targetIcon from "@iconify-icons/lucide/target";
+import checkCircle from "@iconify-icons/lucide/check-circle-2";
+import xCircle from "@iconify-icons/lucide/x-circle";
+import clockIcon from "@iconify-icons/lucide/clock-3";
+import helpCircle from "@iconify-icons/lucide/help-circle";
+import chevronRight from "@iconify-icons/lucide/chevron-right";
+import arrowLeft from "@iconify-icons/lucide/arrow-left";
 import { useOutletContext } from "react-router";
 import type { ReactNode } from "react";
 
@@ -8,13 +20,17 @@ import "./team-state.css";
 
 type Source = { name: string; status: "available" | "partial" | "unavailable"; detail?: string; url?: string; setupUrl?: string };
 type Goal = { id: string; title: string; target: string; url: string; kind?: string; status?: string };
+type Acceptance = {
+  total: number; passed: number; failed: number; pending: number; unknown: number;
+  unscoped: number; achievedPct: number | null; evidencePct: number | null;
+};
 type Task = {
   id: string; title: string; assignees: string[]; status: string; priority?: string;
   due?: string; completedAt?: string; overdue: boolean;
 };
 type Project = {
   id: string; name: string; owner?: string; members?: string; status?: string; tasksLoaded: boolean;
-  tasks: Task[]; completed: number; goals: Goal[];
+  tasks: Task[]; completed: number; goals: Goal[]; acceptance: Acceptance;
   planExcerpt?: string; meetingExcerpt?: string; meetingUrl?: string; url: string;
 };
 type Report = { id: number; member: string; group: string; week: string; completed?: string; blockers?: string; nextPlan?: string };
@@ -26,6 +42,7 @@ type Snapshot = {
   sources: Source[];
   insights?: Insight[];
   focus?: DomainFocus[];
+  domains: { technology: Acceptance; operations: Acceptance; organization: Acceptance };
   summary: null | {
     total: number; completed: number; inProgress: number; notStarted: number;
     stalled: number; overdue: number; missingCompletedDate: number;
@@ -74,6 +91,84 @@ function meetingPreview(excerpt?: string) {
 function TaskStatus({ task }: { task: Task }) {
   return <span className={task.overdue ? "team-state__warning" : "team-state__muted"}>
     {task.overdue ? "逾期待核实" : task.status || "未标记"}
+  </span>;
+}
+
+function formatPercent(value: number | null) {
+  return value === null ? "—" : `${value.toLocaleString("zh-CN", { maximumFractionDigits: 1 })}%`;
+}
+
+function AcceptanceMeters({ metrics, compact = false }: { metrics: Acceptance; compact?: boolean }) {
+  const rows = [
+    { label: "已证实达成", value: metrics.achievedPct, count: metrics.passed, tone: "passed" },
+    { label: "验收证据覆盖", value: metrics.evidencePct, count: metrics.passed + metrics.failed, tone: "evidence" },
+  ];
+  return <div className={"team-state__meters" + (compact ? " team-state__meters--compact" : "")}>
+    {rows.map((row) => <div className="team-state__metric" key={row.tone}>
+      <div className="team-state__metric-heading">
+        <span>{row.label}</span>
+        <strong className={row.value === null ? "team-state__metric-unknown" : ""}>{formatPercent(row.value)}</strong>
+      </div>
+      <div className={"team-state__meter team-state__meter--" + row.tone}
+        role="progressbar" aria-label={row.label}
+        aria-valuemin={row.value === null ? undefined : 0}
+        aria-valuemax={row.value === null ? undefined : 100}
+        aria-valuenow={row.value ?? undefined}
+        aria-valuetext={row.value === null ? "尚未建立有效验收基线" : `${row.count} / ${metrics.total} 项`}>
+        {row.value !== null && <div style={{ width: `${row.value}%` }} />}
+      </div>
+      <small>{metrics.total > 0 ? `${row.count} / ${metrics.total} 项` : "目标基线待建立"}</small>
+    </div>)}
+  </div>;
+}
+
+function AcceptanceBreakdown({ metrics }: { metrics: Acceptance }) {
+  return <div className="team-state__breakdown" aria-label="目标验收状态分布">
+    {[
+      { count: metrics.passed, label: "通过", icon: checkCircle, tone: "passed" },
+      { count: metrics.failed, label: "未达标", icon: xCircle, tone: "failed" },
+      { count: metrics.pending, label: "待验收", icon: clockIcon, tone: "pending" },
+      { count: metrics.unknown, label: "无法判断", icon: helpCircle, tone: "unknown" },
+    ].filter(() => metrics.total > 0).map((item) => <span key={item.tone} className={"team-state__status-item team-state__status-item--" + item.tone}>
+      <Icon icon={item.icon} aria-hidden="true" />{item.label} {item.count}
+    </span>)}
+    {metrics.total === 0 && <span className="team-state__status-item team-state__status-item--unknown">
+      <Icon icon={helpCircle} aria-hidden="true" />验收基线未建立
+    </span>}
+    {metrics.unscoped > 0 && <span className="team-state__status-item team-state__status-item--unscoped">
+      <Icon icon={targetIcon} aria-hidden="true" />缺验收标准 {metrics.unscoped}
+    </span>}
+  </div>;
+}
+
+function DomainCard({ title, icon, metrics, detail, href }: {
+  title: string; icon: IconifyIcon; metrics: Acceptance; detail: string; href: string;
+}) {
+  return <section className="team-state__domain">
+    <div className="team-state__domain-heading">
+      <span className="team-state__domain-icon"><Icon icon={icon} aria-hidden="true" /></span>
+      <strong>{title}</strong>
+    </div>
+    <AcceptanceMeters metrics={metrics} />
+    <AcceptanceBreakdown metrics={metrics} />
+    <div className="team-state__domain-bottom">
+      <p>{detail}</p>
+      <a href={href}>查看{title}<Icon icon={chevronRight} aria-hidden="true" /></a>
+    </div>
+  </section>;
+}
+
+function GoalState({ goal }: { goal: Goal }) {
+  const type = goal.kind !== "验收要求" ? "unscoped" :
+    goal.status === "已验证达成" ? "passed" :
+    goal.status === "已验证未达标" ? "failed" :
+    goal.status === "有成果待验收" ? "pending" : "unknown";
+  const icon = type === "passed" ? checkCircle : type === "failed" ? xCircle :
+    type === "pending" ? clockIcon : helpCircle;
+  const label = type === "unscoped" ? (goal.status === "有成果待验收" ? "有成果待验收 · 标准未关联" : "验收标准待关联") :
+    (goal.status || "无法判断");
+  return <span className={"team-state__goal-state team-state__goal-state--" + type}>
+    <Icon icon={icon} aria-hidden="true" />{label}
   </span>;
 }
 
@@ -144,8 +239,6 @@ export default function TeamStatePage() {
   const project = snapshot?.projects.find((item) => item.id === selectedID);
   const technical = snapshot?.projects.filter((item) => item.name.startsWith("27赛季")) || [];
   const other = snapshot?.projects.filter((item) => !item.name.startsWith("27赛季")) || [];
-  const knownGoals = technical.reduce((total, item) => total + item.goals.length, 0);
-  const acceptanceGoals = technical.reduce((total, item) => total + item.goals.filter((goal) => goal.kind === "验收要求").length, 0);
   const operationsFocus = snapshot?.focus?.filter((item) => item.domain === "运营") || [];
   const organizationFocus = snapshot?.focus?.filter((item) => item.domain === "组织") || [];
   const latest = snapshot?.projects.flatMap((item) => {
@@ -176,7 +269,9 @@ export default function TeamStatePage() {
       </section>}
 
       {project ? <section className="team-state__project-view" aria-label="项目成果详情">
-        <button className="team-state__back" type="button" onClick={() => setSelectedID("")}>← 战队全景</button>
+        <button className="team-state__back" type="button" onClick={() => setSelectedID("")}>
+          <Icon icon={arrowLeft} aria-hidden="true" />战队全景
+        </button>
         <div className="team-state__project-heading">
           <div>
             <h2>{project.name}</h2>
@@ -186,14 +281,26 @@ export default function TeamStatePage() {
         </div>
 
         <section className="team-state__panel">
+          <div className="team-state__section-head">
+            <h3>目标验收概况</h3>
+            <span className="team-state__muted">只统计有明确标准的目标</span>
+          </div>
+          <AcceptanceMeters metrics={project.acceptance} />
+          <AcceptanceBreakdown metrics={project.acceptance} />
+          {project.acceptance.total === 0 && <p className="team-state__muted">
+            尚无可用于计算的正式验收基线。现有研发计划和阶段成果仍可在下方核查。
+          </p>}
+        </section>
+
+        <section className="team-state__panel">
           <h3>关键目标与成果核查</h3>
           {project.goals.length > 0 ? <>
             <p className="team-state__muted">状态以来源文档为依据；记载“已研发”仅代表有阶段成果，未自动视为通过验收。</p>
             <div className="team-state__goal-list">
               {project.goals.map((goal) => <article className="team-state__goal" key={goal.id}>
-                <div className="team-state__goal-top"><strong>{goal.id} · {goal.title}</strong><span className="team-state__unverified">{goal.status || "无法判断"}</span></div>
+                <div className="team-state__goal-top"><strong>{goal.id} · {goal.title}</strong><GoalState goal={goal} /></div>
                 <p>{goal.target}</p>
-                <div className="team-state__goal-foot"><small>{goal.kind || "目标要求"}</small><OriginalLink href={goal.url}>原始来源</OriginalLink></div>
+                <div className="team-state__goal-foot"><small>{goal.kind || "目标要求"} · {goal.kind === "验收要求" ? "未关联测试时不判定达标" : "不计入验收百分比"}</small><OriginalLink href={goal.url}>目标原文</OriginalLink></div>
               </article>)}
             </div>
           </> : <p className="team-state__muted">尚未关联可逐项核查的量化验收目标。</p>}
@@ -230,49 +337,42 @@ export default function TeamStatePage() {
           <p className="team-state__muted">任务完成仅代表飞书记录状态，不等于目标验收通过。 <OriginalLink href={project.url}>查看原始任务</OriginalLink></p>
         </details>
       </section> : <>
-        <section className="team-state__domains" aria-label="全队领域全景">
-          <div className="team-state__domain">
-            <span className="team-state__eyebrow">技术研发</span>
-            <strong>{technical.length} 个兵种项目</strong>
-            <p>{knownGoals > 0 ? `已关联 ${knownGoals} 条研发目标及阶段记录，其中 ${acceptanceGoals} 条来自量化验收清单` : "尚未关联可核查的赛季目标资料"}</p>
-            <small>各项目成果与需求见下方</small>
+        <section aria-label="全队领域全景">
+          <div className="team-state__section-head">
+            <h2>全队态势</h2>
+            <span className="team-state__muted">各领域独立统计，不计算全队综合完成率</span>
           </div>
-          <div className="team-state__domain">
-            <span className="team-state__eyebrow">运营</span>
-            <strong>{snapshot.operations ? `${snapshot.operations.active} 项进行中` : "数据暂不可读取"}</strong>
-            <p>{snapshot.operations ? `${snapshot.operations.blocked} 个受阻环节；${operationsFocus.length} 项赛季产出计划尚待对照实际结果` : "当前缺少可核查的运营进展"}</p>
-            <OriginalLink href={snapshot.operations?.url}>运营动态</OriginalLink>
-          </div>
-          <div className="team-state__domain">
-            <span className="team-state__eyebrow">组织事务</span>
-            <strong>{organizationFocus.length > 0 ? "已有培养规划" : "目标待关联"}</strong>
-            <p>{organizationFocus.length > 0 ? "已找到分阶段培养及通过标准，实际达成情况尚未关联。" : "现有成员与周报资料尚未建立组织事务的目标验收关系。"}</p>
-            <OriginalLink href="/dashboard/workbench/organization">成员与岗位</OriginalLink>
+          <div className="team-state__domains">
+            <DomainCard title="技术研发" icon={cpu} metrics={snapshot.domains.technology}
+              detail={`${technical.length} 个兵种项目 · ${snapshot.domains.technology.unscoped} 条计划或阶段记录未纳入验收基线`}
+              href="#team-technical" />
+            <DomainCard title="运营" icon={megaphone} metrics={snapshot.domains.operations}
+              detail={`${operationsFocus.length} 项赛季产出计划 · ${snapshot.operations ? `${snapshot.operations.active} 个未结束工作项` : "工作数据暂不可读"}`}
+              href="#team-operations" />
+            <DomainCard title="组织事务" icon={users} metrics={snapshot.domains.organization}
+              detail={`${organizationFocus.length} 项培养规划 · ${snapshot.reports.length} 条近期周报线索`}
+              href="#team-organization" />
           </div>
         </section>
 
-        <section className="team-state__panel">
+        <section className="team-state__panel" id="team-technical">
           <div className="team-state__section-head">
-            <h2>技术研发 · 关键成果对照</h2>
+            <h2>技术研发 · 项目验收矩阵</h2>
             <OriginalLink href={snapshot.sources.find((item) => item.name === "飞书项目管理")?.url}>项目来源</OriginalLink>
           </div>
           {technical.length === 0 ? <p className="team-state__muted">暂无可读取的兵种项目资料。</p> : <div className="team-state__project-grid">
             {technical.map((item) => <button key={item.id} className="team-state__outcome-card" type="button" onClick={() => setSelectedID(item.id)}>
-              <div className="team-state__outcome-head"><h3>{shortName(item.name)}</h3><span>查看项目 →</span></div>
-              <div className="team-state__outcome-main">
-                {item.goals.length > 0 ? <>
-                  <strong>{item.goals.length} 条{item.goals.some((goal) => goal.kind === "验收要求") ? "验收要求" : item.goals.some((goal) => goal.kind?.startsWith("研发阶段记录")) ? "阶段成果记录" : "关键研发需求"}</strong>
-                  <span>{item.goals.some((goal) => goal.status === "有成果待验收") ? "部分成果已记载 · 验收待核查" : "最终验收状态：无法判断"}</span>
-                  <p>{item.goals[0]?.title}</p>
-                </> : item.planExcerpt ? <>
-                  <strong>已记录研发需求</strong>
-                  <span>量化验收目标待关联</span>
-                  <p>{item.planExcerpt.split("\n").find(Boolean)}</p>
-                </> : <>
-                  <strong>验收目标待关联</strong>
-                  <span>当前无法判断达成情况</span>
-                </>}
+              <div className="team-state__outcome-head">
+                <h3><Icon icon={targetIcon} aria-hidden="true" />{shortName(item.name)}</h3>
+                <span>查看目标 <Icon icon={chevronRight} aria-hidden="true" /></span>
               </div>
+              <AcceptanceMeters metrics={item.acceptance} compact />
+              <AcceptanceBreakdown metrics={item.acceptance} />
+              <p className="team-state__outcome-note">
+                {item.acceptance.total === 0 ? "尚无正式验收基线；研发计划和阶段成果可在详情查看。" :
+                  `${item.acceptance.total} 项验收要求 · ${item.acceptance.unknown} 项尚无足够验收证据`}
+                {item.goals.some((goal) => goal.status === "有成果待验收") && " · 有阶段成果记录"}
+              </p>
               <small>{item.meetingExcerpt ? `最近组会：${meetingDate(item.meetingExcerpt, Number(snapshot.generatedAt.slice(0, 4))) || "日期待确认"}` : "近期组会记录暂不可用"}</small>
             </button>)}
           </div>}
@@ -283,7 +383,7 @@ export default function TeamStatePage() {
         </section>
 
         <div className="team-state__columns">
-          <section className="team-state__panel">
+          <section className="team-state__panel" id="team-operations">
             <div className="team-state__section-head"><h2>运营 · 当前交付</h2><OriginalLink href={snapshot.operations?.url}>查看运营动态</OriginalLink></div>
             {operationsFocus.length > 0 && <div className="team-state__focus-list">{operationsFocus.map((item) => <article key={item.title}>
               <strong>{item.title}</strong><p>{item.target}</p><small>赛季计划 · <OriginalLink href={item.url}>目标原文</OriginalLink></small>
@@ -298,7 +398,7 @@ export default function TeamStatePage() {
               </article>)}</div>}
             <p className="team-state__muted">任务记录尚未逐项关联至赛季产出，不能据此认定目标完成。</p>
           </section>
-          <section className="team-state__panel">
+          <section className="team-state__panel" id="team-organization">
             <div className="team-state__section-head"><h2>组织 · 资料覆盖</h2><OriginalLink href="/dashboard/weekly-reports">工作周报</OriginalLink></div>
             {organizationFocus.map((item) => <div className="team-state__focus-list" key={item.title}><article>
               <strong>{item.title}</strong><p>{item.target}</p><small><OriginalLink href={item.url}>培养规划原文</OriginalLink></small>

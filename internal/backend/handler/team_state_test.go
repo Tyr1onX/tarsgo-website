@@ -67,6 +67,9 @@ func TestTeamSentryGoalsRequireActualTargetText(t *testing.T) {
 	if len(teamSentryGoals("仅有任务完成率，未记录赛季目标")) != 0 {
 		t.Fatal("must not invent goals")
 	}
+	if repeated := teamSentryGoals(content + "\n哨兵-002\n优化导航（重复）\n新的测试需求\n"); len(repeated) != 2 {
+		t.Fatalf("repeated goal IDs must not inflate the denominator: %+v", repeated)
+	}
 }
 
 type teamStateMockTransport func(*http.Request) (*http.Response, error)
@@ -238,5 +241,80 @@ func TestTeamStatePlansAreSourceBackedAndDoNotClaimAcceptance(t *testing.T) {
 	}
 	if result.Summary != nil && result.Summary.Completed != 0 {
 		t.Fatalf("planning must not count as completed tasks: %+v", result.Summary)
+	}
+}
+
+func TestTeamAcceptanceUsesOnlyValidCriteriaAndSeparateEvidence(t *testing.T) {
+	goal := func(id, kind, status string) teamGoal {
+		return teamGoal{ID: id, Kind: kind, Status: status, Title: "测试目标", Target: "正式验收要求", URL: "https://example.com/goal"}
+	}
+	goals := []teamGoal{
+		goal("1", "验收要求", "已验证达成"),
+		goal("2", "验收要求", "已验证达成"),
+		goal("3", "验收要求", "已验证未达标"),
+		goal("4", "验收要求", "有成果待验收"),
+		goal("5", "验收要求", "有成果待验收"),
+		goal("6", "验收要求", "无法判断"),
+		goal("7", "验收要求", "无法判断"),
+		goal("8", "验收要求", "已完成"), // Task completion cannot prove acceptance.
+		goal("9", "研发需求", "已验证达成"),
+		goal("10", "研发阶段记录 · 已研发", "有成果待验收"),
+	}
+	m := teamGoalAcceptance(goals)
+	if m.Total != 8 || m.Passed != 2 || m.Failed != 1 || m.Pending != 2 || m.Unknown != 3 || m.Unscoped != 2 {
+		t.Fatalf("incorrect denominator or status breakdown: %+v", m)
+	}
+	if m.AchievedPct == nil || *m.AchievedPct != 25 || m.EvidencePct == nil || *m.EvidencePct != 37.5 {
+		t.Fatalf("achievement and evidence percentages must differ: %+v", m)
+	}
+}
+
+func TestTeamAcceptanceMissingBaselineIsNullNotZero(t *testing.T) {
+	goals := []teamGoal{
+		{ID: "a", Kind: "研发需求", Title: "开发过洞算法", Target: "计划开发", URL: "https://example.com"},
+		{ID: "b", Kind: "验收要求", Title: "条件缺失", Target: "", URL: "https://example.com"},
+	}
+	m := teamGoalAcceptance(goals)
+	if m.Total != 0 || m.Unscoped != 2 || m.AchievedPct != nil || m.EvidencePct != nil {
+		t.Fatalf("must not display a manufactured 0%% without baseline: %+v", m)
+	}
+}
+
+func TestTeamAcceptanceDomainRollupExcludesUnclassifiedProjectsAndPlans(t *testing.T) {
+	goal := func(id, status string) teamGoal {
+		return teamGoal{ID: id, Kind: "验收要求", Target: "满足验收标准", URL: "https://example.com", Status: status}
+	}
+	result := &teamStateResponse{
+		Projects: []teamProject{
+			{Name: "27赛季哨兵", Goals: []teamGoal{goal("a", "已验证达成"), goal("b", "无法判断")}},
+			{Name: "27赛季飞镖", Goals: []teamGoal{goal("c", "已验证未达标")}},
+			{Name: "不属于兵种的单独项目", Goals: []teamGoal{goal("d", "已验证达成")}},
+		},
+		Focus: []teamDomainFocus{
+			{Domain: "运营", Title: "四期内容计划"},
+			{Domain: "运营", Title: "赛事纪录"},
+			{Domain: "组织", Title: "新人培养"},
+		},
+	}
+	teamBuildAcceptance(result)
+	tech := result.Domains["technology"]
+	if tech.Total != 3 || tech.Passed != 1 || tech.Failed != 1 || tech.Unknown != 1 {
+		t.Fatalf("technical domain must include only eligible projects: %+v", tech)
+	}
+	if tech.AchievedPct == nil || *tech.AchievedPct <= 33 || *tech.AchievedPct >= 34 ||
+		tech.EvidencePct == nil || *tech.EvidencePct <= 66 || *tech.EvidencePct >= 67 {
+		t.Fatalf("wrong aggregate percentages: %+v", tech)
+	}
+	for _, domain := range []string{"operations", "organization"} {
+		m := result.Domains[domain]
+		if m.Total != 0 || m.AchievedPct != nil || m.EvidencePct != nil {
+			t.Fatalf("%s must not pretend plans are accepted goals: %+v", domain, m)
+		}
+	}
+	if result.Domains["operations"].Unscoped != 2 || result.Domains["organization"].Unscoped != 1 {
+		t.Fatalf("unscoped plans must remain visible: %+v", result.Domains)
+	}
+	if result.Projects[2].Acceptance.Total != 1 {
+		t.Fatalf("unclassified project keeps its own evidence: %+v", result.Projects[2].Acceptance)
 	}
 }

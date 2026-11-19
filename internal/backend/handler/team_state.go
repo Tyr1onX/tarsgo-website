@@ -41,6 +41,17 @@ type teamGoal struct {
 	Kind   string `json:"kind,omitempty"`
 	Status string `json:"status,omitempty"`
 }
+
+type teamAcceptance struct {
+	Total       int      `json:"total"`
+	Passed      int      `json:"passed"`
+	Failed      int      `json:"failed"`
+	Pending     int      `json:"pending"`
+	Unknown     int      `json:"unknown"`
+	Unscoped    int      `json:"unscoped"`
+	AchievedPct *float64 `json:"achievedPct"`
+	EvidencePct *float64 `json:"evidencePct"`
+}
 type teamTask struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
@@ -52,19 +63,20 @@ type teamTask struct {
 	Overdue     bool     `json:"overdue"`
 }
 type teamProject struct {
-	ID             string     `json:"id"`
-	Name           string     `json:"name"`
-	Owner          string     `json:"owner,omitempty"`
-	Members        string     `json:"members,omitempty"`
-	Status         string     `json:"status,omitempty"`
-	TasksLoaded    bool       `json:"tasksLoaded"`
-	Tasks          []teamTask `json:"tasks"`
-	Completed      int        `json:"completed"`
-	Goals          []teamGoal `json:"goals"`
-	PlanExcerpt    string     `json:"planExcerpt,omitempty"`
-	MeetingExcerpt string     `json:"meetingExcerpt,omitempty"`
-	MeetingURL     string     `json:"meetingUrl,omitempty"`
-	URL            string     `json:"url"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Owner          string         `json:"owner,omitempty"`
+	Members        string         `json:"members,omitempty"`
+	Status         string         `json:"status,omitempty"`
+	TasksLoaded    bool           `json:"tasksLoaded"`
+	Tasks          []teamTask     `json:"tasks"`
+	Completed      int            `json:"completed"`
+	Goals          []teamGoal     `json:"goals"`
+	Acceptance     teamAcceptance `json:"acceptance"`
+	PlanExcerpt    string         `json:"planExcerpt,omitempty"`
+	MeetingExcerpt string         `json:"meetingExcerpt,omitempty"`
+	MeetingURL     string         `json:"meetingUrl,omitempty"`
+	URL            string         `json:"url"`
 }
 type teamReport struct {
 	ID        uint64 `json:"id"`
@@ -108,14 +120,15 @@ type teamSummary struct {
 	MissingCompletedDate int `json:"missingCompletedDate"`
 }
 type teamStateResponse struct {
-	GeneratedAt time.Time         `json:"generatedAt"`
-	Sources     []teamSource      `json:"sources"`
-	Summary     *teamSummary      `json:"summary"`
-	Insights    []teamInsight     `json:"insights"`
-	Focus       []teamDomainFocus `json:"focus"`
-	Projects    []teamProject     `json:"projects"`
-	Reports     []teamReport      `json:"reports"`
-	Operations  *teamOperations   `json:"operations"`
+	GeneratedAt time.Time                 `json:"generatedAt"`
+	Sources     []teamSource              `json:"sources"`
+	Summary     *teamSummary              `json:"summary"`
+	Insights    []teamInsight             `json:"insights"`
+	Focus       []teamDomainFocus         `json:"focus"`
+	Domains     map[string]teamAcceptance `json:"domains"`
+	Projects    []teamProject             `json:"projects"`
+	Reports     []teamReport              `json:"reports"`
+	Operations  *teamOperations           `json:"operations"`
 }
 type teamBaseRows struct {
 	Fields    []string            `json:"fields"`
@@ -223,9 +236,10 @@ func (h *FeishuHandler) teamStateDoc(ctx context.Context, token, documentID stri
 func teamSentryGoals(content string) []teamGoal {
 	lines := strings.Split(content, "\n")
 	goals := make([]teamGoal, 0, 5)
+	seen := map[string]bool{}
 	for i, line := range lines {
 		id := strings.TrimSpace(line)
-		if !strings.HasPrefix(id, "哨兵-00") || len(id) != len("哨兵-001") {
+		if !strings.HasPrefix(id, "哨兵-00") || len(id) != len("哨兵-001") || seen[id] {
 			continue
 		}
 		values := make([]string, 0, 3)
@@ -238,6 +252,7 @@ func teamSentryGoals(content string) []teamGoal {
 		if len(values) < 2 {
 			continue
 		}
+		seen[id] = true
 		goals = append(goals, teamGoal{ID: id, Title: teamClip(values[0], 100), Target: teamClip(values[1], 280), URL: teamStatePlanURL, Kind: "验收要求", Status: "无法判断"})
 	}
 	return goals
@@ -802,11 +817,79 @@ func (h *FeishuHandler) teamStateLocal(ctx context.Context, result *teamStateRes
 	}
 }
 
+func (m *teamAcceptance) finalize() {
+	if m.Total == 0 {
+		return // No valid baseline: percentages must remain null, not 0%.
+	}
+	achieved, evidence := float64(m.Passed)*100/float64(m.Total), float64(m.Passed+m.Failed)*100/float64(m.Total)
+	m.AchievedPct, m.EvidencePct = &achieved, &evidence
+}
+
+func teamGoalAcceptance(goals []teamGoal) teamAcceptance {
+	var m teamAcceptance
+	for _, goal := range goals {
+		// Tasks, development plans and stage reports are not acceptance criteria.
+		if goal.Kind != "验收要求" || strings.TrimSpace(goal.Target) == "" || goal.ID == "" || goal.URL == "" {
+			m.Unscoped++
+			continue
+		}
+		m.Total++
+		switch goal.Status {
+		case "已验证达成":
+			m.Passed++
+		case "已验证未达标":
+			m.Failed++
+		case "有成果待验收":
+			m.Pending++
+		default:
+			m.Unknown++
+		}
+	}
+	m.finalize()
+	return m
+}
+
+func teamBuildAcceptance(result *teamStateResponse) {
+	result.Domains = map[string]teamAcceptance{
+		"technology": {}, "operations": {}, "organization": {},
+	}
+	technology := teamAcceptance{}
+	for i := range result.Projects {
+		project := &result.Projects[i]
+		project.Acceptance = teamGoalAcceptance(project.Goals)
+		if !strings.HasPrefix(project.Name, "27赛季") {
+			continue
+		}
+		m := project.Acceptance
+		technology.Total += m.Total
+		technology.Passed += m.Passed
+		technology.Failed += m.Failed
+		technology.Pending += m.Pending
+		technology.Unknown += m.Unknown
+		technology.Unscoped += m.Unscoped
+	}
+	technology.finalize()
+	result.Domains["technology"] = technology
+
+	// Existing operations/training plans are not formal acceptance baselines.
+	operations, organization := teamAcceptance{}, teamAcceptance{}
+	for _, focus := range result.Focus {
+		switch focus.Domain {
+		case "运营":
+			operations.Unscoped++
+		case "组织":
+			organization.Unscoped++
+		}
+	}
+	result.Domains["operations"], result.Domains["organization"] = operations, organization
+}
+
 func (h *FeishuHandler) GetTeamState(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
 	result := &teamStateResponse{GeneratedAt: time.Now(), Sources: []teamSource{}, Projects: []teamProject{}, Reports: []teamReport{}, Focus: []teamDomainFocus{}}
 	h.teamStateLocal(ctx, result)
 	h.teamStateProjects(ctx, result)
+	teamBuildAcceptance(result)
 	writeAPI(c, http.StatusOK, "获取战队运行状态成功", result)
 }
