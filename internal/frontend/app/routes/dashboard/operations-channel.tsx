@@ -71,7 +71,7 @@ export default function OperationsChannelPage() {
           <div className="operations-progress__header-actions">
             {channel.platforms === "douyin" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/douyin/import">导入抖音数据</Link> : null}
             {channel.platforms === "wechat" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/wechat/import">导入公众号数据</Link> : null}
-            {channel.platforms === "wechat_video" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/wechat-video/import">导入视频号关注数据</Link> : null}
+            {channel.platforms === "wechat_video" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/wechat-video/import">导入视频号数据</Link> : null}
             {channel.platforms === "douyin" && douyinSync?.enabled && !douyinSync.connected
               ? <Link className="admin-button admin-button--secondary" to="/api/operations/douyin/authorize" reloadDocument>连接抖音同步</Link> : null}
           </div>

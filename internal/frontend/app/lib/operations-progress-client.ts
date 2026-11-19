@@ -147,6 +147,12 @@ export function importWeChatVideoFollowers(file: File) {
   return apiRequest<{ count: number; first: string; last: string }>("/api/operations/wechat-video/import", { method: "POST", body });
 }
 
+export function importWeChatVideoPosts(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return apiRequest<{ count: number }>("/api/operations/wechat-video/posts/import", { method: "POST", body });
+}
+
 export function saveOperationsStep(itemId: number, stepId: number, changes: { status: OperationsStepStatus; blockReason?: string; note?: string; evidenceUrl?: string }) {
   return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/steps/${stepId}`, {
     method: "PATCH", body: changes,

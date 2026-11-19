@@ -134,25 +134,33 @@ func (h *OperationsProgressHandler) ImportWeChatVideoFollowers(c *gin.Context) {
 	h.importFollowerExport(c, "视频号", parseWeChatVideoFollowerExport)
 }
 
-func (h *OperationsProgressHandler) importFollowerExport(c *gin.Context, platformName string, parse func([]byte, time.Time) ([]model.OperationsAccountSnapshot, error)) {
-	if !h.requireEditor(c) {
-		return
-	}
+func readOperationsImportFile(c *gin.Context, description string) []byte {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, weChatImportLimit)
 	upload, err := c.FormFile("file")
 	if err != nil || upload.Size > weChatImportLimit {
-		writeAPIError(c, http.StatusBadRequest, "请选择不超过 2MB 的"+platformName+"关注数据表格")
-		return
+		writeAPIError(c, http.StatusBadRequest, "请选择不超过 2MB 的"+description+"表格")
+		return nil
 	}
 	file, err := upload.Open()
 	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "关注数据表读取失败")
-		return
+		writeAPIError(c, http.StatusBadRequest, "表格读取失败")
+		return nil
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, weChatImportLimit+1))
 	if err != nil || len(data) > weChatImportLimit {
-		writeAPIError(c, http.StatusBadRequest, "关注数据表读取失败")
+		writeAPIError(c, http.StatusBadRequest, "表格读取失败")
+		return nil
+	}
+	return data
+}
+
+func (h *OperationsProgressHandler) importFollowerExport(c *gin.Context, platformName string, parse func([]byte, time.Time) ([]model.OperationsAccountSnapshot, error)) {
+	if !h.requireEditor(c) {
+		return
+	}
+	data := readOperationsImportFile(c, platformName+"关注数据")
+	if data == nil {
 		return
 	}
 	snapshots, err := parse(data, time.Now())
