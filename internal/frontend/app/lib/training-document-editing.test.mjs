@@ -40,7 +40,8 @@ test("training documentation endpoints keep reads available and writes super adm
   assert.ok(adminIndex >= 0 && authorizeIndex > adminIndex);
   const handler = await read("../../../backend/handler/training_document.go");
   assert.match(handler, /training_document_git/);
-  assert.match(handler, /training_document_start/);
+  assert.match(handler, /training_document_welcome/);
+  assert.doesNotMatch(route, /startMarkdown/);
   assert.match(handler, /privatefile\.Upload/);
 });
 

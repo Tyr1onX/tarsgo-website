@@ -27,13 +27,7 @@ type trainingTreeNode struct {
 func defaultTrainingTree() []trainingTreeNode {
 	nodes := []trainingTreeNode{
 		{ID: "handbook", Title: "新人成长手册", Kind: "folder"},
-		{ID: "welcome", ParentID: "handbook", Title: "01 · 写给刚刚来到这里的你", Kind: "document", Scope: 3},
-		{ID: "team", ParentID: "handbook", Title: "02 · 认识吉甲大师", Kind: "document", Scope: 4},
-		{ID: "growth", ParentID: "handbook", Title: "03 · 你将在这里经历什么", Kind: "document", Scope: 5},
-		{ID: "directions", ParentID: "handbook", Title: "04 · 找到适合自己的方向", Kind: "document", Scope: 6},
-		{ID: "start", ParentID: "handbook", Title: "05 · 开始你的第一次学习", Kind: "document", Scope: 1},
-		{ID: "together", ParentID: "handbook", Title: "06 · 学习不是一个人的事情", Kind: "document", Scope: 7},
-		{ID: "continue", ParentID: "handbook", Title: "07 · 从这里继续出发", Kind: "document", Scope: 8},
+		{ID: "welcome", ParentID: "handbook", Title: "写给刚刚来到这里的你", Kind: "document", Scope: 3},
 		{ID: "foundation-folder", Title: "通用基础", Kind: "folder"},
 		{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览", Kind: "reference", Ref: "foundation"},
 		{ID: "git", ParentID: "foundation-folder", Title: "Git 与 GitHub", Kind: "document", Scope: 2},
@@ -64,7 +58,18 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 	if err := json.Unmarshal([]byte(raw), &nodes); err != nil || len(nodes) == 0 {
 		return nil, errors.New("文档目录数据无法读取")
 	}
-	return nodes, nil
+	// Remove retired preset chapters from previously saved directories without touching their stored bodies.
+	visible := nodes[:0]
+	for _, node := range nodes {
+		if node.ParentID == "handbook" {
+			switch node.ID {
+			case "team", "growth", "directions", "start", "together", "continue":
+				continue
+			}
+		}
+		visible = append(visible, node)
+	}
+	return visible, nil
 }
 
 func (h *TrainingDocumentHandler) saveTree(ctx context.Context, nodes []trainingTreeNode) error {
@@ -92,7 +97,7 @@ func (h *TrainingDocumentHandler) documentKey(ctx context.Context, slug string) 
 }
 
 func (h *TrainingDocumentHandler) scopeAllowed(ctx context.Context, scope uint64) bool {
-	if scope >= 1 && scope <= 8 {
+	if scope == 2 || scope == 3 {
 		return true
 	}
 	nodes, err := h.loadTree(ctx)

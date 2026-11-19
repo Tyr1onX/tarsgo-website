@@ -124,14 +124,8 @@ func TestNewcomerHandbookChapterKeys(t *testing.T) {
 		key string
 		scope uint64
 	}{
-		{"start", "training_document_start", 1},
 		{"git", "training_document_git", 2},
 		{"welcome", "training_document_welcome", 3},
-		{"team", "training_document_team", 4},
-		{"growth", "training_document_growth", 5},
-		{"directions", "training_document_directions", 6},
-		{"together", "training_document_together", 7},
-		{"continue", "training_document_continue", 8},
 	}
 	seen := map[uint64]bool{}
 	for _, chapter := range chapters {
@@ -141,8 +135,10 @@ func TestNewcomerHandbookChapterKeys(t *testing.T) {
 		}
 		seen[scope] = true
 	}
-	if _, _, ok := trainingDocumentKey("unknown"); ok {
-		t.Fatal("unknown training document must not be accessible")
+	for _, slug := range []string{"start", "team", "growth", "directions", "together", "continue", "unknown"} {
+		if _, _, ok := trainingDocumentKey(slug); ok {
+			t.Fatalf("retired training chapter %q must not be accessible", slug)
+		}
 	}
 }
 

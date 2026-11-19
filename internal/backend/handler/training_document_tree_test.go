@@ -133,3 +133,47 @@ func TestTrainingTreeRejectsInvalidParentAndReferenceChildren(t *testing.T) {
 		t.Fatal("invalid changes must not mutate the tree")
 	}
 }
+
+func TestTrainingTreeHidesRetiredPresetChaptersWithoutDeletingSavedContent(t *testing.T) {
+	legacy := append(defaultTrainingTree(),
+		trainingTreeNode{ID: "start", ParentID: "handbook", Title: "05 · 开始你的第一次学习", Kind: "document", Scope: 1},
+		trainingTreeNode{ID: "team", ParentID: "handbook", Title: "02 · 认识吉甲大师", Kind: "document", Scope: 4},
+		trainingTreeNode{ID: "growth", ParentID: "handbook", Title: "03 · 你将在这里经历什么", Kind: "document", Scope: 5},
+		trainingTreeNode{ID: "directions", ParentID: "handbook", Title: "04 · 找到适合自己的方向", Kind: "document", Scope: 6},
+		trainingTreeNode{ID: "together", ParentID: "handbook", Title: "06 · 学习不是一个人的事情", Kind: "document", Scope: 7},
+		trainingTreeNode{ID: "continue", ParentID: "handbook", Title: "07 · 从这里继续出发", Kind: "document", Scope: 8},
+		trainingTreeNode{ID: "custom", ParentID: "foundation-folder", Title: "新的通用基础文档", Kind: "document", Scope: 9},
+	)
+	raw, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := trainingDocumentMemoryStore{trainingTreeKey: string(raw), "training_document_team": "# 已有正文"}
+	handler := NewTrainingDocumentHandler(store, nil)
+	nodes, err := handler.loadTree(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var handbookCount int
+	var hasCustom, hasGit bool
+	for _, node := range nodes {
+		if node.ParentID == "handbook" {
+			handbookCount++
+			if node.ID != "welcome" {
+				t.Fatalf("unexpected handbook chapter: %s", node.ID)
+			}
+		}
+		if node.ID == "custom" {
+			hasCustom = true
+		}
+		if node.ID == "git" {
+			hasGit = true
+		}
+	}
+	if handbookCount != 1 || !hasCustom || !hasGit {
+		t.Fatalf("handbook should have one welcome chapter, retaining foundation docs: %#v", nodes)
+	}
+	if store[trainingTreeKey] != string(raw) || store["training_document_team"] != "# 已有正文" {
+		t.Fatal("hiding legacy chapters must not delete existing saved data")
+	}
+}
