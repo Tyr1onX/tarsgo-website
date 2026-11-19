@@ -17,6 +17,7 @@ test("the operations overview stays read-only and links to detailed horizontal w
   assert.match(bar, /className="operations-progress__video-stages"/);
   assert.match(bar, /gridTemplateColumns: `repeat\(\$\{item\.steps\.length\}, minmax\(6rem, 1fr\)\)`/);
   assert.match(bar, /<Link className="operations-progress__step-button"/);
+  assert.match(bar, /参考负责人：\{step\.assigneeName\}/);
   assert.match(css, /\.operations-progress__video-stages ol\s*\{[\s\S]*?display: grid/);
   for (const action of ["添加环节", "记录进展", "新增事项", "保存名称", "移除环节", "renderItemEditor", "importDouyinPosts"]) {
     assert.ok(!view.includes(action), `overview must not expose ${action}`);
@@ -36,8 +37,9 @@ test("one work detail supports inline owner updates and keeps historical evidenc
   assert.match(routes, /route\("workbench\/operations\/works\/:itemId",/);
   assert.doesNotMatch(routes, /operations-step-detail|operations-step-status|operations-publication-edit/);
   assert.match(bar, /works\/\$\{item\.id\}\?step=\$\{step\.id\}/);
-  assert.match(detail, /item\?\.leadId === board\.viewerId/);
-  assert.match(detail, /selectedStep\.assigneeId === board\.viewerId/);
+  assert.match(detail, /board\?\.canEditStatus/);
+  assert.match(detail, /board\?\.canManage/);
+  assert.doesNotMatch(detail, /leadId === board\.viewerId|assigneeId === board\.viewerId/);
   assert.match(detail, /status === "blocked"/);
   assert.match(detail, /await saveOperationsStep\(/);
   assert.match(detail, /await saveOperationsPublication\(/);

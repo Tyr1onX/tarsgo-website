@@ -42,11 +42,8 @@ export default function OperationsWorkDetailPage() {
   const contentWork = item && (item.kind === "video" || item.kind === "article" || isOtherWork);
   const selectedStep = item?.steps.find((step) => step.id === Number(params.get("step")));
   const selectedPublication = item?.publications.find((target) => target.platform === params.get("publish"));
-  const canUpdateStep = Boolean(selectedStep && board && (board.canManage ||
-    item?.leadId === board.viewerId || selectedStep.assigneeId === board.viewerId));
-  const publishingStep = item?.steps.find((step) => step.key === "published");
-  const canPublish = Boolean(item && board && (board.canManage ||
-    item.leadId === board.viewerId || publishingStep?.assigneeId === board.viewerId));
+  const canUpdateStep = Boolean(selectedStep && board?.canEditStatus);
+  const canPublish = Boolean(item && board?.canManage);
 
   useEffect(() => {
     setStatus(selectedStep?.status ?? "pending");
@@ -159,14 +156,14 @@ export default function OperationsWorkDetailPage() {
               <div>
                 <h3>{selectedStep.title}</h3>
                 <p className="operations-progress__muted">
-                  {selectedStep.assigneeName || "待分配"} · {statusLabels[selectedStep.status]}
+                  参考负责人：{selectedStep.assigneeName || "待分配"} · {statusLabels[selectedStep.status]}
                 </p>
               </div>
               <button type="button" className="operations-progress__subtle-button"
                 onClick={() => setParams({})} aria-label="关闭环节">关闭</button>
             </div>
             {selectedStep.key === "published" && item.publications.length > 0
-              ? <p className="operations-progress__muted">请在下方选择平台登记发布。</p>
+              ? canPublish ? <p className="operations-progress__muted">请在下方选择平台登记发布。</p> : null
               : canUpdateStep ? <form onSubmit={(event) => void saveStep(event)}
                 className="operations-progress__inline-form">
                 <label>状态

@@ -83,6 +83,9 @@ func ensureEpisodeTargets(tx *gorm.DB, episode *model.OperationsProgressItem) er
 // UpdatePublication is the single write path for platform publishing.
 // It updates the derived "published" workflow step and replenishes one draft atomically.
 func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
+	if !h.requireEditor(c) {
+		return
+	}
 	itemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	platform := c.Param("platform")
 	if err != nil || itemID == 0 || operationsPlatforms[platform] == "" {
@@ -109,12 +112,7 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
-	canManage, err := h.canManage(c)
-	if err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "读取权限失败")
-		return
-	}
-	var denied, unfinished bool
+	var unfinished bool
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var item model.OperationsProgressItem
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, itemID).Error; err != nil {
@@ -124,10 +122,6 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("item_id = ? AND `key` = ?", itemID, "published").First(&step).Error; err != nil {
 			return err
-		}
-		if !operationsMayUpdate(canManage, item.LeadID, step.AssigneeID, actor.ID) {
-			denied = true
-			return nil
 		}
 		var target model.OperationsPublication
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -212,8 +206,6 @@ func (h *OperationsProgressHandler) UpdatePublication(c *gin.Context) {
 		return nil
 	})
 	switch {
-	case denied:
-		writeAPIError(c, http.StatusForbidden, "只能更新自己负责的发布环节")
 	case unfinished:
 		writeAPIError(c, http.StatusConflict, "请先完成制作和审核环节")
 	case errors.Is(err, gorm.ErrRecordNotFound):

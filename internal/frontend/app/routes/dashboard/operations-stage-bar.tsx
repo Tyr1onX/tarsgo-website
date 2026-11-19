@@ -17,7 +17,7 @@ export function OperationsStageBar({ item }: { item: OperationsItem }) {
             aria-label={`查看${item.title}的${step.title}环节，${labels[step.status]}`}>
             <span className="operations-progress__step-marker" aria-hidden="true">{step.status === "done" ? "✓" : index + 1}</span>
             <span>{step.title}</span>
-            {step.assigneeName ? <small>{step.assigneeName}</small> : null}
+            {step.assigneeName ? <small>参考负责人：{step.assigneeName}</small> : null}
             {step.status !== "pending" ? <small>{labels[step.status]}</small> : null}
           </Link>
         </li>)}

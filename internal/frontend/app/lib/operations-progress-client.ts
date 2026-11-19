@@ -111,6 +111,7 @@ export interface OperationsBoard {
   snapshots: OperationsSnapshot[];
   latestPosts: OperationsPost[];
   canManage: boolean;
+  canEditStatus: boolean;
   viewerId: number;
 }
 

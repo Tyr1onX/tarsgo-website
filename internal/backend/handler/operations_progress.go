@@ -121,14 +121,20 @@ func validateOperationsUpdate(input *operationsUpdateInput) bool {
 	return true
 }
 
-// Authorization stays on the server; callers cannot grant their own edit rights.
+// Only super administrators can change the content, ownership, or publishing records.
 func (h *OperationsProgressHandler) canManage(c *gin.Context) (bool, error) {
+	user, ok := middleware.CurrentSessionUser(c)
+	return ok && user != nil && user.Role.Name == model.RoleNameSuperAdmin, nil
+}
+
+// Every member of the active operations group may change any workflow step's status.
+func (h *OperationsProgressHandler) canEditStatus(c *gin.Context) (bool, error) {
+	if canManage, _ := h.canManage(c); canManage {
+		return true, nil
+	}
 	user, ok := middleware.CurrentSessionUser(c)
 	if !ok || user == nil {
 		return false, nil
-	}
-	if user.Role.Name == model.RoleNameSuperAdmin {
-		return true, nil
 	}
 	var count int64
 	err := h.db.WithContext(c.Request.Context()).
@@ -146,14 +152,15 @@ func (h *OperationsProgressHandler) requireEditor(c *gin.Context) bool {
 		return false
 	}
 	if !canManage {
-		writeAPIError(c, http.StatusForbidden, "只有运营组成员和超级管理员可以维护运营进展")
+		writeAPIError(c, http.StatusForbidden, "只有超级管理员可以管理运营作品")
 		return false
 	}
 	return true
 }
 
 func (h *OperationsProgressHandler) List(c *gin.Context) {
-	canManage, err := h.canManage(c)
+	canManage, _ := h.canManage(c)
+	canEditStatus, err := h.canEditStatus(c)
 	if err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "读取权限失败")
 		return
@@ -313,7 +320,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		viewerID = user.ID
 	}
 	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "snapshots": snapshots,
-		"latestPosts": latestPosts, "canManage": canManage, "viewerId": viewerID})
+		"latestPosts": latestPosts, "canManage": canManage, "canEditStatus": canEditStatus, "viewerId": viewerID})
 }
 
 func (h *OperationsProgressHandler) Create(c *gin.Context) {

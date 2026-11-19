@@ -84,9 +84,7 @@ func (h *OperationsProgressHandler) UploadStepAttachment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	canManage, err := h.canManage(c)
-	if err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "权限检查失败")
+	if !h.requireEditor(c) {
 		return
 	}
 	actor, ok := middleware.CurrentSessionUser(c)
@@ -97,10 +95,6 @@ func (h *OperationsProgressHandler) UploadStepAttachment(c *gin.Context) {
 	var step model.OperationsProgressStep
 	if err := h.db.WithContext(c.Request.Context()).Where("id = ? AND item_id = ?", stepID, itemID).Take(&step).Error; err != nil {
 		writeAPIError(c, http.StatusNotFound, "环节不存在")
-		return
-	}
-	if !canManage && (step.AssigneeID == nil || *step.AssigneeID != actor.ID) {
-		writeAPIError(c, http.StatusForbidden, "只能提交自己负责环节的成果")
 		return
 	}
 	var count int64

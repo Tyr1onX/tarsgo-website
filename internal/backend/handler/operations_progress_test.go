@@ -59,17 +59,16 @@ func TestValidateOperationsInputs(t *testing.T) {
 	}
 }
 
-func TestOperationsProgressOnlyOperationsMembersMayWrite(t *testing.T) {
+func TestOperationsProgressOnlySuperAdminsMayManage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, tc := range []struct {
 		name, role string
-		count      int
 		want       int
 	}{
-		{"ordinary member", "user", 0, http.StatusForbidden},
-		{"other group admin", "admin", 0, http.StatusForbidden},
-		{"operations member", "user", 1, http.StatusCreated},
-		{"super admin", "super_admin", -1, http.StatusCreated},
+		{"ordinary member", "user", http.StatusForbidden},
+		{"other group admin", "admin", http.StatusForbidden},
+		{"operations member", "user", http.StatusForbidden},
+		{"super admin", "super_admin", http.StatusCreated},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			sqlDB, mock, err := sqlmock.New()
@@ -80,11 +79,6 @@ func TestOperationsProgressOnlyOperationsMembersMayWrite(t *testing.T) {
 			db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
 			if err != nil {
 				t.Fatal(err)
-			}
-			if tc.count >= 0 {
-				mock.ExpectQuery("SELECT count\\(\\*\\) FROM user_group_members").
-					WithArgs(uint64(42), "运营组", 1).
-					WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(tc.count))
 			}
 			if tc.want == http.StatusCreated {
 				mock.ExpectBegin()
