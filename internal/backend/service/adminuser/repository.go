@@ -19,13 +19,13 @@ type Repository interface {
 	GetUserByID(ctx context.Context, userID uint64) (*model.User, error)
 	ListRecruitmentHistory(ctx context.Context, userID uint64) ([]model.Registration, error)
 	UpdateTeamIdentity(ctx context.Context, userID uint64, expectedStatus, nextStatus string) error
-	UpdateCurrentRecruitmentGroup(ctx context.Context, userID uint64, groupID uint64) error
+	CorrectRecruitmentGroupPreference(ctx context.Context, userID uint64, groupID uint64) error
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	ListRoles(ctx context.Context) ([]model.Role, error)
 	GetRoleByID(ctx context.Context, roleID uint64) (*model.Role, error)
 	CreateUser(ctx context.Context, user *model.User) error
 	UpdateUser(ctx context.Context, userID uint64, updates map[string]any) error
-	UpdateUserGroup(ctx context.Context, actorID, userID uint64, groupID *uint64) error
+	ReplaceUserGroupMembership(ctx context.Context, actorID, userID uint64, groupID *uint64) error
 	UpdateUserGroupRole(ctx context.Context, actorID, userID, groupID uint64, role uint8) error
 	UpdatePasswordHash(ctx context.Context, userID uint64, passwordHash string) error
 }
@@ -211,7 +211,9 @@ func (r *GormRepository) UpdateTeamIdentity(ctx context.Context, userID uint64, 
 	})
 }
 
-func (r *GormRepository) UpdateCurrentRecruitmentGroup(ctx context.Context, userID uint64, groupID uint64) error {
+// CorrectRecruitmentGroupPreference changes only the published intake form's
+// preferred group; it does not change organization membership.
+func (r *GormRepository) CorrectRecruitmentGroupPreference(ctx context.Context, userID uint64, groupID uint64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var forms []model.RegistrationForm
 		if err := tx.Where("status = ?", model.RegistrationFormStatusPublished).Find(&forms).Error; err != nil {
@@ -283,7 +285,7 @@ func (r *GormRepository) CreateUser(ctx context.Context, user *model.User) error
 	})
 }
 
-func (r *GormRepository) UpdateUserGroup(ctx context.Context, actorID, userID uint64, groupID *uint64) error {
+func (r *GormRepository) ReplaceUserGroupMembership(ctx context.Context, actorID, userID uint64, groupID *uint64) error {
 	return usergroup.ReplaceUserGroup(ctx, r.db, actorID, userID, groupID)
 }
 

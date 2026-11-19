@@ -123,7 +123,7 @@ func TestMariaDBAdmissionMembershipTransaction(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer db.Delete(&other)
-		if err := adminuser.NewRepository(db).UpdateCurrentRecruitmentGroup(ctx, u.ID, other.ID); err == nil {
+		if err := adminuser.NewRepository(db).CorrectRecruitmentGroupPreference(ctx, u.ID, other.ID); err == nil {
 			t.Fatal("admitted group changed without correcting result")
 		}
 		var unchanged model.Registration

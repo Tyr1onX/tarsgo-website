@@ -279,10 +279,10 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 
 	accountService := adminuser.NewService(adminuser.NewRepository(db))
 	newGroupID := groupB.ID
-	if _, err := accountService.UpdateUserGroup(context.Background(), adminuser.Actor{ID: adminA.ID, RoleName: model.RoleNameAdmin}, memberA.ID, &newGroupID); err == nil {
+	if _, err := accountService.ReplaceUserGroupMembership(context.Background(), adminuser.Actor{ID: adminA.ID, RoleName: model.RoleNameAdmin}, memberA.ID, &newGroupID); err == nil {
 		t.Fatal("ordinary admin unexpectedly changed a member's group")
 	}
-	if _, err := accountService.UpdateUserGroup(context.Background(), adminuser.Actor{ID: superAdmin.ID, RoleName: model.RoleNameSuperAdmin}, memberA.ID, &newGroupID); err != nil {
+	if _, err := accountService.ReplaceUserGroupMembership(context.Background(), adminuser.Actor{ID: superAdmin.ID, RoleName: model.RoleNameSuperAdmin}, memberA.ID, &newGroupID); err != nil {
 		t.Fatalf("super admin could not change the group for a former group leader: %v", err)
 	}
 	var movedMembership model.UserGroupMember

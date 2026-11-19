@@ -301,7 +301,7 @@ func (s *Service) UpdateTeamIdentity(ctx context.Context, actor Actor, userID ui
 	return s.GetUser(ctx, actor, userID)
 }
 
-func (s *Service) UpdateCurrentRecruitmentGroup(ctx context.Context, actor Actor, userID uint64, groupID uint64) (*UserDetail, error) {
+func (s *Service) CorrectRecruitmentGroupPreference(ctx context.Context, actor Actor, userID uint64, groupID uint64) (*UserDetail, error) {
 	if err := ensureUserAdminActor(actor); err != nil {
 		return nil, err
 	}
@@ -314,7 +314,7 @@ func (s *Service) UpdateCurrentRecruitmentGroup(ctx context.Context, actor Actor
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户失败", Err: err}
 	}
-	if err := s.repo.UpdateCurrentRecruitmentGroup(ctx, userID, groupID); err != nil {
+	if err := s.repo.CorrectRecruitmentGroupPreference(ctx, userID, groupID); err != nil {
 		var serviceErr *ServiceError
 		if errors.As(err, &serviceErr) {
 			return nil, serviceErr
@@ -409,14 +409,14 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	return &detail, nil
 }
 
-func (s *Service) UpdateUserGroup(ctx context.Context, actor Actor, userID uint64, groupID *uint64) (*UserDetail, error) {
+func (s *Service) ReplaceUserGroupMembership(ctx context.Context, actor Actor, userID uint64, groupID *uint64) (*UserDetail, error) {
 	if err := ensureUserAdminActor(actor); err != nil {
 		return nil, err
 	}
 	if userID == 0 {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户 ID 不合法"}
 	}
-	if err := s.repo.UpdateUserGroup(ctx, actor.ID, userID, groupID); err != nil {
+	if err := s.repo.ReplaceUserGroupMembership(ctx, actor.ID, userID, groupID); err != nil {
 		var userGroupError *usergroup.ServiceError
 		if errors.As(err, &userGroupError) {
 			return nil, &ServiceError{Status: userGroupError.Status, Message: userGroupError.Message, Err: userGroupError.Err}

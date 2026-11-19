@@ -42,11 +42,11 @@ test("identity remains independent of account roles and organization membership"
   assert.match(backendIdentity, /TeamIdentityFormalMember\s+= "formal_member"/);
   assert.match(backendIdentity, /TeamIdentityFormerMember\s+= "former_member"/);
   assert.match(backendRepository, /UpdateColumn\("team_identity_status", nextStatus\)/);
-  const update = backendAdmin.slice(backendAdmin.indexOf("func (s *Service) UpdateTeamIdentity"), backendAdmin.indexOf("func (s *Service) UpdateCurrentRecruitmentGroup"));
+  const update = backendAdmin.slice(backendAdmin.indexOf("func (s *Service) UpdateTeamIdentity"), backendAdmin.indexOf("func (s *Service) CorrectRecruitmentGroupPreference"));
   assert.match(update, /ensureUserAdminActor\(actor\)/);
   assert.match(update, /IsTeamIdentityStatus\(input\.Status\)/);
   assert.doesNotMatch(`${backendRepository}\n${backendAdmin}\n${backendHandler}`, /TeamIdentityChange|team_identity_changes|TeamIdentityHistory|AssessmentPassed|LeaderConfirmed|PriorFormalMembershipConfirmed|Reason/);
-  assert.doesNotMatch(update, /UpdateUserGroup|UpdateUser\(|RoleID|GroupMembers|XP/);
+  assert.doesNotMatch(update, /ReplaceUserGroupMembership|UpdateUser\(|RoleID|GroupMembers|XP/);
   assert.match(router, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\), requireSameOriginRequest\(cfg\)\)/);
   assert.match(router, /superAdminAPI\.PATCH\("\/users\/:id\/team-identity", adminUserHandler\.UpdateTeamIdentity\)/);
 });

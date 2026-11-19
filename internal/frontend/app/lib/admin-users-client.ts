@@ -38,6 +38,8 @@ export interface AdminUserGroupMembership {
 	role: number;
 }
 
+// Account role, team identity, current group membership and recruitment preference
+// are independent business dimensions; changing one must not silently change another.
 export interface AdminUserDetail {
   id: number;
   email: string;
@@ -181,14 +183,16 @@ export async function updateAdminUserTeamIdentity(userId: number, input: UpdateA
 	});
 }
 
-export async function updateAdminUserRecruitmentGroup(userId: number, groupId: number): Promise<AdminUserDetail> {
+export async function correctAdminRecruitmentGroupPreference(userId: number, groupId: number): Promise<AdminUserDetail> {
   return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/recruitment-group`, {
     method: "PATCH",
     body: { groupId },
   });
 }
 
-export async function updateAdminUserGroup(userId: number, groupId: number | null): Promise<AdminUserDetail> {
+// Replaces all organization memberships, including inactive historical relations.
+// Recruitment preferences remain unchanged.
+export async function replaceAdminUserGroupMembership(userId: number, groupId: number | null): Promise<AdminUserDetail> {
 	const user = await apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group`, {
 		method: "PATCH",
 		body: { groupId },

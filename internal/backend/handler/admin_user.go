@@ -25,10 +25,10 @@ type adminUserService interface {
 	ListRoles(ctx context.Context, actor adminuser.Actor) ([]adminuser.RoleOption, error)
 	CreateUser(ctx context.Context, actor adminuser.Actor, input adminuser.CreateUserInput) (*adminuser.UserDetail, error)
 	UpdateUser(ctx context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateUserInput) (*adminuser.UserDetail, error)
-	UpdateUserGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID *uint64) (*adminuser.UserDetail, error)
+	ReplaceUserGroupMembership(ctx context.Context, actor adminuser.Actor, userID uint64, groupID *uint64) (*adminuser.UserDetail, error)
 	UpdateUserGroupRole(ctx context.Context, actor adminuser.Actor, userID, groupID uint64, role uint8) (*adminuser.UserDetail, error)
 	UpdateTeamIdentity(ctx context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateTeamIdentityInput) (*adminuser.UserDetail, error)
-	UpdateCurrentRecruitmentGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID uint64) (*adminuser.UserDetail, error)
+	CorrectRecruitmentGroupPreference(ctx context.Context, actor adminuser.Actor, userID uint64, groupID uint64) (*adminuser.UserDetail, error)
 	ResetPassword(ctx context.Context, actor adminuser.Actor, userID uint64, password string) error
 }
 
@@ -116,7 +116,7 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取用户列表成功", result)
 }
 
-func (h *AdminUserHandler) UpdateUserGroup(c *gin.Context) {
+func (h *AdminUserHandler) ReplaceUserGroupMembership(c *gin.Context) {
 	userID, err := parsePathUserID(c.Param("id"))
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
@@ -136,7 +136,7 @@ func (h *AdminUserHandler) UpdateUserGroup(c *gin.Context) {
 		}
 		groupID = &value
 	}
-	user, serviceErr := h.service.UpdateUserGroup(c.Request.Context(), currentActor(c), userID, groupID)
+	user, serviceErr := h.service.ReplaceUserGroupMembership(c.Request.Context(), currentActor(c), userID, groupID)
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)
 		return
@@ -268,7 +268,7 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "更新用户成功", user)
 }
 
-func (h *AdminUserHandler) UpdateRecruitmentGroup(c *gin.Context) {
+func (h *AdminUserHandler) CorrectRecruitmentGroupPreference(c *gin.Context) {
 	userID, err := parsePathUserID(c.Param("id"))
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
@@ -279,7 +279,7 @@ func (h *AdminUserHandler) UpdateRecruitmentGroup(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "招新组别不合法")
 		return
 	}
-	user, serviceErr := h.service.UpdateCurrentRecruitmentGroup(c.Request.Context(), currentActor(c), userID, request.GroupID)
+	user, serviceErr := h.service.CorrectRecruitmentGroupPreference(c.Request.Context(), currentActor(c), userID, request.GroupID)
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)
 		return
