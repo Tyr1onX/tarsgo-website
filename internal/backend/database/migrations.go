@@ -317,7 +317,19 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 83, apply: migrateOperationsContentBacklogV83},
 		{version: 84, apply: migrateOperationsMerchandiseItemsV84},
 		{version: 85, apply: migrateWeChatVideoMetricsV85},
+		{version: 86, apply: retireDefaultMemberGroupV86},
 	}
+}
+
+// Keep the historical group row for recruitment/report references, but remove
+// its live membership relations. No user should be assigned to a default group.
+func retireDefaultMemberGroupV86(db *gorm.DB) error {
+	if err := db.Exec(`DELETE members FROM user_group_members AS members
+		JOIN user_groups AS groups ON groups.id = members.group_id
+		WHERE groups.is_default = 1`).Error; err != nil {
+		return err
+	}
+	return db.Exec("UPDATE user_groups SET status = 0, `show` = 0 WHERE is_default = 1").Error
 }
 
 func dropTeamIdentityChanges(db *gorm.DB) error {
