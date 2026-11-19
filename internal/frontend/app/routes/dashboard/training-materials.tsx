@@ -285,13 +285,26 @@ AI视觉 与 TARS_Go｜ 2026—2027学年秋季学期
 
 type DocumentLink = { key: string; label: string; href: string };
 
+const handbookDocuments = [
+  { id: "welcome", label: "01 · 写给刚刚来到这里的你", markdown: "# 写给刚刚来到这里的你\n" },
+  { id: "team", label: "02 · 认识吉甲大师", markdown: "# 认识吉甲大师\n" },
+  { id: "growth", label: "03 · 你将在这里经历什么", markdown: "# 你将在这里经历什么\n" },
+  { id: "directions", label: "04 · 找到适合自己的方向", markdown: "# 找到适合自己的方向\n" },
+  { id: "start", label: "05 · 开始你的第一次学习", markdown: startMarkdown },
+  { id: "together", label: "06 · 学习不是一个人的事情", markdown: "# 学习不是一个人的事情\n" },
+  { id: "continue", label: "07 · 从这里继续出发", markdown: "# 从这里继续出发\n" },
+] as const;
+
 const documents = [
-  { id: "start", label: "学习指南", markdown: startMarkdown },
+  ...handbookDocuments,
   { id: "git", label: "Git 与 GitHub", markdown: gitMarkdown },
 ] as const;
 
 const directory = [
-  { title: "开始学习", links: [{ key: "doc:start", label: "新人学习指南", href: "?doc=start" }] },
+  {
+    title: "新人成长手册",
+    links: handbookDocuments.map(({ id, label }) => ({ key: `doc:${id}`, label, href: `?doc=${id}` })),
+  },
   {
     title: "通用基础",
     links: [
@@ -430,7 +443,7 @@ export default function TrainingMaterialsPage() {
   const after = allLinks[activeIndex + 1];
   const category = selectedMaterial
     ? selectedMaterial.id === "foundation" ? "通用基础" : "原始培养路线"
-    : selectedDocument?.id === "start" ? "开始学习" : "通用基础";
+    : selectedDocument?.id === "git" ? "通用基础" : "新人成长手册";
   const sections = selectedDocument && documentSource !== null
     ? Array.from((editing ? draft : documentSource).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
     : [];
