@@ -117,7 +117,9 @@ export default function OperationsProgressPage() {
   const items = board?.items ?? [];
   const channels = items.filter((item) => item.kind === "channel");
   const works = items.filter((item) => (item.kind === "video" || item.kind === "article") && item.status !== "done");
-  const otherItems = items.filter((item) => item.kind !== "channel" && item.kind !== "video" && item.kind !== "article" && item.status !== "done");
+  const hasMerchandiseItems = items.some((item) => item.kind === "merchandise" && item.title !== "周边制作");
+  const otherItems = items.filter((item) => item.kind !== "channel" && item.kind !== "video" && item.kind !== "article" && item.status !== "done" &&
+    !(hasMerchandiseItems && item.kind === "merchandise" && item.title === "周边制作"));
 
   return <main className="operations-progress admin-design" aria-busy={loading && !board}>
     <header className="operations-progress__header">
@@ -143,7 +145,7 @@ export default function OperationsProgressPage() {
         </div>
       </section>
       {otherItems.length ? <section className="operations-progress__other-items">
-        <h2>其他事务</h2>
+        <h2>{otherItems.every((item) => item.kind === "merchandise") ? "周边制作" : "其他事务"}</h2>
         {otherItems.map((item) => {
           const completed = item.steps.filter((step) => step.status === "done").length;
           const current = item.steps.find((step) => step.status === "blocked") ||

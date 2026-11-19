@@ -191,3 +191,17 @@ test("operations delete actions are permission-gated and historical posts stay s
   assert.match(model, /Hidden\s+bool/);
   assert.match(progress, /Where\("hidden = \?", false\)/);
 });
+
+test("merchandise overview lists individual items without showing the old generic card twice", async () => {
+  const [overview, migration] = await Promise.all([
+    read("../routes/dashboard/operations-progress.tsx"),
+    read("../../../backend/database/operations_merchandise_v84.go"),
+  ]);
+  assert.match(overview, /hasMerchandiseItems/);
+  assert.match(overview, /item\.title === "周边制作"/);
+  assert.match(overview, /"周边制作" : "其他事务"/);
+  for (const name of ["小灯泡", "指尖陀螺", "鼠标垫", "帆布袋", "尺子", "小口袋", "卡通人物立牌", "钥匙扣", "光栅卡", "机器人拼接积木"]) {
+    assert.ok(migration.includes(`"${name}"`), `missing single-product task: ${name}`);
+  }
+  assert.doesNotMatch(migration, /第一批|同步推进|后期跟进|Priority|priority/);
+});
