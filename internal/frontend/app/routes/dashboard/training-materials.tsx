@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { CommunityMarkdownEditor, type CommunityPendingImage } from "~/components/community-markdown-editor";
 import { TrainingDocumentTree, orderedTrainingNodes, trainingNodeHref, type TrainingNode } from "~/components/training-document-tree";
 import { apiRequest } from "~/lib/api-client";
+import { decodeCommunityImageTitle } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import startMarkdown from "~/content/training/start.md?raw";
 import gitMarkdown from "~/content/training/git-and-github.md?raw";
@@ -330,7 +331,15 @@ function DocumentationArticle({ source, title }: { source: string; title: string
     a: ({ href, children }) => href?.startsWith("?")
       ? <Link to={href}>{children}</Link>
       : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
-    img: ({ src, alt }) => <img src={src} alt={alt ?? ""} loading="lazy" />,
+    img: ({ src, alt, title }) => {
+      const layout = decodeCommunityImageTitle(title);
+      const caption = layout?.caption ?? (title && !title.startsWith("jijia-image:") ? title : "");
+      return <span className={`training-docs__image${layout ? ` is-${layout.align}` : ""}`}
+        style={layout ? { width: `${layout.width}%` } : undefined}>
+        <img src={src} alt={alt ?? ""} loading="lazy" decoding="async" />
+        {caption ? <span className="training-docs__image-caption">{caption}</span> : null}
+      </span>;
+    },
     pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
   };
 
