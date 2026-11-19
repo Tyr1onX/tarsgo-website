@@ -48,7 +48,7 @@ import { CommunityIcon } from "~/components/community-icons";
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { validateCommunityImages, type CommunityAttachment } from "~/lib/community-client";
 import { bindCommunityClipboardImages, communityEnableHtmlFileUploader, isUnpersistableCommunityImageSource, matchCommunityClipboardImageFiles, removeUnpersistableCommunityClipboardImages } from "~/lib/community-image-paste";
-import { encodeCommunityImageTitle, type CommunityImageLayout } from "~/lib/community-markdown";
+import { encodeCommunityImageTitle, insertCommunityMarkdownTable, type CommunityImageLayout } from "~/lib/community-markdown";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 import "./community-markdown-editor.css";
@@ -817,10 +817,22 @@ export function CommunityMarkdownEditor({
   }
 
   function applySourceTool(action: ToolName) {
+    if (action === "table") {
+      const textarea = sourceRef.current;
+      if (!textarea) return;
+      const insertion = insertCommunityMarkdownTable(currentValueRef.current, textarea.selectionStart, textarea.selectionEnd);
+      sourceHistoryRef.current.push(currentValueRef.current);
+      sourceRedoRef.current = [];
+      notifyChange(insertion.value);
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(insertion.start, insertion.end);
+      });
+      return;
+    }
     const paired: Partial<Record<ToolName, [string, string]>> = {
       bold: ["**", "**"], italic: ["*", "*"], strike: ["~~", "~~"], inlineCode: ["`", "`"], code: ["```\n", "\n```"],
       bullets: ["- ", ""], numbers: ["1. ", ""], tasks: ["- [ ] ", ""], quote: ["> ", ""], rule: ["\n---\n", ""],
-      table: ["| 标题 | 标题 |\n| --- | --- |\n| 内容 | 内容 |", ""],
     };
     if (action === "undo") {
       const previous = sourceHistoryRef.current.pop();
@@ -859,7 +871,7 @@ export function CommunityMarkdownEditor({
   flushRef.current = flushCurrentValue;
 
   function editorToolbar() {
-    const tools: Array<[ToolName, string]> = [["undo", "撤销"], ["redo", "重做"], ["bold", "加粗"], ["italic", "斜体"], ["strike", "删除线"], ["inlineCode", "行内代码"], ["bullets", "无序列表"], ["numbers", "有序列表"], ["tasks", "任务清单"], ["quote", "引用"], ["code", "代码块"], ["table", "插入表格"], ["rule", "分隔线"]];
+    const tools: Array<[ToolName, string]> = [["undo", "撤销"], ["redo", "重做"], ["bold", "加粗"], ["italic", "斜体"], ["strike", "删除线"], ["inlineCode", "行内代码"], ["bullets", "无序列表"], ["numbers", "有序列表"], ["tasks", "任务清单"], ["quote", "引用"], ["code", "代码块"], ["table", "插入表格（单元格可编辑，边缘可增删行列）"], ["rule", "分隔线"]];
     return <div className="community-editor-toolbar" role="toolbar" aria-label="Markdown 格式工具">
       <label className="community-editor-toolbar__heading"><span className="sr-only">段落样式</span><select aria-label="段落样式" defaultValue="paragraph" onChange={(event) => changeHeading(event.target.value)} disabled={disabled}><option value="paragraph">正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option></select></label>
       {tools.map(([name, label], index) => <span className={`community-editor-toolbar__item${[2, 6, 10].includes(index) ? " has-divider" : ""}`} key={name}><ToolbarButton label={label} name={name} onClick={() => commandButton(name)} disabled={disabled} /></span>)}
@@ -884,7 +896,7 @@ export function CommunityMarkdownEditor({
     {mode === "rich" ? <div ref={rootRef} className="community-markdown-editor__surface" aria-label={placeholder} onMouseUp={() => { if (editorRef.current) refreshSelectedImage(editorRef.current); }} onKeyUp={() => { if (editorRef.current) refreshSelectedImage(editorRef.current); }} onClick={(event) => selectImage(event.target)} /> : <div className="community-markdown-source">
       <div className="community-markdown-source__tools" role="toolbar" aria-label="Markdown 格式工具">
         <label className="community-editor-toolbar__heading"><span className="sr-only">插入标题</span><select aria-label="插入标题" defaultValue="" onChange={(event) => { const level = Number(event.target.value); if (level) insertMarkdownSource(`${"#".repeat(level)} `, "", true); event.target.value = ""; }} disabled={disabled}><option value="" disabled>标题</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option></select></label>
-        {(["undo", "redo", "bold", "italic", "strike", "inlineCode", "bullets", "numbers", "tasks", "quote", "code", "table", "rule"] as ToolName[]).map((name) => <ToolbarButton key={name} label={({ undo: "撤销", redo: "重做", bold: "加粗", italic: "斜体", strike: "删除线", inlineCode: "行内代码", bullets: "无序列表", numbers: "有序列表", tasks: "任务清单", quote: "引用", code: "代码块", table: "插入表格", rule: "分隔线" } as Record<ToolName, string>)[name]} name={name} onClick={() => applySourceTool(name)} disabled={disabled} />)}
+        {(["undo", "redo", "bold", "italic", "strike", "inlineCode", "bullets", "numbers", "tasks", "quote", "code", "table", "rule"] as ToolName[]).map((name) => <ToolbarButton key={name} label={({ undo: "撤销", redo: "重做", bold: "加粗", italic: "斜体", strike: "删除线", inlineCode: "行内代码", bullets: "无序列表", numbers: "有序列表", tasks: "任务清单", quote: "引用", code: "代码块", table: "插入表格（3 列，含表头）", rule: "分隔线" } as Record<ToolName, string>)[name]} name={name} onClick={() => applySourceTool(name)} disabled={disabled} />)}
         <ToolbarButton label="插入链接" name="link" onClick={openLinkDialog} disabled={disabled} />
         <ToolbarButton label="插入图片" name="image" onClick={() => imageInputRef.current?.click()} disabled={disabled} />
       </div>
