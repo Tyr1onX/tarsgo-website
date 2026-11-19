@@ -9,7 +9,7 @@ test("training documents reuse the existing visual editor and save the current m
   assert.match(route, /CommunityMarkdownEditor/);
   assert.match(route, /flushRef\.current\(\)/);
   assert.match(route, /<DocumentationArticle source=\{documentSource/);
-  assert.match(route, /<DocumentationArticle source=\{documentSource \?\? selectedDocument\.markdown\}/);
+  assert.match(route, /<DocumentationArticle source=\{documentSource \?\? selectedDocument\.markdown\} title=/);
   assert.match(route, /apiRequest<\{ body: string \}>\(\x60\/api\/training-documents\/\$\{documentSlug\}/);
   assert.match(route, /api\/admin\/training-documents\/\$\{selectedDocument\.id\}/);
   assert.match(route, /canEdit = currentUser\.role\.name === "super_admin"/);
@@ -32,6 +32,9 @@ test("training documentation endpoints keep reads available and writes super adm
   assert.ok(start > 0 && end > start);
   assert.match(router.slice(start, end), /RequireAuthenticated\(authService\)/);
   assert.match(router, /superAdminAPI\.PUT\("\/training-documents\/:slug", trainingDocumentHandler\.Save\)/);
+  assert.match(router, /trainingReadAPI\.GET\("\/tree", trainingDocumentHandler\.ListTree\)/);
+  assert.match(router, /superAdminAPI\.POST\("\/training-documents\/nodes", trainingDocumentHandler\.CreateNode\)/);
+  assert.match(router, /superAdminAPI\.PATCH\("\/training-documents\/nodes\/:id", trainingDocumentHandler\.RenameNode\)/);
   const adminIndex = router.indexOf('superAdminAPI := adminAPI.Group("")');
   const authorizeIndex = router.indexOf('superAdminAPI.Use(middleware.RequireSuperAdmin(authService))');
   assert.ok(adminIndex >= 0 && authorizeIndex > adminIndex);
