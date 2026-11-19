@@ -20,10 +20,12 @@ test("content center keeps management separate from one-page workflow execution"
   }
   assert.doesNotMatch(routes, /operations-step-detail|operations-step-status|operations-publication-edit/);
   assert.match(overview, />我的任务</);
-  assert.match(overview, />全部作品</);
+  assert.match(overview, />检索作品</);
+  assert.match(overview, />发起一期视频</);
   assert.match(overview, /查看任务/);
   assert.match(platform, /查看作品详情/);
-  assert.match(works, /新建作品/);
+  assert.match(works, /作品检索/);
+  assert.match(works, /type="search"/);
   assert.match(works, /item\.seriesName/);
   assert.match(detail, /管理作品/);
   assert.match(detail, /selectedStep/);
@@ -100,7 +102,7 @@ test("platform cards prioritize current production then the real latest publishe
   assert.match(overview, /currentStep\.assigneeName/);
   assert.match(overview, /latestPost\.viewCount\.toLocaleString/);
   assert.doesNotMatch(overview, /当前没有正在制作的作品/);
-  assert.match(css, /align-items: start/);
+  assert.match(css, /align-items: stretch/);
   assert.match(css, /operations-progress__last-post-title/);
 });
 
@@ -118,4 +120,28 @@ test("operations role shortcut maps unique real member accounts without assignin
   assert.match(editor, /套用分工（由我审核）/);
   assert.match(editor, /setUnmatched\(missing\)/);
   assert.match(editor, /await setupOperationsEpisode\(/);
+});
+
+test("quick launch starts planning without advancing to filming or forcing assignment setup", async () => {
+  const [overview, create, backend, works, css] = await Promise.all([
+    read("../routes/dashboard/operations-progress.tsx"),
+    read("../routes/dashboard/operations-work-new.tsx"),
+    read("../../../backend/handler/operations_production.go"),
+    read("../routes/dashboard/operations-works.tsx"),
+    read("../routes/dashboard/operations-progress.css"),
+  ]);
+  assert.match(overview, />发起一期视频</);
+  assert.match(create, /createOperationsEpisode\(channel\.id, title\.trim\(\), seriesName\.trim\(\), true\)/);
+  assert.match(create, /navigate\(`\/dashboard\/workbench\/operations\/works\/\$\{work\.id\}`/);
+  assert.doesNotMatch(create, /\/episodes\/\$\{work\.id\}\/setup/);
+  assert.match(backend, /operationsworkflow\.EnsureUpcoming\(tx, channelID, input\.SeriesName\)/);
+  assert.match(backend, /Update\("status", "active"\)/);
+  assert.match(backend, /"planning", "pending"/);
+  assert.match(works, /operations-progress__library-list/);
+  assert.match(works, /type="search"/);
+  assert.match(works, /getOperationsWorks\(platform, page, search\)/);
+  assert.doesNotMatch(works, /operations-progress__work-cover|operations-progress__works-grid/);
+  assert.match(css, /align-items: stretch/);
+  assert.match(css, /grid-template-rows: auto minmax\(8rem/);
+  assert.match(css, /operations-progress__library-row/);
 });

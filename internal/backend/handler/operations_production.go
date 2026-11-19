@@ -35,8 +35,9 @@ func (h *OperationsProgressHandler) CreateEpisode(c *gin.Context) {
 	}
 	channelID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	var input struct {
-		Title      string `json:"title"`
-		SeriesName string `json:"seriesName"`
+		Title         string `json:"title"`
+		SeriesName    string `json:"seriesName"`
+		StartPlanning bool   `json:"startPlanning"`
 	}
 	if err != nil || channelID == 0 || c.ShouldBindJSON(&input) != nil || len([]rune(strings.TrimSpace(input.Title))) > 120 || len([]rune(strings.TrimSpace(input.SeriesName))) > 80 {
 		writeAPIError(c, http.StatusBadRequest, "请填写有效选题")
@@ -45,9 +46,39 @@ func (h *OperationsProgressHandler) CreateEpisode(c *gin.Context) {
 	var episode *model.OperationsProgressItem
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var err error
-		episode, err = operationsworkflow.CreateEpisode(tx, channelID, input.Title, input.SeriesName)
+		if !input.StartPlanning {
+			episode, err = operationsworkflow.CreateEpisode(tx, channelID, input.Title, input.SeriesName)
+		} else {
+			// Reuse the pending episode created after the last publication instead of duplicating it.
+			episode, err = operationsworkflow.EnsureUpcoming(tx, channelID, input.SeriesName)
+		}
 		if err != nil {
 			return err
+		}
+		if input.StartPlanning {
+			title := strings.TrimSpace(input.Title)
+			if title != "" && episode.Title != title {
+				if err := tx.Model(episode).Update("title", title).Error; err != nil {
+					return err
+				}
+				episode.Title = title
+			}
+			result := tx.Model(&model.OperationsProgressStep{}).
+				Where("item_id = ? AND `key` = ? AND status = ?", episode.ID, "planning", "pending").
+				Update("status", "active")
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return fmt.Errorf("planning step unavailable for episode %d", episode.ID)
+			}
+			actor, _ := middleware.CurrentSessionUser(c)
+			if err := tx.Create(&model.OperationsProgressUpdate{
+				ItemID: episode.ID, AuthorID: actor.ID, Kind: "progress", Content: "已发起制作 · 策划进行中",
+				FromStage: "pending", ToStage: "active",
+			}).Error; err != nil {
+				return err
+			}
 		}
 		return ensureEpisodeTargets(tx, episode)
 	})
@@ -275,6 +306,11 @@ type operationsArchive struct {
 // it never guesses that a public post belongs to an internal episode by title.
 func (h *OperationsProgressHandler) Works(c *gin.Context) {
 	platform := c.Query("platform")
+	query := strings.TrimSpace(c.Query("q"))
+	if len([]rune(query)) > 120 {
+		writeAPIError(c, http.StatusBadRequest, "搜索内容过长")
+		return
+	}
 	if platform != "" && platform != "douyin" && platform != "bilibili" && platform != "wechat" && platform != "wechat_video" {
 		writeAPIError(c, http.StatusBadRequest, "平台不正确")
 		return
@@ -286,6 +322,9 @@ func (h *OperationsProgressHandler) Works(c *gin.Context) {
 	}
 	const size = 18
 	external := h.db.WithContext(c.Request.Context()).Model(&model.OperationsPlatformPost{})
+	if query != "" {
+		external = external.Where("title LIKE ?", "%"+query+"%")
+	}
 	if platform != "" {
 		external = external.Where("platform = ?", platform)
 	}
@@ -306,6 +345,9 @@ func (h *OperationsProgressHandler) Works(c *gin.Context) {
 		Select("i.id, i.title, i.platforms, i.channel_id, i.episode_no, i.publication_url, s.completed_at").
 		Joins("JOIN "+stepsTable+" AS s ON s.item_id = i.id AND s.key = ? AND s.status = ?", "published", "done").
 		Where("i.channel_id IS NOT NULL")
+	if query != "" {
+		archives = archives.Where("i.title LIKE ?", "%"+query+"%")
+	}
 	if platform != "" {
 		archives = archives.Where("i.platforms = ?", platform)
 	}
