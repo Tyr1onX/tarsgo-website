@@ -29,7 +29,7 @@ func TestMariaDBWeChatVideoFollowerImport(t *testing.T) {
 		t.Fatal("isolated acceptance database required")
 	}
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{TablePrefix: fmt.Sprintf("wechat_video_import_%d_", time.Now().UnixNano())},
+		NamingStrategy: schema.NamingStrategy{TablePrefix: fmt.Sprintf("wv_%d_", time.Now().UnixNano())},
 	})
 	if err != nil {
 		t.Fatal(err)
