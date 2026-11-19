@@ -4,6 +4,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { CommunityMarkdownEditor, type CommunityPendingImage } from "~/components/community-markdown-editor";
+import { TrainingDocumentTree, orderedTrainingNodes, trainingNodeHref, type TrainingNode } from "~/components/training-document-tree";
 import { apiRequest } from "~/lib/api-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import startMarkdown from "~/content/training/start.md?raw";
@@ -283,43 +284,16 @@ AI视觉 与 TARS_Go｜ 2026—2027学年秋季学期
   },
 ] as const;
 
-type DocumentLink = { key: string; label: string; href: string };
-
-const handbookDocuments = [
-  { id: "welcome", label: "01 · 写给刚刚来到这里的你", markdown: "# 写给刚刚来到这里的你\n" },
-  { id: "team", label: "02 · 认识吉甲大师", markdown: "# 认识吉甲大师\n" },
-  { id: "growth", label: "03 · 你将在这里经历什么", markdown: "# 你将在这里经历什么\n" },
-  { id: "directions", label: "04 · 找到适合自己的方向", markdown: "# 找到适合自己的方向\n" },
-  { id: "start", label: "05 · 开始你的第一次学习", markdown: startMarkdown },
-  { id: "together", label: "06 · 学习不是一个人的事情", markdown: "# 学习不是一个人的事情\n" },
-  { id: "continue", label: "07 · 从这里继续出发", markdown: "# 从这里继续出发\n" },
-] as const;
-
-const documents = [
-  ...handbookDocuments,
-  { id: "git", label: "Git 与 GitHub", markdown: gitMarkdown },
-] as const;
-
-const directory = [
-  {
-    title: "新人成长手册",
-    links: handbookDocuments.map(({ id, label }) => ({ key: `doc:${id}`, label, href: `?doc=${id}` })),
-  },
-  {
-    title: "通用基础",
-    links: [
-      { key: "group:foundation", label: "通用基础概览", href: "?group=foundation" },
-      { key: "doc:git", label: "Git 与 GitHub", href: "?doc=git" },
-    ],
-  },
-  {
-    title: "原始培养路线",
-    links: materials.filter(({ id }) => id !== "foundation")
-      .map(({ id, label }) => ({ key: `group:${id}`, label, href: `?group=${id}` })),
-  },
-] satisfies { title: string; links: DocumentLink[] }[];
-
-const allLinks = directory.flatMap(({ links }) => links);
+const defaultMarkdown: Record<string, string> = {
+  welcome: "# 写给刚刚来到这里的你\n",
+  team: "# 认识吉甲大师\n",
+  growth: "# 你将在这里经历什么\n",
+  directions: "# 找到适合自己的方向\n",
+  start: startMarkdown,
+  together: "# 学习不是一个人的事情\n",
+  continue: "# 从这里继续出发\n",
+  git: gitMarkdown,
+};
 
 function headingId(title: string) {
   return title.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
@@ -349,7 +323,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   </div>;
 }
 
-function DocumentationArticle({ source }: { source: string }) {
+function DocumentationArticle({ source, title }: { source: string; title: string }) {
   const components: Components = {
     h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
     h3: ({ children }) => <h3 id={headingId(String(children))}>{children}</h3>,
@@ -361,7 +335,8 @@ function DocumentationArticle({ source }: { source: string }) {
   };
 
   return <div className="training-docs__markdown">
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{source}</ReactMarkdown>
+    <h1>{title}</h1>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{source.replace(/^# [^\n]*(?:\n|$)/, "")}</ReactMarkdown>
   </div>;
 }
 
@@ -369,6 +344,9 @@ export default function TrainingMaterialsPage() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const canEdit = currentUser.role.name === "super_admin";
   const [searchParams, setSearchParams] = useSearchParams();
+  const [tree, setTree] = useState<TrainingNode[]>([]);
+  const [treeError, setTreeError] = useState("");
+  const [treeRevision, setTreeRevision] = useState(0);
   const [loaded, setLoaded] = useState<{ slug: string; body: string; error?: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -378,12 +356,26 @@ export default function TrainingMaterialsPage() {
   const [leftNavigationOpen, setLeftNavigationOpen] = useState(true);
   const [rightContentsOpen, setRightContentsOpen] = useState(true);
   const flushRef = useRef<() => string>(() => "");
-  const selectedMaterial = searchParams.has("group")
-    ? materials.find(({ id }) => id === searchParams.get("group"))
+  useEffect(() => {
+    const controller = new AbortController();
+    apiRequest<{ nodes: TrainingNode[] }>("/api/training-documents/tree", { signal: controller.signal })
+      .then(({ nodes }) => { setTree(nodes); setTreeError(""); })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setTreeError(error instanceof Error ? error.message : "目录加载失败");
+      });
+    return () => controller.abort();
+  }, [treeRevision]);
+
+  const selectedNode = tree.find((node) =>
+    node.kind === "reference" ? searchParams.get("group") === node.ref && searchParams.has("group")
+      : node.kind === "document" && !searchParams.has("group") && node.id === (searchParams.get("doc") ?? "welcome")
+  ) ?? (searchParams.has("group") || searchParams.has("doc") ? undefined : tree.find(({ id }) => id === "welcome"));
+  const selectedMaterial = selectedNode?.kind === "reference"
+    ? materials.find(({ id }) => id === selectedNode.ref) : undefined;
+  const selectedDocument = selectedNode?.kind === "document"
+    ? { id: selectedNode.id, markdown: defaultMarkdown[selectedNode.id] ?? `# ${selectedNode.title}\n` }
     : undefined;
-  const selectedDocument = selectedMaterial ? undefined
-    : documents.find(({ id }) => id === searchParams.get("doc")) ?? documents[0];
-  const selectedKey = selectedMaterial ? `group:${selectedMaterial.id}` : `doc:${selectedDocument?.id}`;
+  const selectedKey = selectedNode?.id ?? "";
   const documentSlug = selectedDocument?.id;
   useEffect(() => {
     if (!documentSlug) return;
@@ -438,12 +430,11 @@ export default function TrainingMaterialsPage() {
     }
   }
 
-  const activeIndex = allLinks.findIndex(({ key }) => key === selectedKey);
-  const before = allLinks[activeIndex - 1];
-  const after = allLinks[activeIndex + 1];
-  const category = selectedMaterial
-    ? selectedMaterial.id === "foundation" ? "通用基础" : "原始培养路线"
-    : selectedDocument?.id === "git" ? "通用基础" : "新人成长手册";
+  const orderedPages = orderedTrainingNodes(tree).map(({ node }) => node).filter((node) => node.kind !== "folder");
+  const activeIndex = orderedPages.findIndex(({ id }) => id === selectedKey);
+  const before = orderedPages[activeIndex - 1];
+  const after = orderedPages[activeIndex + 1];
+  const category = tree.find(({ id }) => id === selectedNode?.parentId)?.title ?? "文档";
   const sections = selectedDocument && documentSource !== null
     ? Array.from((editing ? draft : documentSource).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
     : [];
@@ -459,13 +450,15 @@ export default function TrainingMaterialsPage() {
         value={selectedKey}
         onChange={(event) => {
           if (!confirmLeave()) return;
-          const [kind, id] = event.target.value.split(":");
-          setSearchParams(kind === "group" ? { group: id } : { doc: id });
+          const node = tree.find(({ id }) => id === event.target.value);
+          if (node && node.kind !== "folder") {
+            setSearchParams(node.kind === "reference" ? { group: node.ref ?? "" } : { doc: node.id });
+          }
         }}
       >
-        {directory.map(({ title, links }) => <optgroup key={title} label={title}>
-          {links.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
-        </optgroup>)}
+        {orderedTrainingNodes(tree).map(({ node, depth }) => <option key={node.id} value={node.id} disabled={node.kind === "folder"}>
+          {"　".repeat(depth)}{node.title}
+        </option>)}
       </select>
     </label>
     <div className={`training-docs__layout${leftNavigationOpen ? "" : " is-left-collapsed"}${rightContentsOpen ? "" : " is-right-collapsed"}${sections.length ? "" : " is-toc-empty"}`}>
@@ -476,18 +469,17 @@ export default function TrainingMaterialsPage() {
             title={leftNavigationOpen ? "收起文档目录" : "展开文档目录"}
             aria-expanded={leftNavigationOpen}>{leftNavigationOpen ? "‹" : "›"}</button>
         </div>
-        {leftNavigationOpen ? <nav aria-label="培训文档目录">
-          {directory.map(({ title, links }) => <section key={title} className="training-docs__nav-section">
-            <h2>{title}</h2>
-            {links.map(({ key, href, label }) => <Link
-              key={key}
-              to={href}
-              onClick={(event) => { if (key !== selectedKey && !confirmLeave()) event.preventDefault(); }}
-              aria-current={selectedKey === key ? "page" : undefined}
-              className="training-docs__nav-link"
-            >{label}</Link>)}
-          </section>)}
-        </nav> : null}
+        {leftNavigationOpen ? <TrainingDocumentTree
+          nodes={tree}
+          selectedId={selectedKey}
+          canEdit={canEdit}
+          onTreeChange={setTree}
+          canNavigate={confirmLeave}
+        /> : null}
+        {treeError ? <div className="training-docs__tree-error" role="alert">
+          {treeError}
+          <button type="button" onClick={() => setTreeRevision((value) => value + 1)}>重试</button>
+        </div> : null}
       </aside>
       <article className="training-docs__article">
         <div className="training-docs__article-header">
@@ -501,11 +493,13 @@ export default function TrainingMaterialsPage() {
         </div>
         {selectedMaterial
           ? <>
-            <h1>{selectedMaterial.id === "foundation" ? "通用基础学习资料" : `${selectedMaterial.label} · 原始培养路线`}</h1>
+            <h1>{selectedNode?.title ?? selectedMaterial.label}</h1>
             <p className="training-docs__original-label">资料原文保留，未调整知识点和阶段要求。</p>
             <pre className="training-docs__original">{selectedMaterial.text}</pre>
           </>
-          : !selectedDocument || loaded?.slug !== selectedDocument.id
+          : treeError
+            ? <p className="training-docs__status" role="alert">{treeError}</p>
+            : !selectedDocument || loaded?.slug !== selectedDocument.id
             ? <p className="training-docs__status">正在加载文档…</p>
             : loaded.error
               ? <p className="training-docs__status" role="alert">{loaded.error}</p>
@@ -523,10 +517,10 @@ export default function TrainingMaterialsPage() {
                   />
                   {saveError ? <p className="training-docs__save-error" role="alert">{saveError}</p> : null}
                 </section>
-                : <DocumentationArticle source={documentSource ?? selectedDocument.markdown} />}
+                : <DocumentationArticle source={documentSource ?? selectedDocument.markdown} title={selectedNode?.title ?? ""} />}
         <nav className="training-docs__pagination" aria-label="相邻文档">
-          {before ? <Link to={before.href} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>← {before.label}</Link> : <span />}
-          {after ? <Link to={after.href} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>{after.label} →</Link> : <span />}
+          {before ? <Link to={trainingNodeHref(before)} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>← {before.title}</Link> : <span />}
+          {after ? <Link to={trainingNodeHref(after)} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>{after.title} →</Link> : <span />}
         </nav>
       </article>
       {sections.length ? <aside className="training-docs__toc" aria-label="本页目录">
