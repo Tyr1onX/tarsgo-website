@@ -44,7 +44,7 @@ func (r *gormRegistrationRepository) SyncAdmissionMembership(ctx context.Context
 		}
 		effect.GroupID = *reg.PreferredGroupID
 		var group model.UserGroup
-		if err := tx.Where("id = ? AND status = ?", effect.GroupID, model.UserGroupStatusActive).First(&group).Error; err != nil {
+		if err := tx.Where("id = ? AND status = ? AND is_default = 0", effect.GroupID, model.UserGroupStatusActive).First(&group).Error; err != nil {
 			return &ServiceError{Status: http.StatusConflict, Message: "录取组别不存在或已停用", Err: err}
 		}
 		// Add the admitted group; never replace other memberships or group roles.
