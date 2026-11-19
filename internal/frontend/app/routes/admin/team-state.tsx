@@ -77,6 +77,40 @@ function TaskStatus({ task }: { task: Task }) {
   </span>;
 }
 
+function TeamStateSkeleton() {
+  const bar = "rounded bg-[var(--admin-border-subtle)]";
+  return <div className="content-skeleton space-y-4" role="status" aria-label="正在读取战队运行状态">
+    <div className="motion-safe:animate-pulse space-y-4" aria-hidden="true">
+      <div className="team-state__domains">
+        {[0, 1, 2].map((key) => <div key={key} className="team-state__domain space-y-3">
+          <div className={bar + " h-4 w-20"} />
+          <div className={bar + " h-7 w-32 max-w-full"} />
+          <div className={bar + " h-4 w-full"} />
+          <div className={bar + " h-4 w-3/4"} />
+        </div>)}
+      </div>
+      <section className="team-state__panel space-y-4">
+        <div className={bar + " h-6 w-44 max-w-full"} />
+        <div className="team-state__project-grid">
+          {[0, 1, 2, 3, 4, 5].map((key) => <div key={key} className="team-state__outcome-card pointer-events-none space-y-3">
+            <div className={bar + " h-5 w-20"} />
+            <div className={bar + " h-4 w-32 max-w-full"} />
+            <div className={bar + " h-4 w-40 max-w-full"} />
+            <div className={bar + " h-4 w-3/4"} />
+          </div>)}
+        </div>
+      </section>
+      <div className="team-state__columns">
+        {[0, 1].map((key) => <section key={key} className="team-state__panel space-y-4">
+          <div className={bar + " h-6 w-28"} />
+          <div className={bar + " h-4 w-full"} />
+          <div className={bar + " h-4 w-3/4"} />
+        </section>)}
+      </div>
+    </div>
+  </div>;
+}
+
 export default function TeamStatePage() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -131,7 +165,7 @@ export default function TeamStatePage() {
     </header>
 
     {error && <div role="alert" className="admin-alert admin-alert--error">{error}</div>}
-    {loading && !snapshot && <div role="status" className="team-state__empty">正在读取战队运行状态…</div>}
+    {loading && !snapshot && <TeamStateSkeleton />}
     {snapshot && <>
       {snapshot.sources.some((source) => source.status === "unavailable") && <section className="team-state__access" aria-label="数据源读取问题">
         {snapshot.sources.filter((source) => source.status === "unavailable").map((source) => <div key={source.name}>
