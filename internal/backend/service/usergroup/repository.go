@@ -34,7 +34,7 @@ func (r *GormRepository) RunInTx(ctx context.Context, fn func(repo Repository) e
 }
 
 func (r *GormRepository) ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, error) {
-	base := r.db.WithContext(ctx).Model(&model.UserGroup{})
+	base := r.db.WithContext(ctx).Model(&model.UserGroup{}).Where("is_default = 0")
 
 	if filter.Status != nil {
 		base = base.Where("status = ?", *filter.Status)
@@ -51,7 +51,7 @@ func (r *GormRepository) ListGroups(ctx context.Context, filter ListGroupsInput)
 
 func (r *GormRepository) GetGroupStats(ctx context.Context) (GroupStats, error) {
 	stats := GroupStats{}
-	query := r.db.WithContext(ctx).Model(&model.UserGroup{})
+	query := r.db.WithContext(ctx).Model(&model.UserGroup{}).Where("is_default = 0")
 
 	if err := query.Count(&stats.Total).Error; err != nil {
 		return stats, err
