@@ -197,7 +197,8 @@ test("common foundations remain accessible in the documentation hierarchy", asyn
   const start = content.indexOf('id: "foundation"');
   const originalStart = content.indexOf('id: "electrical"');
   assert.ok(start >= 0 && start < originalStart);
-  assert.ok(content.includes('{ key: "group:foundation", label: "通用基础概览", href: "?group=foundation" }'));
+  const tree = await readFile(new URL("../../../backend/handler/training_document_tree.go", import.meta.url), "utf8");
+  assert.ok(tree.includes('{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览"'));
   const foundation = content.slice(start, originalStart);
   for (const part of ["计算机基础", "Git 与 GitHub", "Linux（Ubuntu）基础", "编程语言基础", "工程实践基础"]) {
     assert.ok(foundation.includes(part), part);
