@@ -70,13 +70,16 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     label: "协作与运营",
     iconKey: "settings",
     children: [
-      { key: "team-state", label: "技术研发总览", href: "/dashboard/admin/team-state", allowedRoles: ["super_admin"], iconKey: "analytics" },
       { key: "collection-forms", label: "收集表", href: "/dashboard/admin/forms", allowedRoles: ["admin", "super_admin"] },
       { key: "timetable-availability", label: "时间协调", href: "/dashboard/admin/timetable-availability", allowedRoles: ["admin", "super_admin"] },
       { key: "email-management", label: "邮件管理", href: "/dashboard/admin/email", allowedRoles: ["super_admin"] },
     ],
   },
 ];
+
+const TECHNICAL_PROGRESS_ITEM: AdminMenuLeaf = {
+  key: "team-state", label: "技术研发总览", href: "/dashboard/admin/team-state", allowedRoles: ["super_admin"], iconKey: "analytics",
+};
 
 const TEAM_INFORMATION: DashboardMenuGroup = {
   key: "team-information",
@@ -115,6 +118,7 @@ function getAccessibleAdminMenu(roleName: string, hasAssignmentGroup = false): D
 
 function getAccessibleAdminPaths(roleName: string, hasAssignmentGroup = false) {
   const paths = getAccessibleAdminMenu(roleName, hasAssignmentGroup).flatMap(({ children }) => children.map(({ href }) => href));
+  if (isRoleAllowed(roleName, TECHNICAL_PROGRESS_ITEM.allowedRoles)) paths.push(TECHNICAL_PROGRESS_ITEM.href);
   if (["admin", "super_admin"].includes(roleName)) paths.push("/dashboard/admin/leave");
   return paths;
 }
@@ -170,7 +174,14 @@ export function getUnifiedDashboardMenu(currentUser: AuthUser, hasAssignmentGrou
       ...group,
       children: group.children.map(({ key, label, href, iconKey }) => ({ key, label, href, iconKey })),
     })),
-    ...(hasWorkbench ? [TEAM_INFORMATION] : []),
+    ...(hasWorkbench ? [{
+      ...TEAM_INFORMATION,
+      children: [
+        ...[TECHNICAL_PROGRESS_ITEM].filter((item) => isRoleAllowed(currentUser.role.name, item.allowedRoles))
+          .map(({ key, label, href, iconKey }) => ({ key, label, href, iconKey })),
+        ...TEAM_INFORMATION.children,
+      ],
+    }] : []),
   ];
 }
 

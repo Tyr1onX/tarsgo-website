@@ -122,7 +122,14 @@ test("admin capabilities extend the same directory without duplicate leave links
   assert.deepEqual(menuKeys(superAdminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information"]);
   assert.deepEqual(linkKeys(superAdminMenu[2]), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
   assert.deepEqual(linkKeys(superAdminMenu[1]), ["accounts", "assignment-management", "training-assessments"]);
-  assert.deepEqual(linkKeys(superAdminMenu[3]), ["team-state", "collection-forms", "timetable-availability", "email-management"]);
+  assert.deepEqual(linkKeys(superAdminMenu[3]), ["collection-forms", "timetable-availability", "email-management"]);
+  assert.deepEqual(linkKeys(superAdminMenu[4]), ["team-state", "team-status", "people-directory"]);
+  assert.deepEqual(superAdminMenu[4].children[0], {
+    key: "team-state", label: "技术研发总览", href: "/dashboard/admin/team-state", iconKey: "analytics",
+  });
+  assert.equal(superAdminMenu.flatMap(({ children }) => children).filter(({ key }) => key === "team-state").length, 1);
+  assert.equal(adminMenu.flatMap(({ children }) => children).some(({ key }) => key === "team-state"), false);
+  assert.equal(getUnifiedDashboardMenu(account("user")).flatMap(({ children }) => children).some(({ key }) => key === "team-state"), false);
   assert.deepEqual(menuKeys(getUnifiedDashboardMenu(account("super_admin", false))), ["daily-work", "members-training", "recruitment", "collaboration-operations"]);
 });
 
