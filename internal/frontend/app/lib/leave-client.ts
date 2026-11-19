@@ -12,19 +12,12 @@ export interface LeaveAccessState { status: LeaveAccessStatus; startAt?: string;
 export interface LeaveAccessRequest { id: number; userId: number; userName: string; email: string; status: LeaveAccessStatus; startAt?: string; endAt?: string; requestedAt: string }
 
 export interface CollegeOption { code: string; name: string }
-export interface LeaveRequest { id: number; userId: number; startAt: string; endAt: string; name: string; studentId: string; status: string; createdAt: string; isUnread?: boolean }
-export interface LeaveGroup { index: number; startAt: string; endAt: string; timeText: string; count: number; members: Array<{ userId: number; name: string; studentId: string }>; result: { available: boolean; filename?: string; expiresAt?: string } }
-export interface SchoolRun { id: number; collectedAt: string; reason: string; status: string; requestCount: number; memberCount: number; groups: LeaveGroup[]; documentReady: boolean }
 export interface DailyWindow { id: number; title: string; startAt: string; endAt: string; openUntil: string; teamOpen: boolean; publicEnabled: boolean; status: string; acceptingParticipants: boolean; participantCount?: number; publicPath?: string }
 export interface DailyEntry { id: number; windowId?: number; userId?: number; startAt?: string; endAt?: string; name: string; studentId: string; collegeCode: string; participantType: string; submittedAt: string; isUnread?: boolean; documentRequests?: Array<{ id: number; requestStage: string; requestType: string; fileVersion: string; offline: boolean; requestedAt: string }> }
 export interface CampEvent { id: number; title: string; type: "winter" | "summer"; startDate: string; endDate: string; collectionDeadline: string; status: string; acceptingParticipants: boolean; joined?: boolean; participantType?: string; submittedAt?: string; participantCount?: number; publicPath?: string }
-export interface CampDetail { event: CampEvent; groups: Array<{ college: string; collegeName: string; count: number; participants: Array<{ id: number; name: string; studentId: string; participantType: string; submittedAt: string }> }> }
 export interface ReadyDownload { downloadUrl: string; filename: string }
 
-export type LatestLeaveStatus = Pick<LeaveRequest, "status" | "createdAt">;
-
 export const leaveClient = {
-  latestSchoolStatus: () => apiRequest<LatestLeaveStatus | null>("/api/school-leave/latest-status"),
   leaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access"),
   requestLeaveAccess: (body: { startAt: string; endAt: string }) => apiRequest<LeaveAccessState>("/api/leave/request", { method: "POST", body }),
   pendingLeaveAccessRequests: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/requests"),
@@ -40,35 +33,10 @@ export const leaveClient = {
   colleges: () => apiRequest<CollegeOption[]>("/api/leave/colleges"),
   profile: () => apiRequest<LeaveProfile | null>("/api/leave/profile"),
 
-  schoolRequests: () => apiRequest<LeaveRequest[]>("/api/school-leave/requests"),
-  createSchoolRequest: (body: { startAt: string; endAt: string }) => apiRequest<LeaveRequest>("/api/school-leave/requests", { method: "POST", body }),
-  withdrawSchoolRequest: (id: number) => apiRequest<LeaveRequest>(`/api/school-leave/requests/${id}/withdraw`, { method: "POST" }),
-  adminSchoolRequests: () => apiRequest<LeaveRequest[]>("/api/admin/school-leave/requests"),
-  markAdminRecordRead: (recordType: string, recordId: number) => apiRequest<void>("/api/admin/school-leave/admin-records/read", { method: "POST", body: { recordType, recordId } }),
-  schoolRuns: () => apiRequest<SchoolRun[]>("/api/admin/school-leave/runs"),
-  collectSchool: () => apiRequest<SchoolRun | null>("/api/admin/school-leave/runs/collect", { method: "POST" }),
-  cancelSchoolRun: (id: number) => apiRequest<SchoolRun>(`/api/admin/school-leave/runs/${id}/cancel`, { method: "POST" }),
-  deleteSchoolRun: (id: number) => apiRequest<void>(`/api/admin/school-leave/runs/${id}`, { method: "DELETE" }),
-  updateSchoolReason: (id: number, reason: string) => apiRequest<SchoolRun>(`/api/admin/school-leave/runs/${id}/reason`, { method: "PATCH", body: { reason } }),
-  dailyWindows: () => apiRequest<DailyWindow[]>("/api/daily-leave/windows"),
-  adminDailyWindows: () => apiRequest<DailyWindow[]>("/api/admin/daily-leave/windows"),
-  createDailyWindow: (body: { title: string; startAt: string; endAt: string; openUntil: string }) => apiRequest<DailyWindow>("/api/admin/daily-leave/windows", { method: "POST", body }),
-  enableDailyPublicLink: (id: number) => apiRequest<DailyWindow>(`/api/admin/daily-leave/windows/${id}/public-link`, { method: "POST" }),
-  closeDailyWindow: (id: number) => apiRequest<DailyWindow>(`/api/admin/daily-leave/windows/${id}/close`, { method: "POST" }),
   prepareDailySelf: (body: { startAt: string; endAt: string }, offline: boolean) => apiRequest<ReadyDownload>(`/api/daily-leave/self-service/document${offline ? "?offline=true" : ""}`, { method: "POST", body }),
-  prepareDailyWindow: (id: number, offline: boolean) => apiRequest<ReadyDownload>(`/api/daily-leave/windows/${id}/document${offline ? "?offline=true" : ""}`, { method: "POST" }),
+  dailyRecordsPage: (admin: boolean, cursor = "") => apiRequest<{ items: DailyEntry[]; nextCursor?: string }>(`/api/${admin ? "admin/" : ""}daily-leave/records?${new URLSearchParams({ paged: "true", selfService: "true", ...(cursor ? { cursor } : {}) })}`),
   publicDailyWindow: (token: string) => apiRequest<DailyWindow>(`/api/daily-leave/public/${token}`),
   preparePublicDaily: (token: string, body: { name: string; studentId: string; collegeCode: string }, offline: boolean) => apiRequest<ReadyDownload>(`/api/daily-leave/public/${token}/document${offline ? "?offline=true" : ""}`, { method: "POST", body }),
-  dailyRecordsPage: (admin: boolean, cursor = "") => apiRequest<{ items: DailyEntry[]; nextCursor?: string }>(`/api/${admin ? "admin/" : ""}daily-leave/records?${new URLSearchParams({ paged: "true", selfService: "true", ...(cursor ? { cursor } : {}) })}`),
-  dailyRecords: () => apiRequest<DailyEntry[]>("/api/admin/daily-leave/records"),
-  campEvents: () => apiRequest<CampEvent[]>("/api/camp-leave/events"),
-  adminCampEvents: () => apiRequest<CampEvent[]>("/api/admin/camp-leave/events"),
-  createCampEvent: (body: { title: string; type: "winter" | "summer"; startDate: string; endDate: string; collectionDeadline: string }) => apiRequest<CampEvent>("/api/admin/camp-leave/events", { method: "POST", body }),
-  campDetail: (id: number) => apiRequest<CampDetail>(`/api/admin/camp-leave/events/${id}`),
-  joinCamp: (id: number) => apiRequest<CampEvent>(`/api/camp-leave/events/${id}/join`, { method: "POST" }),
-  leaveCamp: (id: number) => apiRequest<void>(`/api/camp-leave/events/${id}/leave`, { method: "POST" }),
-  closeCamp: (id: number) => apiRequest<CampEvent>(`/api/admin/camp-leave/events/${id}/close`, { method: "POST" }),
-  removeCampParticipant: (eventId: number, participantId: number) => apiRequest<void>(`/api/admin/camp-leave/events/${eventId}/participants/${participantId}`, { method: "DELETE" }),
   publicCampEvent: (token: string) => apiRequest<CampEvent>(`/api/camp-leave/public/${token}`),
   publicJoinCamp: (token: string, body: { name: string; studentId: string; collegeCode: string }) => apiRequest<void>(`/api/camp-leave/public/${token}/participants`, { method: "POST", body }),
 };
