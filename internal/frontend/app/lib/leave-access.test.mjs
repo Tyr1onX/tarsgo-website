@@ -8,6 +8,13 @@ const api = await readFile(new URL("../../../backend/router/router.go", import.m
 const access = await readFile(new URL("../../../backend/service/leave/access.go", import.meta.url), "utf8");
 const generation = await readFile(new URL("../../../backend/service/leave/activities.go", import.meta.url), "utf8");
 
+test("leave workbench has only reachable daily actions and no dormant feature switch", () => {
+  assert.doesNotMatch(route, /showExtendedLeaveFeatures|tab === "(?:camp|records)"|<FileUploadField|createSchoolRequest\(/);
+  assert.match(route, /leaveClient\.dailyRecordsPage\(isAdmin/);
+  assert.match(route, /leaveClient\.requestLeaveAccess\(dailyDraft\)/);
+  assert.match(route, /leaveClient\.prepareDailySelf\(/);
+});
+
 test("member access is checked before loading the workbench", () => {
   const statusCheck = route.indexOf("const nextAccessState = await leaveClient.leaveAccess()");
   const earlyReturn = route.indexOf('!["granted", "pending", "approved"].includes(nextAccessState.status)');

@@ -73,7 +73,6 @@ test("all native upload entry points use the shared field except the existing av
     "../routes/users/registrations.tsx",
     "../components/personal-timetable-upload.tsx",
     "../routes/admin/admission-qr-settings.tsx",
-    "../routes/leave-workbench.tsx",
   ];
   for (const path of paths) assert.match(await source(path), /FileUploadField/);
 
