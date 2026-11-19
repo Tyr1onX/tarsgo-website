@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"log"
 
 	"gorm.io/gorm"
 
@@ -84,7 +83,6 @@ func finalizeRetiredDefaultGroupCorrections(db *gorm.DB, corrections []retiredAd
 				Updates(map[string]any{"main_group_id": correction.GroupID, "main_group_name": group.Name}).Error; err != nil {
 				return err
 			}
-			log.Printf("corrected retired default group application %d -> group %d", correction.RegistrationID, correction.GroupID)
 		}
 
 		var admitted int64
