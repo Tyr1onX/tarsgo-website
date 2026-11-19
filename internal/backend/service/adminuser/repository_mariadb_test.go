@@ -46,17 +46,17 @@ func TestMariaDBSpecificGroupFilterIntegration(t *testing.T) {
 	makeUser := func(suffix string) model.User {
 		return model.User{RoleID: role.ID, Name: marker + suffix, Email: fmt.Sprintf("%s-%s@tarsgo.test", marker, suffix), Status: model.UserStatusEnabled, LastLoginAt: &now}
 	}
-	multi := makeUser("multi")
+	first := makeUser("first")
 	single := makeUser("single")
 	oldGroup := makeUser("disabled-relation")
 	unrelated := makeUser("unrelated")
-	for _, user := range []*model.User{&multi, &single, &oldGroup, &unrelated} {
+	for _, user := range []*model.User{&first, &single, &oldGroup, &unrelated} {
 		if err := tx.Create(user).Error; err != nil {
 			t.Fatalf("create isolated member: %v", err)
 		}
 	}
 	memberships := []model.UserGroupMember{
-		{GroupID: activeA.ID, UserID: multi.ID}, {GroupID: activeB.ID, UserID: multi.ID},
+		{GroupID: activeA.ID, UserID: first.ID},
 		{GroupID: activeA.ID, UserID: single.ID}, {GroupID: disabled.ID, UserID: oldGroup.ID},
 	}
 	if err := tx.Create(&memberships).Error; err != nil {
