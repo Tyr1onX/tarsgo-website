@@ -136,5 +136,34 @@ test("foundation opens directly into real tutorials without an overview", async 
   for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F"]) {
     assert.ok(guide.includes(bv), bv);
   }
-  assert.match(guide, /不需要上传或打卡/);
+  assert.match(guide, /notes\.txt/);
+  assert.match(guide, /完成判断/);
+});
+
+test("six direction paths derive exercises from original routes and keep originals untouched", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const tree = await read("../../../backend/handler/training_document_tree.go");
+  const sources = {
+    "path-electrical": ["C 语言", "STM32", "FreeRTOS", "PID", "看门狗"],
+    "path-hardware": ["PCB", "DC-DC", "STM32", "打样", "主控板"],
+    "path-mechanical": ["SolidWorks", "标准件", "传动", "仿真", "迭代"],
+    "path-joint": ["Ubuntu", "Python", "C++", "Git", "?doc=computer"],
+    "path-vision": ["OpenCV", "神经网络", "串口", "滤波", "自瞄"],
+    "path-ai": ["ROS 2", "里程计", "规划器", "卡尔曼", "点云聚类"],
+  };
+  assert.match(tree, /Title: "方向学习路径"/);
+  for (const [slug, terms] of Object.entries(sources)) {
+    const path = await read("../content/training/" + slug + ".md");
+    assert.match(page, new RegExp('"' + slug + '":'));
+    assert.match(tree, new RegExp('ID: "' + slug + '"'));
+    assert.match(path, /完成判断/);
+    for (const term of terms) assert.ok(path.includes(term), slug + ": " + term);
+  }
+  for (const original of ["阶段考核：？？？", "硬件组学习全部软件组内容", "分流后，在学习过cpp 和 python"]) {
+    assert.ok(page.includes(original), original);
+  }
+  for (const text of ["不需要购买设备", "不必追求标准答案", "不需要上传或打卡"]) {
+    const basics = await read("../content/training/computer-basics.md");
+    assert.ok(!basics.includes(text), text);
+  }
 });

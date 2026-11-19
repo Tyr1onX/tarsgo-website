@@ -10,6 +10,12 @@ import { decodeCommunityImageTitle } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import gitMarkdown from "~/content/training/git-and-github.md?raw";
 import computerMarkdown from "~/content/training/computer-basics.md?raw";
+import pathElectricalMarkdown from "~/content/training/path-electrical.md?raw";
+import pathHardwareMarkdown from "~/content/training/path-hardware.md?raw";
+import pathMechanicalMarkdown from "~/content/training/path-mechanical.md?raw";
+import pathJointMarkdown from "~/content/training/path-joint.md?raw";
+import pathVisionMarkdown from "~/content/training/path-vision.md?raw";
+import pathAiMarkdown from "~/content/training/path-ai.md?raw";
 import "./training-materials.css";
 
 export function meta() {
@@ -216,6 +222,12 @@ const defaultMarkdown: Record<string, string> = {
   welcome: "# 写给刚刚来到这里的你\n",
   git: gitMarkdown,
   computer: computerMarkdown,
+  "path-electrical": pathElectricalMarkdown,
+  "path-hardware": pathHardwareMarkdown,
+  "path-mechanical": pathMechanicalMarkdown,
+  "path-joint": pathJointMarkdown,
+  "path-vision": pathVisionMarkdown,
+  "path-ai": pathAiMarkdown,
 };
 
 function headingId(title: string) {

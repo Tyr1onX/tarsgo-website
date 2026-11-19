@@ -30,6 +30,18 @@ func computerGuideNode() trainingTreeNode {
 	return trainingTreeNode{ID: "computer", ParentID: "foundation-folder", Title: "计算机基础", Kind: "document", Scope: computerGuideScope}
 }
 
+func trainingPathNodes() []trainingTreeNode {
+	return []trainingTreeNode{
+		{ID: "paths-folder", Title: "方向学习路径", Kind: "folder"},
+		{ID: "path-electrical", ParentID: "paths-folder", Title: "电控", Kind: "document", Scope: 2001},
+		{ID: "path-hardware", ParentID: "paths-folder", Title: "硬件", Kind: "document", Scope: 2002},
+		{ID: "path-mechanical", ParentID: "paths-folder", Title: "机械", Kind: "document", Scope: 2003},
+		{ID: "path-joint", ParentID: "paths-folder", Title: "AI 与视觉联合基础", Kind: "document", Scope: 2004},
+		{ID: "path-vision", ParentID: "paths-folder", Title: "视觉", Kind: "document", Scope: 2005},
+		{ID: "path-ai", ParentID: "paths-folder", Title: "AI", Kind: "document", Scope: 2006},
+	}
+}
+
 func defaultTrainingTree() []trainingTreeNode {
 	nodes := []trainingTreeNode{
 		{ID: "handbook", Title: "新人成长手册", Kind: "folder"},
@@ -37,8 +49,9 @@ func defaultTrainingTree() []trainingTreeNode {
 		{ID: "foundation-folder", Title: "通用基础", Kind: "folder"},
 		computerGuideNode(),
 		{ID: "git", ParentID: "foundation-folder", Title: "Git 与 GitHub", Kind: "document", Scope: 2},
-		{ID: "archive", Title: "原始培养路线", Kind: "folder"},
 	}
+	nodes = append(nodes, trainingPathNodes()...)
+	nodes = append(nodes, trainingTreeNode{ID: "archive", Title: "原始培养路线", Kind: "folder"})
 	for _, item := range []struct{ ref, title string }{
 		{"electrical", "电控"},
 		{"hardware", "硬件"},
@@ -64,15 +77,12 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 	if err := json.Unmarshal([]byte(raw), &nodes); err != nil || len(nodes) == 0 {
 		return nil, errors.New("文档目录数据无法读取")
 	}
-	// Keep the new guide visible in previously saved directories while hiding the retired overview.
-	hasComputerGuide := false
+	// Show the current learning paths alongside any previously saved custom documents.
+	present := make(map[string]bool, len(nodes))
 	for _, node := range nodes {
-		if node.ID == "computer" {
-			hasComputerGuide = true
-			break
-		}
+		present[node.ID] = true
 	}
-	visible := make([]trainingTreeNode, 0, len(nodes)+1)
+	visible := make([]trainingTreeNode, 0, len(nodes)+len(trainingPathNodes())+1)
 	for _, node := range nodes {
 		if node.ID == "foundation" && node.Kind == "reference" && node.Ref == "foundation" {
 			continue
@@ -84,8 +94,18 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 			}
 		}
 		visible = append(visible, node)
-		if node.ID == "foundation-folder" && !hasComputerGuide {
+		if node.ID == "foundation-folder" && !present["computer"] {
 			visible = append(visible, computerGuideNode())
+		}
+		if node.ID == "archive" {
+			archive := visible[len(visible)-1]
+			visible = visible[:len(visible)-1]
+			for _, path := range trainingPathNodes() {
+				if !present[path.ID] {
+					visible = append(visible, path)
+				}
+			}
+			visible = append(visible, archive)
 		}
 	}
 	return visible, nil
