@@ -103,3 +103,81 @@ func TestTeamStateRemoteReadIsReadOnlyAndPartialWhenGoalsUnavailable(t *testing.
 		}
 	}
 }
+
+func TestTeamMeetingExcerptFindsNewestEvenWhenDocumentIsReverseChronological(t *testing.T) {
+	content := "2026/11.15会议记录\n已完成第一次测试，后续需要检查验收结果\n2026/11.8会议记录\n旧版测试暂时延期，还未进入新阶段"
+	got := teamMeetingExcerpt(content)
+	if !strings.Contains(got, "11.15") || strings.Contains(got, "旧版测试") {
+		t.Fatalf("should show newest meeting, not last document section: %q", got)
+	}
+}
+
+func TestTeamPlanExcerptUsesExplicitRequirements(t *testing.T) {
+	original := "前言\n功能需求变化\n稳定兑矿、自定义控制器\n需要较大的载弹量\n需要研发自瞄\n主要风险\n风险与验收需要分开\n"
+	got := teamPlanExcerpt(original, "27赛季重装")
+	if !strings.Contains(got, "需要研发自瞄") || strings.Contains(got, "风险与验收") {
+		t.Fatalf("requirements extraction crossed source section: %q", got)
+	}
+	if teamPlanExcerpt(original, "27赛季雷达") != "" {
+		t.Fatal("must not invent project requirements without source")
+	}
+}
+
+func TestTeamStateMissingAppScopeDoesNotInventZeroProgress(t *testing.T) {
+	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
+		body := `{"code":99991672,"msg":"missing scope"}`
+		if strings.HasSuffix(req.URL.Path, "tenant_access_token/internal") {
+			body = `{"code":0,"tenant_access_token":"test-token"}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	h := &FeishuHandler{cfg: config.FeishuConfig{AppID: "cli_real_app_id", AppSecret: "test-secret"}, client: client}
+	result := &teamStateResponse{Projects: []teamProject{}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	h.teamStateProjects(ctx, result)
+	if result.Summary != nil {
+		t.Fatalf("must not show zero when Base is forbidden: %+v", result.Summary)
+	}
+	if len(result.Projects) != 6 {
+		t.Fatalf("document index must stay independently reachable: %+v", result.Projects)
+	}
+	for _, project := range result.Projects {
+		if project.TasksLoaded || len(project.Tasks) != 0 {
+			t.Fatalf("unknown task counts must not be presented as true: %+v", project)
+		}
+	}
+	if len(result.Sources) != 3 || result.Sources[0].Status != "unavailable" ||
+		!strings.Contains(result.Sources[0].SetupURL, "base%3Arecord%3Aread") ||
+		!strings.Contains(result.Sources[1].SetupURL, "docx%3Adocument%3Areadonly") {
+		t.Fatalf("wrong remediation for missing scopes: %+v", result.Sources)
+	}
+}
+
+func TestTeamRadarMeetingFollowsLatestWikiReference(t *testing.T) {
+	calls := []string{}
+	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
+		calls = append(calls, req.URL.Path)
+		body := `{"code":0,"data":{}}`
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/blocks"):
+			body = `{"code":0,"data":{"items":[{"text":{"elements":[{"mention_doc":{"title":"2026.11.15雷达站会议记录","token":"wiki_new","url":"https://example.com/latest"}}]}},{"text":{"elements":[{"mention_doc":{"title":"2026.11.8雷达站会议记录","token":"wiki_old","url":"https://example.com/old"}}]}}]}}`
+		case strings.HasSuffix(req.URL.Path, "/get_node"):
+			if req.URL.Query().Get("token") != "wiki_new" {
+				t.Fatalf("wrong wiki chosen: %s", req.URL)
+			}
+			body = `{"code":0,"data":{"node":{"obj_token":"doc_new"}}}`
+		case strings.HasSuffix(req.URL.Path, "/raw_content"):
+			if !strings.Contains(req.URL.Path, "doc_new") {
+				t.Fatalf("wrong document selected: %s", req.URL)
+			}
+			body = `{"code":0,"data":{"content":"2026.11.15雷达站会议记录\n完成雷达联调测试，目前仍有指标需要核实"}}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	h := &FeishuHandler{client: client}
+	text, link, err := h.teamRadarMeeting(context.Background(), "token")
+	if err != nil || link != "https://example.com/latest" || !strings.Contains(text, "雷达联调") || len(calls) != 3 {
+		t.Fatalf("wrong radar latest meeting: text=%q link=%q err=%v calls=%v", text, link, err, calls)
+	}
+}

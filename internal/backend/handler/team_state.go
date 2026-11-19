@@ -27,10 +27,11 @@ const (
 )
 
 type teamSource struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Detail string `json:"detail,omitempty"`
-	URL    string `json:"url,omitempty"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Detail   string `json:"detail,omitempty"`
+	URL      string `json:"url,omitempty"`
+	SetupURL string `json:"setupUrl,omitempty"`
 }
 type teamGoal struct {
 	ID     string `json:"id"`
@@ -51,9 +52,14 @@ type teamTask struct {
 type teamProject struct {
 	ID             string     `json:"id"`
 	Name           string     `json:"name"`
+	Owner          string     `json:"owner,omitempty"`
+	Members        string     `json:"members,omitempty"`
+	Status         string     `json:"status,omitempty"`
+	TasksLoaded    bool       `json:"tasksLoaded"`
 	Tasks          []teamTask `json:"tasks"`
 	Completed      int        `json:"completed"`
 	Goals          []teamGoal `json:"goals"`
+	PlanExcerpt    string     `json:"planExcerpt,omitempty"`
 	MeetingExcerpt string     `json:"meetingExcerpt,omitempty"`
 	MeetingURL     string     `json:"meetingUrl,omitempty"`
 	URL            string     `json:"url"`
@@ -221,32 +227,146 @@ func teamSentryGoals(content string) []teamGoal {
 	return goals
 }
 
-var teamMeetingHeading = regexp.MustCompile(`^\s*(?:#{1,5}\s*)?(?:20\d{2}[./-])?\d{1,2}[./-]\d{1,2}.*(?:会议|组会|周会)`)
+var teamMeetingHeading = regexp.MustCompile(`^\s*(?:#{1,5}\s*)?(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2}).*(?:会议|组会|周会)`)
+
+func teamMeetingDate(line string) int {
+	match := teamMeetingHeading.FindStringSubmatch(strings.TrimSpace(line))
+	if match == nil {
+		return 0
+	}
+	year := 2026
+	if match[1] != "" {
+		fmt.Sscanf(match[1], "%d", &year)
+	}
+	var month, day int
+	fmt.Sscanf(match[2], "%d", &month)
+	fmt.Sscanf(match[3], "%d", &day)
+	if month < 1 || month > 12 || day < 1 || day > 31 {
+		return 0
+	}
+	return year*10000 + month*100 + day
+}
 
 func teamMeetingExcerpt(content string) string {
 	lines := strings.Split(content, "\n")
-	// Extract the latest section by document order, never treat notes as acceptance.
-	start := -1
+	start, latest := -1, 0
 	for i, line := range lines {
-		if teamMeetingHeading.MatchString(strings.TrimSpace(line)) {
-			start = i
+		if date := teamMeetingDate(line); date > latest {
+			latest, start = date, i
 		}
 	}
 	if start < 0 {
 		return ""
 	}
 	excerpt := []string{strings.TrimSpace(lines[start])}
-	for i := start + 1; i < len(lines) && len(excerpt) < 6; i++ {
+	for i := start + 1; i < len(lines) && len(excerpt) < 7; i++ {
 		line := strings.TrimSpace(lines[i])
+		if teamMeetingDate(line) > 0 {
+			break
+		}
 		if line == "" || len([]rune(line)) < 8 {
 			continue
 		}
-		if teamMeetingHeading.MatchString(line) {
-			break
-		}
-		excerpt = append(excerpt, teamClip(line, 105))
+		excerpt = append(excerpt, teamClip(line, 135))
+	}
+	if len(excerpt) == 1 {
+		return ""
 	}
 	return strings.Join(excerpt, "\n")
+}
+
+func (h *FeishuHandler) teamRadarMeeting(ctx context.Context, token string) (string, string, error) {
+	var blocks struct {
+		Items []struct {
+			Text struct {
+				Elements []struct {
+					MentionDoc *struct {
+						Title string `json:"title"`
+						Token string `json:"token"`
+						URL   string `json:"url"`
+					} `json:"mention_doc"`
+				} `json:"elements"`
+			} `json:"text"`
+		} `json:"items"`
+	}
+	endpoint := "https://open.feishu.cn/open-apis/docx/v1/documents/IisUdYmbMo1ypMxKVTWcSjdcnje/blocks"
+	if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"page_size": {"100"}}, nil, "", token, &blocks); err != nil {
+		return "", "", err
+	}
+	latest, nodeToken, link := 0, "", ""
+	for _, block := range blocks.Items {
+		for _, element := range block.Text.Elements {
+			doc := element.MentionDoc
+			if doc != nil {
+				if date := teamMeetingDate(doc.Title); date > latest {
+					latest, nodeToken, link = date, doc.Token, doc.URL
+				}
+			}
+		}
+	}
+	if nodeToken == "" {
+		return "", "", fmt.Errorf("radar meeting index has no dated document")
+	}
+	var node struct {
+		Node struct {
+			ObjToken string `json:"obj_token"`
+		} `json:"node"`
+	}
+	endpoint = "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node"
+	if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"token": {nodeToken}, "obj_type": {"wiki"}}, nil, "", token, &node); err != nil {
+		return "", link, err
+	}
+	if node.Node.ObjToken == "" {
+		return "", link, fmt.Errorf("radar meeting document has no object token")
+	}
+	content, err := h.teamStateDoc(ctx, token, node.Node.ObjToken)
+	if err != nil {
+		return "", link, err
+	}
+	return teamMeetingExcerpt(content), link, nil
+}
+
+// Show only explicit project requirements, without interpreting meeting notes as acceptance.
+func teamPlanExcerpt(content, projectName string) string {
+	section := map[string]string{
+		"27赛季步兵":  "二、兵种战术需求",
+		"27赛季哨兵":  "二、兵种战术需求",
+		"27赛季重装":  "功能需求变化",
+		"27赛季飞镖":  "需求更改",
+		"27赛季无人机": "需求（按顺序）",
+	}[projectName]
+	if section == "" {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) != section {
+			continue
+		}
+		out := make([]string, 0, 6)
+		for _, raw := range lines[i+1:] {
+			value := strings.TrimSpace(raw)
+			if value == "" {
+				continue
+			}
+			if len(out) > 0 && (strings.HasPrefix(value, "三、") || strings.HasPrefix(value, "技术方案") || strings.HasPrefix(value, "主要风险")) {
+				break
+			}
+			out = append(out, teamClip(value, 130))
+			if len(out) == 6 {
+				break
+			}
+		}
+		return strings.Join(out, "\n")
+	}
+	return ""
+}
+
+func teamSourceSetupURL(appID string, scopes ...string) string {
+	if appID == "" {
+		return ""
+	}
+	return "https://open.feishu.cn/page/scope-apply?" + url.Values{"clientID": {appID}, "scopes": {strings.Join(scopes, ",")}}.Encode()
 }
 
 func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamStateResponse) {
@@ -257,50 +377,49 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 	token, err := h.tenantToken(ctx)
 	if err != nil {
 		log.Printf("team state Feishu authentication: %v", err)
-		result.Sources = append(result.Sources, teamSource{Name: "飞书项目管理", Status: "unavailable", Detail: "飞书授权不可用", URL: teamStateBaseURL})
+		result.Sources = append(result.Sources, teamSource{Name: "飞书项目管理", Status: "unavailable", Detail: "飞书应用身份无法授权", URL: teamStateBaseURL})
 		return
 	}
-	projects, err := h.teamStateBaseRows(ctx, token, teamStateProjectsTable)
-	if err == nil {
+
+	projects, projectErr := h.teamStateBaseRows(ctx, token, teamStateProjectsTable)
+	if projectErr == nil {
 		var tasks, members teamBaseRows
-		tasks, err = h.teamStateBaseRows(ctx, token, teamStateTasksTable)
-		if err == nil {
-			members, err = h.teamStateBaseRows(ctx, token, teamStateMembersTable)
+		tasks, projectErr = h.teamStateBaseRows(ctx, token, teamStateTasksTable)
+		if projectErr == nil {
+			members, projectErr = h.teamStateBaseRows(ctx, token, teamStateMembersTable)
 		}
-		if err == nil {
+		if projectErr == nil {
 			buildTeamProjects(result, projects, tasks, members)
 		}
 	}
-	if err != nil {
-		log.Printf("team state Feishu project read: %v", err)
-		result.Sources = append(result.Sources, teamSource{Name: "飞书项目管理", Status: "unavailable", Detail: "无法读取项目任务，请检查飞书应用权限", URL: teamStateBaseURL})
-		return
-	}
-	result.Sources = append(result.Sources, teamSource{Name: "飞书项目管理", Status: "available", URL: teamStateBaseURL})
-	if plan, err := h.teamStateDoc(ctx, token, "P22VdnfycoSB1ZxPQGHcxnMCnBc"); err == nil {
-		goals := teamSentryGoals(plan)
-		for i := range result.Projects {
-			if result.Projects[i].Name == "27赛季哨兵" {
-				result.Projects[i].Goals = goals
-			}
+	if projectErr != nil {
+		log.Printf("team state Feishu project read: %v", projectErr)
+		detail, setup := "项目任务读取失败，请核查应用对原表的访问权限", ""
+		if strings.Contains(projectErr.Error(), "99991672") {
+			detail, setup = "飞书应用缺少项目记录读取权限", teamSourceSetupURL(h.cfg.AppID, "base:record:read")
 		}
-		if len(goals) > 0 {
-			result.Sources = append(result.Sources, teamSource{Name: "赛季目标", Status: "partial", Detail: "当前仅关联哨兵项目目标", URL: teamStatePlanURL})
-		} else {
-			result.Sources = append(result.Sources, teamSource{Name: "赛季目标", Status: "unavailable", Detail: "未能识别有效目标", URL: teamStatePlanURL})
-		}
+		result.Sources = append(result.Sources, teamSource{Name: "飞书项目管理", Status: "unavailable", Detail: detail, URL: teamStateBaseURL, SetupURL: setup})
 	} else {
-		log.Printf("team state Feishu goal read: %v", err)
-		result.Sources = append(result.Sources, teamSource{Name: "赛季目标", Status: "unavailable", Detail: "无法读取最新目标正文", URL: teamStatePlanURL})
+		result.Sources = append(result.Sources, teamSource{Name: "飞书项目管理", Status: "available", URL: teamStateBaseURL})
 	}
+
 	docs := map[string]struct{ ID, URL string }{
+		"27赛季步兵":  {"Wsu7drksCoDYIEx6sTQcyHDFnSg", "https://t0ekqtnsg8e.feishu.cn/wiki/Zbe0wCYqciOrOnkXUL4cNVIMnde"},
 		"27赛季哨兵":  {"Wsu7drksCoDYIEx6sTQcyHDFnSg", "https://t0ekqtnsg8e.feishu.cn/wiki/Zbe0wCYqciOrOnkXUL4cNVIMnde"},
 		"27赛季重装":  {"SygqdJVZGoQhGhx8tgNcp0etnC7", "https://t0ekqtnsg8e.feishu.cn/wiki/K0FAwMdRQik3pWkdSZ8cd5nvn9g"},
 		"27赛季飞镖":  {"YtTWd7MtIovj5bxdSfscKDpAnde", "https://t0ekqtnsg8e.feishu.cn/wiki/Cu8fwUbizirOaZkC9whcHwMen1b"},
 		"27赛季无人机": {"Q1H3dnqBFoDbZxxIZ51c80Ohnef", "https://t0ekqtnsg8e.feishu.cn/wiki/PwJpwv3pMiJYhIk5WS5cVUYWngf"},
 		"27赛季雷达":  {"IisUdYmbMo1ypMxKVTWcSjdcnje", "https://t0ekqtnsg8e.feishu.cn/wiki/DZISwXt0eisxN8kDhcYcmaEgncd"},
 	}
+	if len(result.Projects) == 0 {
+		for name, doc := range docs {
+			result.Projects = append(result.Projects, teamProject{ID: "doc-" + name, Name: name, Tasks: []teamTask{}, Goals: []teamGoal{}, URL: doc.URL})
+		}
+		sort.Slice(result.Projects, func(i, j int) bool { return result.Projects[i].Name < result.Projects[j].Name })
+	}
+
 	read, failed := 0, 0
+	var firstDocErr error
 	for i := range result.Projects {
 		project := &result.Projects[i]
 		doc, ok := docs[project.Name]
@@ -310,23 +429,64 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 		project.MeetingURL = doc.URL
 		content, err := h.teamStateDoc(ctx, token, doc.ID)
 		if err != nil {
+			if firstDocErr == nil {
+				firstDocErr = err
+			}
 			failed++
 			continue
 		}
+		if project.Name == "27赛季雷达" {
+			latestNote, latestURL, radarErr := h.teamRadarMeeting(ctx, token)
+			if radarErr != nil {
+				if firstDocErr == nil {
+					firstDocErr = radarErr
+				}
+				failed++
+				continue
+			}
+			project.MeetingExcerpt = latestNote
+			project.MeetingURL = latestURL
+		} else {
+			project.MeetingExcerpt = teamMeetingExcerpt(content)
+		}
+		project.PlanExcerpt = teamPlanExcerpt(content, project.Name)
 		read++
-		project.MeetingExcerpt = teamMeetingExcerpt(content)
 	}
-	state := "available"
-	detail := ""
+	docStatus, docDetail, docSetup := "available", "", ""
 	if failed > 0 {
-		state = "partial"
-		detail = fmt.Sprintf("%d 份组会文档无法读取", failed)
+		docStatus, docDetail = "partial", fmt.Sprintf("%d 个项目的研发记录无法读取", failed)
+		if read == 0 {
+			docStatus, docDetail = "unavailable", "研发文档暂不可读取"
+		}
+		if firstDocErr != nil && strings.Contains(firstDocErr.Error(), "99991672") {
+			docDetail = "飞书应用缺少文档读取权限"
+			docSetup = teamSourceSetupURL(h.cfg.AppID, "docx:document:readonly", "wiki:node:read")
+		}
+		log.Printf("team state Feishu documents: read=%d failed=%d: %v", read, failed, firstDocErr)
 	}
-	if read == 0 {
-		state = "unavailable"
-		detail = "组会文档不可读取"
+	result.Sources = append(result.Sources, teamSource{Name: "研发与组会记录", Status: docStatus, Detail: docDetail, URL: "https://t0ekqtnsg8e.feishu.cn/wiki/Jcy4wGbeoiF1ltkCa2Yc4txDnzd", SetupURL: docSetup})
+
+	plan, err := h.teamStateDoc(ctx, token, "P22VdnfycoSB1ZxPQGHcxnMCnBc")
+	if err != nil {
+		log.Printf("team state Feishu goal read: %v", err)
+		setup := ""
+		if strings.Contains(err.Error(), "99991672") {
+			setup = teamSourceSetupURL(h.cfg.AppID, "docx:document:readonly", "wiki:node:read")
+		}
+		result.Sources = append(result.Sources, teamSource{Name: "赛季验收要求", Status: "unavailable", Detail: "赛季目标文档暂不可读取", URL: teamStatePlanURL, SetupURL: setup})
+		return
 	}
-	result.Sources = append(result.Sources, teamSource{Name: "组会记录", Status: state, Detail: detail, URL: "https://t0ekqtnsg8e.feishu.cn/wiki/Jcy4wGbeoiF1ltkCa2Yc4txDnzd"})
+	goals := teamSentryGoals(plan)
+	if len(goals) == 0 {
+		result.Sources = append(result.Sources, teamSource{Name: "赛季验收要求", Status: "unavailable", Detail: "未识别出有效的验收要求", URL: teamStatePlanURL})
+		return
+	}
+	for i := range result.Projects {
+		if result.Projects[i].Name == "27赛季哨兵" {
+			result.Projects[i].Goals = goals
+		}
+	}
+	result.Sources = append(result.Sources, teamSource{Name: "赛季验收要求", Status: "available", Detail: "已关联哨兵验收指标，其余项目展示各自研发需求", URL: teamStatePlanURL})
 }
 
 func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamBaseRows) {
@@ -345,7 +505,7 @@ func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamB
 			continue
 		}
 		ids[projects.RecordIDs[i]] = len(result.Projects)
-		result.Projects = append(result.Projects, teamProject{ID: projects.RecordIDs[i], Name: name, Tasks: []teamTask{}, Goals: []teamGoal{}, URL: teamStateBaseURL})
+		result.Projects = append(result.Projects, teamProject{ID: projects.RecordIDs[i], Name: name, Owner: teamText(row["总负责人"]), Members: teamText(row["成员"]), Status: teamText(row["状态"]), TasksLoaded: true, Tasks: []teamTask{}, Goals: []teamGoal{}, URL: teamStateBaseURL})
 	}
 	today := time.Now().In(time.FixedZone("CST", 8*60*60)).Format(time.DateOnly)
 	summary := &teamSummary{}

@@ -18,6 +18,13 @@
 .team-state__insights { display: grid; gap: .65rem; margin-top: .85rem; }
 .team-state__insights > div { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; font-size: .88rem; line-height: 1.5; }
 .team-state__insight-kind { color: var(--admin-muted); font-size: .75rem; flex: 0 0 auto; }
+.team-state__access { display: grid; gap: .6rem; }
+.team-state__access > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: .7rem; border: 1px solid var(--admin-border); background: var(--admin-surface); border-radius: .55rem; padding: .8rem 1rem; font-size: .85rem; }
+.team-state__access strong { font-weight: 650; }
+.team-state__access span { color: var(--admin-muted); flex: 1 1 230px; }
+.team-state__project-meta { color: var(--admin-muted); margin: 0 0 1rem; font-size: .84rem; }
+.team-state__plan { border-top: 1px solid var(--admin-border-subtle); margin-top: 1rem; }
+.team-state__plan p { font-size: .86rem; line-height: 1.6; white-space: pre-line; }
 .team-state__project-list { display: grid; gap: .3rem; }
 .team-state__project { border: 1px solid transparent; border-radius: .5rem; padding: .75rem; width: 100%; display: flex; gap: .5rem; justify-content: space-between; align-items: center; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .team-state__project:hover { background: var(--admin-surface-hover); }
