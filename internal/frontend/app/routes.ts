@@ -34,6 +34,7 @@ export default [
     route("workbench/operations/episodes/:itemId/setup", "routes/dashboard/operations-episode-setup.tsx"),
     route("workbench/operations/douyin/import", "routes/dashboard/operations-douyin-import.tsx"),
     route("workbench/operations/wechat/import", "routes/dashboard/operations-wechat-import.tsx"),
+    route("workbench/operations/wechat-video/import", "routes/dashboard/operations-wechat-video-import.tsx"),
     route("updates", "routes/dashboard/updates.tsx"),
     route("users/registrations", "routes/users/registrations.tsx"),
     route("leave", "routes/leave-workbench.tsx"),
