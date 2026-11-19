@@ -28,7 +28,7 @@ func TestBuildMembershipResolution(t *testing.T) {
 			members: []model.UserGroupMember{
 				{GroupID: 1, Group: model.UserGroup{ID: 1, Name: "默认组", IsDefault: true, Status: model.UserGroupStatusActive}},
 			},
-			state: MembershipStateUnassigned,
+			state:      MembershipStateUnassigned,
 			groupCount: 0,
 		},
 		{
