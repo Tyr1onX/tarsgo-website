@@ -90,7 +90,8 @@ test("operations dashboard uses layout-shaped skeleton on cold load", async () =
   assert.match(operations, /aria-label="正在加载战队动态"/);
   assert.match(operations, /operations-progress__platform-grid/);
   assert.match(operations, /operations-progress__platform-card/);
-  assert.match(operations, /OperationsStageBar/);
+  assert.match(operations, /h-8 w-28/);
+  assert.doesNotMatch(operations, /<OperationsStageBar/);
   assert.doesNotMatch(operations, /<PublicHomePage|正在加载…/);
 });
 

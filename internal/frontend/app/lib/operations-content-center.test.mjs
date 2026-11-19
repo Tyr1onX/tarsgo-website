@@ -142,8 +142,26 @@ test("quick launch starts planning without advancing to filming or forcing assig
   assert.match(works, /getOperationsWorks\(platform, page, search\)/);
   assert.doesNotMatch(works, /operations-progress__work-cover|operations-progress__works-grid/);
   assert.match(css, /align-items: stretch/);
-  assert.match(css, /grid-template-rows: auto minmax\(8rem/);
+  assert.doesNotMatch(css, /grid-template-rows: auto minmax\(8rem/);
   assert.match(css, /operations-progress__library-row/);
+});
+
+test("operations overview shows compact platform snapshots and keeps full workflow in detail pages", async () => {
+  const [overview, css, detail] = await Promise.all([
+    read("../routes/dashboard/operations-progress.tsx"),
+    read("../routes/dashboard/operations-progress.css"),
+    read("../routes/dashboard/operations-work-detail.tsx"),
+  ]);
+  assert.match(css, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(max-width: 1120px\)/);
+  assert.match(css, /@media \(max-width: 640px\)/);
+  assert.match(css, /operations-progress__trend-main/);
+  assert.match(css, /operations-progress__overview-other/);
+  assert.doesNotMatch(overview, /<OperationsStageBar/);
+  assert.match(overview, /selected.steps.filter\(\(step\) => step.status === "done"\).length/);
+  assert.match(overview, /currentStep.assigneeName/);
+  assert.match(overview, /latestPost.viewCount.toLocaleString/);
+  assert.match(detail, /<OperationsStageBar/);
 });
 
 test("operations delete actions are permission-gated and historical posts stay suppressed after sync", async () => {

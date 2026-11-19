@@ -4,7 +4,6 @@ import {
   getOperationsAttention, getOperationsBoard, operationsAttentionLabel, operationsPlatformNames,
   type OperationsBoard, type OperationsItem, type OperationsPost, type OperationsSnapshot,
 } from "~/lib/operations-progress-client";
-import { OperationsStageBar } from "./operations-stage-bar";
 import "./operations-progress.css";
 
 export function meta() { return [{ title: "运营动态 | TARSGO" }]; }
@@ -14,8 +13,8 @@ function OperationsProgressSkeleton() {
     role="status" aria-label="正在加载战队动态">
     {[0,1,2,3].map((i) => <div className="operations-progress__item operations-progress__platform-card" key={i}>
       <div className="h-4 w-24 rounded bg-[var(--admin-border)]" />
-      <div className="h-9 w-32 rounded bg-[var(--admin-border)]" />
-      <div className="h-20 rounded bg-[var(--admin-border)]" />
+      <div className="h-8 w-28 rounded bg-[var(--admin-border)]" />
+      <div className="h-3 w-36 rounded bg-[var(--admin-border)]" />
       <div className="h-4 w-40 rounded bg-[var(--admin-border)]" />
     </div>)}
   </div>;
@@ -32,24 +31,26 @@ function AccountTrend({ platform, snapshots }: { platform:string; snapshots: Ope
   const min = Math.min(...samples.map((entry) => entry.followers));
   const span = Math.max(1, Math.max(...samples.map((entry) => entry.followers)) - min);
   const points = samples.map((entry, index) =>
-    `${12+index*296/Math.max(1,samples.length-1)},${62-(entry.followers-min)/span*50}`).join(" ");
+    `${4+index*108/Math.max(1,samples.length-1)},${32-(entry.followers-min)/span*28}`).join(" ");
   const start = [...entries].reverse().find((entry) => Math.abs(Date.parse(entry.observedOn)-cutoff) <= 3*86400000);
   const delta = start ? latest.followers-start.followers : null;
   return <div className="operations-progress__trend">
-    <div className="operations-progress__trend-head">
-      <strong>{latest.followers.toLocaleString("zh-CN")}</strong>
-      <span>{platform === "wechat" ? "关注" : "粉丝"}</span>
+    <div className="operations-progress__trend-main">
+      <div className="operations-progress__trend-head">
+        <strong>{latest.followers.toLocaleString("zh-CN")}</strong>
+        <span>{platform === "wechat" ? "关注" : "粉丝"}</span>
+      </div>
+      {entries.length > 1 ? <svg viewBox="0 0 116 36" preserveAspectRatio="none"
+        aria-label={`${operationsPlatformNames[platform]}关注趋势`} role="img">
+        <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2"
+          vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx="112" cy={32-(latest.followers-min)/span*28} r="3" fill="currentColor" />
+      </svg> : null}
     </div>
     <div className="operations-progress__trend-meta">
-      <span>{delta === null ? "暂无可比较的30天数据" : `近30天 ${delta>0?"+":""}${delta.toLocaleString("zh-CN")}`}</span>
+      <span>{delta === null ? "近30天暂无对比" : `近30天 ${delta>0?"+":""}${delta.toLocaleString("zh-CN")}`}</span>
       <small>{latest.observedOn}</small>
     </div>
-    {entries.length > 1 ? <svg viewBox="0 0 320 78" preserveAspectRatio="none"
-      aria-label={`${operationsPlatformNames[platform]}关注趋势`} role="img">
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2"
-        vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx="308" cy={62-(latest.followers-min)/span*50} r="3" fill="currentColor" />
-    </svg> : null}
   </div>;
 }
 
@@ -84,10 +85,10 @@ function PlatformCard({ channel, works, snapshots, latestPost }: {
       </div>
       <Link className="operations-progress__featured-title"
         to={`/dashboard/workbench/operations/works/${selected.id}`}>{selected.title}</Link>
-      <OperationsStageBar item={selected} />
       {currentStep ? <p className="operations-progress__feature-status">
-        {currentStep.status === "blocked" ? "当前卡点" : "当前环节"}：{currentStep.title}
-        {currentStep.assigneeName ? ` · ${currentStep.assigneeName}` : ""}
+        <span>{currentStep.status === "blocked" ? "卡点" : "当前"} · {currentStep.title}
+          {currentStep.assigneeName ? ` · ${currentStep.assigneeName}` : ""}</span>
+        <span>{selected.steps.filter((step) => step.status === "done").length}/{selected.steps.length}</span>
       </p> : null}
     </div> : latestPost ? <div className="operations-progress__last-post">
       <span className="operations-progress__eyebrow">最近发布 · {postDate}</span>
@@ -96,9 +97,9 @@ function PlatformCard({ channel, works, snapshots, latestPost }: {
         <strong className="operations-progress__last-post-title">{latestPost.title}</strong>}
       <span className="operations-progress__muted">{latestPost.viewCount.toLocaleString("zh-CN")} {postMetric}</span>
     </div> : <p className="operations-progress__muted operations-progress__empty-work">暂无发布作品</p>}
-    {pendingCount > 0 ? <div className="operations-progress__platform-footer">
+    {pendingCount > 0 ? <p className="operations-progress__platform-footer">
       {pendingCount} 期待规划
-    </div> : null}
+    </p> : null}
   </section>;
 }
 
@@ -143,19 +144,27 @@ export default function OperationsProgressPage() {
       </section>
       {otherItems.length ? <section className="operations-progress__other-items">
         <h2>其他事务</h2>
-        {otherItems.map((item) => <article className="operations-progress__item" key={item.id} id={`operations-item-${item.id}`}>
-          <div className="operations-progress__item-head">
-            <h3>{item.title}</h3>
-            <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(item)}`}>
-              {operationsAttentionLabel[getOperationsAttention(item)]}
-            </span>
-          </div>
-          <OperationsStageBar item={item} />
-          {item.kind === "merchandise" ? <div className="operations-progress__item-footer">
-            <Link to={`/dashboard/workbench/operations/works/${item.id}`}>查看详情</Link>
-          </div> : null}
-          {!item.steps.length && item.nextAction ? <p className="operations-progress__muted">{item.nextAction}</p> : null}
-        </article>)}
+        {otherItems.map((item) => {
+          const completed = item.steps.filter((step) => step.status === "done").length;
+          const current = item.steps.find((step) => step.status === "blocked") ||
+            item.steps.find((step) => step.status === "active") ||
+            item.steps.find((step) => step.status === "pending");
+          return <article className="operations-progress__item operations-progress__overview-other" key={item.id} id={`operations-item-${item.id}`}>
+            <div className="operations-progress__item-head">
+              <h3>{item.title}</h3>
+              <span className={`operations-progress__status operations-progress__status--${getOperationsAttention(item)}`}>
+                {operationsAttentionLabel[getOperationsAttention(item)]}
+              </span>
+            </div>
+            {item.steps.length ? <div className="operations-progress__other-summary">
+              <span className="operations-progress__eyebrow">{completed}/{item.steps.length} 个环节完成</span>
+              {current ? <p>{current.status === "blocked" ? "卡点" : "当前"} · {current.title}
+                {current.assigneeName ? ` · ${current.assigneeName}` : ""}</p> : null}
+            </div> : item.nextAction ? <p className="operations-progress__muted">{item.nextAction}</p> : null}
+            {item.kind === "merchandise" ? <Link className="operations-progress__other-link"
+              to={`/dashboard/workbench/operations/works/${item.id}`}>查看详情</Link> : null}
+          </article>;
+        })}
       </section> : null}
     </> : null}
   </main>;
