@@ -42,6 +42,39 @@ func trainingPathNodes() []trainingTreeNode {
 	}
 }
 
+func trainingConceptNodes() []trainingTreeNode {
+	return []trainingTreeNode{
+		{ID: "concepts-folder", Title: "概念详解", Kind: "folder"},
+		{ID: "term-c", ParentID: "concepts-folder", Title: "C：指针、结构体与位运算", Kind: "document", Scope: 5001},
+		{ID: "term-stm32", ParentID: "concepts-folder", Title: "STM32 与最小系统", Kind: "document", Scope: 5002},
+		{ID: "term-peripherals", ParentID: "concepts-folder", Title: "GPIO、PWM、ADC、DMA 与中断", Kind: "document", Scope: 5003},
+		{ID: "term-bus", ParentID: "concepts-folder", Title: "UART、SPI、I²C 与 CAN", Kind: "document", Scope: 5004},
+		{ID: "term-pid", ParentID: "concepts-folder", Title: "反馈控制与 PID", Kind: "document", Scope: 5005},
+		{ID: "term-rtos", ParentID: "concepts-folder", Title: "FreeRTOS 与任务调度", Kind: "document", Scope: 5006},
+		{ID: "term-pcb", ParentID: "concepts-folder", Title: "原理图、封装与 PCB", Kind: "document", Scope: 5007},
+		{ID: "term-power", ParentID: "concepts-folder", Title: "DC-DC 电源与反馈", Kind: "document", Scope: 5008},
+		{ID: "term-bringup", ParentID: "concepts-folder", Title: "STM32 最小系统与板卡调试", Kind: "document", Scope: 5009},
+		{ID: "term-cad", ParentID: "concepts-folder", Title: "SolidWorks 与装配约束", Kind: "document", Scope: 5010},
+		{ID: "term-mechanism", ParentID: "concepts-folder", Title: "轴承、轴系与传动比", Kind: "document", Scope: 5011},
+		{ID: "term-materials", ParentID: "concepts-folder", Title: "常见材料与加工工艺", Kind: "document", Scope: 5012},
+		{ID: "term-fea", ParentID: "concepts-folder", Title: "静力学仿真、强度与刚度", Kind: "document", Scope: 5013},
+		{ID: "term-linux", ParentID: "concepts-folder", Title: "Ubuntu、终端与文件权限", Kind: "document", Scope: 5014},
+		{ID: "term-python", ParentID: "concepts-folder", Title: "Python：从数据到小程序", Kind: "document", Scope: 5015},
+		{ID: "term-cpp", ParentID: "concepts-folder", Title: "C++：类型、引用、类与 STL", Kind: "document", Scope: 5016},
+		{ID: "term-opencv", ParentID: "concepts-folder", Title: "OpenCV 与图像处理", Kind: "document", Scope: 5017},
+		{ID: "term-neural", ParentID: "concepts-folder", Title: "神经网络、训练与推理", Kind: "document", Scope: 5018},
+		{ID: "term-concurrency", ParentID: "concepts-folder", Title: "多线程、消息队列与串口", Kind: "document", Scope: 5019},
+		{ID: "term-filter", ParentID: "concepts-folder", Title: "滤波、噪声与延迟", Kind: "document", Scope: 5020},
+		{ID: "term-ros2", ParentID: "concepts-folder", Title: "ROS 2：节点、话题和消息", Kind: "document", Scope: 5021},
+		{ID: "term-odometry", ParentID: "concepts-folder", Title: "里程计、坐标系与位姿", Kind: "document", Scope: 5022},
+		{ID: "term-navigation", ParentID: "concepts-folder", Title: "地图、定位与路径规划", Kind: "document", Scope: 5023},
+		{ID: "term-estimation", ParentID: "concepts-folder", Title: "卡尔曼滤波与因子图", Kind: "document", Scope: 5024},
+		{ID: "term-decision", ParentID: "concepts-folder", Title: "决策树、PID 与 MPC", Kind: "document", Scope: 5025},
+		{ID: "term-pointcloud", ParentID: "concepts-folder", Title: "点云与聚类", Kind: "document", Scope: 5026},
+		{ID: "term-engineering", ParentID: "concepts-folder", Title: "工程验证与可复现记录", Kind: "document", Scope: 5027},
+	}
+}
+
 func defaultTrainingTree() []trainingTreeNode {
 	nodes := []trainingTreeNode{
 		{ID: "handbook", Title: "新人成长手册", Kind: "folder"},
@@ -51,6 +84,7 @@ func defaultTrainingTree() []trainingTreeNode {
 		{ID: "git", ParentID: "foundation-folder", Title: "Git 与 GitHub", Kind: "document", Scope: 2},
 	}
 	nodes = append(nodes, trainingPathNodes()...)
+	nodes = append(nodes, trainingConceptNodes()...)
 	nodes = append(nodes, trainingTreeNode{ID: "archive", Title: "原始培养路线", Kind: "folder"})
 	for _, item := range []struct{ ref, title string }{
 		{"electrical", "电控"},
@@ -82,7 +116,7 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 	for _, node := range nodes {
 		present[node.ID] = true
 	}
-	visible := make([]trainingTreeNode, 0, len(nodes)+len(trainingPathNodes())+1)
+	visible := make([]trainingTreeNode, 0, len(nodes)+len(trainingPathNodes())+len(trainingConceptNodes())+1)
 	for _, node := range nodes {
 		if node.ID == "foundation" && node.Kind == "reference" && node.Ref == "foundation" {
 			continue
@@ -100,9 +134,9 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 		if node.ID == "archive" {
 			archive := visible[len(visible)-1]
 			visible = visible[:len(visible)-1]
-			for _, path := range trainingPathNodes() {
-				if !present[path.ID] {
-					visible = append(visible, path)
+			for _, preset := range append(trainingPathNodes(), trainingConceptNodes()...) {
+				if !present[preset.ID] {
+					visible = append(visible, preset)
 				}
 			}
 			visible = append(visible, archive)
