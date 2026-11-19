@@ -177,7 +177,7 @@ test("mechanical composite ranking requires all four grades and skill rankings a
     ],
     dimensions: [], ratings: [],
   };
-  const book = buildTrainingGradebook(snapshot, 4);
+  const book = buildTrainingGradebook(snapshot, "机械组");
   assert.deepEqual(book.assessments.map((item) => item.key), [
     "overall:mechanical", "skill:0", "skill:1", "skill:2",
     "training:第一次培训作业", "training:第二次装配体作业", "assignment:8", "assignment:16",
@@ -210,7 +210,7 @@ test("mechanical composite ranking requires all four grades and skill rankings a
   assert.equal(get(3,"training:第一次培训作业").score,0);
   assert.equal(get(4,"training:第二次装配体作业").status,"missing");
   assert.equal(get(5,"training:第一次培训作业").status,"unrecorded");
-  assert.equal(buildTrainingGradebook(snapshot,2).assessments.length,4);
+  assert.equal(buildTrainingGradebook(snapshot, "视觉组").assessments.length, 4);
 });
 
 test("selecting one assessment paginates its ranking without changing the individual profile", () => {
@@ -218,6 +218,9 @@ test("selecting one assessment paginates its ranking without changing the indivi
   assert.match(page, /snapshot \? selectedMember \?/);
   assert.match(page, /选择考核/);
   assert.match(page, /综合与能力维度/);
+  assert.match(page, /const selectedGroupName = assignmentGroups\.find/);
+  assert.match(page, /const isMechanicalGroup = selectedGroupName === MECHANICAL_TRAINING_GROUP_NAME/);
+  assert.doesNotMatch(page, /MECHANICAL_TRAINING_GROUP_ID/);
   assert.match(page, /rawSummaries\.map/);
   assert.match(page, /成绩排名/);
   assert.match(page, /const PAGE_SIZE = 20/);
@@ -281,7 +284,7 @@ test("only members with historical scores or current submissions enter analysis"
   assert.equal(prepared.assignmentGrades.find((item) => item.userId === 3 && item.assignmentId === 8).score, null, "submitted but ungraded stays pending");
   assert.equal(prepared.assignmentGrades.find((item) => item.userId === 1 && item.assignmentId === 8).overdueMissing, true);
   assert.equal(prepared.assignmentGrades.find((item) => item.assignmentId === 16), undefined, "future work does not become zero");
-  const book = buildTrainingGradebook(prepared, 4);
+  const book = buildTrainingGradebook(prepared, "机械组");
   assert.equal(book.members.length, 3);
   assert.equal(book.members.find((member) => member.userId === 3).results.find((item) => item.key === "assignment:8").status, "pending");
   assert.equal(book.members.find((member) => member.userId === 1).results.find((item) => item.key === "assignment:8").score, 0);

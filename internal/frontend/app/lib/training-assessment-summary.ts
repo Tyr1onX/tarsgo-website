@@ -92,7 +92,7 @@ export function summarizeTrainingScores(snapshot: TrainingSnapshot): TrainingSco
   }));
 }
 
-export const MECHANICAL_TRAINING_GROUP_ID = 4;
+export const MECHANICAL_TRAINING_GROUP_NAME = "机械组";
 
 // Mapping to the actual training records. A dimension score is a percentage,
 // not an independently verified proficiency level.
@@ -183,7 +183,7 @@ export type GradebookMember = {
   results: GradebookResult[];
 };
 
-export function buildTrainingGradebook(snapshot: TrainingSnapshot, groupId = 0) {
+export function buildTrainingGradebook(snapshot: TrainingSnapshot, groupName = "") {
   const assessments = summarizeTrainingScores(snapshot);
   const rankings = assessments.map((assessment) =>
     new Map(rankTrainingAssessment(snapshot, assessment.key).map((entry) => [entry.userId, entry]))
@@ -207,7 +207,7 @@ export function buildTrainingGradebook(snapshot: TrainingSnapshot, groupId = 0) 
       };
     }),
   }));
-  if (groupId !== MECHANICAL_TRAINING_GROUP_ID) return { assessments, members };
+  if (groupName !== MECHANICAL_TRAINING_GROUP_NAME) return { assessments, members };
 
   const skillsByMember = members.map((member) => mechanicalTrainingSkills(snapshot, member.userId));
   const definitions = [

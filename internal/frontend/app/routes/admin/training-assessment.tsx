@@ -8,7 +8,7 @@ import {
   trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
-import { MECHANICAL_TRAINING_GROUP_ID, buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills, prepareTrainingSnapshot } from "~/lib/training-assessment-summary";
+import { MECHANICAL_TRAINING_GROUP_NAME, buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills, prepareTrainingSnapshot } from "~/lib/training-assessment-summary";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
@@ -128,8 +128,10 @@ export default function TrainingAssessmentRoute() {
     return () => { active = false; };
   }, [groupId, currentUser.id]);
 
+  const selectedGroupName = assignmentGroups.find((group) => group.groupId === groupId)?.name ?? "";
+  const isMechanicalGroup = selectedGroupName === MECHANICAL_TRAINING_GROUP_NAME;
   const trainingSnapshot = useMemo(() => snapshot ? prepareTrainingSnapshot(snapshot) : null, [snapshot]);
-  const gradebook = useMemo(() => trainingSnapshot ? buildTrainingGradebook(trainingSnapshot, groupId) : { assessments: [], members: [] }, [trainingSnapshot, groupId]);
+  const gradebook = useMemo(() => trainingSnapshot ? buildTrainingGradebook(trainingSnapshot, selectedGroupName) : { assessments: [], members: [] }, [trainingSnapshot, selectedGroupName]);
   const summaries = gradebook.assessments;
   const rawSummaries = summaries.filter((item) => item.source === "training" || item.source === "assignment");
   const selectedMember = gradebook.members.find((member) => member.userId === memberId);
@@ -178,8 +180,8 @@ export default function TrainingAssessmentRoute() {
   ));
   const radarScores = savedRatings.map((rating) => rating?.score ?? null);
   const radarReady = dimensions.length >= 3 && radarScores.some((score) => score !== null);
-  const trainingSkills = useMemo(() => groupId === MECHANICAL_TRAINING_GROUP_ID && trainingSnapshot && selectedMemberId
-    ? mechanicalTrainingSkills(trainingSnapshot, selectedMemberId) : [], [groupId, trainingSnapshot, selectedMemberId]);
+  const trainingSkills = useMemo(() => isMechanicalGroup && trainingSnapshot && selectedMemberId
+    ? mechanicalTrainingSkills(trainingSnapshot, selectedMemberId) : [], [isMechanicalGroup, trainingSnapshot, selectedMemberId]);
 
   async function refresh() {
     setSnapshot(await trainingAssessmentClient.snapshot(groupId));
@@ -350,7 +352,7 @@ export default function TrainingAssessmentRoute() {
                 <span className="sr-only">选择考核</span>
                 <select className="admin-field" value={selectedAssessment.key}
                   onChange={(event) => { setAssessmentKey(event.target.value); setShowAllMembers(true); setPage(1); }}>
-                  {groupId === MECHANICAL_TRAINING_GROUP_ID ? <optgroup label="综合与能力维度">
+                  {isMechanicalGroup ? <optgroup label="综合与能力维度">
                     {summaries.filter((item) => item.source === "overall" || item.source === "skill").map((item) =>
                       <option key={item.key} value={item.key}>{item.name}</option>)}
                   </optgroup> : null}
