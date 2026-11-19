@@ -23,6 +23,15 @@ func TestBuildMembershipResolution(t *testing.T) {
 			canSelfConfirm: false,
 		},
 		{
+			name: "legacy default group is not a real assignment",
+			user: model.User{Role: model.Role{Name: model.RoleNameUser}},
+			members: []model.UserGroupMember{
+				{GroupID: 1, Group: model.UserGroup{ID: 1, Name: "默认组", IsDefault: true, Status: model.UserGroupStatusActive}},
+			},
+			state:      MembershipStateUnassigned,
+			groupCount: 0,
+		},
+		{
 			name: "one active group ignores disabled group choices",
 			user: model.User{Role: model.Role{Name: model.RoleNameUser}},
 			members: []model.UserGroupMember{

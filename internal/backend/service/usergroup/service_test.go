@@ -72,13 +72,13 @@ func TestServiceGroupConfigurationRequiresSuperAdmin(t *testing.T) {
 	}
 }
 
-func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
+func TestServiceUpdateGroup_HideGroupWithTags(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
-	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:        "默认分组",
-		Description: "默认分组",
+	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, UpdateGroupInput{
+		Name:        "运营组",
+		Description: "运营组",
 		Tags:        []string{"新注册"},
 		Show:        0,
 		Status:      model.UserGroupStatusActive,
@@ -95,6 +95,23 @@ func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
 	}
 	if !repo.groups[1].IsDefault {
 		t.Fatalf("updating group configuration must preserve the legacy marker for rollback compatibility")
+	}
+}
+
+func TestServiceUpdateGroupRejectsRetiredDefaultGroup(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
+		Name: "默认分组", Status: model.UserGroupStatusActive, Show: 1,
+	})
+	assertServiceError(t, err, 409, "退役")
+}
+
+func TestServiceRejectsPseudoGroupNames(t *testing.T) {
+	service := NewService(newFakeRepository())
+	for _, name := range []string{"默认分组", "默认组", "未分组"} {
+		_, err := service.CreateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, CreateGroupInput{Name: name, Status: model.UserGroupStatusActive})
+		assertServiceError(t, err, 400, "未分组")
 	}
 }
 
@@ -290,13 +307,13 @@ func TestServiceCreateGroup_SavesLogo(t *testing.T) {
 func TestServiceUpdateGroup_ReplacesLogoAndRemovesOldFile(t *testing.T) {
 	repo := newFakeRepository()
 	oldLogoURL := groupLogoURLPrefix + "old.png"
-	repo.groups[1].LogoURL = &oldLogoURL
+	repo.groups[2].LogoURL = &oldLogoURL
 	store := &fakeGroupLogoFileStore{}
 	service := newServiceWithDependencies(repo, store)
 
-	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:        "默认组",
-		Description: "默认分组",
+	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, UpdateGroupInput{
+		Name:        "运营组",
+		Description: "运营组",
 		Logo:        newTestLogoFileHeader("next.webp", 2048, "image/webp"),
 		Show:        1,
 		Status:      model.UserGroupStatusActive,
@@ -316,13 +333,13 @@ func TestServiceUpdateGroup_ReplacesLogoAndRemovesOldFile(t *testing.T) {
 func TestServiceUpdateGroup_RemoveLogo(t *testing.T) {
 	repo := newFakeRepository()
 	oldLogoURL := groupLogoURLPrefix + "old.png"
-	repo.groups[1].LogoURL = &oldLogoURL
+	repo.groups[2].LogoURL = &oldLogoURL
 	store := &fakeGroupLogoFileStore{}
 	service := newServiceWithDependencies(repo, store)
 
-	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:        "默认组",
-		Description: "默认分组",
+	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, UpdateGroupInput{
+		Name:        "运营组",
+		Description: "运营组",
 		RemoveLogo:  true,
 		Show:        1,
 		Status:      model.UserGroupStatusActive,
@@ -343,8 +360,8 @@ func TestServiceUpdateGroup_RejectsOversizedLogo(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
-	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:   "默认组",
+	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, UpdateGroupInput{
+		Name:   "运营组",
 		Logo:   newTestLogoFileHeader("too-large.png", 2*1024*1024+1, "image/png"),
 		Show:   1,
 		Status: model.UserGroupStatusActive,
@@ -356,8 +373,8 @@ func TestServiceUpdateGroup_RejectsNonImageLogo(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
-	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:   "默认组",
+	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, UpdateGroupInput{
+		Name:   "运营组",
 		Logo:   newTestLogoFileHeader("group.pdf", 1024, "application/pdf"),
 		Show:   1,
 		Status: model.UserGroupStatusActive,

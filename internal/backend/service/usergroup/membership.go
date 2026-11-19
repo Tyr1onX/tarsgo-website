@@ -200,7 +200,7 @@ func ReplaceUserGroupTx(tx *gorm.DB, user *model.User, groupID *uint64, actorID 
 			return &ServiceError{Status: http.StatusBadRequest, Message: "所属组别不合法"}
 		}
 		var group model.UserGroup
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND status = ?", *groupID, model.UserGroupStatusActive).First(&group).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND status = ? AND is_default = 0", *groupID, model.UserGroupStatusActive).First(&group).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return &ServiceError{Status: http.StatusConflict, Message: "所选组别不存在或已停用"}
 			}
@@ -305,7 +305,7 @@ func buildMembershipResolution(user *model.User) *MembershipResolution {
 	groups := make([]MembershipOption, 0, len(user.GroupMembers))
 	protectedTitle := false
 	for _, member := range user.GroupMembers {
-		if member.Group.Status != model.UserGroupStatusActive {
+		if member.Group.Status != model.UserGroupStatusActive || member.Group.IsDefault {
 			if member.Role == model.UserGroupMemberRoleLeader {
 				protectedTitle = true
 			}

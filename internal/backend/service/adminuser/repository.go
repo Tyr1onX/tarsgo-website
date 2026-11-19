@@ -138,12 +138,12 @@ func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
 
 	singleMembership := r.db.Table("user_group_members AS member").
 		Select("member.user_id, MIN(member.group_id) AS group_id").
-		Joins("JOIN user_groups AS active_group ON active_group.id = member.group_id AND active_group.status = ?", model.UserGroupStatusActive).
+		Joins("JOIN user_groups AS active_group ON active_group.id = member.group_id AND active_group.status = ? AND active_group.is_default = 0", model.UserGroupStatusActive).
 		Group("member.user_id").Having("COUNT(DISTINCT member.group_id) = 1")
 	if err := r.db.WithContext(ctx).Table("user_groups AS groups").
 		Select("groups.id AS group_id, groups.name, COUNT(DISTINCT single_membership.user_id) AS user_count").
 		Joins("LEFT JOIN (?) AS single_membership ON single_membership.group_id = groups.id", singleMembership).
-		Where("groups.status = ?", model.UserGroupStatusActive).
+		Where("groups.status = ? AND groups.is_default = 0", model.UserGroupStatusActive).
 		Group("groups.id, groups.name").Order("groups.name ASC").
 		Scan(&stats.GroupDistribution).Error; err != nil {
 		return stats, err
@@ -154,7 +154,7 @@ func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
 func (r *GormRepository) activeMembershipCounts() *gorm.DB {
 	return r.db.Table("user_group_members AS members").
 		Select("members.user_id, COUNT(DISTINCT members.group_id) AS group_count").
-		Joins("JOIN user_groups AS active_groups ON active_groups.id = members.group_id AND active_groups.status = ?", model.UserGroupStatusActive).
+		Joins("JOIN user_groups AS active_groups ON active_groups.id = members.group_id AND active_groups.status = ? AND active_groups.is_default = 0", model.UserGroupStatusActive).
 		Group("members.user_id")
 }
 

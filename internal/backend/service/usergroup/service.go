@@ -318,6 +318,9 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 	if name == "" {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户组名称不能为空"}
 	}
+	if isReservedGroupName(name) {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "未分组不是可创建或使用的组织组别"}
+	}
 	if err := validateGroupStatus(input.Status); err != nil {
 		return nil, err
 	}
@@ -382,9 +385,16 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
 	}
 
+	if group.IsDefault {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: "默认分组已退役，不能重新启用或修改"}
+	}
+
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户组名称不能为空"}
+	}
+	if isReservedGroupName(name) {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "未分组不是可创建或使用的组织组别"}
 	}
 	if err := validateGroupStatus(input.Status); err != nil {
 		return nil, err
@@ -592,6 +602,10 @@ func buildGroupUpdates(name string, description string, tags []string, status ui
 		updates["logo_url"] = copyStringPtr(logoURL)
 	}
 	return updates, nil
+}
+
+func isReservedGroupName(name string) bool {
+	return name == "未分组" || name == "默认分组" || name == "默认组"
 }
 
 func nullableString(value string) *string {
