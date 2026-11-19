@@ -21,7 +21,7 @@ test("training documents use a persistent expandable tree without losing the ori
   assert.match(tree, /method: "PATCH"/);
   assert.match(backend, /training_document_tree/);
   assert.match(backend, /"document", Scope: 3/);
-  for (const label of ["写给刚刚来到这里的你", "通用基础概览", "Git 与 GitHub", "原始培养路线"]) {
+  for (const label of ["写给刚刚来到这里的你", "计算机基础", "Git 与 GitHub", "原始培养路线"]) {
     assert.ok(backend.includes(label), label);
   }
   for (const retired of ["认识吉甲大师", "你将在这里经历什么", "找到适合自己的方向",
@@ -117,25 +117,22 @@ test("training reader uses the existing image layout metadata instead of forcing
   assert.doesNotMatch(stylesheet, /\.training-docs__markdown img \{[^}]*width: 100%;/);
 });
 
-test("foundation overview links to a usable computer basics guide without adding mandatory training", async () => {
+test("foundation opens directly into real tutorials without an overview", async () => {
   const page = await read("../routes/dashboard/training-materials.tsx");
-  const overview = await read("../content/training/foundation.md");
   const guide = await read("../content/training/computer-basics.md");
+  const git = await read("../content/training/git-and-github.md");
   const backend = await read("../../../backend/handler/training_document_tree.go");
 
   assert.match(page, /computer: computerMarkdown/);
-  assert.match(page, /selectedMaterial\.id === "foundation"/);
-  assert.match(page, /DocumentationArticle source=\{selectedMaterial\.text\}/);
+  assert.doesNotMatch(page, /foundationMarkdown/);
+  assert.match(page, /searchParams.get\("group"\) === "foundation"/);
+  assert.match(page, /setSearchParams\(\{ doc: "computer" \}, \{ replace: true \}\)/);
   assert.match(backend, /computerGuideNode\(\)/);
-  assert.match(backend, /computerGuideScope/);
-  assert.match(overview, /\?doc=computer/);
-  assert.match(overview, /\?doc=git/);
-  for (const topic of ["Ubuntu", "Python", "C++", "C 语言", "工程"]) {
-    assert.ok(overview.includes(topic), topic);
-  }
+  assert.doesNotMatch(backend, /Title: "通用基础概览"/);
   for (const task of ["CPU", "内存", "tarsgo-practice", "notes.txt", "example.com", "Git 与 GitHub"]) {
     assert.ok(guide.includes(task), task);
   }
+  assert.doesNotMatch(guide + git, /\?group=foundation/);
   for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F"]) {
     assert.ok(guide.includes(bv), bv);
   }

@@ -10,7 +10,6 @@ import { decodeCommunityImageTitle } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import gitMarkdown from "~/content/training/git-and-github.md?raw";
 import computerMarkdown from "~/content/training/computer-basics.md?raw";
-import foundationMarkdown from "~/content/training/foundation.md?raw";
 import "./training-materials.css";
 
 export function meta() {
@@ -18,11 +17,6 @@ export function meta() {
 }
 
 const materials = [
-  {
-    id: "foundation",
-    label: "通用基础",
-    text: foundationMarkdown,
-  },
   {
     id: "electrical",
     label: "电控",
@@ -281,6 +275,11 @@ export default function TrainingMaterialsPage() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const canEdit = currentUser.role.name === "super_admin";
   const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("group") === "foundation") {
+      setSearchParams({ doc: "computer" }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [tree, setTree] = useState<TrainingNode[]>([]);
   const [treeError, setTreeError] = useState("");
   const [treeRevision, setTreeRevision] = useState(0);
@@ -432,9 +431,7 @@ export default function TrainingMaterialsPage() {
           </div>
         </div> : null}
         {selectedMaterial
-          ? selectedMaterial.id === "foundation"
-            ? <DocumentationArticle source={selectedMaterial.text} title={selectedNode?.title ?? selectedMaterial.label} />
-            : <>
+          ? <>
               <h1>{selectedNode?.title ?? selectedMaterial.label}</h1>
               <pre className="training-docs__original">{selectedMaterial.text}</pre>
             </>

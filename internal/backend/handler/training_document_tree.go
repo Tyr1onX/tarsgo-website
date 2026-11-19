@@ -35,7 +35,6 @@ func defaultTrainingTree() []trainingTreeNode {
 		{ID: "handbook", Title: "新人成长手册", Kind: "folder"},
 		{ID: "welcome", ParentID: "handbook", Title: "写给刚刚来到这里的你", Kind: "document", Scope: 3},
 		{ID: "foundation-folder", Title: "通用基础", Kind: "folder"},
-		{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览", Kind: "reference", Ref: "foundation"},
 		computerGuideNode(),
 		{ID: "git", ParentID: "foundation-folder", Title: "Git 与 GitHub", Kind: "document", Scope: 2},
 		{ID: "archive", Title: "原始培养路线", Kind: "folder"},
@@ -65,7 +64,7 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 	if err := json.Unmarshal([]byte(raw), &nodes); err != nil || len(nodes) == 0 {
 		return nil, errors.New("文档目录数据无法读取")
 	}
-	// Preserve saved custom documents while showing the new foundation guide in existing directories.
+	// Keep the new guide visible in previously saved directories while hiding the retired overview.
 	hasComputerGuide := false
 	for _, node := range nodes {
 		if node.ID == "computer" {
@@ -75,6 +74,9 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 	}
 	visible := make([]trainingTreeNode, 0, len(nodes)+1)
 	for _, node := range nodes {
+		if node.ID == "foundation" && node.Kind == "reference" && node.Ref == "foundation" {
+			continue
+		}
 		if node.ParentID == "handbook" {
 			switch node.ID {
 			case "team", "growth", "directions", "start", "together", "continue":
@@ -82,7 +84,7 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 			}
 		}
 		visible = append(visible, node)
-		if node.ID == "foundation" && !hasComputerGuide {
+		if node.ID == "foundation-folder" && !hasComputerGuide {
 			visible = append(visible, computerGuideNode())
 		}
 	}

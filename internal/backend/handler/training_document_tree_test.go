@@ -186,7 +186,10 @@ func TestTrainingTreeAddsComputerGuideToSavedDirectories(t *testing.T) {
 			break
 		}
 	}
-	legacy = append(legacy, trainingTreeNode{ID: "ncustom", ParentID: "foundation-folder", Title: "自建文档", Kind: "document", Scope: 9})
+	legacy = append(legacy,
+		trainingTreeNode{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览", Kind: "reference", Ref: "foundation"},
+		trainingTreeNode{ID: "ncustom", ParentID: "foundation-folder", Title: "自建文档", Kind: "document", Scope: 9},
+	)
 	raw, err := json.Marshal(legacy)
 	if err != nil {
 		t.Fatal(err)
@@ -210,6 +213,8 @@ func TestTrainingTreeAddsComputerGuideToSavedDirectories(t *testing.T) {
 				}
 			case "ncustom":
 				customCount++
+			case "foundation":
+				t.Fatal("retired foundation overview should not appear")
 			case "git":
 				gitIndex = i
 			}
