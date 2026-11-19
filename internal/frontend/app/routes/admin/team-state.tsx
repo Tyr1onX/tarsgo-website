@@ -18,15 +18,17 @@ type Task = {
   id: string; title: string; assignees: string[]; status: string; priority?: string;
   due?: string; completedAt?: string; overdue: boolean;
 };
+type MeetingRecord = { date: string; updates: string[]; blocker?: string; nextAction?: string; url: string };
 type Project = {
   id: string; name: string; owner?: string; tasksLoaded: boolean; tasks: Task[];
   completed: number; inProgress: number; notStarted: number; stalled: number;
+  missingCompletedDate: number; conflictingCompletedDate: number; history: MeetingRecord[];
   lastMeetingDate?: string; updates: string[]; blocker?: string; nextAction?: string;
   meetingExcerpt?: string; meetingUrl?: string; url: string;
 };
 type Summary = {
   total: number; completed: number; inProgress: number; notStarted: number;
-  stalled: number; missingCompletedDate: number;
+  stalled: number; missingCompletedDate: number; conflictingCompletedDate: number;
 };
 type Snapshot = { generatedAt: string; refreshing?: boolean; sources: Source[]; summary: Summary | null; projects: Project[] };
 
@@ -37,6 +39,7 @@ export function meta() {
 const dateText = (value?: string) => value?.slice(0, 10) || "未记录";
 const percent = (done: number, total: number) => total > 0 ? Math.round(done / total * 1000) / 10 : 0;
 const groupName = (name: string) => name.replace(/^27赛季/, "");
+const taskNeedsReview = (task: Task) => task.status === "已完成" ? !task.completedAt : Boolean(task.completedAt);
 
 function SourceLink({ url, children }: { url?: string; children: ReactNode }) {
   if (!url) return null;
@@ -135,6 +138,7 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
         </div>
       </> : <p className="team-state__muted">飞书项目任务暂不可读取，无法计算任务完成率。</p>}
       <p className="team-state__muted">这里只统计已经录入飞书的任务，不代表整个赛季研发完成比例。</p>
+      {project.tasksLoaded && (project.missingCompletedDate > 0 || project.conflictingCompletedDate > 0) && <p className="team-state__quality-note"><Icon icon={alertTriangle} aria-hidden="true" />任务记录待核对：{project.missingCompletedDate > 0 && `已完成未填日期 ${project.missingCompletedDate} 条`}{project.missingCompletedDate > 0 && project.conflictingCompletedDate > 0 && " · "}{project.conflictingCompletedDate > 0 && `未完成却填完成日期 ${project.conflictingCompletedDate} 条`}</p>}
     </div>
 
     <div className="team-state__panel">
@@ -158,16 +162,29 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
       </details>}
     </div>
 
+    {project.history.length > 1 && <section className="team-state__panel">
+      <h3>此前组会进展</h3>
+      <div className="team-state__history">
+        {project.history.slice(1).map((record) => <div key={record.date} className="team-state__history-entry">
+          <div className="team-state__section-head"><strong className="team-state__meeting-date"><Icon icon={calendarDays} aria-hidden="true" />{record.date}</strong><SourceLink url={record.url}>查看组会原文</SourceLink></div>
+          {record.updates.length > 0 && <ul className="team-state__update-list">{record.updates.map((note, i) => <li key={i}>{note}</li>)}</ul>}
+          {record.blocker && <p><strong>当时的问题：</strong>{record.blocker}</p>}
+          {record.nextAction && <p><strong>当时的下一步：</strong>{record.nextAction}</p>}
+        </div>)}
+      </div>
+    </section>}
+
     <details className="team-state__panel team-state__expand">
       <summary>全部已录入任务（{project.tasksLoaded ? project.tasks.length + " 项" : "不可读取"}）</summary>
       {project.tasksLoaded ? <div className="team-state__task-list">
         {project.tasks.length === 0 && <p className="team-state__muted">当前未登记关联任务。</p>}
-        {[...project.tasks].sort((a, b) => Number(a.status === "已完成") - Number(b.status === "已完成")).map((task) =>
+        {[...project.tasks].sort((a, b) => Number(taskNeedsReview(b)) - Number(taskNeedsReview(a)) || Number(a.status === "已完成") - Number(b.status === "已完成")).map((task) =>
           <div key={task.id} className="team-state__task">
             <div><strong>{task.title}</strong><span className={task.status === "已停滞" ? "team-state__stalled" : "team-state__muted"}>{task.status || "未标记"}</span></div>
             <small>{task.assignees.join("、") || "执行人未识别"} · 截止：{dateText(task.due)}</small>
             {task.completedAt && <small>实际完成：{dateText(task.completedAt)}</small>}
-            {task.status === "已完成" && !task.completedAt && <small>实际完成日期未记录</small>}
+            {task.status === "已完成" && !task.completedAt && <small className="team-state__stalled">已完成但实际完成日期未记录</small>}
+            {task.status !== "已完成" && task.completedAt && <small className="team-state__stalled">任务未标记完成，却已填写实际完成日期，请核对</small>}
           </div>,
         )}
       </div> : <p className="team-state__muted">无法读取任务状态，请查看飞书原始来源。</p>}
@@ -262,7 +279,7 @@ export default function TeamStatePage() {
             <div className="team-state__stat">
               <span><Icon icon={alertTriangle} aria-hidden="true" />已停滞任务</span>
               <strong>{summary?.stalled ?? "—"}</strong>
-              <small>{summary ? `6 个兵种 · ${summary.missingCompletedDate} 项完成日期缺失` : "任务数据暂不可读取"}</small>
+              <small>{summary ? `涉及 ${snapshot.projects.filter((p) => p.stalled > 0).length} 个兵种` : "任务数据暂不可读取"}</small>
             </div>
           </div>
           {summary && summary.total > 0 && <div className="team-state__overall-bar">
@@ -272,6 +289,7 @@ export default function TeamStatePage() {
               <div style={{ width: `${percent(summary.completed, summary.total)}%` }} />
             </div>
             <p>统计范围：六个兵种当前录入飞书的任务。比例不代表赛季研发完成度。</p>
+            {(summary.missingCompletedDate > 0 || summary.conflictingCompletedDate > 0) && <p className="team-state__quality-note"><Icon icon={alertTriangle} aria-hidden="true" />任务数据待核对：{summary.missingCompletedDate} 条已完成缺少日期，{summary.conflictingCompletedDate} 条未完成却填写了完成日期。进入兵种详情查看具体任务。</p>}
           </div>}
         </section>
 
