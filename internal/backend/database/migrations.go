@@ -318,6 +318,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 84, apply: migrateOperationsMerchandiseItemsV84},
 		{version: 85, apply: migrateWeChatVideoMetricsV85},
 		{version: 86, apply: retireDefaultMemberGroupV86},
+		{version: 87, apply: purgeUnreferencedDefaultGroupsV87},
 	}
 }
 
