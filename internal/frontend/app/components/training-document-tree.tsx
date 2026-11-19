@@ -146,12 +146,12 @@ export function TrainingDocumentTree({
       <span>文档目录</span>
       {canEdit ? <div className="training-tree__tools">
         <button type="button" aria-label="新增根级模块或文档" title="新增" onClick={() => setMenu(menu === "root" ? null : "root")}>＋</button>
-        {menu === "root" ? <div className="training-tree__menu">
-          <button type="button" onClick={() => edit({ mode: "create", parentId: "", kind: "folder" })}>新建模块</button>
-          <button type="button" onClick={() => edit({ mode: "create", parentId: "", kind: "document" })}>新建文档</button>
-        </div> : null}
       </div> : null}
     </div>
+    {menu === "root" ? <div className="training-tree__menu">
+      <button type="button" onClick={() => edit({ mode: "create", parentId: "", kind: "folder" })}>新建模块</button>
+      <button type="button" onClick={() => edit({ mode: "create", parentId: "", kind: "document" })}>新建文档</button>
+    </div> : null}
     {action?.mode === "create" && action.parentId === "" ? form(0) : null}
     {visible.map(({ node, depth }) => {
       const children = nodes.some(({ parentId }) => parentId === node.id);
@@ -171,15 +171,15 @@ export function TrainingDocumentTree({
           {canEdit ? <div className="training-tree__tools">
             <button type="button" className="training-tree__more" aria-label={`管理${node.title}`}
               title="管理" onClick={() => setMenu(menu === node.id ? null : node.id)}>···</button>
-            {menu === node.id ? <div className="training-tree__menu">
-              {canParent ? <>
-                <button type="button" onClick={() => edit({ mode: "create", parentId: node.id, kind: "folder" })}>新建子模块</button>
-                <button type="button" onClick={() => edit({ mode: "create", parentId: node.id, kind: "document" })}>新建子文档</button>
-              </> : null}
-              <button type="button" onClick={() => edit({ mode: "rename", id: node.id })}>重命名</button>
-            </div> : null}
           </div> : null}
         </div>
+        {menu === node.id ? <div className="training-tree__menu" style={{ marginLeft: depth * 14 + 20 }}>
+          {canParent ? <>
+            <button type="button" onClick={() => edit({ mode: "create", parentId: node.id, kind: "folder" })}>新建子模块</button>
+            <button type="button" onClick={() => edit({ mode: "create", parentId: node.id, kind: "document" })}>新建子文档</button>
+          </> : null}
+          <button type="button" onClick={() => edit({ mode: "rename", id: node.id })}>重命名</button>
+        </div> : null}
         {action?.mode === "rename" && action.id === node.id ? form(depth + 1) : null}
         {action?.mode === "create" && action.parentId === node.id ? form(depth + 1) : null}
       </div>;
