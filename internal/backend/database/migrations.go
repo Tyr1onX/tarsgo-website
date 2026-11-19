@@ -320,6 +320,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 86, apply: retireDefaultMemberGroupV86},
 		{version: 87, apply: purgeUnreferencedDefaultGroupsV87},
 		{version: 88, apply: enforceUniqueUserGroupMembershipV88},
+		{version: 89, apply: normalizeRetiredDefaultGroupReferencesV89},
 	}
 }
 
