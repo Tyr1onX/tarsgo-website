@@ -43,3 +43,20 @@ test("training documentation endpoints keep reads available and writes super adm
   assert.match(handler, /training_document_start/);
   assert.match(handler, /privatefile\.Upload/);
 });
+
+test("training document format tools stay visible below the fixed dashboard header while editing", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const styles = await read("../routes/dashboard/training-materials.css");
+  const shared = await read("../components/community-markdown-editor.css");
+  const editor = await read("../components/community-markdown-editor.tsx");
+  const dashboard = await read("../routes/dashboard/layout.tsx");
+
+  assert.match(page, /<section className="training-docs__editing"/);
+  assert.match(dashboard, /dashboard-shell__topbar sticky top-0 z-\[60\].*h-16/);
+  assert.match(shared, /\.community-markdown-editor \{[^}]*overflow: hidden;/);
+  assert.match(styles, /\.training-docs__editing \.community-markdown-editor \{[^}]*overflow: visible;/);
+  assert.match(styles, /\.training-docs__editing :is\(\.community-editor-toolbar, \.community-markdown-source__tools\) \{\s*position: sticky;\s*top: 64px;\s*z-index: 20;\s*background: var\(--admin-surface\);\s*\}/);
+  assert.match(editor, /className="community-editor-toolbar" role="toolbar"/);
+  assert.match(editor, /className="community-markdown-source__tools" role="toolbar"/);
+  assert.match(editor, /label="编辑选中图片"/);
+});

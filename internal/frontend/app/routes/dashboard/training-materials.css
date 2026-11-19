@@ -114,7 +114,13 @@ button.training-tree__chevron:hover { color: var(--admin-accent-text); backgroun
 .training-docs__save-error { margin-top: 12px; color: var(--admin-danger); }
 .training-docs__editing { min-width: 0; }
 .training-docs__editing .community-markdown-editor__surface, .training-docs__editing .community-markdown-editor__surface .milkdown, .training-docs__editing .community-markdown-editor__surface .milkdown .ProseMirror { min-height: 400px; }
-.training-docs__editing .community-markdown-editor { --editor-bg: var(--admin-surface); }
+.training-docs__editing .community-markdown-editor { --editor-bg: var(--admin-surface); overflow: visible; }
+.training-docs__editing :is(.community-editor-toolbar, .community-markdown-source__tools) {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--admin-surface);
+}
 
 .training-tree__row:focus-within, .training-docs__sidebar-control button:focus-visible { outline-offset: 2px; }
 .training-docs__sidebar-control button, .training-docs__toc-header button, .training-tree__tools button, .training-docs__actions button { transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease; }
