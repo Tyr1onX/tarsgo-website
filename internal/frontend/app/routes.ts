@@ -54,6 +54,7 @@ export default [
     route("admin/organization-preview", "routes/organization-preview.tsx", { id: "dashboard-admin-organization-preview" }),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
     route("admin/recruitment-analytics", "routes/admin/recruitment-analytics.tsx"),
+    route("admin/team-state", "routes/admin/team-state.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
     route("admin/email", "routes/admin/email-management.tsx"),
     route("admin/leave", "routes/admin/leave-workbench.tsx"),

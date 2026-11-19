@@ -122,7 +122,7 @@ test("admin capabilities extend the same directory without duplicate leave links
   assert.deepEqual(menuKeys(superAdminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information"]);
   assert.deepEqual(linkKeys(superAdminMenu[2]), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
   assert.deepEqual(linkKeys(superAdminMenu[1]), ["accounts", "assignment-management", "training-assessments"]);
-  assert.deepEqual(linkKeys(superAdminMenu[3]), ["collection-forms", "timetable-availability", "email-management"]);
+  assert.deepEqual(linkKeys(superAdminMenu[3]), ["team-state", "collection-forms", "timetable-availability", "email-management"]);
   assert.deepEqual(menuKeys(getUnifiedDashboardMenu(account("super_admin", false))), ["daily-work", "members-training", "recruitment", "collaboration-operations"]);
 });
 
@@ -138,6 +138,9 @@ test("management deep links keep role restrictions without broadening page acces
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/registrations"), true);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/recruitment"), false);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/recruitment-analytics"), true);
+  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/team-state"), true);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/team-state"), false);
+  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/team-state"), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave"), true);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/leave"), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave/access-requests"), false);

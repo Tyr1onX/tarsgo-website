@@ -321,6 +321,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	superAdminAPI.GET("/team-state", feishuHandler.GetTeamState)
 	superAdminAPI.PUT("/training-documents/:slug", trainingDocumentHandler.Save)
 	superAdminAPI.GET("/recruitment/retained-records", handler.NewRecruitmentRecordsHandler(recruitmentrecords.NewService(db)).List)
 	salonAdminAPI := superAdminAPI.Group("/ai-salon")
