@@ -11,7 +11,7 @@ const (
 type UserGroupMember struct {
 	ID      uint64 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	GroupID uint64 `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;uniqueIndex:uk_group_user;index:idx_group_id"`
-	UserID  uint64 `json:"userId" gorm:"column:user_id;type:bigint unsigned;not null;uniqueIndex:uk_group_user;index:idx_user_id"`
+	UserID  uint64 `json:"userId" gorm:"column:user_id;type:bigint unsigned;not null;uniqueIndex:uk_group_user;uniqueIndex:uk_user_group_membership;index:idx_user_id"`
 	// Role describes the member's organizational identity inside this group only.
 	// It must not grant or revoke the user's system-level admin role.
 	Role     uint8     `json:"role" gorm:"type:tinyint;not null;default:0;index:idx_role"`

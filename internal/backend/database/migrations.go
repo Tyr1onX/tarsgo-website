@@ -319,7 +319,30 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 85, apply: migrateWeChatVideoMetricsV85},
 		{version: 86, apply: retireDefaultMemberGroupV86},
 		{version: 87, apply: purgeUnreferencedDefaultGroupsV87},
+		{version: 88, apply: enforceUniqueUserGroupMembershipV88},
 	}
+}
+
+// A user can have at most one current organization group. Reject ambiguous
+// historical rows: they must be reconciled and backed up before adding the index.
+func enforceUniqueUserGroupMembershipV88(db *gorm.DB) error {
+	var duplicate struct{ UserID uint64 }
+	result := db.Model(&model.UserGroupMember{}).
+		Select("user_id").
+		Group("user_id").
+		Having("COUNT(*) > 1").
+		Limit(1).
+		Scan(&duplicate)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		return fmt.Errorf("cannot enforce unique user group: unresolved multiple memberships remain")
+	}
+	if db.Migrator().HasIndex(&model.UserGroupMember{}, "uk_user_group_membership") {
+		return nil
+	}
+	return db.Migrator().CreateIndex(&model.UserGroupMember{}, "uk_user_group_membership")
 }
 
 // Keep the historical group row for recruitment/report references, but remove
