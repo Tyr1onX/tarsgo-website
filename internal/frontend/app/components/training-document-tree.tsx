@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { apiRequest } from "~/lib/api-client";
 
@@ -42,6 +42,7 @@ export function TrainingDocumentTree({
   onTreeChange: (nodes: TrainingNode[]) => void;
   canNavigate: () => boolean;
 }) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["handbook", "foundation-folder", "archive"]));
   const [menu, setMenu] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
@@ -100,8 +101,7 @@ export function TrainingDocumentTree({
           setExpanded((previous) => new Set([...previous, action.parentId]));
         }
         if (action.kind === "document" && canNavigate()) {
-          window.history.replaceState(null, "", `?doc=${result.id}`);
-          window.dispatchEvent(new PopStateEvent("popstate"));
+          navigate(`?doc=${result.id}`);
         }
       } else {
         const result = await apiRequest<{ nodes: TrainingNode[] }>(`/api/admin/training-documents/nodes/${action.id}`, {
