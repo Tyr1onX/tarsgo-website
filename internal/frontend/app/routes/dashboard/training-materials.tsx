@@ -313,6 +313,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
 }
 
 function DocumentationArticle({ source, title }: { source: string; title: string }) {
+  const articleTitle = source.match(/^# ([^\n]+)(?:\n|$)/)?.[1] ?? title;
   const components: Components = {
     h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
     h3: ({ children }) => <h3 id={headingId(String(children))}>{children}</h3>,
@@ -332,7 +333,7 @@ function DocumentationArticle({ source, title }: { source: string; title: string
   };
 
   return <div className="training-docs__markdown">
-    <h1>{title}</h1>
+    <h1>{articleTitle}</h1>
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{source.replace(/^# [^\n]*(?:\n|$)/, "")}</ReactMarkdown>
   </div>;
 }

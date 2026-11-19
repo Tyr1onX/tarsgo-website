@@ -149,14 +149,14 @@ test("six direction paths derive exercises from original routes and keep origina
     "path-mechanical": ["SolidWorks", "标准件", "传动", "仿真", "迭代"],
     "path-joint": ["Ubuntu", "Python", "C++", "Git", "?doc=computer"],
     "path-vision": ["OpenCV", "神经网络", "串口", "滤波", "自瞄"],
-    "path-ai": ["ROS 2", "里程计", "规划器", "卡尔曼", "点云聚类"],
+    "path-ai": ["ROS 2", "里程计", "规划", "卡尔曼", "点云聚类"],
   };
   assert.match(tree, /Title: "方向学习路径"/);
   for (const [slug, terms] of Object.entries(sources)) {
     const path = await read("../content/training/" + slug + ".md");
     assert.match(page, new RegExp('"' + slug + '":'));
     assert.match(tree, new RegExp('ID: "' + slug + '"'));
-    assert.match(path, /完成判断/);
+    assert.match(path, /\*\*检查：\*\*|完成判断/);
     for (const term of terms) assert.ok(path.includes(term), slug + ": " + term);
   }
   for (const original of ["阶段考核：？？？", "硬件组学习全部软件组内容", "分流后，在学习过cpp 和 python"]) {
@@ -165,5 +165,43 @@ test("six direction paths derive exercises from original routes and keep origina
   for (const text of ["不需要购买设备", "不必追求标准答案", "不需要上传或打卡"]) {
     const basics = await read("../content/training/computer-basics.md");
     assert.ok(!basics.includes(text), text);
+  }
+});
+
+test("technical concepts are complete reachable lessons and all internal links resolve", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const backend = await read("../../../backend/handler/training_document_tree.go");
+  const pathNames = ["path-electrical", "path-hardware", "path-mechanical", "path-joint", "path-vision", "path-ai"];
+  const conceptNames = [
+    "term-c", "term-stm32", "term-peripherals", "term-bus", "term-pid", "term-rtos",
+    "term-pcb", "term-power", "term-bringup", "term-cad", "term-mechanism",
+    "term-materials", "term-fea", "term-linux", "term-python", "term-cpp",
+    "term-opencv", "term-neural", "term-concurrency", "term-filter", "term-ros2",
+    "term-odometry", "term-navigation", "term-estimation", "term-decision",
+    "term-pointcloud", "term-engineering",
+  ];
+  const knownDocs = new Set(["computer", "git", "welcome", ...pathNames, ...conceptNames]);
+  assert.match(backend, /Title: "概念详解"/);
+  assert.match(page, /articleTitle = source\.match/);
+
+  for (const name of [...pathNames, ...conceptNames]) {
+    const source = name.startsWith("term-")
+      ? await read("../content/training/concepts/" + name + ".md")
+      : await read("../content/training/" + name + ".md");
+    assert.match(source, /^# .+\n/m, name);
+    assert.match(source, /\?doc=/, name);
+    assert.ok(source.length > 330, name + ": lesson too short");
+    assert.ok(backend.includes('ID: "' + name + '"'), name + ": missing catalog node");
+    assert.ok(page.includes('"' + name + '":'), name + ": missing default markdown");
+
+    for (const [, destination] of source.matchAll(/\]\(\?doc=([a-z0-9-]+)\)/g)) {
+      assert.ok(knownDocs.has(destination), name + ": invalid link to " + destination);
+    }
+  }
+  for (const name of pathNames) {
+    const source = await read("../content/training/" + name + ".md");
+    assert.match(source, /\?group=/, name + ": missing original source link");
+    assert.match(source, /\?doc=term-/, name + ": no concept navigation");
+    assert.ok(source.length > 1750, name + ": still outline-like");
   }
 });

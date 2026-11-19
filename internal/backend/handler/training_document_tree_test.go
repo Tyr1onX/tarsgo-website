@@ -301,3 +301,68 @@ func TestTrainingTreeAddsDirectionPathsToSavedDirectories(t *testing.T) {
 		t.Fatal("saving a new learning path changed an existing document")
 	}
 }
+
+func TestTrainingTreeAddsConceptLessonsWithoutChangingSavedContent(t *testing.T) {
+	legacy := make([]trainingTreeNode, 0)
+	for _, node := range defaultTrainingTree() {
+		if node.ID == "concepts-folder" || node.ParentID == "concepts-folder" {
+			continue
+		}
+		legacy = append(legacy, node)
+	}
+	legacy = append(legacy, trainingTreeNode{
+		ID: "ncustom", ParentID: "paths-folder", Title: "自建学习笔记", Kind: "document", Scope: 1001,
+	})
+	raw, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := trainingDocumentMemoryStore{
+		trainingTreeKey: string(raw),
+		"training_document_ncustom": "# 原有笔记",
+		"training_document_path-ai": "# 已修改的 AI 路线",
+	}
+	h := NewTrainingDocumentHandler(store, nil)
+	for attempt := 0; attempt < 2; attempt++ {
+		nodes, err := h.loadTree(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := make(map[string]int)
+		for _, node := range nodes {
+			count[node.ID]++
+		}
+		for _, item := range trainingConceptNodes() {
+			if count[item.ID] != 1 {
+				t.Fatalf("concept lesson %q must appear exactly once", item.ID)
+			}
+			if item.Kind == "document" && !h.scopeAllowed(context.Background(), item.Scope) {
+				t.Fatalf("concept image scope %d is unavailable", item.Scope)
+			}
+		}
+		if count["ncustom"] != 1 {
+			t.Fatal("existing user documents must remain in the tree")
+		}
+	}
+	if store[trainingTreeKey] != string(raw) || store["training_document_ncustom"] != "# 原有笔记" ||
+		store["training_document_path-ai"] != "# 已修改的 AI 路线" {
+		t.Fatal("reading preset concept lessons must not overwrite saved material")
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/docs/:slug", h.Get)
+	router.PUT("/docs/:slug", func(c *gin.Context) {
+		c.Set("sessionUser", &auth.SessionUser{ID: 42, Role: auth.SessionRole{Name: "super_admin"}})
+	}, h.Save)
+	write := httptest.NewRecorder()
+	router.ServeHTTP(write, trainingDocumentRequest(t, "/docs/term-pid", "# 反馈控制学习记录", nil, ""))
+	if write.Code != http.StatusOK {
+		t.Fatalf("concept lesson cannot be edited: %d %s", write.Code, write.Body.String())
+	}
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/docs/term-pid", nil))
+	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), "反馈控制学习记录") {
+		t.Fatalf("concept lesson cannot be reopened: %d %s", read.Code, read.Body.String())
+	}
+}
