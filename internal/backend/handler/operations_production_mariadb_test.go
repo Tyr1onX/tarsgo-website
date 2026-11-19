@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 
 	"tarsgo-backend/model"
@@ -82,6 +83,7 @@ func TestMariaDBOperationsPublicationRenewalAuditAndFiles(t *testing.T) {
 	router.POST(route+"/attachments", handler.UploadStepAttachment)
 	router.GET("/api/operations/attachments/:fileId", handler.OpenStepAttachment)
 	router.GET("/api/operations/works", handler.Works)
+	router.DELETE("/api/operations/posts/:id", handler.DeletePost)
 	endpoint := fmt.Sprintf("/api/operations/progress/%d/steps/%d", episode.ID, steps[4].ID)
 	submit := func() *httptest.ResponseRecorder {
 		t.Helper()
@@ -148,6 +150,34 @@ func TestMariaDBOperationsPublicationRenewalAuditAndFiles(t *testing.T) {
 		}
 	}
 
+	var posted model.OperationsPlatformPost
+	if err := db.Where("external_id = ?", "search-test").First(&posted).Error; err != nil {
+		t.Fatal(err)
+	}
+	removed := httptest.NewRecorder()
+	router.ServeHTTP(removed, httptest.NewRequest(http.MethodDelete,
+		fmt.Sprintf("/api/operations/posts/%d", posted.ID), nil))
+	if removed.Code != http.StatusOK {
+		t.Fatalf("hide release failed: %d %s", removed.Code, removed.Body.String())
+	}
+	// A subsequent sync must not restore a user-deleted historical release.
+	if err := db.Clauses(clause.OnConflict{DoUpdates: clause.AssignmentColumns([]string{"title", "view_count", "synced_at"})}).
+		Create(&model.OperationsPlatformPost{
+			Platform: posted.Platform, ExternalID: posted.ExternalID, Title: "再次同步",
+			PublishedAt: posted.PublishedAt, URL: posted.URL, SyncedAt: time.Now().UTC(),
+		}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.First(&posted, posted.ID).Error; err != nil || !posted.Hidden {
+		t.Fatalf("deleted release must stay hidden after sync: post=%+v err=%v", posted, err)
+	}
+	hiddenSearch := httptest.NewRecorder()
+	router.ServeHTTP(hiddenSearch, httptest.NewRequest(http.MethodGet,
+		"/api/operations/works?platform=bilibili&q=再次同步", nil))
+	if hiddenSearch.Code != http.StatusOK || !strings.Contains(hiddenSearch.Body.String(), "\"total\":0") {
+		t.Fatalf("hidden release still returned: %d %s", hiddenSearch.Code, hiddenSearch.Body.String())
+	}
+
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("file", "release.txt")
@@ -195,9 +225,9 @@ func TestMariaDBOperationsLaunchReusesPendingEpisode(t *testing.T) {
 	}
 	defer sqlDB.Close()
 	defer db.Migrator().DropTable(&model.OperationsPublication{}, &model.OperationsProgressUpdate{},
-		&model.OperationsProgressStep{}, &model.OperationsProgressItem{})
+		&model.OperationsStepAttachment{}, &model.OperationsProgressStep{}, &model.OperationsProgressItem{})
 	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{},
-		&model.OperationsProgressUpdate{}, &model.OperationsPublication{}); err != nil {
+		&model.OperationsProgressUpdate{}, &model.OperationsStepAttachment{}, &model.OperationsPublication{}); err != nil {
 		t.Fatal(err)
 	}
 	channel := model.OperationsProgressItem{Title: "抖音", Kind: "channel", Platforms: "douyin", Status: "active"}
@@ -220,6 +250,7 @@ func TestMariaDBOperationsLaunchReusesPendingEpisode(t *testing.T) {
 		c.Next()
 	})
 	router.POST("/api/operations/channels/:id/episodes", h.CreateEpisode)
+	router.DELETE("/api/operations/progress/:id/plan", h.DeleteEpisodePlan)
 	body, _ := json.Marshal(map[string]any{
 		"title": "RMer 新一期", "seriesName": "RMer", "startPlanning": true,
 	})
@@ -257,4 +288,47 @@ func TestMariaDBOperationsLaunchReusesPendingEpisode(t *testing.T) {
 	if audit.AuthorID != 42 || audit.FromStage != "pending" || audit.ToStage != "active" {
 		t.Fatalf("launch audit incorrect: %+v", audit)
 	}
+	remove := func(id uint64) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRecorder()
+		router.ServeHTTP(r, httptest.NewRequest(http.MethodDelete,
+			fmt.Sprintf("/api/operations/progress/%d/plan", id), nil))
+		return r
+	}
+	if response := remove(upcoming.ID); response.Code != http.StatusOK {
+		t.Fatalf("planning-only work should be removable: %d %s", response.Code, response.Body.String())
+	}
+	for _, record := range []any{&model.OperationsProgressItem{}, &model.OperationsProgressStep{},
+		&model.OperationsProgressUpdate{}, &model.OperationsPublication{}} {
+		var count int64
+		query := db.Model(record)
+		if _, ok := record.(*model.OperationsProgressItem); ok {
+			query = query.Where("id = ?", upcoming.ID)
+		} else {
+			query = query.Where("item_id = ?", upcoming.ID)
+		}
+		if err := query.Count(&count).Error; err != nil || count != 0 {
+			t.Fatalf("deleted plan has orphan record: %T count=%d err=%v", record, count, err)
+		}
+	}
+	if response := remove(upcoming.ID); response.Code != http.StatusNotFound {
+		t.Fatalf("repeat removal should return 404, got %d", response.Code)
+	}
+	var another *model.OperationsProgressItem
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		another, err = operationsworkflow.CreateEpisode(tx, channel.ID, "已经拍摄")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.OperationsProgressStep{}).
+		Where("item_id = ? AND `key` = ?", another.ID, "materials").
+		Update("status", "active").Error; err != nil {
+		t.Fatal(err)
+	}
+	if response := remove(another.ID); response.Code != http.StatusConflict {
+		t.Fatalf("filming in progress must block deletion, got %d %s", response.Code, response.Body.String())
+	}
+
 }

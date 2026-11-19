@@ -202,6 +202,16 @@
   font-size: 0.8rem;
 }
 .operations-progress__item-footer { justify-content: flex-end; }
+.operations-progress__delete-plan {
+  margin-right: auto;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  background: transparent;
+  color: var(--admin-danger);
+  cursor: pointer;
+  font: inherit;
+}
+.operations-progress__delete-plan:disabled { opacity: 0.5; cursor: default; }
 .operations-progress__other-items {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -272,7 +282,8 @@
   padding: 0.85rem 1rem;
   font-size: 0.8rem;
 }
-.operations-progress__library-row--post { grid-template-columns: minmax(0, 1fr) 5rem 8rem; }
+.operations-progress__library-row--post { grid-template-columns: minmax(0, 1fr) 5rem 8rem auto; }
+.operations-progress__library-row--post .operations-progress__delete-plan { margin: 0; }
 .operations-progress__library-row + .operations-progress__library-row { border-top: 1px solid var(--admin-border-subtle); }
 .operations-progress a.operations-progress__library-row { color: var(--admin-text); }
 .operations-progress a.operations-progress__library-row:hover {

@@ -21,6 +21,7 @@ type OperationsPlatformPost struct {
 	Platform       string    `json:"platform" gorm:"size:16;not null;uniqueIndex:uk_operations_platform_post"`
 	ExternalID     string    `json:"externalId" gorm:"size:80;not null;uniqueIndex:uk_operations_platform_post"`
 	Title          string    `json:"title" gorm:"size:250;not null"`
+	Hidden         bool      `json:"-" gorm:"not null;default:false"`
 	URL            string    `json:"url" gorm:"size:500;not null"`
 	PublishedAt    time.Time `json:"publishedAt" gorm:"type:datetime;not null;index:idx_operations_platform_post_published"`
 	ViewCount      int64     `json:"viewCount" gorm:"not null;default:0"`

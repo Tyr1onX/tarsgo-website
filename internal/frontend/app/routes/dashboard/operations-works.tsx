@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import {
-  formatOperationsDate, getOperationsAttention, getOperationsBoard, getOperationsWorks,
+  deleteOperationsPost, formatOperationsDate, getOperationsAttention, getOperationsBoard, getOperationsWorks,
   operationsAttentionLabel, operationsPlatformNames,
   type OperationsBoard, type OperationsWorks,
 } from "~/lib/operations-progress-client";
@@ -21,6 +21,7 @@ export default function OperationsWorksPage() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(query.trim()), 250);
@@ -61,6 +62,23 @@ export default function OperationsWorksPage() {
         b.id - a.id);
   }, [board, platform, query]);
   const pages = Math.max(1, Math.ceil((works?.total ?? 0) / (works?.pageSize ?? 18)));
+
+  async function deletePost(id: number, title: string) {
+    if (!board?.canManage || deletingPostId !== null) return;
+    if (!window.confirm(`删除「${title}」的发布记录？此记录将不再显示。`)) return;
+    setDeletingPostId(id);
+    setError("");
+    try {
+      await deleteOperationsPost(id);
+      const nextPage = Math.min(page, Math.max(1, Math.ceil(((works?.total ?? 1) - 1) / (works?.pageSize ?? 18))));
+      if (nextPage !== page) updateParams({ page: String(nextPage) });
+      else setWorks(await getOperationsWorks(platform, page, search));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "删除发布记录失败");
+    } finally {
+      setDeletingPostId(null);
+    }
+  }
 
   return <main className="operations-progress admin-design">
     <Link className="operations-progress__back" to="/dashboard/workbench/operations">返回运营动态</Link>
@@ -124,6 +142,10 @@ export default function OperationsWorksPage() {
           <span className="operations-progress__library-progress">
             {post.viewCount.toLocaleString("zh-CN")} {post.platform === "wechat" ? "阅读" : post.mediaType === "image" ? "浏览" : "播放"}
           </span>
+          {board?.canManage ? <button type="button" className="operations-progress__delete-plan"
+            disabled={deletingPostId !== null} onClick={() => void deletePost(post.id, post.title)}>
+            {deletingPostId === post.id ? "删除中…" : "删除记录"}
+          </button> : null}
         </article>)}
       </div> : null}
       {works && pages > 1 ? <nav className="operations-progress__pagination" aria-label="作品分页">

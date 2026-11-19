@@ -91,6 +91,65 @@ func (h *OperationsProgressHandler) CreateEpisode(c *gin.Context) {
 	}
 }
 
+// DeleteEpisodePlan removes an abandoned plan before downstream production or publishing.
+// Published work and external platform history are not changed.
+func (h *OperationsProgressHandler) DeleteEpisodePlan(c *gin.Context) {
+	if !h.requireEditor(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		writeAPIError(c, http.StatusBadRequest, "作品编号不正确")
+		return
+	}
+	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var item model.OperationsProgressItem
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, id).Error; err != nil {
+			return err
+		}
+		if (item.Kind != "video" && item.Kind != "article") || item.SeedKey != nil || item.PublicationURL != "" {
+			return errOperationsPlanCannotDelete
+		}
+		var count int64
+		checks := []*gorm.DB{
+			tx.Model(&model.OperationsProgressStep{}).Where("item_id = ? AND `key` <> ? AND status <> ?", id, "planning", "pending"),
+			tx.Model(&model.OperationsPublication{}).Where("item_id = ? AND (status <> ? OR url <> ?)", id, "pending", ""),
+			tx.Model(&model.OperationsStepAttachment{}).Where("item_id = ?", id),
+			tx.Model(&model.OperationsProgressUpdate{}).Where("item_id = ? AND kind = ?", id, "completed"),
+			tx.Model(&model.OperationsProgressItem{}).Where("predecessor_id = ?", id),
+		}
+		for _, query := range checks {
+			if err := query.Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				return errOperationsPlanCannotDelete
+			}
+		}
+		for _, record := range []any{
+			&model.OperationsProgressUpdate{}, &model.OperationsPublication{},
+			&model.OperationsProgressStep{},
+		} {
+			if err := tx.Where("item_id = ?", id).Delete(record).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Delete(&item).Error
+	})
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		writeAPIError(c, http.StatusNotFound, "策划不存在")
+	case errors.Is(err, errOperationsPlanCannotDelete):
+		writeAPIError(c, http.StatusConflict, "作品已有制作成果、后续进度或发布记录，不能删除策划")
+	case err != nil:
+		writeAPIError(c, http.StatusInternalServerError, "删除策划失败")
+	default:
+		writeAPI(c, http.StatusOK, "策划已删除", gin.H{"id": id})
+	}
+}
+
+var errOperationsPlanCannotDelete = errors.New("operations plan cannot be deleted")
+
 // ConfigureWork is the only administrative editor for work arrangements.
 // It updates the one work and its platform targets without creating platform copies.
 func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
@@ -292,6 +351,27 @@ func (h *OperationsProgressHandler) SetupEpisode(c *gin.Context) {
 	}
 }
 
+// DeletePost hides a synced historical release without allowing the next import to recreate it.
+func (h *OperationsProgressHandler) DeletePost(c *gin.Context) {
+	if !h.requireEditor(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		writeAPIError(c, http.StatusBadRequest, "发布记录编号不正确")
+		return
+	}
+	result := h.db.WithContext(c.Request.Context()).Model(&model.OperationsPlatformPost{}).
+		Where("id = ? AND hidden = ?", id, false).Update("hidden", true)
+	if result.Error != nil {
+		writeAPIError(c, http.StatusInternalServerError, "删除发布记录失败")
+	} else if result.RowsAffected == 0 {
+		writeAPIError(c, http.StatusNotFound, "发布记录不存在")
+	} else {
+		writeAPI(c, http.StatusOK, "发布记录已删除", gin.H{"id": id})
+	}
+}
+
 type operationsArchive struct {
 	ID             uint64     `json:"id"`
 	Title          string     `json:"title"`
@@ -321,7 +401,7 @@ func (h *OperationsProgressHandler) Works(c *gin.Context) {
 		return
 	}
 	const size = 18
-	external := h.db.WithContext(c.Request.Context()).Model(&model.OperationsPlatformPost{})
+	external := h.db.WithContext(c.Request.Context()).Model(&model.OperationsPlatformPost{}).Where("hidden = ?", false)
 	if query != "" {
 		external = external.Where("title LIKE ?", "%"+query+"%")
 	}
