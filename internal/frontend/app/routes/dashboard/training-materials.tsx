@@ -347,7 +347,7 @@ export default function TrainingMaterialsPage() {
   const [tree, setTree] = useState<TrainingNode[]>([]);
   const [treeError, setTreeError] = useState("");
   const [treeRevision, setTreeRevision] = useState(0);
-  const [loaded, setLoaded] = useState<{ slug: string; body: string; error?: string } | null>(null);
+  const [documentCache, setDocumentCache] = useState<Record<string, { body: string; error?: string }>>({});
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [uploads, setUploads] = useState<CommunityPendingImage[]>([]);
@@ -377,16 +377,22 @@ export default function TrainingMaterialsPage() {
     : undefined;
   const selectedKey = selectedNode?.id ?? "";
   const documentSlug = selectedDocument?.id;
+  const documentRecord = documentSlug ? documentCache[documentSlug] : undefined;
   useEffect(() => {
-    if (!documentSlug) return;
+    if (!documentSlug || documentCache[documentSlug]) return;
     const controller = new AbortController();
     apiRequest<{ body: string }>(`/api/training-documents/${documentSlug}`, { signal: controller.signal })
-      .then(({ body }) => setLoaded({ slug: documentSlug, body }))
+      .then(({ body }) => setDocumentCache((cache) => ({ ...cache, [documentSlug]: { body } }))
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) setLoaded({ slug: documentSlug, body: "", error: error instanceof Error ? error.message : "文档加载失败" });
+        if (!controller.signal.aborted) {
+          setDocumentCache((cache) => ({
+            ...cache,
+            [documentSlug]: { body: "", error: error instanceof Error ? error.message : "文档加载失败" },
+          }));
+        }
       });
     return () => controller.abort();
-  }, [documentSlug]);
+  }, [documentSlug, documentCache]);
 
   useEffect(() => {
     setEditing(false);
@@ -394,8 +400,8 @@ export default function TrainingMaterialsPage() {
     setSaveError("");
   }, [selectedKey]);
 
-  const documentSource = selectedDocument && loaded?.slug === selectedDocument.id && !loaded.error
-    ? loaded.body || selectedDocument.markdown : null;
+  const documentSource = selectedDocument && documentRecord && !documentRecord.error
+    ? documentRecord.body || selectedDocument.markdown : null;
 
   function confirmLeave() {
     return !editing || (draft === documentSource && uploads.length === 0) || window.confirm("有未保存的修改，确定离开吗？");
@@ -420,7 +426,7 @@ export default function TrainingMaterialsPage() {
     setSaveError("");
     try {
       const saved = await apiRequest<{ body: string }>(`/api/admin/training-documents/${selectedDocument.id}`, { method: "PUT", body: form });
-      setLoaded({ slug: selectedDocument.id, body: saved.body });
+      setDocumentCache((cache) => ({ ...cache, [selectedDocument.id]: { body: saved.body } }));
       setEditing(false);
       setUploads([]);
     } catch (error) {
@@ -434,16 +440,12 @@ export default function TrainingMaterialsPage() {
   const activeIndex = orderedPages.findIndex(({ id }) => id === selectedKey);
   const before = orderedPages[activeIndex - 1];
   const after = orderedPages[activeIndex + 1];
-  const category = tree.find(({ id }) => id === selectedNode?.parentId)?.title ?? "文档";
-  const sections = selectedDocument && documentSource !== null
-    ? Array.from((editing ? draft : documentSource).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
+  const sections = selectedDocument
+    ? Array.from((editing ? draft : documentSource ?? selectedDocument.markdown).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
     : [];
 
   return <section className="training-docs admin-design mx-auto w-full max-w-[84rem] p-4 sm:p-6" aria-label="新人培养文档">
-    <header className="training-docs__top">
-      <p>新人培养文档</p>
-      <p>面向本届纳新同学</p>
-    </header>
+    <header className="training-docs__top">新人培养文档</header>
     <label className="training-docs__mobile-picker">
       <span>选择章节</span>
       <select
@@ -469,40 +471,45 @@ export default function TrainingMaterialsPage() {
             title={leftNavigationOpen ? "收起文档目录" : "展开文档目录"}
             aria-expanded={leftNavigationOpen}>{leftNavigationOpen ? "‹" : "›"}</button>
         </div>
-        {leftNavigationOpen ? <TrainingDocumentTree
-          nodes={tree}
-          selectedId={selectedKey}
-          canEdit={canEdit}
-          onTreeChange={setTree}
-          canNavigate={confirmLeave}
-        /> : null}
+        <div className="training-docs__sidebar-body" aria-hidden={!leftNavigationOpen} inert={!leftNavigationOpen}>
+          <TrainingDocumentTree
+            nodes={tree}
+            selectedId={selectedKey}
+            canEdit={canEdit}
+            onTreeChange={setTree}
+            canNavigate={confirmLeave}
+          />
+        </div>
         {treeError ? <div className="training-docs__tree-error" role="alert">
           {treeError}
           <button type="button" onClick={() => setTreeRevision((value) => value + 1)}>重试</button>
         </div> : null}
       </aside>
       <article className="training-docs__article">
-        <div className="training-docs__article-header">
-          <p className="training-docs__breadcrumb">新人培养 / {category}</p>
-          {canEdit && selectedDocument && documentSource !== null ? <div className="training-docs__actions">
+        {canEdit && selectedDocument && documentSource !== null ? <div className="training-docs__article-header">
+          <div className="training-docs__actions">
             {editing ? <>
               <button type="button" onClick={() => { setEditing(false); setUploads([]); setSaveError(""); }} disabled={saving}>取消</button>
               <button type="button" className="training-docs__save" onClick={() => void saveDocument()} disabled={saving}>{saving ? "保存中…" : "保存"}</button>
             </> : <button type="button" onClick={beginEdit}>编辑</button>}
-          </div> : null}
-        </div>
+          </div>
+        </div> : null}
         {selectedMaterial
           ? <>
             <h1>{selectedNode?.title ?? selectedMaterial.label}</h1>
-            <p className="training-docs__original-label">资料原文保留，未调整知识点和阶段要求。</p>
             <pre className="training-docs__original">{selectedMaterial.text}</pre>
           </>
           : treeError
             ? <p className="training-docs__status" role="alert">{treeError}</p>
-            : !selectedDocument || loaded?.slug !== selectedDocument.id
-            ? <p className="training-docs__status">正在加载文档…</p>
-            : loaded.error
-              ? <p className="training-docs__status" role="alert">{loaded.error}</p>
+            : !selectedDocument
+              ? tree.length ? <p className="training-docs__status" role="status">文档不存在</p> : <div className="training-docs__placeholder" aria-label="正在加载文档" />
+            : !documentRecord
+              ? <div className="training-docs__placeholder" aria-label="正在加载文档">
+                <h1>{selectedNode?.title}</h1>
+                <span /><span />
+              </div>
+            : documentRecord.error
+              ? <p className="training-docs__status" role="alert">{documentRecord.error}</p>
               : editing
                 ? <section className="training-docs__editing" aria-label="编辑文档">
                   <CommunityMarkdownEditor
