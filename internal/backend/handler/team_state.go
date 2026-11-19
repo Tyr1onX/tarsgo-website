@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +22,6 @@ const (
 	teamStateTasksTable    = "tbl3uMJN70j3FedT"
 	teamStateMembersTable  = "tblCbjOqc8v3TjGW"
 	teamStateBaseURL       = "https://t0ekqtnsg8e.feishu.cn/base/" + teamStateBaseToken
-	teamStatePlanURL       = "https://t0ekqtnsg8e.feishu.cn/wiki/Ei9Fw52nLiZeVnkZZi7cuv9Jnlb"
 )
 
 type teamSource struct {
@@ -76,6 +76,17 @@ type teamStateResponse struct {
 	Sources     []teamSource  `json:"sources"`
 	Summary     *teamSummary  `json:"summary"`
 	Projects    []teamProject `json:"projects"`
+	Refreshing  bool          `json:"refreshing,omitempty"`
+}
+
+const (
+	teamStateMaxAge       = 5 * time.Minute
+	teamStateRefreshAfter = 1 * time.Minute
+)
+
+type teamStateLoad struct {
+	done   chan struct{}
+	result *teamStateResponse
 }
 
 type teamBaseRows struct {
@@ -490,88 +501,97 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 		result.Sources = append(result.Sources, teamSource{Name: "飞书项目任务", Status: "unavailable", Detail: "飞书应用授权失败", URL: teamStateBaseURL})
 		return
 	}
-	projects, projectErr := h.teamStateBaseRows(ctx, token, teamStateProjectsTable)
-	if projectErr == nil {
-		tasks, err := h.teamStateBaseRows(ctx, token, teamStateTasksTable)
-		if err != nil {
-			projectErr = err
-		} else {
-			members, err := h.teamStateBaseRows(ctx, token, teamStateMembersTable)
-			if err != nil {
-				projectErr = err
-			} else {
-				buildTeamProjects(result, projects, tasks, members)
-			}
-		}
+
+	// The three Base tables and five distinct meeting documents are independent.
+	// Fetch them together rather than making every group wait for the previous one.
+	var projects, tasks, members teamBaseRows
+	var projectsErr, tasksErr, membersErr error
+	type meetingResult struct {
+		excerpt string
+		url     string
+		err     error
 	}
-	if projectErr != nil {
-		log.Printf("technical dashboard task source: %v", projectErr)
+	names := []string{"27赛季步兵", "27赛季重装", "27赛季飞镖", "27赛季无人机", "27赛季雷达"}
+	meetings := make([]meetingResult, len(names))
+	var wg sync.WaitGroup
+	wg.Add(3 + len(names))
+	go func() {
+		defer wg.Done()
+		projects, projectsErr = h.teamStateBaseRows(ctx, token, teamStateProjectsTable)
+	}()
+	go func() { defer wg.Done(); tasks, tasksErr = h.teamStateBaseRows(ctx, token, teamStateTasksTable) }()
+	go func() { defer wg.Done(); members, membersErr = h.teamStateBaseRows(ctx, token, teamStateMembersTable) }()
+	for i, name := range names {
+		go func(i int, name string) {
+			defer wg.Done()
+			if name == "27赛季雷达" {
+				meetings[i].excerpt, meetings[i].url, meetings[i].err = h.teamRadarMeeting(ctx, token)
+				return
+			}
+			doc := teamMeetingDocs[name]
+			content, readErr := h.teamStateDoc(ctx, token, doc.ID)
+			if readErr == nil {
+				meetings[i].excerpt = teamMeetingExcerpt(content)
+			}
+			meetings[i].url, meetings[i].err = doc.URL, readErr
+		}(i, name)
+	}
+	wg.Wait()
+
+	baseErr := projectsErr
+	if baseErr == nil {
+		baseErr = tasksErr
+	}
+	if baseErr == nil {
+		baseErr = membersErr
+	}
+	if baseErr == nil {
+		buildTeamProjects(result, projects, tasks, members)
+		result.Sources = append(result.Sources, teamSource{Name: "飞书项目任务", Status: "available", URL: teamStateBaseURL})
+	} else {
+		log.Printf("technical dashboard task source: %v", baseErr)
 		detail, setup := "项目任务暂不可读取", ""
-		if strings.Contains(projectErr.Error(), "99991672") {
+		if strings.Contains(baseErr.Error(), "99991672") {
 			detail, setup = "飞书应用缺少项目记录读取权限", teamSourceSetupURL(h.cfg.AppID, "base:record:read")
 		}
 		result.Sources = append(result.Sources, teamSource{Name: "飞书项目任务", Status: "unavailable", Detail: detail, URL: teamStateBaseURL, SetupURL: setup})
-	} else {
-		result.Sources = append(result.Sources, teamSource{Name: "飞书项目任务", Status: "available", URL: teamStateBaseURL})
 	}
-	// Documentation stays visible even if task Base permissions fail.
 	if len(result.Projects) == 0 {
 		for name, doc := range teamMeetingDocs {
 			result.Projects = append(result.Projects, teamProject{ID: "doc-" + name, Name: name, Tasks: []teamTask{}, Updates: []string{}, URL: doc.URL})
 		}
 	}
+
+	byName := make(map[string]meetingResult, len(names)+1)
+	for i, name := range names {
+		byName[name] = meetings[i]
+	}
+	byName["27赛季哨兵"] = byName["27赛季步兵"]
 	read, failed := 0, 0
 	var firstErr error
-	// 步兵和哨兵共用同一文档，只请求一次。
-	var sharedExcerpt string
-	sharedLoaded := false
 	for i := range result.Projects {
 		p := &result.Projects[i]
-		doc, ok := teamMeetingDocs[p.Name]
+		meeting, ok := byName[p.Name]
 		if !ok {
 			continue
 		}
-		p.MeetingURL = doc.URL
-		var excerpt string
-		if p.Name == "27赛季步兵" || p.Name == "27赛季哨兵" {
-			if !sharedLoaded {
-				content, readErr := h.teamStateDoc(ctx, token, doc.ID)
-				if readErr != nil {
-					firstErr = readErr
-					failed++
-					sharedLoaded = true
-					continue
-				}
-				sharedExcerpt, sharedLoaded = teamMeetingExcerpt(content), true
-			}
-			excerpt = sharedExcerpt
-		} else if p.Name == "27赛季雷达" {
-			var link string
-			excerpt, link, err = h.teamRadarMeeting(ctx, token)
-			if err == nil {
-				p.MeetingURL = link
-			}
-		} else {
-			var content string
-			content, err = h.teamStateDoc(ctx, token, doc.ID)
-			if err == nil {
-				excerpt = teamMeetingExcerpt(content)
-			}
+		p.MeetingURL = meeting.url
+		if p.MeetingURL == "" {
+			p.MeetingURL = teamMeetingDocs[p.Name].URL
 		}
-		if err != nil {
+		if meeting.err != nil {
+			failed++
 			if firstErr == nil {
-				firstErr = err
+				firstErr = meeting.err
 			}
-			failed++
-			err = nil
 			continue
 		}
-		if excerpt == "" {
+		if meeting.excerpt == "" {
 			failed++
 			continue
 		}
-		p.MeetingExcerpt, p.LastMeetingDate = excerpt, teamMeetingISO(excerpt)
-		p.Updates, p.Blocker, p.NextAction = teamBrief(p.Name, excerpt)
+		p.MeetingExcerpt, p.LastMeetingDate = meeting.excerpt, teamMeetingISO(meeting.excerpt)
+		p.Updates, p.Blocker, p.NextAction = teamBrief(p.Name, meeting.excerpt)
 		read++
 	}
 	sort.Slice(result.Projects, func(i, j int) bool { return result.Projects[i].Name < result.Projects[j].Name })
@@ -589,10 +609,68 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 	result.Sources = append(result.Sources, teamSource{Name: "兵种组会", Status: status, Detail: detail, URL: "https://t0ekqtnsg8e.feishu.cn/wiki/Jcy4wGbeoiF1ltkCa2Yc4txDnzd", SetupURL: setup})
 }
 
+// One in-memory snapshot is shared by super-admin viewers. The snapshot is
+// never served older than five minutes, and an in-flight refresh is deduplicated.
+func (h *FeishuHandler) startTeamStateLoadLocked() *teamStateLoad {
+	load := &teamStateLoad{done: make(chan struct{})}
+	h.teamStateLoading = load
+	h.teamStateLastRefresh = time.Now()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		started := time.Now()
+		result := &teamStateResponse{Sources: []teamSource{}, Projects: []teamProject{}}
+		h.teamStateProjects(ctx, result)
+		result.GeneratedAt = time.Now()
+
+		h.teamStateMu.Lock()
+		load.result = result
+		if result.Summary != nil {
+			h.teamStateCache = result
+		}
+		h.teamStateLoading = nil
+		close(load.done)
+		h.teamStateMu.Unlock()
+		log.Printf("technical dashboard data refresh: duration=%s taskData=%t", time.Since(started).Round(time.Millisecond), result.Summary != nil)
+	}()
+	return load
+}
+
 func (h *FeishuHandler) GetTeamState(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
-	defer cancel()
-	result := &teamStateResponse{GeneratedAt: time.Now(), Sources: []teamSource{}, Projects: []teamProject{}}
-	h.teamStateProjects(ctx, result)
-	writeAPI(c, http.StatusOK, "获取技术研发进度成功", result)
+	c.Header("Cache-Control", "private, no-store")
+	h.teamStateMu.Lock()
+	cached := h.teamStateCache
+	now := time.Now()
+	fresh := cached != nil && now.Sub(cached.GeneratedAt) < teamStateMaxAge
+	force := c.Query("refresh") == "1"
+	load := h.teamStateLoading
+
+	if fresh && !force {
+		if now.Sub(cached.GeneratedAt) >= teamStateRefreshAfter &&
+			now.Sub(h.teamStateLastRefresh) >= teamStateRefreshAfter && load == nil {
+			load = h.startTeamStateLoadLocked()
+		}
+		view := *cached
+		view.Refreshing = load != nil
+		h.teamStateMu.Unlock()
+		writeAPI(c, http.StatusOK, "获取技术研发进度成功", &view)
+		return
+	}
+
+	if load == nil {
+		load = h.startTeamStateLoadLocked()
+	}
+	h.teamStateMu.Unlock()
+
+	select {
+	case <-load.done:
+		// If a refresh fails, do not discard a still-valid snapshot.
+		if load.result.Summary == nil && fresh {
+			writeAPI(c, http.StatusBadGateway, "飞书数据刷新失败，已保留原有数据", nil)
+			return
+		}
+		writeAPI(c, http.StatusOK, "获取技术研发进度成功", load.result)
+	case <-c.Request.Context().Done():
+		writeAPI(c, http.StatusGatewayTimeout, "技术研发数据读取超时，请重试", nil)
+	}
 }

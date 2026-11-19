@@ -29,14 +29,18 @@ import (
 )
 
 type FeishuHandler struct {
-	cfg                config.FeishuConfig
-	db                 *gorm.DB
-	assignments        *assignment.Service
-	client             *http.Client
-	notifyMu           sync.Mutex
-	pendingMaterialsMu sync.Mutex
-	pendingMaterials   map[string]feishuPendingMaterial
-	materialUploadMu   sync.Mutex
+	cfg                  config.FeishuConfig
+	db                   *gorm.DB
+	assignments          *assignment.Service
+	client               *http.Client
+	teamStateMu          sync.Mutex
+	teamStateCache       *teamStateResponse
+	teamStateLoading     *teamStateLoad
+	teamStateLastRefresh time.Time
+	notifyMu             sync.Mutex
+	pendingMaterialsMu   sync.Mutex
+	pendingMaterials     map[string]feishuPendingMaterial
+	materialUploadMu     sync.Mutex
 }
 
 func NewFeishuHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *assignment.Service) *FeishuHandler {
