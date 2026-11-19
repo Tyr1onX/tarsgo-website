@@ -35,6 +35,12 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 	if routes["GET /api/operations/public"] {
 		t.Fatal("operations board must not have an anonymous API route")
 	}
+	anonymousTeamRequest := httptest.NewRequest(http.MethodGet, "/api/admin/team-state", nil)
+	anonymousTeamResponse := httptest.NewRecorder()
+	engine.ServeHTTP(anonymousTeamResponse, anonymousTeamRequest)
+	if anonymousTeamResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("team state must require authentication, got %d", anonymousTeamResponse.Code)
+	}
 
 	pausedPrefixes := []string{
 		"/api/practice-projects", "/api/practice-files", "/api/questions", "/api/question-files",
@@ -123,6 +129,7 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/admin/join-interests",
 		"PATCH /api/admin/join-interests/:id",
 		"GET /api/admin/organization-preview",
+		"GET /api/admin/team-state",
 	} {
 		if !routes[route] {
 			t.Errorf("open workflow API was unexpectedly removed: %s", route)
