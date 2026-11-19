@@ -40,6 +40,18 @@ func trainingDocumentKey(slug string) (string, uint64, bool) {
 		return "training_document_start", 1, true
 	case "git":
 		return "training_document_git", 2, true
+	case "welcome":
+		return "training_document_welcome", 3, true
+	case "team":
+		return "training_document_team", 4, true
+	case "growth":
+		return "training_document_growth", 5, true
+	case "directions":
+		return "training_document_directions", 6, true
+	case "together":
+		return "training_document_together", 7, true
+	case "continue":
+		return "training_document_continue", 8, true
 	default:
 		return "", 0, false
 	}
@@ -174,7 +186,7 @@ func validateTrainingImages(files []*multipart.FileHeader, tokens []string, body
 
 func (h *TrainingDocumentHandler) Image(c *gin.Context) {
 	scope, err := strconv.ParseUint(c.Param("scope"), 10, 64)
-	if err != nil || (scope != 1 && scope != 2) {
+	if err != nil || (scope < 1 || scope > 8) {
 		c.Status(http.StatusNotFound)
 		return
 	}
