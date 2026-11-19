@@ -7,6 +7,8 @@ import {
   encodeCommunityImageTitle,
   safeCommunityMarkdownUrl,
   stripCommunityMarkdown,
+  communityEmptyTable,
+  insertCommunityMarkdownTable,
 } from "./community-markdown.ts";
 
 test("Markdown excerpts keep readable content and remove formatting and image source syntax", () => {
@@ -32,4 +34,26 @@ test("Markdown URLs reject executable and data protocols while allowing local at
 test("embedded images do not render twice in the legacy attachment gallery", () => {
   const attachments = [{ url: "/api/community/files/1" }, { url: "/api/community/files/2" }];
   assert.deepEqual(communityStandaloneAttachments("![inline](/api/community/files/1)", attachments), [attachments[1]]);
+});
+
+test("table insertion creates an isolated, editable three-column GFM block", () => {
+  const source = "上文\n下文";
+  const inserted = insertCommunityMarkdownTable(source, 2, 2);
+  assert.equal(inserted.value, "上文\n\n" + communityEmptyTable + "\n\n下文");
+  assert.equal(inserted.value.slice(inserted.start, inserted.end), "列 1");
+  assert.deepEqual(communityEmptyTable.split("\n").map((row) => row.split("|").length - 2), [3, 3, 3, 3]);
+  assert.equal(insertCommunityMarkdownTable("", 0, 0).value, communityEmptyTable);
+  assert.equal(insertCommunityMarkdownTable("前文", 2, 2).value, "前文\n\n" + communityEmptyTable);
+  assert.equal(insertCommunityMarkdownTable("已选中内容", 0, 5).value, communityEmptyTable);
+});
+
+test("rich and source editors reuse existing table feature and preserve table layout", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const editor = await readFile(new URL("../components/community-markdown-editor.tsx", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../components/community-markdown-editor.css", import.meta.url), "utf8");
+  assert.match(editor, /\[Crepe\.Feature\.Table\]: true/);
+  assert.match(editor, /createTable\(ctx, 3, 3\)/);
+  assert.match(editor, /insertCommunityMarkdownTable\(currentValueRef\.current, textarea\.selectionStart, textarea\.selectionEnd\)/);
+  assert.match(editor, /边缘可增删行列/);
+  assert.doesNotMatch(stylesheet, /\.ProseMirror table \{ display: block/);
 });
