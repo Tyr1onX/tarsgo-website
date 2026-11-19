@@ -217,6 +217,15 @@ func ReplaceUserGroupTx(tx *gorm.DB, user *model.User, groupID *uint64, actorID 
 		}
 	}
 
+	// Delete the old relation before inserting a new one so transfers remain
+	// compatible with a future UNIQUE(user_id) database constraint.
+	deleteQuery := tx.Where("user_id = ?", user.ID)
+	if groupID != nil {
+		deleteQuery = deleteQuery.Where("group_id <> ?", *groupID)
+	}
+	if err := deleteQuery.Delete(&model.UserGroupMember{}).Error; err != nil {
+		return err
+	}
 	if !selectedPresent && groupID != nil {
 		if err := tx.Create(&model.UserGroupMember{
 			GroupID: *groupID,
@@ -225,13 +234,6 @@ func ReplaceUserGroupTx(tx *gorm.DB, user *model.User, groupID *uint64, actorID 
 		}).Error; err != nil {
 			return err
 		}
-	}
-	deleteQuery := tx.Where("user_id = ?", user.ID)
-	if groupID != nil {
-		deleteQuery = deleteQuery.Where("group_id <> ?", *groupID)
-	}
-	if err := deleteQuery.Delete(&model.UserGroupMember{}).Error; err != nil {
-		return err
 	}
 
 	after := []membershipAuditEntry{}

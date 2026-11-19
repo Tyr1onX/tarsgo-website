@@ -47,17 +47,23 @@ func (r *gormRegistrationRepository) SyncAdmissionMembership(ctx context.Context
 		if err := tx.Where("id = ? AND status = ?", effect.GroupID, model.UserGroupStatusActive).First(&group).Error; err != nil {
 			return &ServiceError{Status: http.StatusConflict, Message: "录取组别不存在或已停用", Err: err}
 		}
-		// Add the admitted group; never replace other memberships or group roles.
-		var member model.UserGroupMember
-		err := tx.Where("user_id = ? AND group_id = ?", user.ID, effect.GroupID).First(&member).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			member = model.UserGroupMember{UserID: user.ID, GroupID: effect.GroupID, Role: model.UserGroupMemberRoleMember, JoinedAt: now}
+		// An admission must not create a second organization membership.
+		// Existing roles are preserved; a transfer requires an explicit admin change.
+		var memberships []model.UserGroupMember
+		if err := tx.Where("user_id = ?", user.ID).Find(&memberships).Error; err != nil {
+			return err
+		}
+		for _, member := range memberships {
+			if member.GroupID != effect.GroupID {
+				return &ServiceError{Status: http.StatusConflict, Message: "账号已有其他所属组别，请先由管理员确认唯一归属"}
+			}
+		}
+		if len(memberships) == 0 {
+			member := model.UserGroupMember{UserID: user.ID, GroupID: effect.GroupID, Role: model.UserGroupMemberRoleMember, JoinedAt: now}
 			if err := tx.Create(&member).Error; err != nil {
 				return err
 			}
 			effect.CreatedMemberID = member.ID
-		} else if err != nil {
-			return err
 		}
 		if user.TeamIdentityStatus != model.TeamIdentityFormalMember && user.TeamIdentityStatus != model.TeamIdentityTraineeMember {
 			effect.IdentityChanged = true
