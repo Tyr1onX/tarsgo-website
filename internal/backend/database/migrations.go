@@ -318,14 +318,14 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 84, apply: migrateOperationsMerchandiseItemsV84},
 		{version: 85, apply: migrateWeChatVideoMetricsV85},
 		{version: 86, apply: retireDefaultMemberGroupV86},
-		{version: 87, apply: enforceUniqueUserGroupMembershipV87},
+		{version: 87, apply: purgeUnreferencedDefaultGroupsV87},
+		{version: 88, apply: enforceUniqueUserGroupMembershipV88},
 	}
 }
 
-// A user can have at most one current organization group. Do not choose a group
-// during schema migration: conflicting historical relationships must be
-// reconciled and backed up before this non-reversible constraint is installed.
-func enforceUniqueUserGroupMembershipV87(db *gorm.DB) error {
+// A user can have at most one current organization group. Reject ambiguous
+// historical rows: they must be reconciled and backed up before adding the index.
+func enforceUniqueUserGroupMembershipV88(db *gorm.DB) error {
 	var duplicate struct{ UserID uint64 }
 	result := db.Model(&model.UserGroupMember{}).
 		Select("user_id").

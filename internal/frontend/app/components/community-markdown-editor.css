@@ -31,7 +31,7 @@
 .community-editor-attachments > div { position: absolute; z-index: 5; top: 34px; right: 0; display: grid; min-width: 170px; max-width: 240px; gap: 3px; border: 1px solid var(--admin-border); border-radius: 9px; padding: 6px; background: var(--admin-surface); box-shadow: 0 8px 24px color-mix(in srgb, var(--admin-text) 12%, transparent); }
 .community-editor-attachments button { overflow: hidden; border: 0; border-radius: 5px; padding: 7px 8px; color: var(--admin-muted); background: transparent; font-size: 11px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .community-editor-attachments button:hover { color: var(--admin-text); background: var(--admin-surface-hover); }
-.community-markdown-editor__surface { min-height: 220px; padding: 0 17px 14px; color: var(--admin-text); }
+.community-markdown-editor__surface { min-height: 220px; overflow-x: auto; padding: 0 17px 14px; color: var(--admin-text); }
 .community-markdown-editor__surface .milkdown { min-height: 220px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--admin-text); }
 .community-markdown-editor__surface .milkdown .ProseMirror { min-height: 220px; outline: none; padding: 14px 0; color: var(--admin-text); font-family: inherit; font-size: 14px; line-height: 1.78; }
 .community-markdown-editor__surface .milkdown .ProseMirror > * { margin-block: 0 11px; }
@@ -43,8 +43,8 @@
 .community-markdown-editor__surface .milkdown .ProseMirror code { border-radius: 4px; padding: 2px 4px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 9%, var(--admin-surface)); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
 .community-markdown-editor__surface .milkdown .ProseMirror pre { overflow-x: auto; border: 1px solid var(--editor-border); border-radius: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--admin-surface-hover) 72%, var(--editor-bg)); }
 .community-markdown-editor__surface .milkdown .ProseMirror pre code { padding: 0; background: transparent; }
-.community-markdown-editor__surface .milkdown .ProseMirror table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
-.community-markdown-editor__surface .milkdown .ProseMirror th,.community-markdown-editor__surface .milkdown .ProseMirror td { border: 1px solid var(--editor-border); padding: 7px 9px; }
+.community-markdown-editor__surface .milkdown .ProseMirror table { width: 100%; border-collapse: collapse; }
+.community-markdown-editor__surface .milkdown .ProseMirror th,.community-markdown-editor__surface .milkdown .ProseMirror td { min-width: 90px; border: 1px solid var(--editor-border); padding: 7px 9px; }
 .community-markdown-editor__surface .milkdown .ProseMirror th { background: color-mix(in srgb, var(--admin-surface-hover) 78%, var(--editor-bg)); }
 .community-markdown-editor__surface .milkdown .ProseMirror img { display: inline-block; max-width: 100%; height: auto; border-radius: 8px; vertical-align: middle; }
 .community-markdown-editor__surface .milkdown .ProseMirror img[title^="jijia-image:25:"] { width: 25%; }

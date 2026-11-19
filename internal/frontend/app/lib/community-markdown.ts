@@ -1,3 +1,15 @@
+export const communityEmptyTable = "| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |";
+
+export function insertCommunityMarkdownTable(source: string, start: number, end: number) {
+  const before = source.slice(0, start);
+  const after = source.slice(end);
+  const leading = !before || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+  const trailing = !after || after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+  const value = before + leading + communityEmptyTable + trailing + after;
+  const cellStart = before.length + leading.length + 2;
+  return { value, start: cellStart, end: cellStart + 3 };
+}
+
 export type CommunityImageLayout = { width: 25 | 50 | 75 | 100; align: "left" | "center" | "right"; caption: string };
 
 const imageTitlePrefix = "jijia-image:";
