@@ -192,26 +192,24 @@ test("training materials retain the uploaded group routes and the shared video r
   assert.ok(content.includes("硬件组学习全部软件组内容"));
 });
 
-test("common foundations remain accessible in the documentation hierarchy", async () => {
+test("common foundations link directly to tutorials and preserve original team routes", async () => {
   const content = await readFile(new URL("../routes/dashboard/training-materials.tsx", import.meta.url), "utf8");
-  const start = content.indexOf('id: "foundation"');
-  const originalStart = content.indexOf('id: "electrical"');
-  assert.ok(start >= 0 && start < originalStart);
   const tree = await readFile(new URL("../../../backend/handler/training_document_tree.go", import.meta.url), "utf8");
-  assert.ok(tree.includes('{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览"'));
-  const overview = await readFile(new URL("../content/training/foundation.md", import.meta.url), "utf8");
   const computer = await readFile(new URL("../content/training/computer-basics.md", import.meta.url), "utf8");
   const git = await readFile(new URL("../content/training/git-and-github.md", import.meta.url), "utf8");
-  assert.ok(content.includes("text: foundationMarkdown"));
-  for (const part of ["计算机基础", "Git 与 GitHub", "Ubuntu", "Python", "C++", "C 语言", "工程实践基础"]) {
-    assert.ok(overview.includes(part), part);
+
+  assert.ok(tree.includes('ID: "foundation-folder", Title: "通用基础"'));
+  assert.ok(tree.includes('computerGuideNode()'));
+  assert.ok(tree.includes('ID: "git", ParentID: "foundation-folder"'));
+  assert.ok(!tree.includes('Title: "通用基础概览"'));
+  assert.ok(content.includes("computer: computerMarkdown"));
+  assert.ok(content.includes("git: gitMarkdown"));
+  assert.ok(!content.includes("foundationMarkdown"));
+  assert.ok(!computer.includes("?group=foundation") && !git.includes("?group=foundation"));
+  for (const group of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
+    assert.ok(content.includes('id: "' + group + '"'), group);
   }
-  assert.ok(overview.includes("?doc=computer") && overview.includes("?doc=git"));
-  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F", "BV1Y8aL6SEit", "BV1LwHv6LEYz", "BV1cq421w72c", "BV1Cc41127B9", "BV1rpWjevEip", "BV1Dk4y1j7oj"]) {
-    assert.ok((overview + computer + git).includes(bv), bv);
+  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F", "BV1Y8aL6SEit", "BV1LwHv6LEYz"]) {
+    assert.ok((computer + git).includes(bv), bv);
   }
-  for (const original of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
-    assert.ok(content.includes('id: "' + original + '"'), original);
-  }
-  assert.ok(overview.includes("各方向使用不同语言"));
 });

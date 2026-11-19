@@ -94,4 +94,4 @@ tarsgo-practice/
 
 联合培训原有计算机基础视频：[BV15i9UBhEZ2](https://www.bilibili.com/video/BV15i9UBhEZ2) · [BV1UwPgziE3F](https://www.bilibili.com/video/BV1UwPgziE3F)。
 
-不确定自己的下一步时，返回[通用基础概览](?group=foundation)，按所在方向的原始培养路线选择。
+不确定自己的下一步时，可以查看左侧「原始培养路线」中的对应组别，按当前培养要求继续学习。

@@ -135,4 +135,4 @@ git push -u origin main
 
 其他参考资料：[Git 官方教程](https://git-scm.com/book/zh/v2) · [GitHub：管理远程仓库](https://docs.github.com/en/get-started/git-basics/managing-remote-repositories)。
 
-如果已经能完成提交和推送，可以回到[通用基础学习资料](?group=foundation)选择下一模块。
+如果已经能完成提交和推送，可以查看左侧「原始培养路线」中的对应组别，继续学习后续内容。
