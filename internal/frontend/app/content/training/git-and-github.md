@@ -4,11 +4,11 @@
 
 **完成目标：** 在自己的电脑上创建 Git 仓库，完成一次提交，把这次提交推送到自己新建的 GitHub 仓库，并能在网页上查看结果。
 
-> 建议使用个人练习仓库，不要直接在战队正式项目仓库操作。以下示例以现代 Git 版本为基础，Windows 可使用 Git Bash，macOS / Linux 使用终端。
+本篇使用个人练习仓库演示完整提交流程。Windows 可打开 Git Bash，macOS 与 Linux 使用终端。
 
 ## 1. 先理解四个位置
 
-Git 记录文件变化；GitHub 用来托管仓库和开展协作。**本地提交并不等于上传到 GitHub**。
+Git 记录每次文件修改，GitHub 托管远程仓库。**`git commit` 保存本地版本，`git push` 把版本同步到 GitHub。**
 
 ![Git 工作区、暂存区、本地仓库与 GitHub 远程仓库的关系示意](/assets/images/training/git-workflow.svg)
 
@@ -65,7 +65,7 @@ git add README.md
 git status
 ```
 
-你会看到 `README.md` 从未跟踪文件变成准备提交的文件。这里明确使用 `git add README.md`，避免误把其他文件一起提交。
+你会看到 `README.md` 从未跟踪文件变成准备提交的文件。使用 `git add README.md` 可以准确选择这次提交的文件。
 
 ## 4. 提交并确认本地版本
 
@@ -80,11 +80,11 @@ git status
 - `git log --oneline -1` 显示一条带短提交编号和 `docs: add first README` 的记录；编号每个人都不同。
 - `git status` 显示工作区没有待提交的变化（通常包含 `working tree clean`）。
 
-这意味着你已经有一个**本地提交**，即使没有网络、没有 GitHub 账号，这一步仍可完成。
+到这里你已经拥有一个可以在本机查看、比较和继续修改的版本记录。
 
 ## 5. 把本地仓库连接到 GitHub
 
-登录 [GitHub](https://github.com/)，通过 **New repository** 新建一个仓库，例如 `git-practice`。为了与已有本地提交直接连接，创建时**不要勾选自动创建 README、.gitignore 或 license**。
+登录 [GitHub](https://github.com/)，通过 **New repository** 新建一个仓库，例如 `git-practice`。创建时选择**空仓库**，使远程仓库与前面建立的本地提交直接对应。
 
 在新仓库页面复制 HTTPS 仓库地址。回到自己的练习文件夹，在下面的命令中用实际地址替换示例地址：
 
@@ -96,7 +96,7 @@ git push -u origin main
 
 `OWNER` 需要替换成你的 GitHub 用户名，仓库名也必须与实际仓库一致。`git remote -v` 用于检查远程地址，`git push` 才会真正上传提交。
 
-首次推送可能要求登录或授权。按照 Git 提供的浏览器/凭据管理器流程完成身份验证；**GitHub 不支持把账号登录密码直接当作 HTTPS Git 操作密码**，不要把密码或访问令牌写进代码和仓库。
+首次推送可能要求登录或授权。按照 Git 的浏览器登录或凭据管理器流程完成身份验证。GitHub HTTPS Git 操作采用受支持的令牌或凭据管理方式，凭据保存在系统凭据管理器中。
 
 ## 6. 检查 GitHub 上的最终结果
 
@@ -106,7 +106,7 @@ git push -u origin main
 - 仓库的提交历史出现 `docs: add first README`。
 - 回到终端执行 `git status`，确认本地没有未提交的更改。
 
-全部满足就完成了这篇教程，不需要额外上传截图或在网站打卡。
+**完成判断：** 本地有提交记录，远程仓库可看到同一份 `README.md` 和提交历史，`git status` 显示工作区干净。
 
 ## 常见问题
 
@@ -116,7 +116,7 @@ git push -u origin main
 
 ### 提示 `remote origin already exists`
 
-说明仓库已有名为 `origin` 的远程地址。先用 `git remote -v` 检查；如果地址不正确，可以用 `git remote set-url origin <实际仓库地址>` 更新，避免重复添加。
+说明仓库已有名为 `origin` 的远程地址。先用 `git remote -v` 检查；如果地址不正确，运行 `git remote set-url origin <实际仓库地址>` 更新。
 
 ### 提示 `src refspec main does not match any`
 
@@ -124,7 +124,7 @@ git push -u origin main
 
 ### 推送时提示认证失败
 
-先确认远程地址和账号权限，再按照 [GitHub 官方身份验证说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github) 选择受支持的登录方式。不要把密码、令牌或 SSH 私钥发给别人。
+先确认远程地址和账号权限，再按照 [GitHub 官方身份验证说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github) 选择受支持的登录方式。确认凭据仅保存在自己的设备和受信任的凭据管理工具中。
 
 ## 继续学习
 
@@ -135,4 +135,4 @@ git push -u origin main
 
 其他参考资料：[Git 官方教程](https://git-scm.com/book/zh/v2) · [GitHub：管理远程仓库](https://docs.github.com/en/get-started/git-basics/managing-remote-repositories)。
 
-如果已经能完成提交和推送，可以查看左侧「原始培养路线」中的对应组别，继续学习后续内容。
+完成两次提交和远程推送后，进入[AI 与视觉联合基础](?doc=path-joint)，或从左侧选择自己的方向学习路径。

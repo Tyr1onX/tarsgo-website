@@ -230,3 +230,74 @@ func TestTrainingTreeAddsComputerGuideToSavedDirectories(t *testing.T) {
 		t.Fatal("guide and legacy image scopes must remain accessible")
 	}
 }
+
+func TestTrainingTreeAddsDirectionPathsToSavedDirectories(t *testing.T) {
+	legacy := make([]trainingTreeNode, 0)
+	for _, node := range defaultTrainingTree() {
+		if node.ID == "paths-folder" || node.ParentID == "paths-folder" {
+			continue
+		}
+		legacy = append(legacy, node)
+	}
+	legacy = append(legacy, trainingTreeNode{ID: "nlegacy", ParentID: "foundation-folder", Title: "已有自建教程", Kind: "document", Scope: 1001})
+	raw, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := trainingDocumentMemoryStore{
+		trainingTreeKey:          string(raw),
+		"training_document_nlegacy": "# 已编辑的自建内容",
+	}
+	handler := NewTrainingDocumentHandler(store, nil)
+	for attempt := 0; attempt < 2; attempt++ {
+		nodes, err := handler.loadTree(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]int{}
+		var pathIndex, archiveIndex = -1, -1
+		for i, node := range nodes {
+			seen[node.ID]++
+			if node.ID == "paths-folder" {
+				pathIndex = i
+			}
+			if node.ID == "archive" {
+				archiveIndex = i
+			}
+		}
+		if pathIndex < 0 || archiveIndex <= pathIndex || seen["nlegacy"] != 1 {
+			t.Fatalf("learning paths or custom content missing: %#v", nodes)
+		}
+		for _, expected := range trainingPathNodes() {
+			if seen[expected.ID] != 1 {
+				t.Fatalf("expected one learning path %q: %#v", expected.ID, nodes)
+			}
+			if expected.Kind == "document" && !handler.scopeAllowed(context.Background(), expected.Scope) {
+				t.Fatalf("learning path scope %d is inaccessible", expected.Scope)
+			}
+		}
+	}
+	if store[trainingTreeKey] != string(raw) || store["training_document_nlegacy"] != "# 已编辑的自建内容" {
+		t.Fatal("loading preset paths must preserve existing stored data")
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/docs/:slug", handler.Get)
+	router.PUT("/docs/:slug", func(c *gin.Context) {
+		c.Set("sessionUser", &auth.SessionUser{ID: 42, Role: auth.SessionRole{Name: "super_admin"}})
+	}, handler.Save)
+	write := httptest.NewRecorder()
+	router.ServeHTTP(write, trainingDocumentRequest(t, "/docs/path-electrical", "# 电控路径补充记录", nil, ""))
+	if write.Code != http.StatusOK {
+		t.Fatalf("path guide edit failed: %d %s", write.Code, write.Body.String())
+	}
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/docs/path-electrical", nil))
+	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), "电控路径补充记录") {
+		t.Fatalf("path guide reload failed: %d %s", read.Code, read.Body.String())
+	}
+	if store["training_document_nlegacy"] != "# 已编辑的自建内容" {
+		t.Fatal("saving a new learning path changed an existing document")
+	}
+}
