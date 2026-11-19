@@ -70,7 +70,7 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     label: "协作与运营",
     iconKey: "settings",
     children: [
-      { key: "team-state", label: "战队运行状态", href: "/dashboard/admin/team-state", allowedRoles: ["super_admin"], iconKey: "analytics" },
+      { key: "team-state", label: "技术研发总览", href: "/dashboard/admin/team-state", allowedRoles: ["super_admin"], iconKey: "analytics" },
       { key: "collection-forms", label: "收集表", href: "/dashboard/admin/forms", allowedRoles: ["admin", "super_admin"] },
       { key: "timetable-availability", label: "时间协调", href: "/dashboard/admin/timetable-availability", allowedRoles: ["admin", "super_admin"] },
       { key: "email-management", label: "邮件管理", href: "/dashboard/admin/email", allowedRoles: ["super_admin"] },

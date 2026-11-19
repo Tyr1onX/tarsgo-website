@@ -1,209 +1,179 @@
 import { useEffect, useState } from "react";
-import { Icon } from "@iconify/react";
-import type { IconifyIcon } from "@iconify/react";
-import cpu from "@iconify-icons/lucide/cpu";
-import megaphone from "@iconify-icons/lucide/megaphone";
-import users from "@iconify-icons/lucide/users";
-import targetIcon from "@iconify-icons/lucide/target";
-import checkCircle from "@iconify-icons/lucide/check-circle-2";
-import xCircle from "@iconify-icons/lucide/x-circle";
-import clockIcon from "@iconify-icons/lucide/clock-3";
-import helpCircle from "@iconify-icons/lucide/help-circle";
-import chevronRight from "@iconify-icons/lucide/chevron-right";
-import arrowLeft from "@iconify-icons/lucide/arrow-left";
-import { useOutletContext } from "react-router";
 import type { ReactNode } from "react";
-
-import { apiRequest } from "~/lib/api-client";
+import { useOutletContext } from "react-router";
+import { Icon } from "@iconify/react";
+import arrowLeft from "@iconify-icons/lucide/arrow-left";
+import chevronRight from "@iconify-icons/lucide/chevron-right";
+import cpu from "@iconify-icons/lucide/cpu";
+import checkCircle from "@iconify-icons/lucide/check-circle-2";
+import clock from "@iconify-icons/lucide/clock-3";
+import alertTriangle from "@iconify-icons/lucide/alert-triangle";
+import calendarDays from "@iconify-icons/lucide/calendar-days";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { apiRequest } from "~/lib/api-client";
 import "./team-state.css";
 
 type Source = { name: string; status: "available" | "partial" | "unavailable"; detail?: string; url?: string; setupUrl?: string };
-type Goal = { id: string; title: string; target: string; url: string; kind?: string; status?: string };
-type Acceptance = {
-  total: number; passed: number; failed: number; pending: number; unknown: number;
-  unscoped: number; achievedPct: number | null; evidencePct: number | null;
-};
 type Task = {
   id: string; title: string; assignees: string[]; status: string; priority?: string;
   due?: string; completedAt?: string; overdue: boolean;
 };
 type Project = {
-  id: string; name: string; owner?: string; members?: string; status?: string; tasksLoaded: boolean;
-  tasks: Task[]; completed: number; goals: Goal[]; acceptance: Acceptance;
-  planExcerpt?: string; meetingExcerpt?: string; meetingUrl?: string; url: string;
+  id: string; name: string; owner?: string; tasksLoaded: boolean; tasks: Task[];
+  completed: number; inProgress: number; notStarted: number; stalled: number;
+  lastMeetingDate?: string; updates: string[]; blocker?: string; nextAction?: string;
+  meetingExcerpt?: string; meetingUrl?: string; url: string;
 };
-type Report = { id: number; member: string; group: string; week: string; completed?: string; blockers?: string; nextPlan?: string };
-type Insight = { kind: "事实" | "推断"; text: string; sourceUrl: string };
-type DomainFocus = { domain: "运营" | "组织"; title: string; target: string; url: string };
-type OperationsItem = { title: string; stage?: string; nextAction?: string; updatedAt: string };
-type Snapshot = {
-  generatedAt: string;
-  sources: Source[];
-  insights?: Insight[];
-  focus?: DomainFocus[];
-  domains: { technology: Acceptance; operations: Acceptance; organization: Acceptance };
-  summary: null | {
-    total: number; completed: number; inProgress: number; notStarted: number;
-    stalled: number; overdue: number; missingCompletedDate: number;
-  };
-  projects: Project[];
-  reports: Report[];
-  operations: null | { active: number; blocked: number; items: OperationsItem[]; url: string };
+type Summary = {
+  total: number; completed: number; inProgress: number; notStarted: number;
+  stalled: number; missingCompletedDate: number;
 };
+type Snapshot = { generatedAt: string; sources: Source[]; summary: Summary | null; projects: Project[] };
 
 export function meta() {
-  return [{ title: "战队运行状态 | TARSGO" }];
+  return [{ title: "技术研发总览 | TARSGO" }];
 }
 
-const dateText = (raw?: string) => raw?.slice(0, 10) || "未记录";
-const shortName = (name: string) => name.replace(/^27赛季/, "");
+const dateText = (value?: string) => value?.slice(0, 10) || "未记录";
+const percent = (done: number, total: number) => total > 0 ? Math.round(done / total * 1000) / 10 : 0;
+const groupName = (name: string) => name.replace(/^27赛季/, "");
 
-function OriginalLink({ href, children }: { href?: string; children: ReactNode }) {
-  if (!href) return null;
-  const external = href.startsWith("http");
-  return <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}>{children}</a>;
+function SourceLink({ url, children }: { url?: string; children: ReactNode }) {
+  if (!url) return null;
+  const external = url.startsWith("http");
+  return <a href={url} target={external ? "_blank" : undefined}
+    rel={external ? "noopener noreferrer" : undefined}>{children}</a>;
 }
 
-function meetingDate(excerpt?: string, year = 2026) {
-  const heading = excerpt?.split("\n")[0] || "";
-  const match = heading.match(/(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2})/);
-  if (!match) return "";
-  const y = Number(match[1] || year);
-  const m = Number(match[2]);
-  const d = Number(match[3]);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return "";
-  return date.toISOString().slice(0, 10);
-}
-
-function recentMeeting(project: Project, generatedAt: string) {
-  const date = meetingDate(project.meetingExcerpt, Number(generatedAt.slice(0, 4)));
-  if (!date) return null;
-  const elapsed = (Date.parse(generatedAt.slice(0, 10)) - Date.parse(date)) / 86400000;
-  return elapsed >= 0 && elapsed <= 7 ? date : null;
-}
-
-function meetingPreview(excerpt?: string) {
-  return excerpt?.split("\n").slice(1).filter(Boolean).slice(0, 2).join("；") || "";
-}
-
-function TaskStatus({ task }: { task: Task }) {
-  return <span className={task.overdue ? "team-state__warning" : "team-state__muted"}>
-    {task.overdue ? "逾期待核实" : task.status || "未标记"}
-  </span>;
-}
-
-function formatPercent(value: number | null) {
-  return value === null ? "—" : `${value.toLocaleString("zh-CN", { maximumFractionDigits: 1 })}%`;
-}
-
-function AcceptanceMeters({ metrics, compact = false }: { metrics: Acceptance; compact?: boolean }) {
-  const rows = [
-    { label: "已证实达成", value: metrics.achievedPct, count: metrics.passed, tone: "passed" },
-    { label: "验收证据覆盖", value: metrics.evidencePct, count: metrics.passed + metrics.failed, tone: "evidence" },
-  ];
-  return <div className={"team-state__meters" + (compact ? " team-state__meters--compact" : "")}>
-    {rows.map((row) => <div className="team-state__metric" key={row.tone}>
-      <div className="team-state__metric-heading">
-        <span>{row.label}</span>
-        <strong className={row.value === null ? "team-state__metric-unknown" : ""}>{formatPercent(row.value)}</strong>
-      </div>
-      <div className={"team-state__meter team-state__meter--" + row.tone}
-        role="progressbar" aria-label={row.label}
-        aria-valuemin={row.value === null ? undefined : 0}
-        aria-valuemax={row.value === null ? undefined : 100}
-        aria-valuenow={row.value ?? undefined}
-        aria-valuetext={row.value === null ? "尚未建立有效验收基线" : `${row.count} / ${metrics.total} 项`}>
-        {row.value !== null && <div style={{ width: `${row.value}%` }} />}
-      </div>
-      <small>{metrics.total > 0 ? `${row.count} / ${metrics.total} 项` : "目标基线待建立"}</small>
-    </div>)}
-  </div>;
-}
-
-function AcceptanceBreakdown({ metrics }: { metrics: Acceptance }) {
-  return <div className="team-state__breakdown" aria-label="目标验收状态分布">
-    {[
-      { count: metrics.passed, label: "通过", icon: checkCircle, tone: "passed" },
-      { count: metrics.failed, label: "未达标", icon: xCircle, tone: "failed" },
-      { count: metrics.pending, label: "待验收", icon: clockIcon, tone: "pending" },
-      { count: metrics.unknown, label: "无法判断", icon: helpCircle, tone: "unknown" },
-    ].filter(() => metrics.total > 0).map((item) => <span key={item.tone} className={"team-state__status-item team-state__status-item--" + item.tone}>
-      <Icon icon={item.icon} aria-hidden="true" />{item.label} {item.count}
-    </span>)}
-    {metrics.total === 0 && <span className="team-state__status-item team-state__status-item--unknown">
-      <Icon icon={helpCircle} aria-hidden="true" />验收基线未建立
-    </span>}
-    {metrics.unscoped > 0 && <span className="team-state__status-item team-state__status-item--unscoped">
-      <Icon icon={targetIcon} aria-hidden="true" />缺验收标准 {metrics.unscoped}
-    </span>}
-  </div>;
-}
-
-function DomainCard({ title, icon, metrics, detail, href }: {
-  title: string; icon: IconifyIcon; metrics: Acceptance; detail: string; href: string;
-}) {
-  return <section className="team-state__domain">
-    <div className="team-state__domain-heading">
-      <span className="team-state__domain-icon"><Icon icon={icon} aria-hidden="true" /></span>
-      <strong>{title}</strong>
+function Progress({ done, total, name }: { done: number; total: number; name: string }) {
+  const value = percent(done, total);
+  return <div className="team-state__progress">
+    <div className="team-state__progress-head">
+      <span>已录入任务完成率</span>
+      <strong className="team-state__percent">{total > 0 ? `${value}%` : "—"}</strong>
     </div>
-    <AcceptanceMeters metrics={metrics} />
-    <AcceptanceBreakdown metrics={metrics} />
-    <div className="team-state__domain-bottom">
-      <p>{detail}</p>
-      <a href={href}>查看{title}<Icon icon={chevronRight} aria-hidden="true" /></a>
+    <div className="team-state__progress-track" role="progressbar" aria-label={name + "已录入任务完成率"}
+      aria-valuemin={total > 0 ? 0 : undefined} aria-valuemax={total > 0 ? 100 : undefined}
+      aria-valuenow={total > 0 ? value : undefined}
+      aria-valuetext={total > 0 ? `${done} / ${total} 条任务` : "没有已录入的任务"}>
+      {total > 0 && <div style={{ width: `${value}%` }} />}
     </div>
-  </section>;
-}
-
-function GoalState({ goal }: { goal: Goal }) {
-  const type = goal.kind !== "验收要求" ? "unscoped" :
-    goal.status === "已验证达成" ? "passed" :
-    goal.status === "已验证未达标" ? "failed" :
-    goal.status === "有成果待验收" ? "pending" : "unknown";
-  const icon = type === "passed" ? checkCircle : type === "failed" ? xCircle :
-    type === "pending" ? clockIcon : helpCircle;
-  const label = type === "unscoped" ? (goal.status === "有成果待验收" ? "有成果待验收 · 标准未关联" : "验收标准待关联") :
-    (goal.status || "无法判断");
-  return <span className={"team-state__goal-state team-state__goal-state--" + type}>
-    <Icon icon={icon} aria-hidden="true" />{label}
-  </span>;
+    <small>{total > 0 ? `${done} / ${total} 条任务` : "暂无任务记录"}</small>
+  </div>;
 }
 
 function TeamStateSkeleton() {
   const bar = "rounded bg-[var(--admin-border-subtle)]";
-  return <div className="content-skeleton space-y-4" role="status" aria-label="正在读取战队运行状态">
+  return <div className="content-skeleton space-y-4" role="status" aria-label="正在读取技术研发进度">
     <div className="motion-safe:animate-pulse space-y-4" aria-hidden="true">
-      <div className="team-state__domains">
-        {[0, 1, 2].map((key) => <div key={key} className="team-state__domain space-y-3">
-          <div className={bar + " h-4 w-20"} />
-          <div className={bar + " h-7 w-32 max-w-full"} />
-          <div className={bar + " h-4 w-full"} />
-          <div className={bar + " h-4 w-3/4"} />
+      <div className="team-state__stats">
+        {[0, 1, 2].map((key) => <div key={key} className="team-state__stat space-y-3">
+          <div className={bar + " h-4 w-28"} />
+          <div className={bar + " h-8 w-20"} />
+          <div className={bar + " h-3 w-4/5"} />
         </div>)}
       </div>
       <section className="team-state__panel space-y-4">
-        <div className={bar + " h-6 w-44 max-w-full"} />
+        <div className={bar + " h-6 w-36"} />
         <div className="team-state__project-grid">
-          {[0, 1, 2, 3, 4, 5].map((key) => <div key={key} className="team-state__outcome-card pointer-events-none space-y-3">
+          {[0, 1, 2, 3, 4, 5].map((key) => <div className="team-state__project-card space-y-3" key={key}>
             <div className={bar + " h-5 w-20"} />
-            <div className={bar + " h-4 w-32 max-w-full"} />
-            <div className={bar + " h-4 w-40 max-w-full"} />
-            <div className={bar + " h-4 w-3/4"} />
+            <div className={bar + " h-7 w-24"} />
+            <div className={bar + " h-3 w-full"} />
+            <div className={bar + " h-4 w-4/5"} />
+            <div className={bar + " h-4 w-3/5"} />
           </div>)}
         </div>
       </section>
-      <div className="team-state__columns">
-        {[0, 1].map((key) => <section key={key} className="team-state__panel space-y-4">
-          <div className={bar + " h-6 w-28"} />
-          <div className={bar + " h-4 w-full"} />
-          <div className={bar + " h-4 w-3/4"} />
-        </section>)}
-      </div>
     </div>
   </div>;
+}
+
+function ProjectCard({ project, onSelect }: { project: Project; onSelect: () => void }) {
+  const pending = project.inProgress + project.notStarted;
+  return <button className="team-state__project-card" type="button" onClick={onSelect}>
+    <div className="team-state__card-head">
+      <h3><Icon icon={cpu} aria-hidden="true" />{groupName(project.name)}</h3>
+      <Icon icon={chevronRight} aria-hidden="true" />
+    </div>
+    {project.tasksLoaded ? <>
+      <Progress done={project.completed} total={project.tasks.length} name={groupName(project.name)} />
+      <div className="team-state__counts">
+        <span><Icon icon={clock} aria-hidden="true" />推进中/未开始 {pending}</span>
+        {project.stalled > 0 && <span className="team-state__stalled"><Icon icon={alertTriangle} aria-hidden="true" />停滞 {project.stalled}</span>}
+      </div>
+    </> : <div className="team-state__missing">任务数据暂不可读取</div>}
+    <div className="team-state__latest">
+      <span className="team-state__meeting-date"><Icon icon={calendarDays} aria-hidden="true" />最近组会 {project.lastMeetingDate || "尚无记录"}</span>
+      {project.updates.length ? <p>{project.updates[0]}</p> : <p>尚未获取到可识别的组会进展</p>}
+    </div>
+    <span className="team-state__card-more">查看兵种详情 <Icon icon={chevronRight} aria-hidden="true" /></span>
+  </button>;
+}
+
+function ProjectDetail({ project, onBack }: { project: Project; onBack: () => void }) {
+  return <section className="team-state__details">
+    <button className="team-state__back" type="button" onClick={onBack}>
+      <Icon icon={arrowLeft} aria-hidden="true" />技术研发总览
+    </button>
+    <header className="team-state__detail-title">
+      <div>
+        <h2>{project.name}</h2>
+        {project.owner && <p className="team-state__muted">项目负责人：{project.owner}</p>}
+      </div>
+      <SourceLink url={project.url}>飞书项目管理</SourceLink>
+    </header>
+    <div className="team-state__panel">
+      <h3>任务推进情况</h3>
+      {project.tasksLoaded ? <>
+        <Progress done={project.completed} total={project.tasks.length} name={groupName(project.name)} />
+        <div className="team-state__counts">
+          <span><Icon icon={checkCircle} aria-hidden="true" />完成 {project.completed}</span>
+          <span><Icon icon={clock} aria-hidden="true" />进行中 {project.inProgress}</span>
+          <span>未开始 {project.notStarted}</span>
+          {project.stalled > 0 && <span className="team-state__stalled"><Icon icon={alertTriangle} aria-hidden="true" />已停滞 {project.stalled}</span>}
+        </div>
+      </> : <p className="team-state__muted">飞书项目任务暂不可读取，无法计算任务完成率。</p>}
+      <p className="team-state__muted">这里只统计已经录入飞书的任务，不代表整个赛季研发完成比例。</p>
+    </div>
+
+    <div className="team-state__panel">
+      <div className="team-state__section-head">
+        <h3>最近组会进展</h3>
+        <SourceLink url={project.meetingUrl}>查看原始组会</SourceLink>
+      </div>
+      <p className="team-state__meeting-date"><Icon icon={calendarDays} aria-hidden="true" />组会日期：{project.lastMeetingDate || "未记录"}</p>
+      {project.updates.length > 0 ? <ul className="team-state__update-list">
+        {project.updates.map((item, i) => <li key={i}>{item}</li>)}
+      </ul> : <p className="team-state__muted">未能识别出最新组会中的实际进展。</p>}
+      {project.blocker && <div className="team-state__note">
+        <strong><Icon icon={alertTriangle} aria-hidden="true" />组会记录的问题</strong><p>{project.blocker}</p>
+      </div>}
+      {project.nextAction && <div className="team-state__note">
+        <strong><Icon icon={clock} aria-hidden="true" />组会记录的下一步</strong><p>{project.nextAction}</p>
+      </div>}
+      {project.meetingExcerpt && <details className="team-state__expand">
+        <summary>查看最新组会摘录</summary>
+        <p className="team-state__meeting-text">{project.meetingExcerpt}</p>
+      </details>}
+    </div>
+
+    <details className="team-state__panel team-state__expand">
+      <summary>全部已录入任务（{project.tasksLoaded ? project.tasks.length + " 项" : "不可读取"}）</summary>
+      {project.tasksLoaded ? <div className="team-state__task-list">
+        {project.tasks.length === 0 && <p className="team-state__muted">当前未登记关联任务。</p>}
+        {[...project.tasks].sort((a, b) => Number(a.status === "已完成") - Number(b.status === "已完成")).map((task) =>
+          <div key={task.id} className="team-state__task">
+            <div><strong>{task.title}</strong><span className={task.status === "已停滞" ? "team-state__stalled" : "team-state__muted"}>{task.status || "未标记"}</span></div>
+            <small>{task.assignees.join("、") || "执行人未识别"} · 截止：{dateText(task.due)}</small>
+            {task.completedAt && <small>实际完成：{dateText(task.completedAt)}</small>}
+            {task.status === "已完成" && !task.completedAt && <small>实际完成日期未记录</small>}
+          </div>,
+        )}
+      </div> : <p className="team-state__muted">无法读取任务状态，请查看飞书原始来源。</p>}
+      <SourceLink url={project.url}>查看飞书任务表</SourceLink>
+    </details>
+  </section>;
 }
 
 export default function TeamStatePage() {
@@ -222,226 +192,86 @@ export default function TeamStatePage() {
       .then((data) => {
         if (controller.signal.aborted) return;
         setSnapshot(data);
+        setSelectedID((previous) => data.projects.some((p) => p.id === previous) ? previous : "");
         setError("");
-        setSelectedID((previous) => data.projects.some((item) => item.id === previous) ? previous : "");
       })
-      .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "读取战队运行状态失败");
-      })
+      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "读取技术研发进度失败"); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [currentUser.id, currentUser.role.name, version]);
 
   if (currentUser.role.name !== "super_admin") {
-    return <div className="admin-design"><div role="alert" className="admin-alert admin-alert--error">仅超级管理员可查看战队运行状态。</div></div>;
+    return <div className="admin-design"><div role="alert" className="admin-alert admin-alert--error">仅超级管理员可查看技术研发总览。</div></div>;
   }
 
-  const project = snapshot?.projects.find((item) => item.id === selectedID);
-  const technical = snapshot?.projects.filter((item) => item.name.startsWith("27赛季")) || [];
-  const other = snapshot?.projects.filter((item) => !item.name.startsWith("27赛季")) || [];
-  const operationsFocus = snapshot?.focus?.filter((item) => item.domain === "运营") || [];
-  const organizationFocus = snapshot?.focus?.filter((item) => item.domain === "组织") || [];
-  const latest = snapshot?.projects.flatMap((item) => {
-    const date = recentMeeting(item, snapshot.generatedAt);
-    return date ? [{ item, date }] : [];
-  }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4) || [];
+  const current = snapshot?.projects.find((p) => p.id === selectedID);
+  const summary = snapshot?.summary;
+  const pending = summary ? summary.inProgress + summary.notStarted : null;
 
   return <main className="admin-design team-state">
     <header className="admin-page-header team-state__header">
       <div>
-        <h1 className="admin-page-title">战队运行状态</h1>
-        {snapshot && <p className="team-state__muted">2027 赛季 · 数据读取于 {new Date(snapshot.generatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</p>}
+        <h1 className="admin-page-title">技术研发总览</h1>
+        {snapshot && <p className="team-state__muted">2027 赛季 · 本次读取 {new Date(snapshot.generatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</p>}
       </div>
-      <button className="team-state__refresh" type="button" disabled={loading} onClick={() => setVersion((value) => value + 1)}>
-        {loading ? "读取中" : "刷新"}
-      </button>
+      <button className="team-state__refresh" type="button" disabled={loading} onClick={() => setVersion((n) => n + 1)}>{loading ? "读取中" : "刷新"}</button>
     </header>
 
     {error && <div role="alert" className="admin-alert admin-alert--error">{error}</div>}
     {loading && !snapshot && <TeamStateSkeleton />}
     {snapshot && <>
-      {snapshot.sources.some((source) => source.status === "unavailable") && <section className="team-state__access" aria-label="数据源读取问题">
-        {snapshot.sources.filter((source) => source.status === "unavailable").map((source) => <div key={source.name}>
-          <strong>{source.name}</strong><span>{source.detail || "暂不可读取"}</span>
-          {source.setupUrl && <OriginalLink href={source.setupUrl}>开通读取权限</OriginalLink>}
-          <OriginalLink href={source.url}>查看来源</OriginalLink>
-        </div>)}
-      </section>}
-
-      {project ? <section className="team-state__project-view" aria-label="项目成果详情">
-        <button className="team-state__back" type="button" onClick={() => setSelectedID("")}>
-          <Icon icon={arrowLeft} aria-hidden="true" />战队全景
-        </button>
-        <div className="team-state__project-heading">
-          <div>
-            <h2>{project.name}</h2>
-            {(project.owner || project.status) && <p className="team-state__muted">{project.owner ? `负责人：${project.owner}` : ""}{project.status ? ` · ${project.status}` : ""}</p>}
-          </div>
-          <OriginalLink href={project.url}>{project.tasksLoaded ? "飞书项目表" : "项目资料"}</OriginalLink>
-        </div>
-
-        <section className="team-state__panel">
-          <div className="team-state__section-head">
-            <h3>目标验收概况</h3>
-            <span className="team-state__muted">只统计有明确标准的目标</span>
-          </div>
-          <AcceptanceMeters metrics={project.acceptance} />
-          <AcceptanceBreakdown metrics={project.acceptance} />
-          {project.acceptance.total === 0 && <p className="team-state__muted">
-            尚无可用于计算的正式验收基线。现有研发计划和阶段成果仍可在下方核查。
-          </p>}
-        </section>
-
-        <section className="team-state__panel">
-          <h3>关键目标与成果核查</h3>
-          {project.goals.length > 0 ? <>
-            <p className="team-state__muted">状态以来源文档为依据；记载“已研发”仅代表有阶段成果，未自动视为通过验收。</p>
-            <div className="team-state__goal-list">
-              {project.goals.map((goal) => <article className="team-state__goal" key={goal.id}>
-                <div className="team-state__goal-top"><strong>{goal.id} · {goal.title}</strong><GoalState goal={goal} /></div>
-                <p>{goal.target}</p>
-                <div className="team-state__goal-foot"><small>{goal.kind || "目标要求"} · {goal.kind === "验收要求" ? "未关联测试时不判定达标" : "不计入验收百分比"}</small><OriginalLink href={goal.url}>目标原文</OriginalLink></div>
-              </article>)}
+      {snapshot.sources.filter((s) => s.status === "unavailable").map((s) => <div key={s.name} className="team-state__access">
+        <strong>{s.name}不可读取</strong><span>{s.detail}</span>
+        {s.setupUrl && <SourceLink url={s.setupUrl}>开通飞书权限</SourceLink>}
+        <SourceLink url={s.url}>原始来源</SourceLink>
+      </div>)}
+      {current ? <ProjectDetail project={current} onBack={() => setSelectedID("")} /> : <>
+        <section aria-label="技术研发任务总体进度" className="team-state__overview">
+          <div className="team-state__stats">
+            <div className="team-state__stat">
+              <span><Icon icon={checkCircle} aria-hidden="true" />已录入任务完成</span>
+              <strong>{summary && summary.total > 0 ? `${percent(summary.completed, summary.total)}%` : "—"}</strong>
+              <small>{summary ? `${summary.completed} / ${summary.total} 条任务` : "任务数据暂不可读取"}</small>
             </div>
-          </> : <p className="team-state__muted">尚未关联可逐项核查的量化验收目标。</p>}
-          {project.planExcerpt && <div className="team-state__plan">
-            <div className="team-state__section-head"><h3>已有研发需求</h3><OriginalLink href={project.meetingUrl}>原始文档</OriginalLink></div>
-            <div className="team-state__plan-lines">{project.planExcerpt.split("\n").filter(Boolean).map((line, index) => <p key={index}>{line}</p>)}</div>
+            <div className="team-state__stat">
+              <span><Icon icon={clock} aria-hidden="true" />进行中 / 未开始</span>
+              <strong>{pending ?? "—"}</strong>
+              <small>{summary ? `进行中 ${summary.inProgress} · 未开始 ${summary.notStarted}` : "任务数据暂不可读取"}</small>
+            </div>
+            <div className="team-state__stat">
+              <span><Icon icon={alertTriangle} aria-hidden="true" />已停滞任务</span>
+              <strong>{summary?.stalled ?? "—"}</strong>
+              <small>{summary ? `6 个兵种 · ${summary.missingCompletedDate} 项完成日期缺失` : "任务数据暂不可读取"}</small>
+            </div>
+          </div>
+          {summary && summary.total > 0 && <div className="team-state__overall-bar">
+            <div role="progressbar" aria-label="六兵种已录入任务完成率" aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={percent(summary.completed, summary.total)}
+              aria-valuetext={`${summary.completed} / ${summary.total} 条任务`}>
+              <div style={{ width: `${percent(summary.completed, summary.total)}%` }} />
+            </div>
+            <p>统计范围：六个兵种当前录入飞书的任务。比例不代表赛季研发完成度。</p>
           </div>}
         </section>
 
         <section className="team-state__panel">
           <div className="team-state__section-head">
-            <h3>近期组会证据</h3>
-            <OriginalLink href={project.meetingUrl}>查看完整记录</OriginalLink>
+            <h2>各兵种推进情况</h2>
+            <SourceLink url={snapshot.sources.find((s) => s.name === "飞书项目任务")?.url}>任务数据来源</SourceLink>
           </div>
-          {project.meetingExcerpt ? <>
-            <p className="team-state__muted">记录日期：{meetingDate(project.meetingExcerpt, Number(snapshot.generatedAt.slice(0, 4))) || "未标注"} · 以下是原文摘录，未作为目标验收结论。</p>
-            <p className="team-state__meeting">{project.meetingExcerpt}</p>
-          </> : <p className="team-state__muted">未找到可提取的近期组会正文。</p>}
+          <div className="team-state__project-grid">
+            {snapshot.projects.map((p) => <ProjectCard key={p.id} project={p} onSelect={() => setSelectedID(p.id)} />)}
+          </div>
+          {snapshot.projects.length === 0 && <p className="team-state__muted">未找到六个兵种的项目记录。</p>}
         </section>
-
-        <details className="team-state__panel team-state__evidence">
-          <summary>执行任务与人员 <span className="team-state__muted">{project.tasksLoaded ? `${project.tasks.length} 条记录` : "来源暂不可读取"}</span></summary>
-          {!project.tasksLoaded && <p className="team-state__muted">无法确认任务状态，请查阅原始来源。</p>}
-          {project.tasksLoaded && project.tasks.length === 0 && <p className="team-state__muted">飞书项目表没有关联任务。</p>}
-          <div className="team-state__task-list">
-            {[...project.tasks].sort((a, b) => Number(b.overdue) - Number(a.overdue)).map((task) =>
-              <div key={task.id} className="team-state__task">
-                <div><strong>{task.title}</strong><TaskStatus task={task}/></div>
-                <small>{task.assignees.join("、") || "执行人未识别"} · 截止 {dateText(task.due)}</small>
-                {task.status === "已完成" && !task.completedAt && <small>实际完成时间未记录</small>}
-              </div>,
-            )}
-          </div>
-          <p className="team-state__muted">任务完成仅代表飞书记录状态，不等于目标验收通过。 <OriginalLink href={project.url}>查看原始任务</OriginalLink></p>
-        </details>
-      </section> : <>
-        <section aria-label="全队领域全景">
-          <div className="team-state__section-head">
-            <h2>全队态势</h2>
-            <span className="team-state__muted">各领域独立统计，不计算全队综合完成率</span>
-          </div>
-          <div className="team-state__domains">
-            <DomainCard title="技术研发" icon={cpu} metrics={snapshot.domains.technology}
-              detail={`${technical.length} 个兵种项目 · ${snapshot.domains.technology.unscoped} 条计划或阶段记录未纳入验收基线`}
-              href="#team-technical" />
-            <DomainCard title="运营" icon={megaphone} metrics={snapshot.domains.operations}
-              detail={`${operationsFocus.length} 项赛季产出计划 · ${snapshot.operations ? `${snapshot.operations.active} 个未结束工作项` : "工作数据暂不可读"}`}
-              href="#team-operations" />
-            <DomainCard title="组织事务" icon={users} metrics={snapshot.domains.organization}
-              detail={`${organizationFocus.length} 项培养规划 · ${snapshot.reports.length} 条近期周报线索`}
-              href="#team-organization" />
-          </div>
-        </section>
-
-        <section className="team-state__panel" id="team-technical">
-          <div className="team-state__section-head">
-            <h2>技术研发 · 项目验收矩阵</h2>
-            <OriginalLink href={snapshot.sources.find((item) => item.name === "飞书项目管理")?.url}>项目来源</OriginalLink>
-          </div>
-          {technical.length === 0 ? <p className="team-state__muted">暂无可读取的兵种项目资料。</p> : <div className="team-state__project-grid">
-            {technical.map((item) => <button key={item.id} className="team-state__outcome-card" type="button" onClick={() => setSelectedID(item.id)}>
-              <div className="team-state__outcome-head">
-                <h3><Icon icon={targetIcon} aria-hidden="true" />{shortName(item.name)}</h3>
-                <span>查看目标 <Icon icon={chevronRight} aria-hidden="true" /></span>
-              </div>
-              <AcceptanceMeters metrics={item.acceptance} compact />
-              <AcceptanceBreakdown metrics={item.acceptance} />
-              <p className="team-state__outcome-note">
-                {item.acceptance.total === 0 ? "尚无正式验收基线；研发计划和阶段成果可在详情查看。" :
-                  `${item.acceptance.total} 项验收要求 · ${item.acceptance.unknown} 项尚无足够验收证据`}
-                {item.goals.some((goal) => goal.status === "有成果待验收") && " · 有阶段成果记录"}
-              </p>
-              <small>{item.meetingExcerpt ? `最近组会：${meetingDate(item.meetingExcerpt, Number(snapshot.generatedAt.slice(0, 4))) || "日期待确认"}` : "近期组会记录暂不可用"}</small>
-            </button>)}
-          </div>}
-          {other.length > 0 && <p className="team-state__unclassified">
-            {other.length} 条飞书项目记录尚未归入兵种：{other.map((item) => item.name).join("、")}。
-            <OriginalLink href={snapshot.sources.find((item) => item.name === "飞书项目管理")?.url}>查看原表</OriginalLink>
-          </p>}
-        </section>
-
-        <div className="team-state__columns">
-          <section className="team-state__panel" id="team-operations">
-            <div className="team-state__section-head"><h2>运营 · 当前交付</h2><OriginalLink href={snapshot.operations?.url}>查看运营动态</OriginalLink></div>
-            {operationsFocus.length > 0 && <div className="team-state__focus-list">{operationsFocus.map((item) => <article key={item.title}>
-              <strong>{item.title}</strong><p>{item.target}</p><small>赛季计划 · <OriginalLink href={item.url}>目标原文</OriginalLink></small>
-            </article>)}</div>}
-            <h3 className="team-state__subhead">实际工作记录</h3>
-            {!snapshot.operations ? <p className="team-state__muted">运营工作记录暂不可读取。</p> : snapshot.operations.items.length === 0 ?
-              <p className="team-state__muted">暂无未结束的运营工作明细。</p> :
-              <div className="team-state__activity-list">{snapshot.operations.items.map((item, index) => <article key={index}>
-                <strong>{item.title}</strong>
-                {item.nextAction && <p>下一步：{item.nextAction}</p>}
-                <small>最近更新：{dateText(item.updatedAt)}</small>
-              </article>)}</div>}
-            <p className="team-state__muted">任务记录尚未逐项关联至赛季产出，不能据此认定目标完成。</p>
-          </section>
-          <section className="team-state__panel" id="team-organization">
-            <div className="team-state__section-head"><h2>组织 · 资料覆盖</h2><OriginalLink href="/dashboard/weekly-reports">工作周报</OriginalLink></div>
-            {organizationFocus.map((item) => <div className="team-state__focus-list" key={item.title}><article>
-              <strong>{item.title}</strong><p>{item.target}</p><small><OriginalLink href={item.url}>培养规划原文</OriginalLink></small>
-            </article></div>)}
-            <p className="team-state__muted">培养通过情况尚未和实际记录逐项关联。周报可作为工作线索，但不会自动认定为组织成果。</p>
-            {snapshot.reports.length > 0 && <div className="team-state__report-list">
-              <strong>近期跨组周报</strong>
-              {snapshot.reports.slice(0, 3).map((report) => <div key={report.id}>
-                <span>{report.member}{report.group ? ` · ${report.group}` : ""}</span>
-                <small>{dateText(report.week)}</small>
-              </div>)}
-            </div>}
-            <OriginalLink href="/dashboard/workbench/organization">查看成员与岗位</OriginalLink>
-          </section>
-        </div>
-
-        <section className="team-state__panel">
-          <div className="team-state__section-head"><h2>最近七天 · 已记录进展</h2><span className="team-state__muted">依据组会日期</span></div>
-          {latest.length > 0 ? <div className="team-state__activity-list">
-            {latest.map(({ item, date }) => <article key={item.id}>
-              <div className="team-state__activity-heading"><strong>{shortName(item.name)}</strong><small>{date}</small></div>
-              <p>{meetingPreview(item.meetingExcerpt) || "组会记录已更新，具体内容见原文。"}</p>
-              <OriginalLink href={item.meetingUrl}>组会原文</OriginalLink>
-            </article>)}
-          </div> : <p className="team-state__muted">最近七天未找到带明确日期的组会摘录，不代表项目没有推进。</p>}
-        </section>
-
-        {Boolean(snapshot.insights?.length) && <details className="team-state__panel team-state__evidence">
-          <summary>任务记录待核实事项 <span className="team-state__muted">{snapshot.insights?.length} 条</span></summary>
-          <div className="team-state__insights">{snapshot.insights?.map((item, index) => <div key={index}>
-            <span className="team-state__muted">{item.kind}</span><span>{item.text}</span>
-            <OriginalLink href={item.sourceUrl}>原始任务</OriginalLink>
-          </div>)}</div>
-        </details>}
       </>}
 
       <details className="team-state__sources">
-        <summary>数据来源与读取状态</summary>
-        <ul>{snapshot.sources.map((source) => <li key={source.name}>
-          <span>{source.name} · {source.status === "available" ? "可读取" : source.status === "partial" ? "部分可读取" : "不可读取"}</span>
-          {source.detail && <span>{source.detail}</span>}
-          {source.setupUrl && <OriginalLink href={source.setupUrl}>开通权限</OriginalLink>}
-          <OriginalLink href={source.url}>查看来源</OriginalLink>
+        <summary>查看数据来源状态</summary>
+        <ul>{snapshot.sources.map((s) => <li key={s.name}>
+          <span>{s.name} · {s.status === "available" ? "已读取" : s.status === "partial" ? "部分读取" : "不可读取"}</span>
+          {s.detail && <span>{s.detail}</span>}
+          <SourceLink url={s.url}>打开来源</SourceLink>
         </li>)}</ul>
       </details>
     </>}
