@@ -6,7 +6,8 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("training reader has a navigable document hierarchy and preserves six original tracks", async () => {
   const page = await read("../routes/dashboard/training-materials.tsx");
-  assert.match(page, /\?doc=start/);
+  assert.match(page, /id: "start", label: "05 · 开始你的第一次学习", markdown: startMarkdown/);
+  assert.match(page, /href: `\?doc=\$\{id\}`/);
   assert.match(page, /\?doc=git/);
   assert.match(page, /\?group=foundation/);
   assert.match(page, /原始培养路线/);
@@ -64,4 +65,30 @@ test("both documentation sidebars collapse independently and restore without hid
   assert.match(stylesheet, /@media \(max-width: 720px\)/);
   assert.match(stylesheet, /\.training-docs__sidebar \{ display: none; \}/);
   assert.ok(!stylesheet.includes("max-width: 780px"), "article must be able to use available width");
+});
+
+test("newcomer handbook has seven ordered, editable chapters while preserving existing guides", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const chapters = [
+    ['welcome', '01 · 写给刚刚来到这里的你'],
+    ['team', '02 · 认识吉甲大师'],
+    ['growth', '03 · 你将在这里经历什么'],
+    ['directions', '04 · 找到适合自己的方向'],
+    ['start', '05 · 开始你的第一次学习'],
+    ['together', '06 · 学习不是一个人的事情'],
+    ['continue', '07 · 从这里继续出发'],
+  ];
+  const handbook = page.slice(page.indexOf("const handbookDocuments = ["), page.indexOf("const documents = ["));
+  let previousIndex = -1;
+  for (const [slug, title] of chapters) {
+    const index = handbook.indexOf('id: "' + slug + '", label: "' + title + '"');
+    assert.ok(index > previousIndex, title);
+    previousIndex = index;
+  }
+  assert.match(page, /title: "新人成长手册"/);
+  assert.match(page, /links: handbookDocuments\.map/);
+  assert.match(page, /id: "git", label: "Git 与 GitHub", markdown: gitMarkdown/);
+  assert.match(page, /title: "原始培养路线"/);
+  assert.match(page, /documents\.find\(\(\{ id \}\) => id === searchParams\.get\("doc"\)\)/);
+  assert.match(page, /selectedDocument\?\.id === "git" \? "通用基础" : "新人成长手册"/);
 });

@@ -117,3 +117,58 @@ func TestTrainingDocumentUploadPersistsImageAndRejectsUnknownToken(t *testing.T)
 		t.Fatalf("unexpected image extension: %q", url)
 	}
 }
+
+func TestNewcomerHandbookChapterKeys(t *testing.T) {
+	chapters := []struct {
+		slug string
+		key string
+		scope uint64
+	}{
+		{"start", "training_document_start", 1},
+		{"git", "training_document_git", 2},
+		{"welcome", "training_document_welcome", 3},
+		{"team", "training_document_team", 4},
+		{"growth", "training_document_growth", 5},
+		{"directions", "training_document_directions", 6},
+		{"together", "training_document_together", 7},
+		{"continue", "training_document_continue", 8},
+	}
+	seen := map[uint64]bool{}
+	for _, chapter := range chapters {
+		key, scope, ok := trainingDocumentKey(chapter.slug)
+		if !ok || key != chapter.key || scope != chapter.scope || seen[scope] {
+			t.Fatalf("unexpected key for %s: %q scope=%d ok=%v", chapter.slug, key, scope, ok)
+		}
+		seen[scope] = true
+	}
+	if _, _, ok := trainingDocumentKey("unknown"); ok {
+		t.Fatal("unknown training document must not be accessible")
+	}
+}
+
+func TestNewcomerHandbookChapterSaveAndReload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := trainingDocumentMemoryStore{}
+	files, err := privatefile.NewStore(t.TempDir())
+	if err != nil { t.Fatal(err) }
+	handler := NewTrainingDocumentHandler(store, files)
+	router := gin.New()
+	router.PUT("/docs/:slug", func(c *gin.Context) {
+		c.Set("sessionUser", &auth.SessionUser{ID: 42, Role: auth.SessionRole{Name: "super_admin"}})
+	}, handler.Save)
+	router.GET("/docs/:slug", handler.Get)
+
+	write := httptest.NewRecorder()
+	router.ServeHTTP(write, trainingDocumentRequest(t, "/docs/welcome", "# 写给刚刚来到这里的你\n\n你好。", nil, ""))
+	if write.Code != http.StatusOK {
+		t.Fatalf("cannot save chapter: status=%d body=%s", write.Code, write.Body.String())
+	}
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/docs/welcome", nil))
+	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), "你好。") {
+		t.Fatalf("cannot reload chapter: status=%d body=%s", read.Code, read.Body.String())
+	}
+	if store["training_document_start"] != "" || store["training_document_git"] != "" {
+		t.Fatalf("existing documents changed: %#v", store)
+	}
+}
