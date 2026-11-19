@@ -99,11 +99,6 @@ func operationsStepState(steps []operationsStepView) (status, stage string) {
 	return status, steps[current].Key
 }
 
-// Permissions follow the real member IDs, never the legacy display-only owner name.
-func operationsMayUpdate(canManage bool, leadID, assigneeID *uint64, actorID uint64) bool {
-	return canManage || leadID != nil && *leadID == actorID || assigneeID != nil && *assigneeID == actorID
-}
-
 func operationsStepID(c *gin.Context) (uint64, uint64, bool) {
 	itemID, itemErr := strconv.ParseUint(c.Param("id"), 10, 64)
 	stepID, stepErr := strconv.ParseUint(c.Param("stepId"), 10, 64)
@@ -129,14 +124,18 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "环节修改参数不正确")
 		return
 	}
-	canManage, err := h.canManage(c)
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok || user == nil {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	canEditStatus, err := h.canEditStatus(c)
 	if err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "权限检查失败")
 		return
 	}
-	user, ok := middleware.CurrentSessionUser(c)
-	if !ok || user == nil {
-		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+	if !canEditStatus {
+		writeAPIError(c, http.StatusForbidden, "只有运营组成员可以更新任务状态")
 		return
 	}
 	if input.Status != nil && *input.Status != "pending" && *input.Status != "active" && *input.Status != "blocked" && *input.Status != "done" {
@@ -152,6 +151,11 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 	}
 	input.Note = strings.TrimSpace(input.Note)
 	input.EvidenceURL = strings.TrimSpace(input.EvidenceURL)
+	canManage, _ := h.canManage(c)
+	if !canManage && (input.Status == nil || input.Note != "" || input.EvidenceURL != "") {
+		writeAPIError(c, http.StatusForbidden, "运营组成员只能更新环节状态和卡点原因")
+		return
+	}
 	if len([]rune(input.Note)) > 400 || !validOperationsEvidenceURL(input.EvidenceURL) {
 		writeAPIError(c, http.StatusBadRequest, "备注或成果链接不正确")
 		return
@@ -165,9 +169,6 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND item_id = ?", stepID, itemID).Take(&step).Error; err != nil {
 			return err
-		}
-		if !operationsMayUpdate(canManage, item.LeadID, step.AssigneeID, user.ID) {
-			return errOperationsStepForbidden
 		}
 		changes := make(map[string]any)
 		notes := make([]string, 0, 3)
@@ -257,8 +258,6 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		writeAPIError(c, http.StatusNotFound, "环节不存在")
-	} else if errors.Is(err, errOperationsStepForbidden) {
-		writeAPIError(c, http.StatusForbidden, "只能更新自己负责环节的进度")
 	} else if errors.Is(err, errOperationsPublishTargets) {
 		writeAPIError(c, http.StatusConflict, "请在作品详情中登记各平台发布状态")
 	} else if errors.Is(err, errOperationsPublishIncomplete) {
@@ -273,7 +272,6 @@ func (h *OperationsProgressHandler) UpdateStep(c *gin.Context) {
 }
 
 var (
-	errOperationsStepForbidden     = errors.New("step permission denied")
 	errOperationsStepReason        = errors.New("step block reason required")
 	errOperationsPublishIncomplete = errors.New("publication steps incomplete")
 	errOperationsPublishTargets    = errors.New("platform publishing managed by targets")
