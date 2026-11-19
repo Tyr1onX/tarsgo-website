@@ -502,14 +502,22 @@ export default function TrainingMaterialsPage() {
           : treeError
             ? <p className="training-docs__status" role="alert">{treeError}</p>
             : !selectedDocument
-              ? tree.length ? <p className="training-docs__status" role="status">文档不存在</p> : <div className="training-docs__placeholder" aria-label="正在加载文档" />
+              ? tree.length ? <p className="training-docs__status" role="status">文档不存在</p> : <div className="training-docs__placeholder" role="status" aria-label="正在加载文档" />
             : !documentRecord
-              ? <div className="training-docs__placeholder" aria-label="正在加载文档">
+              ? <div className="training-docs__placeholder" role="status" aria-label="正在加载文档">
                 <h1>{selectedNode?.title}</h1>
                 <span /><span />
               </div>
             : documentRecord.error
-              ? <p className="training-docs__status" role="alert">{documentRecord.error}</p>
+              ? <p className="training-docs__status" role="alert">{documentRecord.error}
+                <button type="button" className="training-docs__retry" onClick={() => {
+                  setDocumentCache((cache) => {
+                    const next = { ...cache };
+                    delete next[selectedDocument.id];
+                    return next;
+                  });
+                }}>重试</button>
+              </p>
               : editing
                 ? <section className="training-docs__editing" aria-label="编辑文档">
                   <CommunityMarkdownEditor
