@@ -28,7 +28,7 @@ type Summary = {
   total: number; completed: number; inProgress: number; notStarted: number;
   stalled: number; missingCompletedDate: number;
 };
-type Snapshot = { generatedAt: string; sources: Source[]; summary: Summary | null; projects: Project[] };
+type Snapshot = { generatedAt: string; refreshing?: boolean; sources: Source[]; summary: Summary | null; projects: Project[] };
 
 export function meta() {
   return [{ title: "技术研发总览 | TARSGO" }];
@@ -187,17 +187,38 @@ export default function TeamStatePage() {
   useEffect(() => {
     if (currentUser.role.name !== "super_admin") return;
     const controller = new AbortController();
-    setLoading(true);
-    apiRequest<Snapshot>("/api/admin/team-state", { signal: controller.signal, cache: "no-store" })
-      .then((data) => {
+    let inFlight = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const load = async (force = false) => {
+      if (inFlight || controller.signal.aborted) return;
+      inFlight = true;
+      try {
+        const path = force ? "/api/admin/team-state?refresh=1" : "/api/admin/team-state";
+        const data = await apiRequest<Snapshot>(path, { signal: controller.signal, cache: "no-store" });
         if (controller.signal.aborted) return;
         setSnapshot(data);
         setSelectedID((previous) => data.projects.some((p) => p.id === previous) ? previous : "");
         setError("");
-      })
-      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "读取技术研发进度失败"); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+        if (data.refreshing) refreshTimer = setTimeout(() => void load(), 3000);
+      } catch (cause) {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "读取技术研发进度失败");
+      } finally {
+        inFlight = false;
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    setLoading(true);
+    void load(version > 0);
+    // Reading the cached snapshot is inexpensive; the server deduplicates Feishu refreshes.
+    const interval = setInterval(() => { if (!document.hidden) void load(); }, 60000);
+    const onVisible = () => { if (!document.hidden) void load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
   }, [currentUser.id, currentUser.role.name, version]);
 
   if (currentUser.role.name !== "super_admin") {
@@ -212,7 +233,7 @@ export default function TeamStatePage() {
     <header className="admin-page-header team-state__header">
       <div>
         <h1 className="admin-page-title">技术研发总览</h1>
-        {snapshot && <p className="team-state__muted">2027 赛季 · 本次读取 {new Date(snapshot.generatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</p>}
+        {snapshot && <p className="team-state__muted">2027 赛季 · 数据更新于 {new Date(snapshot.generatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}{snapshot.refreshing ? " · 正在后台同步" : ""}</p>}
       </div>
       <button className="team-state__refresh" type="button" disabled={loading} onClick={() => setVersion((n) => n + 1)}>{loading ? "读取中" : "刷新"}</button>
     </header>

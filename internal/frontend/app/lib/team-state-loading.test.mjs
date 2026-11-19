@@ -34,3 +34,18 @@ test("technical dashboard uses registered task progress without confusing it wit
   assert.match(nav, /label: "技术研发总览"[^\n]+allowedRoles: \["super_admin"\]/);
   assert.doesNotMatch(page, /snapshot\.domains\.technology|snapshot\.operations|organizationFocus|AcceptanceMeters/);
 });
+
+test("technical dashboard uses fast cached reads and automatically revalidates", async () => {
+  const page = await readFile(new URL("../routes/admin/team-state.tsx", import.meta.url), "utf8");
+
+  assert.match(page, /\/api\/admin\/team-state\?refresh=1/);
+  assert.match(page, /data\.refreshing/);
+  assert.match(page, /setTimeout\(\(\) => void load\(\), 3000\)/);
+  assert.match(page, /setInterval\(\(\) => \{ if \(!document\.hidden\) void load\(\); \}, 60000\)/);
+  assert.match(page, /document\.addEventListener\("visibilitychange", onVisible\)/);
+  assert.match(page, /document\.removeEventListener\("visibilitychange", onVisible\)/);
+  assert.match(page, /数据更新于/);
+  assert.match(page, /正在后台同步/);
+  assert.match(page, /if \(inFlight \|\| controller\.signal\.aborted\) return/);
+  assert.match(page, /controller\.abort\(\)/);
+});

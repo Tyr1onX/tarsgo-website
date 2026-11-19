@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -116,8 +117,11 @@ func TestTechnicalRadarMeetingReadsLatestReferencedWiki(t *testing.T) {
 
 func TestTechnicalDashboardReadOnlyAndDoesNotInventTaskProgressWhenUnauthorized(t *testing.T) {
 	methods := []string{}
+	var methodsMu sync.Mutex
 	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
+		methodsMu.Lock()
 		methods = append(methods, req.Method+" "+req.URL.Path)
+		methodsMu.Unlock()
 		body := `{"code":99991672,"msg":"missing scope"}`
 		if strings.HasSuffix(req.URL.Path, "/tenant_access_token/internal") {
 			body = `{"code":0,"tenant_access_token":"token"}`
