@@ -199,15 +199,19 @@ test("common foundations remain accessible in the documentation hierarchy", asyn
   assert.ok(start >= 0 && start < originalStart);
   const tree = await readFile(new URL("../../../backend/handler/training_document_tree.go", import.meta.url), "utf8");
   assert.ok(tree.includes('{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览"'));
-  const foundation = content.slice(start, originalStart);
-  for (const part of ["计算机基础", "Git 与 GitHub", "Linux（Ubuntu）基础", "编程语言基础", "工程实践基础"]) {
-    assert.ok(foundation.includes(part), part);
+  const overview = await readFile(new URL("../content/training/foundation.md", import.meta.url), "utf8");
+  const computer = await readFile(new URL("../content/training/computer-basics.md", import.meta.url), "utf8");
+  const git = await readFile(new URL("../content/training/git-and-github.md", import.meta.url), "utf8");
+  assert.ok(content.includes("text: foundationMarkdown"));
+  for (const part of ["计算机基础", "Git 与 GitHub", "Ubuntu", "Python", "C++", "C 语言", "工程实践基础"]) {
+    assert.ok(overview.includes(part), part);
   }
+  assert.ok(overview.includes("?doc=computer") && overview.includes("?doc=git"));
   for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F", "BV1Y8aL6SEit", "BV1LwHv6LEYz", "BV1cq421w72c", "BV1Cc41127B9", "BV1rpWjevEip", "BV1Dk4y1j7oj"]) {
-    assert.ok(foundation.includes(bv), bv);
+    assert.ok((overview + computer + git).includes(bv), bv);
   }
   for (const original of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
     assert.ok(content.includes('id: "' + original + '"'), original);
   }
-  assert.ok(foundation.includes("不统一要求全部学习"));
+  assert.ok(overview.includes("各方向使用不同语言"));
 });
