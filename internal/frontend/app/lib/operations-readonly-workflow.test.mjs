@@ -4,14 +4,15 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("the operations overview stays read-only and reuses its horizontal progress bar", async () => {
+test("the operations overview stays read-only and links to detailed horizontal workflows", async () => {
   const [view, channel, bar, css] = await Promise.all([
     read("../routes/dashboard/operations-progress.tsx"),
     read("../routes/dashboard/operations-channel.tsx"),
     read("../routes/dashboard/operations-stage-bar.tsx"),
     read("../routes/dashboard/operations-progress.css"),
   ]);
-  assert.match(view, /<OperationsStageBar item=\{selected\}/);
+  assert.doesNotMatch(view, /<OperationsStageBar/);
+  assert.match(view, /selected\.steps\.filter\(\(step\) => step\.status === "done"\)\.length/);
   assert.match(channel, /<OperationsStageBar item=\{item\}/);
   assert.match(bar, /className="operations-progress__video-stages"/);
   assert.match(bar, /gridTemplateColumns: `repeat\(\$\{item\.steps\.length\}, minmax\(6rem, 1fr\)\)`/);
