@@ -25,8 +25,8 @@ git --version
 首次使用时，配置自己希望显示在提交记录中的姓名、邮箱：
 
 ```bash
-git config --global user.name "你的姓名"
-git config --global user.email "你的邮箱@example.com"
+git config --global user.name "提交者姓名"
+git config --global user.email "email@example.com"
 git config --global --list
 ```
 
@@ -78,7 +78,7 @@ git status
 
 登录 [GitHub](https://github.com/)，通过 **New repository** 新建一个仓库，例如 `git-practice`。创建时选择**空仓库**，使远程仓库与前面建立的本地提交直接对应。
 
-在新仓库页面复制 HTTPS 仓库地址。回到自己的练习文件夹，在下面的命令中用实际地址替换示例地址：
+以下命令将本地仓库关联到 GitHub 的 HTTPS 地址，示例地址需要替换为实际仓库地址：
 
 ```bash
 git remote add origin https://github.com/OWNER/git-practice.git
@@ -86,7 +86,7 @@ git remote -v
 git push -u origin main
 ```
 
-`OWNER` 需要替换成你的 GitHub 用户名，仓库名也必须与实际仓库一致。`git remote -v` 用于检查远程地址，`git push` 才会真正上传提交。
+`OWNER` 表示 GitHub 仓库所有者，仓库名称与实际仓库保持一致。`git remote -v` 用于检查远程地址，`git push` 才会真正上传提交。
 
 首次推送可能要求登录或授权。按照 Git 的浏览器登录或凭据管理器流程完成身份验证。GitHub HTTPS Git 操作采用受支持的令牌或凭据管理方式，凭据保存在系统凭据管理器中。
 
