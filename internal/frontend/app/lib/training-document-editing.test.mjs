@@ -76,6 +76,7 @@ test("all editor icons explain their actions on hover and focus, even when image
   assert.match(editor, /aria-label=\{hint\}/);
   assert.match(styles, /\.community-editor-toolbar__tooltip-target > button:disabled \{ pointer-events: none; \}/);
   assert.match(styles, /\.community-editor-toolbar__tooltip \{ position: fixed; z-index: 1000;/);
+  assert.match(styles, /background: var\(--theme-text\); color: var\(--theme-card\);/);
   assert.match(styles, /pointer-events: none; \}/);
   assert.match(editor, /name="imageSettings"/);
   assert.match(editor, /className="community-markdown-source__tools" role="toolbar"/);
