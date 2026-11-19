@@ -97,3 +97,24 @@ test("reader reuses visited document bodies and avoids redundant helper text", a
   assert.match(css, /\.training-docs__article \{[^}]*max-width: 800px;[^}]*margin-inline: auto;/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
+
+test("training reader uses the existing image layout metadata instead of forcing every image full-width", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const stylesheet = await read("../routes/dashboard/training-materials.css");
+  const editor = await read("../components/community-markdown-editor.tsx");
+
+  assert.match(editor, /显示宽度<select/);
+  for (const width of [25, 50, 75, 100]) {
+    assert.match(editor, new RegExp('<option value="' + width + '">'));
+  }
+  assert.match(page, /import \{ decodeCommunityImageTitle \} from "~\/lib\/community-markdown"/);
+  assert.match(page, /img: \(\{ src, alt, title \}\) => \{/);
+  assert.match(page, /const layout = decodeCommunityImageTitle\(title\)/);
+  assert.match(page, /style=\{layout \? \{ width: `\$\{layout\.width\}%` \} : undefined\}/);
+  assert.match(page, /is-\$\{layout\.align\}/);
+  assert.match(page, /training-docs__image-caption/);
+  assert.match(page, /loading="lazy" decoding="async"/);
+  assert.match(stylesheet, /\.training-docs__image\.is-center \{ margin-inline: auto; \}/);
+  assert.match(stylesheet, /\.training-docs__image\.is-right \{ margin-left: auto; \}/);
+  assert.doesNotMatch(stylesheet, /\.training-docs__markdown img \{[^}]*width: 100%;/);
+});
