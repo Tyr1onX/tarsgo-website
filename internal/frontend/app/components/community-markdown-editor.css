@@ -10,6 +10,9 @@
 .community-editor-toolbar,.community-markdown-source__tools { display: flex; min-width: 0; min-height: 42px; align-items: center; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--editor-border); padding: 4px 8px; scrollbar-width: thin; }
 .community-editor-toolbar__item { display: inline-flex; flex: none; align-items: center; gap: 2px; }
 .community-editor-toolbar__item.has-divider { margin-left: 5px; border-left: 1px solid var(--editor-border); padding-left: 6px; }
+.community-editor-toolbar__tooltip-target { display: inline-flex; flex: none; }
+.community-editor-toolbar__tooltip-target > button:disabled { pointer-events: none; }
+.community-editor-toolbar__tooltip { position: fixed; z-index: 1000; width: max-content; max-width: min(220px, calc(100vw - 16px)); transform: translateX(-50%); border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 6px 9px; background: var(--admin-text); color: var(--admin-surface); box-shadow: 0 4px 14px rgba(0, 0, 0, .15); font-size: 12px; line-height: 1.45; text-align: center; white-space: normal; pointer-events: none; }
 .community-editor-toolbar__button { display: grid; width: 31px; height: 31px; flex: none; place-items: center; border: 0; border-radius: 6px; color: var(--admin-muted); background: transparent; cursor: pointer; transition: color 120ms ease, background-color 120ms ease; }
 .community-editor-toolbar__button:hover:not(:disabled) { color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 9%, var(--admin-surface)); }
 .community-editor-toolbar__button:disabled { cursor: default; opacity: .4; }
