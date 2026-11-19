@@ -382,7 +382,7 @@ export default function TrainingMaterialsPage() {
     if (!documentSlug || documentCache[documentSlug]) return;
     const controller = new AbortController();
     apiRequest<{ body: string }>(`/api/training-documents/${documentSlug}`, { signal: controller.signal })
-      .then(({ body }) => setDocumentCache((cache) => ({ ...cache, [documentSlug]: { body } }))
+      .then(({ body }) => setDocumentCache((cache) => ({ ...cache, [documentSlug]: { body } })))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setDocumentCache((cache) => ({
