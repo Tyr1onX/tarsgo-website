@@ -41,3 +41,27 @@ test("Git chapter is a complete hands-on walkthrough with its original resources
   assert.match(start, /\?doc=git/);
   assert.match(stylesheet, /@media \(max-width: 720px\)/);
 });
+
+test("both documentation sidebars collapse independently and restore without hiding the article", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const stylesheet = await read("../routes/dashboard/training-materials.css");
+
+  assert.match(page, /\[leftNavigationOpen, setLeftNavigationOpen\] = useState\(true\)/);
+  assert.match(page, /\[rightContentsOpen, setRightContentsOpen\] = useState\(true\)/);
+  assert.match(page, /setLeftNavigationOpen\(\(open\) => !open\)/);
+  assert.match(page, /setRightContentsOpen\(\(open\) => !open\)/);
+  for (const label of ["收起文档目录", "展开文档目录", "收起本页目录", "展开本页目录"]) {
+    assert.ok(page.includes(label), label);
+  }
+  assert.match(page, /leftNavigationOpen \? <nav/);
+  assert.match(page, /rightContentsOpen \? sections\.map/);
+  assert.match(page, /aria-expanded=\{leftNavigationOpen\}/);
+  assert.match(page, /aria-expanded=\{rightContentsOpen\}/);
+  assert.match(stylesheet, /\.training-docs__layout\.is-left-collapsed\s*\{\s*--training-nav-width: 40px;/);
+  assert.match(stylesheet, /\.training-docs__layout\.is-right-collapsed\s*\{\s*--training-toc-width: 40px;/);
+  assert.match(stylesheet, /\.training-docs__layout\.is-toc-empty\s*\{\s*--training-toc-width: 0px;/);
+  assert.match(stylesheet, /grid-template-columns: var\(--training-nav-width\) minmax\(0, 1fr\) var\(--training-toc-width\)/);
+  assert.match(stylesheet, /@media \(max-width: 720px\)/);
+  assert.match(stylesheet, /\.training-docs__sidebar \{ display: none; \}/);
+  assert.ok(!stylesheet.includes("max-width: 780px"), "article must be able to use available width");
+});
