@@ -21,12 +21,12 @@ test("training documents use a persistent expandable tree without losing the ori
   assert.match(tree, /method: "PATCH"/);
   assert.match(backend, /training_document_tree/);
   assert.match(backend, /"document", Scope: 3/);
-  for (const label of [
-    "写给刚刚来到这里的你", "认识吉甲大师", "你将在这里经历什么", "找到适合自己的方向",
-    "开始你的第一次学习", "学习不是一个人的事情", "从这里继续出发",
-    "通用基础概览", "Git 与 GitHub", "原始培养路线",
-  ]) {
+  for (const label of ["写给刚刚来到这里的你", "通用基础概览", "Git 与 GitHub", "原始培养路线"]) {
     assert.ok(backend.includes(label), label);
+  }
+  for (const retired of ["认识吉甲大师", "你将在这里经历什么", "找到适合自己的方向",
+    "开始你的第一次学习", "学习不是一个人的事情", "从这里继续出发"]) {
+    assert.ok(!backend.includes(retired), retired);
   }
   for (const group of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
     assert.ok(page.includes('id: "' + group + '"'), group);
@@ -38,7 +38,6 @@ test("training documents use a persistent expandable tree without losing the ori
 
 test("Git chapter keeps its complete hands-on walkthrough and reference links", async () => {
   const guide = await read("../content/training/git-and-github.md");
-  const start = await read("../content/training/start.md");
   const picture = await read("../../../../public/assets/images/training/git-workflow.svg");
   for (const heading of ["先理解四个位置", "安装 Git 并设置提交身份", "创建自己的练习仓库", "提交并确认本地版本", "把本地仓库连接到 GitHub", "检查 GitHub 上的最终结果", "常见问题"]) {
     assert.ok(guide.includes(heading), heading);
@@ -49,7 +48,6 @@ test("Git chapter keeps its complete hands-on walkthrough and reference links", 
   for (const bv of ["BV1Y8aL6SEit", "BV1LwHv6LEYz"]) assert.ok(guide.includes(bv));
   assert.match(guide, /git-workflow\.svg/);
   assert.match(picture, /git (add|commit|push)/i);
-  assert.match(start, /\?doc=git/);
 });
 
 test("document layout still allows independent left and right collapse", async () => {
