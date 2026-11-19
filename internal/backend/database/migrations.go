@@ -314,6 +314,7 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 80, apply: migrateOperationsContentV80},
 		{version: 81, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsProgressItem{}) }},
 		{version: 82, apply: func(db *gorm.DB) error { return db.AutoMigrate(&model.OperationsPlatformPost{}) }},
+		{version: 83, apply: migrateOperationsContentBacklogV83},
 	}
 }
 
