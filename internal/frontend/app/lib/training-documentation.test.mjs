@@ -39,7 +39,7 @@ test("training documents use a persistent expandable tree without losing the ori
 test("Git chapter keeps its complete hands-on walkthrough and reference links", async () => {
   const guide = await read("../content/training/git-and-github.md");
   const picture = await read("../../../../public/assets/images/training/git-workflow.svg");
-  for (const heading of ["工作区、暂存区、本地仓库与远程仓库", "Git 安装与提交身份", "初始化仓库与暂存文件", "提交及历史记录", "关联 GitHub 远程仓库", "本地与远程状态核对", "常见问题"]) {
+  for (const heading of ["为什么保存文件还需要版本记录", "一个文件怎样成为一次提交", "安装 Git 与查看版本", "创建一个最小仓库", "亲眼看到一次修改前后的区别", "GitHub 怎样与本地仓库连接", "常见问题"]) {
     assert.ok(guide.includes(heading), heading);
   }
   for (const command of ["git --version", "git init -b main", "git add README.md", "git commit -m", "git log --oneline -1", "git remote add origin", "git push -u origin main"]) {
@@ -134,7 +134,7 @@ test("foundation opens directly into real tutorials without an overview", async 
   }
   assert.doesNotMatch(guide + git, /\?group=foundation/);
   for (const heading of ["计算机怎样执行一个程序", "操作系统为什么存在", "文件、文件夹和路径", "软件为什么有版本与依赖", "浏览器打开网页时发生了什么"]) assert.ok(guide.includes(heading), heading);
-  assert.match(git, /工作区、暂存区、本地仓库与远程仓库/);
+  assert.match(git, /一个文件怎样成为一次提交/);
 });
 
 test("six direction paths explain technical topics while preserving the original routes", async () => {
