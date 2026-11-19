@@ -60,3 +60,23 @@ test("training document format tools stay visible below the fixed dashboard head
   assert.match(editor, /className="community-markdown-source__tools" role="toolbar"/);
   assert.match(editor, /label="编辑选中图片"/);
 });
+
+test("all editor icons explain their actions on hover and focus, even when image settings are disabled", async () => {
+  const editor = await read("../components/community-markdown-editor.tsx");
+  const styles = await read("../components/community-markdown-editor.css");
+  assert.match(editor, /import \{ createPortal \} from "react-dom"/);
+  assert.match(editor, /onMouseEnter=\{\(event\) => showTooltip\(event\.currentTarget\)\}/);
+  assert.match(editor, /onMouseLeave=\{\(\) => setTooltip\(null\)\}/);
+  assert.match(editor, /onFocus=\{\(event\) => showTooltip\(event\.currentTarget\)\}/);
+  assert.match(editor, /onBlur=\{\(\) => setTooltip\(null\)\}/);
+  assert.match(editor, /先点击正文中的图片，再调整大小与对齐方式/);
+  assert.match(editor, /图片设置：调整大小、对齐和说明/);
+  assert.match(editor, /role="tooltip"/);
+  assert.match(editor, /document\.body/);
+  assert.match(editor, /aria-label=\{hint\}/);
+  assert.match(styles, /\.community-editor-toolbar__tooltip-target > button:disabled \{ pointer-events: none; \}/);
+  assert.match(styles, /\.community-editor-toolbar__tooltip \{ position: fixed; z-index: 1000;/);
+  assert.match(styles, /pointer-events: none; \}/);
+  assert.match(editor, /name="imageSettings"/);
+  assert.match(editor, /className="community-markdown-source__tools" role="toolbar"/);
+});
