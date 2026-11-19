@@ -39,13 +39,13 @@ test("training documents use a persistent expandable tree without losing the ori
 test("Git chapter keeps its complete hands-on walkthrough and reference links", async () => {
   const guide = await read("../content/training/git-and-github.md");
   const picture = await read("../../../../public/assets/images/training/git-workflow.svg");
-  for (const heading of ["先理解四个位置", "安装 Git 并设置提交身份", "创建自己的练习仓库", "提交并确认本地版本", "把本地仓库连接到 GitHub", "检查 GitHub 上的最终结果", "常见问题"]) {
+  for (const heading of ["工作区、暂存区、本地仓库与远程仓库", "Git 安装与提交身份", "初始化仓库与暂存文件", "提交及历史记录", "关联 GitHub 远程仓库", "本地与远程状态核对", "常见问题"]) {
     assert.ok(guide.includes(heading), heading);
   }
   for (const command of ["git --version", "git init -b main", "git add README.md", "git commit -m", "git log --oneline -1", "git remote add origin", "git push -u origin main"]) {
     assert.ok(guide.includes(command), command);
   }
-  for (const bv of ["BV1Y8aL6SEit", "BV1LwHv6LEYz"]) assert.ok(guide.includes(bv));
+  assert.match(guide, /https:\/\/git-scm\.com\/downloads/);
   assert.match(guide, /git-workflow\.svg/);
   assert.match(picture, /git (add|commit|push)/i);
 });
@@ -129,18 +129,18 @@ test("foundation opens directly into real tutorials without an overview", async 
   assert.match(page, /setSearchParams\(\{ doc: "computer" \}, \{ replace: true \}\)/);
   assert.match(backend, /computerGuideNode\(\)/);
   assert.doesNotMatch(backend, /Title: "通用基础概览"/);
-  for (const task of ["CPU", "内存", "tarsgo-practice", "notes.txt", "example.com", "Git 与 GitHub"]) {
+  for (const task of ["CPU", "内存", "tarsgo-practice", "notes.txt", "example.com", "DNS"]) {
     assert.ok(guide.includes(task), task);
   }
   assert.doesNotMatch(guide + git, /\?group=foundation/);
-  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F"]) {
-    assert.ok(guide.includes(bv), bv);
-  }
-  assert.match(guide, /notes\.txt/);
-  assert.match(guide, /完成判断/);
+  assert.match(guide, /计算机的硬件组成/);
+  assert.match(guide, /操作系统、文件与目录/);
+  assert.match(guide, /软件安装、版本与依赖/);
+  assert.match(guide, /域名、网络与网页访问/);
+  assert.match(git, /工作区、暂存区、本地仓库与远程仓库/);
 });
 
-test("six direction paths derive exercises from original routes and keep originals untouched", async () => {
+test("six direction paths explain technical topics while preserving the original routes", async () => {
   const page = await read("../routes/dashboard/training-materials.tsx");
   const tree = await read("../../../backend/handler/training_document_tree.go");
   const sources = {
@@ -156,7 +156,7 @@ test("six direction paths derive exercises from original routes and keep origina
     const path = await read("../content/training/" + slug + ".md");
     assert.match(page, new RegExp('"' + slug + '":'));
     assert.match(tree, new RegExp('ID: "' + slug + '"'));
-    assert.match(path, /\*\*检查：\*\*|完成判断/);
+    assert.match(path, /^## .+/m);
     for (const term of terms) assert.ok(path.includes(term), slug + ": " + term);
   }
   for (const original of ["阶段考核：？？？", "硬件组学习全部软件组内容", "分流后，在学习过cpp 和 python"]) {
@@ -189,8 +189,7 @@ test("technical concepts are complete reachable lessons and all internal links r
       ? await read("../content/training/concepts/" + name + ".md")
       : await read("../content/training/" + name + ".md");
     assert.match(source, /^# .+\n/m, name);
-    assert.match(source, /\?doc=/, name);
-    assert.ok(source.length > 330, name + ": lesson too short");
+    assert.ok(source.length > (name.startsWith("term-") ? 220 : 1200), name + ": missing technical explanation");
     assert.ok(backend.includes('ID: "' + name + '"'), name + ": missing catalog node");
     assert.ok(page.includes('"' + name + '":'), name + ": missing default markdown");
 
@@ -200,8 +199,20 @@ test("technical concepts are complete reachable lessons and all internal links r
   }
   for (const name of pathNames) {
     const source = await read("../content/training/" + name + ".md");
-    assert.match(source, /\?group=/, name + ": missing original source link");
+    assert.doesNotMatch(source, /\*\*(检查|完成判断)：\*\*/, name + ": contains study-process text");
     assert.match(source, /\?doc=term-/, name + ": no concept navigation");
-    assert.ok(source.length > 1750, name + ": still outline-like");
+    assert.ok(source.length > 1200, name + ": missing explanation");
+  }
+});
+
+test("knowledge chapters do not show audience, course outcomes, checklists or next-reading prompts", async () => {
+  const pathNames = ["computer-basics", "git-and-github", "path-electrical", "path-hardware", "path-mechanical", "path-joint", "path-vision", "path-ai"];
+  const conceptNames = ["term-c", "term-stm32", "term-peripherals", "term-bus", "term-pid", "term-rtos", "term-pcb", "term-power", "term-bringup", "term-cad", "term-mechanism", "term-materials", "term-fea", "term-linux", "term-python", "term-cpp", "term-opencv", "term-neural", "term-concurrency", "term-filter", "term-ros2", "term-odometry", "term-navigation", "term-estimation", "term-decision", "term-pointcloud", "term-engineering"];
+  for (const name of [...pathNames, ...conceptNames]) {
+    const source = name.startsWith("term-")
+      ? await read("../content/training/concepts/" + name + ".md")
+      : await read("../content/training/" + name + ".md");
+    assert.doesNotMatch(source, /(?:^## (?:继续学习|自己验证)|^\*\*(?:适用方向|学完后能做什么|完成目标|完成判断|检查)：\*\*)/m, name);
+    assert.doesNotMatch(source, /(?:不需要上传或打卡|不必追求标准答案|从手边的电脑开始|如果你的方向需要|返回 \[[^\]]+学习路径)/, name);
   }
 });

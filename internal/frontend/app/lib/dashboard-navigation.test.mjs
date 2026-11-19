@@ -216,7 +216,6 @@ test("common foundations link directly to tutorials and preserve original team r
   for (const group of ["electrical", "hardware", "joint", "vision", "ai", "mechanical"]) {
     assert.ok(content.includes('id: "' + group + '"'), group);
   }
-  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F", "BV1Y8aL6SEit", "BV1LwHv6LEYz"]) {
-    assert.ok((computer + git).includes(bv), bv);
-  }
+  for (const topic of ["CPU", "内存", "DNS"]) assert.ok(computer.includes(topic), topic);
+  for (const topic of ["工作区", "暂存区", "本地仓库", "远程仓库"]) assert.ok(git.includes(topic), topic);
 });

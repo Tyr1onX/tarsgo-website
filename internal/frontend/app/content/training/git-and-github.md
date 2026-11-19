@@ -1,12 +1,6 @@
-# 使用 Git 完成第一次代码提交
+# Git 与 GitHub：版本管理与远程协作
 
-**适用方向：** AI、视觉（来自联合培训路线），电控（原文明确要求 Git 版本管理）；其他有代码协作需要的同学也可以学习。
-
-**完成目标：** 在自己的电脑上创建 Git 仓库，完成一次提交，把这次提交推送到自己新建的 GitHub 仓库，并能在网页上查看结果。
-
-本篇使用个人练习仓库演示完整提交流程。Windows 可打开 Git Bash，macOS 与 Linux 使用终端。
-
-## 1. 先理解四个位置
+## 工作区、暂存区、本地仓库与远程仓库
 
 Git 记录每次文件修改，GitHub 托管远程仓库。**`git commit` 保存本地版本，`git push` 把版本同步到 GitHub。**
 
@@ -14,9 +8,9 @@ Git 记录每次文件修改，GitHub 托管远程仓库。**`git commit` 保存
 
 *示意图：修改文件后，使用 `git add` 暂存、`git commit` 生成本地提交、`git push` 上传到远程仓库。*
 
-这三个命令分别解决三件事：挑选这次要提交的文件、记录一个本地版本、将本地版本共享到远端。
+工作区保存正在编辑的文件；暂存区保存下一次准备提交的更改；本地仓库保存提交历史；远程仓库用于同步和协作。
 
-## 2. 安装 Git 并设置提交身份
+## Git 安装与提交身份
 
 从 [Git 官方下载页](https://git-scm.com/downloads) 安装 Git。Windows 安装完成后可打开 Git Bash；macOS / Linux 在终端中操作。
 
@@ -31,14 +25,14 @@ git --version
 首次使用时，配置自己希望显示在提交记录中的姓名、邮箱：
 
 ```bash
-git config --global user.name "你的姓名"
-git config --global user.email "你的邮箱@example.com"
+git config --global user.name "提交者姓名"
+git config --global user.email "email@example.com"
 git config --global --list
 ```
 
 最后一条命令用于核对设置。若希望 GitHub 将提交关联到个人账号，可以使用 GitHub 账号已验证的邮箱或其提供的隐私邮箱。
 
-## 3. 创建自己的练习仓库
+## 初始化仓库与暂存文件
 
 在一个方便找到的位置创建空文件夹（如 `git-practice`），并在终端进入这个文件夹。接着运行：
 
@@ -54,7 +48,7 @@ git status
 ```markdown
 # 我的第一个 Git 仓库
 
-这是我为 TARS GO 新人培训创建的练习文件。
+项目说明与使用方法。
 ```
 
 保存后运行：
@@ -65,9 +59,9 @@ git add README.md
 git status
 ```
 
-你会看到 `README.md` 从未跟踪文件变成准备提交的文件。使用 `git add README.md` 可以准确选择这次提交的文件。
+`README.md` 从未跟踪文件变为已暂存文件。`git add README.md` 只选择这一个文件的更改。
 
-## 4. 提交并确认本地版本
+## 提交及历史记录
 
 ```bash
 git commit -m "docs: add first README"
@@ -80,13 +74,11 @@ git status
 - `git log --oneline -1` 显示一条带短提交编号和 `docs: add first README` 的记录；编号每个人都不同。
 - `git status` 显示工作区没有待提交的变化（通常包含 `working tree clean`）。
 
-到这里你已经拥有一个可以在本机查看、比较和继续修改的版本记录。
-
-## 5. 把本地仓库连接到 GitHub
+## 关联 GitHub 远程仓库
 
 登录 [GitHub](https://github.com/)，通过 **New repository** 新建一个仓库，例如 `git-practice`。创建时选择**空仓库**，使远程仓库与前面建立的本地提交直接对应。
 
-在新仓库页面复制 HTTPS 仓库地址。回到自己的练习文件夹，在下面的命令中用实际地址替换示例地址：
+以下命令将本地仓库关联到 GitHub 的 HTTPS 地址，示例地址需要替换为实际仓库地址：
 
 ```bash
 git remote add origin https://github.com/OWNER/git-practice.git
@@ -94,19 +86,17 @@ git remote -v
 git push -u origin main
 ```
 
-`OWNER` 需要替换成你的 GitHub 用户名，仓库名也必须与实际仓库一致。`git remote -v` 用于检查远程地址，`git push` 才会真正上传提交。
+`OWNER` 表示 GitHub 仓库所有者，仓库名称与实际仓库保持一致。`git remote -v` 用于检查远程地址，`git push` 才会真正上传提交。
 
 首次推送可能要求登录或授权。按照 Git 的浏览器登录或凭据管理器流程完成身份验证。GitHub HTTPS Git 操作采用受支持的令牌或凭据管理方式，凭据保存在系统凭据管理器中。
 
-## 6. 检查 GitHub 上的最终结果
+## 本地与远程状态核对
 
 在浏览器刷新刚创建的 GitHub 仓库页面，逐项核对：
 
 - 能看到 `README.md`，并显示其中写入的文字。
 - 仓库的提交历史出现 `docs: add first README`。
 - 回到终端执行 `git status`，确认本地没有未提交的更改。
-
-**完成判断：** 本地有提交记录，远程仓库可看到同一份 `README.md` 和提交历史，`git status` 显示工作区干净。
 
 ## 常见问题
 
@@ -125,14 +115,3 @@ git push -u origin main
 ### 推送时提示认证失败
 
 先确认远程地址和账号权限，再按照 [GitHub 官方身份验证说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github) 选择受支持的登录方式。确认凭据仅保存在自己的设备和受信任的凭据管理工具中。
-
-## 继续学习
-
-原始 AI 与视觉联合培训路线推荐的视频：
-
-- [Git 与 GitHub 视频 1（原文 BV1Y8aL6SEit）](https://www.bilibili.com/video/BV1Y8aL6SEit)
-- [Git 与 GitHub 视频 2（原文 BV1LwHv6LEYz）](https://www.bilibili.com/video/BV1LwHv6LEYz)
-
-其他参考资料：[Git 官方教程](https://git-scm.com/book/zh/v2) · [GitHub：管理远程仓库](https://docs.github.com/en/get-started/git-basics/managing-remote-repositories)。
-
-完成两次提交和远程推送后，进入[AI 与视觉联合基础](?doc=path-joint)，或从左侧选择自己的方向学习路径。
