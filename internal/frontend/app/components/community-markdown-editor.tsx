@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type MutableRefObject } from "react";
+import { createPortal } from "react-dom";
 import { Icon, type IconifyIcon } from "@iconify/react";
 import boldIcon from "@iconify-icons/lucide/bold";
 import italicIcon from "@iconify-icons/lucide/italic";
@@ -159,7 +160,33 @@ function ToolbarIcon({ name }: { name: ToolName | "image" | "link" | "imageSetti
 }
 
 function ToolbarButton({ label, name, onClick, disabled = false }: { label: string; name: ToolName | "image" | "link" | "imageSettings"; onClick: () => void; disabled?: boolean }) {
-  return <button type="button" className="community-editor-toolbar__button" aria-label={label} title={label} onClick={onClick} disabled={disabled}><ToolbarIcon name={name} /></button>;
+  const [tooltip, setTooltip] = useState<{ top: number; left: number } | null>(null);
+  const hint = name === "imageSettings"
+    ? disabled ? "先点击正文中的图片，再调整大小与对齐方式" : "图片设置：调整大小、对齐和说明"
+    : label;
+
+  function showTooltip(element: HTMLElement) {
+    const rect = element.getBoundingClientRect();
+    setTooltip({
+      top: rect.bottom + 7,
+      left: Math.max(110, Math.min(rect.left + rect.width / 2, window.innerWidth - 110)),
+    });
+  }
+
+  return <>
+    <span className="community-editor-toolbar__tooltip-target"
+      onMouseEnter={(event) => showTooltip(event.currentTarget)}
+      onMouseLeave={() => setTooltip(null)}
+      onFocus={(event) => showTooltip(event.currentTarget)}
+      onBlur={() => setTooltip(null)}>
+      <button type="button" className="community-editor-toolbar__button" aria-label={hint}
+        onClick={() => { setTooltip(null); onClick(); }} disabled={disabled}><ToolbarIcon name={name} /></button>
+    </span>
+    {tooltip ? createPortal(
+      <span role="tooltip" className="community-editor-toolbar__tooltip" style={tooltip}>{hint}</span>,
+      document.body,
+    ) : null}
+  </>;
 }
 
 export function CommunityMarkdownEditor({
