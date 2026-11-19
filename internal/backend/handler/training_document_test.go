@@ -126,6 +126,7 @@ func TestNewcomerHandbookChapterKeys(t *testing.T) {
 	}{
 		{"git", "training_document_git", 2},
 		{"welcome", "training_document_welcome", 3},
+		{"computer", "training_document_computer", computerGuideScope},
 	}
 	seen := map[uint64]bool{}
 	for _, chapter := range chapters {
@@ -166,5 +167,30 @@ func TestNewcomerHandbookChapterSaveAndReload(t *testing.T) {
 	}
 	if store["training_document_start"] != "" || store["training_document_git"] != "" {
 		t.Fatalf("existing documents changed: %#v", store)
+	}
+}
+
+func TestComputerGuideCanSaveAndReloadWithoutChangingGit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := trainingDocumentMemoryStore{"training_document_git": "# 已有 Git 教程"}
+	handler := NewTrainingDocumentHandler(store, nil)
+	router := gin.New()
+	router.PUT("/docs/:slug", func(c *gin.Context) {
+		c.Set("sessionUser", &auth.SessionUser{ID: 42, Role: auth.SessionRole{Name: "super_admin"}})
+	}, handler.Save)
+	router.GET("/docs/:slug", handler.Get)
+
+	write := httptest.NewRecorder()
+	router.ServeHTTP(write, trainingDocumentRequest(t, "/docs/computer", "# 我们的计算机基础笔记", nil, ""))
+	if write.Code != http.StatusOK {
+		t.Fatalf("cannot save computer guide: %d %s", write.Code, write.Body.String())
+	}
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/docs/computer", nil))
+	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), "我们的计算机基础笔记") {
+		t.Fatalf("computer guide not readable: %d %s", read.Code, read.Body.String())
+	}
+	if store["training_document_git"] != "# 已有 Git 教程" {
+		t.Fatal("computer guide must not overwrite the existing Git tutorial")
 	}
 }

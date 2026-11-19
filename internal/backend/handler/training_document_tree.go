@@ -24,12 +24,19 @@ type trainingTreeNode struct {
 	Scope    uint64 `json:"scope,omitempty"`
 }
 
+const computerGuideScope uint64 = 1000
+
+func computerGuideNode() trainingTreeNode {
+	return trainingTreeNode{ID: "computer", ParentID: "foundation-folder", Title: "计算机基础", Kind: "document", Scope: computerGuideScope}
+}
+
 func defaultTrainingTree() []trainingTreeNode {
 	nodes := []trainingTreeNode{
 		{ID: "handbook", Title: "新人成长手册", Kind: "folder"},
 		{ID: "welcome", ParentID: "handbook", Title: "写给刚刚来到这里的你", Kind: "document", Scope: 3},
 		{ID: "foundation-folder", Title: "通用基础", Kind: "folder"},
 		{ID: "foundation", ParentID: "foundation-folder", Title: "通用基础概览", Kind: "reference", Ref: "foundation"},
+		computerGuideNode(),
 		{ID: "git", ParentID: "foundation-folder", Title: "Git 与 GitHub", Kind: "document", Scope: 2},
 		{ID: "archive", Title: "原始培养路线", Kind: "folder"},
 	}
@@ -58,8 +65,15 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 	if err := json.Unmarshal([]byte(raw), &nodes); err != nil || len(nodes) == 0 {
 		return nil, errors.New("文档目录数据无法读取")
 	}
-	// Remove retired preset chapters from previously saved directories without touching their stored bodies.
-	visible := nodes[:0]
+	// Preserve saved custom documents while showing the new foundation guide in existing directories.
+	hasComputerGuide := false
+	for _, node := range nodes {
+		if node.ID == "computer" {
+			hasComputerGuide = true
+			break
+		}
+	}
+	visible := make([]trainingTreeNode, 0, len(nodes)+1)
 	for _, node := range nodes {
 		if node.ParentID == "handbook" {
 			switch node.ID {
@@ -68,6 +82,9 @@ func (h *TrainingDocumentHandler) loadTree(ctx context.Context) ([]trainingTreeN
 			}
 		}
 		visible = append(visible, node)
+		if node.ID == "foundation" && !hasComputerGuide {
+			visible = append(visible, computerGuideNode())
+		}
 	}
 	return visible, nil
 }
@@ -97,7 +114,7 @@ func (h *TrainingDocumentHandler) documentKey(ctx context.Context, slug string) 
 }
 
 func (h *TrainingDocumentHandler) scopeAllowed(ctx context.Context, scope uint64) bool {
-	if scope == 2 || scope == 3 {
+	if scope == 2 || scope == 3 || scope == computerGuideScope {
 		return true
 	}
 	nodes, err := h.loadTree(ctx)

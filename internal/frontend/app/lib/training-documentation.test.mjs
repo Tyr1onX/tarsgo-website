@@ -116,3 +116,28 @@ test("training reader uses the existing image layout metadata instead of forcing
   assert.match(stylesheet, /\.training-docs__image\.is-right \{ margin-left: auto; \}/);
   assert.doesNotMatch(stylesheet, /\.training-docs__markdown img \{[^}]*width: 100%;/);
 });
+
+test("foundation overview links to a usable computer basics guide without adding mandatory training", async () => {
+  const page = await read("../routes/dashboard/training-materials.tsx");
+  const overview = await read("../content/training/foundation.md");
+  const guide = await read("../content/training/computer-basics.md");
+  const backend = await read("../../../backend/handler/training_document_tree.go");
+
+  assert.match(page, /computer: computerMarkdown/);
+  assert.match(page, /selectedMaterial\.id === "foundation"/);
+  assert.match(page, /DocumentationArticle source=\{selectedMaterial\.text\}/);
+  assert.match(backend, /computerGuideNode\(\)/);
+  assert.match(backend, /computerGuideScope/);
+  assert.match(overview, /\?doc=computer/);
+  assert.match(overview, /\?doc=git/);
+  for (const topic of ["Ubuntu", "Python", "C++", "C 语言", "工程"]) {
+    assert.ok(overview.includes(topic), topic);
+  }
+  for (const task of ["CPU", "内存", "tarsgo-practice", "notes.txt", "example.com", "Git 与 GitHub"]) {
+    assert.ok(guide.includes(task), task);
+  }
+  for (const bv of ["BV15i9UBhEZ2", "BV1UwPgziE3F"]) {
+    assert.ok(guide.includes(bv), bv);
+  }
+  assert.match(guide, /不需要上传或打卡/);
+});

@@ -40,6 +40,8 @@ func trainingDocumentKey(slug string) (string, uint64, bool) {
 	switch slug {
 	case "git":
 		return "training_document_git", 2, true
+	case "computer":
+		return "training_document_computer", computerGuideScope, true
 	case "welcome":
 		return "training_document_welcome", 3, true
 	default:

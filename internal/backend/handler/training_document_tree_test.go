@@ -177,3 +177,51 @@ func TestTrainingTreeHidesRetiredPresetChaptersWithoutDeletingSavedContent(t *te
 		t.Fatal("hiding legacy chapters must not delete existing saved data")
 	}
 }
+
+func TestTrainingTreeAddsComputerGuideToSavedDirectories(t *testing.T) {
+	legacy := defaultTrainingTree()
+	for i, node := range legacy {
+		if node.ID == "computer" {
+			legacy = append(legacy[:i], legacy[i+1:]...)
+			break
+		}
+	}
+	legacy = append(legacy, trainingTreeNode{ID: "ncustom", ParentID: "foundation-folder", Title: "自建文档", Kind: "document", Scope: 9})
+	raw, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := trainingDocumentMemoryStore{trainingTreeKey: string(raw), "training_document_ncustom": "# 原有记录"}
+	handler := NewTrainingDocumentHandler(store, nil)
+	for attempt := 0; attempt < 2; attempt++ {
+		nodes, err := handler.loadTree(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var computerCount, customCount int
+		var computerIndex, gitIndex = -1, -1
+		for i, node := range nodes {
+			switch node.ID {
+			case "computer":
+				computerCount++
+				computerIndex = i
+				if node.Scope != computerGuideScope || node.ParentID != "foundation-folder" {
+					t.Fatalf("computer guide metadata changed: %#v", node)
+				}
+			case "ncustom":
+				customCount++
+			case "git":
+				gitIndex = i
+			}
+		}
+		if computerCount != 1 || customCount != 1 || computerIndex >= gitIndex {
+			t.Fatalf("expected one computer guide before Git while preserving custom docs: %#v", nodes)
+		}
+	}
+	if store[trainingTreeKey] != string(raw) || store["training_document_ncustom"] != "# 原有记录" {
+		t.Fatal("reading the expanded tree must not mutate saved data")
+	}
+	if !handler.scopeAllowed(context.Background(), computerGuideScope) || !handler.scopeAllowed(context.Background(), 9) {
+		t.Fatal("guide and legacy image scopes must remain accessible")
+	}
+}
