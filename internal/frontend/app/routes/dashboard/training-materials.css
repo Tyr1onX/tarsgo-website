@@ -6,11 +6,11 @@
 .training-docs__layout.is-toc-empty { grid-template-columns: var(--training-nav-width) minmax(0, 1fr); }
 .training-docs__layout.is-toc-empty .training-docs__toc { display: none; }
 .training-docs__sidebar { position: sticky; top: 84px; display: flex; flex-direction: column; height: calc(100dvh - 110px); overflow: hidden; }
-.training-docs__sidebar-body { flex: 1; min-height: 0; width: var(--training-nav-expanded-width); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--admin-border) transparent; }
+.training-docs__sidebar-body { flex: 1; min-height: 0; width: var(--training-nav-expanded-width); margin-top: 38px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--admin-border) transparent; }
 .training-docs__layout.is-left-collapsed .training-docs__sidebar-body { visibility: hidden; pointer-events: none; }
 .training-docs__toc { position: sticky; top: 84px; max-height: calc(100dvh - 110px); overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: thin; }
 .training-tree { display: grid; gap: 2px; }
-.training-tree__toolbar { display: flex; align-items: center; min-height: 38px; margin-bottom: 8px; padding-right: 40px; }
+.training-tree__toolbar { position: absolute; top: 0; left: 0; z-index: 1; display: flex; align-items: center; min-height: 38px; padding-inline: 8px; }
 .training-tree__toolbar:empty { display: none; }
 .training-tree__tools { position: relative; display: flex; align-items: center; flex: none; }
 .training-tree__tools button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--admin-muted); font-size: 17px; }
@@ -103,6 +103,7 @@ button.training-tree__chevron:hover { color: var(--admin-accent-text); backgroun
 .training-docs__actions button:disabled { opacity: .55; cursor: not-allowed; }
 .training-docs__actions .training-docs__save { border-color: var(--admin-accent); color: var(--admin-accent-on); background: var(--admin-accent); font-weight: 650; }
 .training-docs__status, .training-docs__save-error { color: var(--admin-muted); font-size: 14px; line-height: 1.65; }
+.training-docs__retry { margin-left: 12px; color: var(--admin-accent-text); text-decoration: underline; text-underline-offset: 3px; }
 .training-docs__placeholder { min-height: 175px; }
 .training-docs__placeholder h1 { margin: 0 0 26px; color: var(--admin-text); font-size: clamp(25px, 3vw, 33px); font-weight: 680; line-height: 1.32; }
 .training-docs__placeholder span { display: block; width: 85%; height: 9px; margin: 14px 0; border-radius: 5px; background: var(--admin-border-subtle); opacity: .55; }
