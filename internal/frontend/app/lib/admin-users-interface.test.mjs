@@ -55,7 +55,7 @@ test("member detail has three read-only sections and one local editor at a time"
   assert.match(page, /activeEditor === "profile"/);
   assert.match(page, /activeEditor === "access"/);
   assert.match(page, /activeEditor === "password"/);
-  assert.doesNotMatch(page, /保存修改|修正意向组|updateAdminUserRecruitmentGroup/);
+  assert.doesNotMatch(page, /保存修改|修正意向组|correctAdminRecruitmentGroupPreference/);
   assert.match(page, /set\("userId", String\(item\.id\)\)/);
   assert.match(page, /getAdminUser\(detail\.id\)/);
 });
@@ -70,11 +70,11 @@ test("membership changes cannot overwrite multiple existing groups", () => {
 });
 
 test("recruitment intention correction has one admin entry in recruitment details", () => {
-  assert.doesNotMatch(page, /updateAdminUserRecruitmentGroup|修正意向组/);
-  assert.match(registrations, /updateAdminUserRecruitmentGroup\(detail\.userId, Number\(preferredGroupDraft\)\)/);
+  assert.doesNotMatch(page, /correctAdminRecruitmentGroupPreference|修正意向组/);
+  assert.match(registrations, /correctAdminRecruitmentGroupPreference\(detail\.userId, Number\(preferredGroupDraft\)\)/);
   assert.match(registrations, /currentUser\.role\.name === "super_admin" && detail\.formStatus === 1 && detail\.status !== "admitted"/);
   assert.match(registrations, /preferredGroupError \? <p role="alert"/);
-  assert.match(adminClient, /updateAdminUserRecruitmentGroup\(userId: number, groupId: number\)/);
+  assert.match(adminClient, /correctAdminRecruitmentGroupPreference\(userId: number, groupId: number\)/);
   assert.match(registrationClient, /userId: number;[\s\S]*?formStatus: number;/);
   assert.match(registrationList, /UserID:\s+registration\.UserID,[\s\S]*?FormStatus:\s+registration\.Form\.Status/);
 });

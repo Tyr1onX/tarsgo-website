@@ -13,7 +13,7 @@ import {
   listAdminRoles,
   listAdminUsers,
   resetAdminUserPassword,
-  updateAdminUserGroup,
+  replaceAdminUserGroupMembership,
   updateAdminUserGroupRole,
   updateAdminUser,
   updateAdminUserTeamIdentity,
@@ -304,7 +304,7 @@ export default function AccountManagement() {
       }
       if (existing && !window.confirm("调整组别将移除「" + existing.name + "」的原关系及组内身份。确定继续？")) return;
       setSaving(true);
-      await refreshDetail(await updateAdminUserGroup(editing.id, nextGroupID), "所属组别已更新。");
+      await refreshDetail(await replaceAdminUserGroupMembership(editing.id, nextGroupID), "所属组别已更新。");
     } catch (cause) {
       handleActionError(cause, "所属组别更新失败");
     } finally {

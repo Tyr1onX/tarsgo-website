@@ -277,13 +277,13 @@ func TestSuperAdminCanChangeGroupForAccountWithLeaderOrganizationTitle(t *testin
 	}}
 	service := NewService(repo)
 	newGroupID := uint64(22)
-	if _, err := service.UpdateUserGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin}, user.ID, &newGroupID); err == nil {
+	if _, err := service.ReplaceUserGroupMembership(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin}, user.ID, &newGroupID); err == nil {
 		t.Fatal("ordinary admin must not modify group assignments")
 	}
 	if repo.users[user.ID].GroupMembers[0].Role != model.UserGroupMemberRoleLeader {
 		t.Fatal("denied group change altered the organizational title")
 	}
-	if _, err := service.UpdateUserGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, user.ID, &newGroupID); err != nil {
+	if _, err := service.ReplaceUserGroupMembership(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, user.ID, &newGroupID); err != nil {
 		t.Fatalf("super admin could not change group for a group leader: %v", err)
 	}
 	updated := repo.users[user.ID]
@@ -479,7 +479,7 @@ func (r *fakeRepository) UpdateTeamIdentity(_ context.Context, userID uint64, ex
 	return nil
 }
 
-func (r *fakeRepository) UpdateCurrentRecruitmentGroup(context.Context, uint64, uint64) error {
+func (r *fakeRepository) CorrectRecruitmentGroupPreference(context.Context, uint64, uint64) error {
 	return nil
 }
 
@@ -524,7 +524,7 @@ func (r *fakeRepository) CreateUser(_ context.Context, user *model.User) error {
 	return nil
 }
 
-func (r *fakeRepository) UpdateUserGroup(_ context.Context, actorID, userID uint64, groupID *uint64) error {
+func (r *fakeRepository) ReplaceUserGroupMembership(_ context.Context, actorID, userID uint64, groupID *uint64) error {
 	if actorID == 0 {
 		return errors.New("actor ID is required")
 	}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
-import { updateAdminUserRecruitmentGroup } from "~/lib/admin-users-client";
+import { correctAdminRecruitmentGroupPreference } from "~/lib/admin-users-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   getAdminRegistration,
@@ -251,7 +251,7 @@ export default function Registrations() {
     setActionLoading(true);
     setPreferredGroupError("");
     try {
-      await updateAdminUserRecruitmentGroup(detail.userId, Number(preferredGroupDraft));
+      await correctAdminRecruitmentGroupPreference(detail.userId, Number(preferredGroupDraft));
       await refreshAfterAction();
       setEditingPreferredGroup(false);
       setFlash({ type: "success", message: "招新意向组已修正。" });
