@@ -362,6 +362,8 @@ export default function TrainingMaterialsPage() {
   const [uploads, setUploads] = useState<CommunityPendingImage[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [leftNavigationOpen, setLeftNavigationOpen] = useState(true);
+  const [rightContentsOpen, setRightContentsOpen] = useState(true);
   const flushRef = useRef<() => string>(() => "");
   const selectedMaterial = searchParams.has("group")
     ? materials.find(({ id }) => id === searchParams.get("group"))
@@ -453,9 +455,15 @@ export default function TrainingMaterialsPage() {
         </optgroup>)}
       </select>
     </label>
-    <div className="training-docs__layout">
+    <div className={`training-docs__layout${leftNavigationOpen ? "" : " is-left-collapsed"}${rightContentsOpen ? "" : " is-right-collapsed"}${sections.length ? "" : " is-toc-empty"}`}>
       <aside className="training-docs__sidebar" aria-label="文档导航">
-        <nav aria-label="培训文档目录">
+        <div className="training-docs__sidebar-control">
+          <button type="button" onClick={() => setLeftNavigationOpen((open) => !open)}
+            aria-label={leftNavigationOpen ? "收起文档目录" : "展开文档目录"}
+            title={leftNavigationOpen ? "收起文档目录" : "展开文档目录"}
+            aria-expanded={leftNavigationOpen}>{leftNavigationOpen ? "‹" : "›"}</button>
+        </div>
+        {leftNavigationOpen ? <nav aria-label="培训文档目录">
           {directory.map(({ title, links }) => <section key={title} className="training-docs__nav-section">
             <h2>{title}</h2>
             {links.map(({ key, href, label }) => <Link
@@ -466,7 +474,7 @@ export default function TrainingMaterialsPage() {
               className="training-docs__nav-link"
             >{label}</Link>)}
           </section>)}
-        </nav>
+        </nav> : null}
       </aside>
       <article className="training-docs__article">
         <div className="training-docs__article-header">
@@ -509,8 +517,14 @@ export default function TrainingMaterialsPage() {
         </nav>
       </article>
       {sections.length ? <aside className="training-docs__toc" aria-label="本页目录">
-        <h2>本页目录</h2>
-        {sections.map(({ title, id }) => <a key={id} href={`#${id}`}>{title}</a>)}
+        <div className="training-docs__toc-header">
+          {rightContentsOpen ? <h2>本页目录</h2> : null}
+          <button type="button" onClick={() => setRightContentsOpen((open) => !open)}
+            aria-label={rightContentsOpen ? "收起本页目录" : "展开本页目录"}
+            title={rightContentsOpen ? "收起本页目录" : "展开本页目录"}
+            aria-expanded={rightContentsOpen}>{rightContentsOpen ? "›" : "‹"}</button>
+        </div>
+        {rightContentsOpen ? sections.map(({ title, id }) => <a key={id} href={`#${id}`}>{title}</a>) : null}
       </aside> : <div className="training-docs__toc" aria-hidden="true" />}
     </div>
   </section>;
