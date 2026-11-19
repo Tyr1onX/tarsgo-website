@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -203,6 +204,33 @@ func TestMariaDBAdmissionMembershipTransaction(t *testing.T) {
 		}
 		assertState(u.ID, r.ID, model.RecruitmentStatusRejected, model.TeamIdentityTraineeMember, 1)
 	})
+	t.Run("other group membership blocks admission without creating a second group", func(t *testing.T) {
+		u, r := create(model.TeamIdentityCommunityMember, false, false)
+		other := model.UserGroup{Name: fmt.Sprintf("[TEST] existing-%d", marker), Status: 1, Show: 1}
+		if err := db.Create(&other).Error; err != nil {
+			t.Fatal(err)
+		}
+		defer db.Delete(&other)
+		member := model.UserGroupMember{UserID: u.ID, GroupID: other.ID, Role: model.UserGroupMemberRoleMember}
+		if err := db.Create(&member).Error; err != nil {
+			t.Fatal(err)
+		}
+		defer db.Delete(&member)
+		_, err := service.RecordInterviewResult(ctx, actor, r.ID, InterviewDecisionInput{Decision: "admit"})
+		var serviceErr *ServiceError
+		if !errors.As(err, &serviceErr) || serviceErr.Status != http.StatusConflict {
+			t.Fatalf("conflicting membership admission error = %v, want conflict", err)
+		}
+		assertState(u.ID, r.ID, model.RecruitmentStatusPendingInterview, model.TeamIdentityCommunityMember, 0)
+		var count int64
+		if err := db.Model(&model.UserGroupMember{}).Where("user_id = ?", u.ID).Count(&count).Error; err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("memberships after rejected admission = %d, want 1", count)
+		}
+	})
+
 	t.Run("disabled admitted group rolls back result", func(t *testing.T) {
 		u, r := create(model.TeamIdentityCommunityMember, false, false)
 		if err := db.Model(&group).UpdateColumn("status", model.UserGroupStatusDisabled).Error; err != nil {
