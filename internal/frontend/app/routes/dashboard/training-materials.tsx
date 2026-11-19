@@ -8,7 +8,6 @@ import { TrainingDocumentTree, orderedTrainingNodes, trainingNodeHref, type Trai
 import { apiRequest } from "~/lib/api-client";
 import { decodeCommunityImageTitle } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
-import startMarkdown from "~/content/training/start.md?raw";
 import gitMarkdown from "~/content/training/git-and-github.md?raw";
 import "./training-materials.css";
 
@@ -287,12 +286,6 @@ AI视觉 与 TARS_Go｜ 2026—2027学年秋季学期
 
 const defaultMarkdown: Record<string, string> = {
   welcome: "# 写给刚刚来到这里的你\n",
-  team: "# 认识吉甲大师\n",
-  growth: "# 你将在这里经历什么\n",
-  directions: "# 找到适合自己的方向\n",
-  start: startMarkdown,
-  together: "# 学习不是一个人的事情\n",
-  continue: "# 从这里继续出发\n",
   git: gitMarkdown,
 };
 

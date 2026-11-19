@@ -7,6 +7,7 @@ const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 test("training documents reuse the existing visual editor and save the current markdown", async () => {
   const route = await read("../routes/dashboard/training-materials.tsx");
   assert.match(route, /CommunityMarkdownEditor/);
+  assert.doesNotMatch(route, /startMarkdown/);
   assert.match(route, /flushRef\.current\(\)/);
   assert.match(route, /<DocumentationArticle source=\{documentSource/);
   assert.match(route, /<DocumentationArticle source=\{documentSource \?\? selectedDocument\.markdown\} title=/);
@@ -40,7 +41,7 @@ test("training documentation endpoints keep reads available and writes super adm
   assert.ok(adminIndex >= 0 && authorizeIndex > adminIndex);
   const handler = await read("../../../backend/handler/training_document.go");
   assert.match(handler, /training_document_git/);
-  assert.match(handler, /training_document_start/);
+  assert.match(handler, /training_document_welcome/);
   assert.match(handler, /privatefile\.Upload/);
 });
 
