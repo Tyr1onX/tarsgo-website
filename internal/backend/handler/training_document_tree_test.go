@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -90,7 +91,7 @@ func TestTrainingTreeCanCreateNestedDocumentsAndRename(t *testing.T) {
 	}
 
 	reloaded := NewTrainingDocumentHandler(store, files)
-	nodes, err := reloaded.loadTree(t.Context())
+	nodes, err := reloaded.loadTree(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestTrainingTreeCanCreateNestedDocumentsAndRename(t *testing.T) {
 	if !matched || store["training_document_start"] != "# 已编辑的原学习指南" {
 		t.Fatalf("tree update did not persist independently from legacy content: %#v", store)
 	}
-	if !reloaded.scopeAllowed(t.Context(), child.Scope) {
+	if !reloaded.scopeAllowed(context.Background(), child.Scope) {
 		t.Fatal("dynamic document images are not readable")
 	}
 	again := httptest.NewRecorder()
