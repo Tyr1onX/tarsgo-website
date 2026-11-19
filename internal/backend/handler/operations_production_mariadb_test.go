@@ -126,6 +126,27 @@ func TestMariaDBOperationsPublicationRenewalAuditAndFiles(t *testing.T) {
 	if works.Code != http.StatusOK || !strings.Contains(works.Body.String(), "archiveTotal") {
 		t.Fatalf("works archive failed on prefixed schema: status=%d body=%s", works.Code, works.Body.String())
 	}
+	now := time.Now().UTC()
+	if err := db.Create(&model.OperationsPlatformPost{
+		Platform: "bilibili", ExternalID: "search-test", Title: "RMer 赛事采访",
+		URL: "https://www.bilibili.com/video/BV1example12", PublishedAt: now, SyncedAt: now,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []struct {
+		query string
+		total string
+	}{
+		{"RMer", "\"total\":1"},
+		{"没有结果", "\"total\":0"},
+	} {
+		record := httptest.NewRecorder()
+		router.ServeHTTP(record, httptest.NewRequest(http.MethodGet,
+			"/api/operations/works?platform=bilibili&q="+scenario.query, nil))
+		if record.Code != http.StatusOK || !strings.Contains(record.Body.String(), scenario.total) {
+			t.Fatalf("search %q failed: status=%d body=%s", scenario.query, record.Code, record.Body.String())
+		}
+	}
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -152,5 +173,88 @@ func TestMariaDBOperationsPublicationRenewalAuditAndFiles(t *testing.T) {
 	router.ServeHTTP(download, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/operations/attachments/%d", saved.ID), nil))
 	if download.Code != http.StatusOK || download.Body.String() != "delivery evidence" {
 		t.Fatalf("download failed: status=%d body=%q", download.Code, download.Body.String())
+	}
+}
+
+func TestMariaDBOperationsLaunchReusesPendingEpisode(t *testing.T) {
+	dsn := os.Getenv("TARSGO_QA_TEST_DSN")
+	if dsn == "" {
+		t.Skip("requires isolated MariaDB")
+	}
+	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
+		t.Fatal("isolated acceptance database required")
+	}
+	prefix := fmt.Sprintf("launch%d_", time.Now().UnixNano())
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: prefix}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	defer db.Migrator().DropTable(&model.OperationsPublication{}, &model.OperationsProgressUpdate{},
+		&model.OperationsProgressStep{}, &model.OperationsProgressItem{})
+	if err := db.AutoMigrate(&model.OperationsProgressItem{}, &model.OperationsProgressStep{},
+		&model.OperationsProgressUpdate{}, &model.OperationsPublication{}); err != nil {
+		t.Fatal(err)
+	}
+	channel := model.OperationsProgressItem{Title: "抖音", Kind: "channel", Platforms: "douyin", Status: "active"}
+	if err := db.Create(&channel).Error; err != nil {
+		t.Fatal(err)
+	}
+	var upcoming *model.OperationsProgressItem
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		upcoming, err = operationsworkflow.EnsureUpcoming(tx, channel.ID, "RMer")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	gin.SetMode(gin.TestMode)
+	h := NewOperationsProgressHandler(db, nil)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("sessionUser", &auth.SessionUser{ID: 42, Role: auth.SessionRole{Name: "super_admin"}})
+		c.Next()
+	})
+	router.POST("/api/operations/channels/:id/episodes", h.CreateEpisode)
+	body, _ := json.Marshal(map[string]any{
+		"title": "RMer 新一期", "seriesName": "RMer", "startPlanning": true,
+	})
+	request := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/operations/channels/%d/episodes", channel.ID), bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("launch failed: %d %s", response.Code, response.Body.String())
+	}
+	var episodes []model.OperationsProgressItem
+	if err := db.Where("channel_id = ?", channel.ID).Find(&episodes).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(episodes) != 1 || episodes[0].ID != upcoming.ID || episodes[0].Title != "RMer 新一期" {
+		t.Fatalf("launch must reuse existing pending episode: %+v", episodes)
+	}
+	var steps []model.OperationsProgressStep
+	if err := db.Where("item_id = ?", upcoming.ID).Order("position").Find(&steps).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 5 || steps[0].Key != "planning" || steps[0].Status != "active" {
+		t.Fatalf("launch must start planning only: %+v", steps)
+	}
+	for _, step := range steps[1:] {
+		if step.Status != "pending" {
+			t.Fatalf("later step %s advanced during launch", step.Key)
+		}
+	}
+	var audit model.OperationsProgressUpdate
+	if err := db.Where("item_id = ?", upcoming.ID).First(&audit).Error; err != nil {
+		t.Fatal(err)
+	}
+	if audit.AuthorID != 42 || audit.FromStage != "pending" || audit.ToStage != "active" {
+		t.Fatalf("launch audit incorrect: %+v", audit)
 	}
 }

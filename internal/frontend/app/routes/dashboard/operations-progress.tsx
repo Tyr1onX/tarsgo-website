@@ -123,7 +123,9 @@ export default function OperationsProgressPage() {
       <h1>运营动态</h1>
       <nav className="operations-progress__main-nav" aria-label="运营入口">
         <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/tasks">我的任务</Link>
-        <Link className="admin-button admin-button--primary" to="/dashboard/workbench/operations/works">全部作品</Link>
+        <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/works">检索作品</Link>
+        {board?.canManage ? <Link className="admin-button admin-button--primary"
+          to="/dashboard/workbench/operations/works/new">发起一期视频</Link> : null}
       </nav>
     </header>
     {error ? <p role="alert" className="operations-progress__error">{error}

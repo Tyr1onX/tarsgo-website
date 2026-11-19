@@ -167,8 +167,10 @@ export interface OperationsWorks {
   page: number;
   pageSize: number;
 }
-export function createOperationsEpisode(channelId: number, title: string, seriesName = "") {
-  return apiRequest<OperationsItem>(`/api/operations/channels/${channelId}/episodes`, { method: "POST", body: { title, seriesName } });
+export function createOperationsEpisode(channelId: number, title: string, seriesName = "", startPlanning = false) {
+  return apiRequest<OperationsItem>(`/api/operations/channels/${channelId}/episodes`, {
+    method: "POST", body: { title, seriesName, startPlanning },
+  });
 }
 
 export function saveOperationsPublication(itemId: number, platform: string,
@@ -190,9 +192,10 @@ export function getOperationsStepActivity(itemId: number, stepId: number) {
 export function operationsStepFileURL(fileId: number) {
   return `/api/operations/attachments/${fileId}`;
 }
-export function getOperationsWorks(platform = "", page = 1) {
+export function getOperationsWorks(platform = "", page = 1, search = "") {
   const query = new URLSearchParams({ page: String(page) });
   if (platform) query.set("platform", platform);
+  if (search.trim()) query.set("q", search.trim());
   return apiRequest<OperationsWorks>(`/api/operations/works?${query.toString()}`);
 }
 
