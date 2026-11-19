@@ -38,6 +38,8 @@ type teamGoal struct {
 	Title  string `json:"title"`
 	Target string `json:"target"`
 	URL    string `json:"url"`
+	Kind   string `json:"kind,omitempty"`
+	Status string `json:"status,omitempty"`
 }
 type teamTask struct {
 	ID          string   `json:"id"`
@@ -74,14 +76,27 @@ type teamReport struct {
 	NextPlan  string `json:"nextPlan,omitempty"`
 }
 type teamOperations struct {
-	Active  int64  `json:"active"`
-	Blocked int64  `json:"blocked"`
-	URL     string `json:"url"`
+	Active  int64                `json:"active"`
+	Blocked int64                `json:"blocked"`
+	Items   []teamOperationsItem `json:"items"`
+	URL     string               `json:"url"`
+}
+type teamOperationsItem struct {
+	Title      string    `json:"title"`
+	Stage      string    `json:"stage,omitempty"`
+	NextAction string    `json:"nextAction,omitempty"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 type teamInsight struct {
 	Kind      string `json:"kind"`
 	Text      string `json:"text"`
 	SourceURL string `json:"sourceUrl"`
+}
+type teamDomainFocus struct {
+	Domain string `json:"domain"`
+	Title  string `json:"title"`
+	Target string `json:"target"`
+	URL    string `json:"url"`
 }
 type teamSummary struct {
 	Total                int `json:"total"`
@@ -93,13 +108,14 @@ type teamSummary struct {
 	MissingCompletedDate int `json:"missingCompletedDate"`
 }
 type teamStateResponse struct {
-	GeneratedAt time.Time       `json:"generatedAt"`
-	Sources     []teamSource    `json:"sources"`
-	Summary     *teamSummary    `json:"summary"`
-	Insights    []teamInsight   `json:"insights"`
-	Projects    []teamProject   `json:"projects"`
-	Reports     []teamReport    `json:"reports"`
-	Operations  *teamOperations `json:"operations"`
+	GeneratedAt time.Time         `json:"generatedAt"`
+	Sources     []teamSource      `json:"sources"`
+	Summary     *teamSummary      `json:"summary"`
+	Insights    []teamInsight     `json:"insights"`
+	Focus       []teamDomainFocus `json:"focus"`
+	Projects    []teamProject     `json:"projects"`
+	Reports     []teamReport      `json:"reports"`
+	Operations  *teamOperations   `json:"operations"`
 }
 type teamBaseRows struct {
 	Fields    []string            `json:"fields"`
@@ -222,7 +238,99 @@ func teamSentryGoals(content string) []teamGoal {
 		if len(values) < 2 {
 			continue
 		}
-		goals = append(goals, teamGoal{ID: id, Title: teamClip(values[0], 100), Target: teamClip(values[1], 280), URL: teamStatePlanURL})
+		goals = append(goals, teamGoal{ID: id, Title: teamClip(values[0], 100), Target: teamClip(values[1], 280), URL: teamStatePlanURL, Kind: "验收要求", Status: "无法判断"})
+	}
+	return goals
+}
+
+// Planning documents use different structures; extract only explicit P0 requirements
+// or named progress entries. None of these records is a test acceptance result.
+func teamInfantryGoals(content, sourceURL string) []teamGoal {
+	goals := []teamGoal{}
+	inP0 := false
+	for _, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "P0:需要且必要" {
+			inP0 = true
+			continue
+		}
+		if inP0 && strings.HasPrefix(line, "P1:") {
+			break
+		}
+		if !inP0 || line == "" {
+			continue
+		}
+		title := strings.SplitN(line, "，", 2)[0]
+		goals = append(goals, teamGoal{
+			ID: fmt.Sprintf("步兵-P0-%d", len(goals)+1), Title: teamClip(title, 70),
+			Target: teamClip(line, 260), URL: sourceURL, Kind: "研发需求", Status: "无法判断",
+		})
+	}
+	return goals
+}
+
+func teamDroneGoals(content, sourceURL string) []teamGoal {
+	lines := strings.Split(content, "\n")
+	goals := []teamGoal{}
+	inP0 := false
+	for i, raw := range lines {
+		title := strings.TrimSpace(raw)
+		if title == "P0 必要且现在就应该做" {
+			inP0 = true
+			continue
+		}
+		if inP0 && strings.HasPrefix(title, "P1 ") {
+			break
+		}
+		if !inP0 || len([]rune(title)) < 4 || len([]rune(title)) > 45 ||
+			strings.ContainsAny(title, "。:：") || strings.HasSuffix(strings.ToLower(title), ".jpg") ||
+			strings.HasSuffix(strings.ToLower(title), ".png") || strings.HasSuffix(strings.ToLower(title), ".mp4") {
+			continue
+		}
+		description := ""
+		for _, next := range lines[i+1:] {
+			description = strings.TrimSpace(next)
+			if description != "" {
+				break
+			}
+		}
+		if len([]rune(description)) < 28 {
+			continue
+		}
+		goals = append(goals, teamGoal{
+			ID: fmt.Sprintf("无人机-P0-%d", len(goals)+1), Title: title,
+			Target: teamClip(description, 260), URL: sourceURL, Kind: "研发需求", Status: "无法判断",
+		})
+	}
+	return goals
+}
+
+var teamDartStage = regexp.MustCompile(`^(已研发|研发中|待研发|已优化|优化中|待优化)\s*——\s*(.+)$`)
+
+func teamDartGoals(content, sourceURL string) []teamGoal {
+	lines := strings.Split(content, "\n")
+	goals := []teamGoal{}
+	for i, raw := range lines {
+		match := teamDartStage.FindStringSubmatch(strings.TrimSpace(raw))
+		if match == nil {
+			continue
+		}
+		description := ""
+		for _, next := range lines[i+1:] {
+			description = strings.TrimSpace(next)
+			if description != "" {
+				break
+			}
+		}
+		status := "无法判断"
+		if match[1] == "已研发" || match[1] == "已优化" {
+			status = "有成果待验收"
+		}
+		goals = append(goals, teamGoal{
+			ID: fmt.Sprintf("飞镖-%d", len(goals)+1), Title: teamClip(match[2], 90),
+			Target: teamClip(description, 260), URL: sourceURL,
+			Kind: "研发阶段记录 · " + match[1], Status: status,
+		})
 	}
 	return goals
 }
@@ -466,27 +574,107 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 	}
 	result.Sources = append(result.Sources, teamSource{Name: "研发与组会记录", Status: docStatus, Detail: docDetail, URL: "https://t0ekqtnsg8e.feishu.cn/wiki/Jcy4wGbeoiF1ltkCa2Yc4txDnzd", SetupURL: docSetup})
 
-	plan, err := h.teamStateDoc(ctx, token, "P22VdnfycoSB1ZxPQGHcxnMCnBc")
-	if err != nil {
-		log.Printf("team state Feishu goal read: %v", err)
-		setup := ""
-		if strings.Contains(err.Error(), "99991672") {
-			setup = teamSourceSetupURL(h.cfg.AppID, "docx:document:readonly", "wiki:node:read")
-		}
-		result.Sources = append(result.Sources, teamSource{Name: "赛季验收要求", Status: "unavailable", Detail: "赛季目标文档暂不可读取", URL: teamStatePlanURL, SetupURL: setup})
-		return
-	}
-	goals := teamSentryGoals(plan)
-	if len(goals) == 0 {
-		result.Sources = append(result.Sources, teamSource{Name: "赛季验收要求", Status: "unavailable", Detail: "未识别出有效的验收要求", URL: teamStatePlanURL})
-		return
-	}
+	linked, missing := 0, 0
+	var goalError error
 	for i := range result.Projects {
-		if result.Projects[i].Name == "27赛季哨兵" {
-			result.Projects[i].Goals = goals
+		project := &result.Projects[i]
+		docID, sourceURL := "", ""
+		switch project.Name {
+		case "27赛季哨兵":
+			docID, sourceURL = "P22VdnfycoSB1ZxPQGHcxnMCnBc", teamStatePlanURL
+		case "27赛季步兵":
+			docID, sourceURL = "MdZhdxjTVoBSFMxJKFQcXrd4nRh", "https://t0ekqtnsg8e.feishu.cn/wiki/TO03wLmOki1APHklRXkcFMLEnwf"
+		case "27赛季无人机":
+			docID, sourceURL = "ZsVPd1VmNoarmbxUjdpcJ5wxnYb", "https://t0ekqtnsg8e.feishu.cn/wiki/G3N3w8xgxiX6tekaizIcDRr8nFc"
+		case "27赛季飞镖":
+			docID, sourceURL = "MPpNdmbJYoWrXrxfyNTcEJptnHc", "https://t0ekqtnsg8e.feishu.cn/wiki/GUaswytjdiYycnk31hHcnSIBnfe"
+		}
+		if docID == "" {
+			continue
+		}
+		content, err := h.teamStateDoc(ctx, token, docID)
+		if err != nil {
+			if goalError == nil {
+				goalError = err
+			}
+			missing++
+			continue
+		}
+		switch project.Name {
+		case "27赛季哨兵":
+			project.Goals = teamSentryGoals(content)
+		case "27赛季步兵":
+			project.Goals = teamInfantryGoals(content, sourceURL)
+		case "27赛季无人机":
+			project.Goals = teamDroneGoals(content, sourceURL)
+		case "27赛季飞镖":
+			project.Goals = teamDartGoals(content, sourceURL)
+		}
+		if len(project.Goals) == 0 {
+			missing++
+		} else {
+			linked++
 		}
 	}
-	result.Sources = append(result.Sources, teamSource{Name: "赛季验收要求", Status: "available", Detail: "已关联哨兵验收指标，其余项目展示各自研发需求", URL: teamStatePlanURL})
+	goalStatus, goalDetail, goalSetup := "available", "", ""
+	if missing > 0 {
+		goalStatus, goalDetail = "partial", fmt.Sprintf("%d 份目标或阶段资料尚未关联", missing)
+		if linked == 0 {
+			goalStatus = "unavailable"
+		}
+		if goalError != nil && strings.Contains(goalError.Error(), "99991672") {
+			goalSetup = teamSourceSetupURL(h.cfg.AppID, "docx:document:readonly", "wiki:node:read")
+		}
+	}
+	if linked == 0 && missing == 0 {
+		goalStatus, goalDetail = "unavailable", "尚无已关联的目标资料"
+	}
+	if goalError != nil {
+		log.Printf("team state Feishu goals: %v", goalError)
+	}
+	result.Sources = append(result.Sources, teamSource{Name: "赛季目标与阶段资料", Status: goalStatus, Detail: goalDetail, URL: teamStatePlanURL, SetupURL: goalSetup})
+
+	// Planning records are separate from actual deliverables and acceptance.
+	domainDocsRead := 0
+	opsURL := "https://t0ekqtnsg8e.feishu.cn/wiki/CAYjwKfKpiHF4ikiOD1cCVUynuf"
+	if content, err := h.teamStateDoc(ctx, token, "MaoodCINCoF3iHxUYcvcofFmnId"); err == nil {
+		domainDocsRead++
+		for _, line := range strings.Split(content, "\n") {
+			line = strings.TrimSpace(line)
+			switch {
+			case strings.HasPrefix(line, "赛季产出："):
+				result.Focus = append(result.Focus, teamDomainFocus{Domain: "运营", Title: "RMer 人物纪实", Target: teamClip(line, 250), URL: opsURL})
+			case strings.HasPrefix(line, "执行与产出："):
+				result.Focus = append(result.Focus, teamDomainFocus{Domain: "运营", Title: "RMUL / RMUC 赛期记录", Target: teamClip(line, 250), URL: opsURL})
+			}
+		}
+	} else {
+		log.Printf("team state operations plan: %v", err)
+	}
+	orgURL := "https://t0ekqtnsg8e.feishu.cn/wiki/W5vKwTZZSiwDjbkmpzGcLhERnpQ"
+	if content, err := h.teamStateDoc(ctx, token, "JCi8dAso7oOSeMxCWDicdRXFnzd"); err == nil {
+		domainDocsRead++
+		directions := []string{}
+		for _, name := range []string{"机械", "电控", "视觉", "AI"} {
+			if strings.Contains(content, "\n"+name+"\n") {
+				directions = append(directions, name)
+			}
+		}
+		if len(directions) > 0 && strings.Contains(content, "完成或通过标准") {
+			result.Focus = append(result.Focus, teamDomainFocus{Domain: "组织", Title: "新人分阶段培养",
+				Target: "已规划" + strings.Join(directions, "、") + "方向的培养任务与通过标准；实际完成情况待核实", URL: orgURL})
+		}
+	} else {
+		log.Printf("team state training plan: %v", err)
+	}
+	status, detail := "available", ""
+	if domainDocsRead < 2 {
+		status, detail = "partial", "部分运营或培养规划不可读取"
+	}
+	if domainDocsRead == 0 {
+		status = "unavailable"
+	}
+	result.Sources = append(result.Sources, teamSource{Name: "运营与培养规划", Status: status, Detail: detail, URL: opsURL})
 }
 
 func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamBaseRows) {
@@ -595,7 +783,21 @@ func (h *FeishuHandler) teamStateLocal(ctx context.Context, result *teamStateRes
 		log.Printf("team state operations: %v", err)
 		result.Sources = append(result.Sources, teamSource{Name: "运营动态", Status: "unavailable", Detail: "运营数据暂不可读取"})
 	} else {
-		result.Operations = &teamOperations{Active: active, Blocked: blocked, URL: "/dashboard/workbench/operations"}
+		var items []model.OperationsProgressItem
+		err = h.db.WithContext(ctx).Where("status <> ? AND kind <> ?", "done", "channel").
+			Order("updated_at DESC").Limit(4).Find(&items).Error
+		if err != nil {
+			log.Printf("team state operations items: %v", err)
+			result.Sources = append(result.Sources, teamSource{Name: "运营动态", Status: "unavailable", Detail: "运营工作列表暂不可读取"})
+			return
+		}
+		operations := &teamOperations{Active: active, Blocked: blocked, Items: []teamOperationsItem{}, URL: "/dashboard/workbench/operations"}
+		for _, item := range items {
+			operations.Items = append(operations.Items, teamOperationsItem{
+				Title: item.Title, Stage: item.Stage, NextAction: teamClip(item.NextAction, 120), UpdatedAt: item.UpdatedAt,
+			})
+		}
+		result.Operations = operations
 		result.Sources = append(result.Sources, teamSource{Name: "运营动态", Status: "available", URL: "/dashboard/workbench/operations"})
 	}
 }
@@ -603,7 +805,7 @@ func (h *FeishuHandler) teamStateLocal(ctx context.Context, result *teamStateRes
 func (h *FeishuHandler) GetTeamState(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	result := &teamStateResponse{GeneratedAt: time.Now(), Sources: []teamSource{}, Projects: []teamProject{}, Reports: []teamReport{}}
+	result := &teamStateResponse{GeneratedAt: time.Now(), Sources: []teamSource{}, Projects: []teamProject{}, Reports: []teamReport{}, Focus: []teamDomainFocus{}}
 	h.teamStateLocal(ctx, result)
 	h.teamStateProjects(ctx, result)
 	writeAPI(c, http.StatusOK, "获取战队运行状态成功", result)

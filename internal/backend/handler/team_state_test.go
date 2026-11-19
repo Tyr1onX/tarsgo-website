@@ -94,7 +94,7 @@ func TestTeamStateRemoteReadIsReadOnlyAndPartialWhenGoalsUnavailable(t *testing.
 	if snapshot.Summary == nil || snapshot.Summary.Total != 0 {
 		t.Fatalf("empty records should be valid: %+v", snapshot.Summary)
 	}
-	if len(snapshot.Sources) != 3 || snapshot.Sources[0].Status != "available" || snapshot.Sources[1].Status != "unavailable" {
+	if len(snapshot.Sources) != 4 || snapshot.Sources[0].Status != "available" || snapshot.Sources[1].Status != "unavailable" || snapshot.Sources[3].Status != "unavailable" {
 		t.Fatalf("partial source status lost: %+v", snapshot.Sources)
 	}
 	for _, call := range requests {
@@ -147,7 +147,7 @@ func TestTeamStateMissingAppScopeDoesNotInventZeroProgress(t *testing.T) {
 			t.Fatalf("unknown task counts must not be presented as true: %+v", project)
 		}
 	}
-	if len(result.Sources) != 3 || result.Sources[0].Status != "unavailable" ||
+	if len(result.Sources) != 4 || result.Sources[0].Status != "unavailable" ||
 		!strings.Contains(result.Sources[0].SetupURL, "base%3Arecord%3Aread") ||
 		!strings.Contains(result.Sources[1].SetupURL, "docx%3Adocument%3Areadonly") {
 		t.Fatalf("wrong remediation for missing scopes: %+v", result.Sources)
@@ -179,5 +179,64 @@ func TestTeamRadarMeetingFollowsLatestWikiReference(t *testing.T) {
 	text, link, err := h.teamRadarMeeting(context.Background(), "token")
 	if err != nil || link != "https://example.com/latest" || !strings.Contains(text, "雷达联调") || len(calls) != 3 {
 		t.Fatalf("wrong radar latest meeting: text=%q link=%q err=%v calls=%v", text, link, err, calls)
+	}
+}
+
+func TestTeamInfantryGoalsOnlyUseP0Requirements(t *testing.T) {
+	content := "功能清单\nP0:需要且必要\n研发舵轮过洞，弹容量至少400发\n优化底盘算法，改善爬坡功率分配\nP1:需要但不紧急\n预研轮腿\n"
+	goals := teamInfantryGoals(content, "https://example.com/infantry")
+	if len(goals) != 2 || goals[0].Title != "研发舵轮过洞" ||
+		goals[0].Status != "无法判断" || goals[1].URL != "https://example.com/infantry" {
+		t.Fatalf("unexpected infantry goals: %+v", goals)
+	}
+}
+
+func TestTeamDroneGoalsRequireExplicitP0HeadingAndDescription(t *testing.T) {
+	content := "功能清单\nP0 必要且现在就应该做\n双目视觉惯性定位\n今年计划实现无GPS赛场稳定定位，并完成自主起飞与导航的多项联调测试，建立统一位姿基准。\n图片.png\n灯板设计\n航行灯采用轻量化PCB，适配飞行器制作规范，控制重量和机体空间，并兼容可见光通信需求。\nP1 必要但不紧急\n自主冲击制导\n"
+	goals := teamDroneGoals(content, "https://example.com/drone")
+	if len(goals) != 2 || goals[0].Title != "双目视觉惯性定位" ||
+		goals[1].Title != "灯板设计" || goals[0].Status != "无法判断" {
+		t.Fatalf("unexpected drone goals: %+v", goals)
+	}
+}
+
+func TestTeamDartProgressIsNotMarkedAccepted(t *testing.T) {
+	content := "五、现有功能清单\n已研发 —— 镖架视觉测距\n已建立测距方案，后续仍需验收实际精度。\n研发中 —— 有控镖舵面精准制导\n当前仍在联调相关控制模块，尚未完成完整链路测试。\n待研发 —— 赛场快速标定\n需要测试现场快速标定的目标精度和耗时。\n"
+	goals := teamDartGoals(content, "https://example.com/dart")
+	if len(goals) != 3 || goals[0].Status != "有成果待验收" ||
+		goals[1].Status != "无法判断" || goals[2].Status != "无法判断" {
+		t.Fatalf("reported milestones must not count as acceptance: %+v", goals)
+	}
+}
+
+func TestTeamStatePlansAreSourceBackedAndDoNotClaimAcceptance(t *testing.T) {
+	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
+		body := `{"code":0,"data":{"fields":[],"data":[],"record_id_list":[],"has_more":false}}`
+		switch {
+		case strings.HasSuffix(req.URL.Path, "tenant_access_token/internal"):
+			body = `{"code":0,"tenant_access_token":"token"}`
+		case strings.Contains(req.URL.Path, "/documents/MaoodCINCoF3iHxUYcvcofFmnId/"):
+			raw, _ := json.Marshal(map[string]any{"code": 0, "data": map[string]string{"content": "赛季产出：计划完成4期人物纪实，每期3—5分钟。\n执行与产出：两项赛事各计划1期纪实短片。"}})
+			body = string(raw)
+		case strings.Contains(req.URL.Path, "/documents/JCi8dAso7oOSeMxCWDicdRXFnzd/"):
+			raw, _ := json.Marshal(map[string]any{"code": 0, "data": map[string]string{"content": "方向\n机械\n入门阶段\n电控\n综合实践\n视觉\nAI\n完成或通过标准"}})
+			body = string(raw)
+		case strings.Contains(req.URL.Path, "/documents/"):
+			body = `{"code":999,"msg":"not shared"}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	h := &FeishuHandler{cfg: config.FeishuConfig{AppID: "app", AppSecret: "secret"}, client: client}
+	result := &teamStateResponse{Projects: []teamProject{}}
+	h.teamStateProjects(context.Background(), result)
+	if len(result.Focus) != 3 || result.Focus[0].Domain != "运营" ||
+		result.Focus[1].Domain != "运营" || result.Focus[2].Domain != "组织" {
+		t.Fatalf("unexpected domain planning records: %+v", result.Focus)
+	}
+	if !strings.Contains(result.Focus[2].Target, "通过标准") || result.Focus[2].URL == "" {
+		t.Fatalf("missing source-backed organization plan: %+v", result.Focus[2])
+	}
+	if result.Summary != nil && result.Summary.Completed != 0 {
+		t.Fatalf("planning must not count as completed tasks: %+v", result.Summary)
 	}
 }
