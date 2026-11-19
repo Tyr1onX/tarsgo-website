@@ -136,7 +136,9 @@ export default function OperationsWorksPage() {
           <div className="operations-progress__library-main">
             {post.url ? <a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a>
               : <strong>{post.title}</strong>}
-            <small>{operationsPlatformNames[post.platform]} · {formatOperationsDate(post.publishedAt)}</small>
+            <small>{operationsPlatformNames[post.platform]} · {post.platform === "wechat_video"
+              ? new Date(post.publishedAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })
+              : formatOperationsDate(post.publishedAt)}</small>
           </div>
           <span className="operations-progress__library-platforms">{post.mediaType === "image" ? "图文" : "视频"}</span>
           <span className="operations-progress__library-progress">
