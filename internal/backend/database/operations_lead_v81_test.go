@@ -45,10 +45,10 @@ func TestMariaDBOperationsLeadV81PreservesLegacyAssignments(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := migrationRegistry("test")
-	if registry[len(registry)-1].version != 81 {
+	if len(registry) < 81 || registry[80].version != 81 {
 		t.Fatal("expected lead migration v81 to be registered")
 	}
-	if err := registry[len(registry)-1].apply(db); err != nil {
+	if err := registry[80].apply(db); err != nil {
 		t.Fatal(err)
 	}
 	var existing model.OperationsProgressItem
@@ -68,7 +68,7 @@ func TestMariaDBOperationsLeadV81PreservesLegacyAssignments(t *testing.T) {
 	if existing.LeadID == nil || *existing.LeadID != leadID {
 		t.Fatalf("lead ID was not persisted: %+v", existing)
 	}
-	if err := registry[len(registry)-1].apply(db); err != nil {
+	if err := registry[80].apply(db); err != nil {
 		t.Fatal("lead migration must be idempotent: ", err)
 	}
 }
