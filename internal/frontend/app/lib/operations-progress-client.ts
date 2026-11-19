@@ -181,6 +181,10 @@ export function saveOperationsPublication(itemId: number, platform: string,
 export function getOperationsMembers() {
   return apiRequest<OperationsMember[]>("/api/operations/members");
 }
+
+export function deleteOperationsEpisodePlan(itemId: number) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/plan`, { method: "DELETE" });
+}
 export function setupOperationsEpisode(itemId: number, title: string, seriesName: string, platforms: string[],
   leadId: number, owners: Array<{ stepId: number; assigneeId: number }>) {
   return apiRequest<{ id: number }>(`/api/operations/progress/${itemId}/setup`,
@@ -192,6 +196,10 @@ export function getOperationsStepActivity(itemId: number, stepId: number) {
 export function operationsStepFileURL(fileId: number) {
   return `/api/operations/attachments/${fileId}`;
 }
+export function deleteOperationsPost(postId: number) {
+  return apiRequest<{ id: number }>(`/api/operations/posts/${postId}`, { method: "DELETE" });
+}
+
 export function getOperationsWorks(platform = "", page = 1, search = "") {
   const query = new URLSearchParams({ page: String(page) });
   if (platform) query.set("platform", platform);

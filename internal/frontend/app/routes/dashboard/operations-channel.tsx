@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import {
-  formatOperationsDay, getOperationsAttention, getOperationsBoard, getDouyinSyncStatus, operationsAttentionLabel,
+  deleteOperationsEpisodePlan, formatOperationsDay, getOperationsAttention, getOperationsBoard, getDouyinSyncStatus, operationsAttentionLabel,
   type OperationsBoard, type OperationsItem,
 } from "~/lib/operations-progress-client";
 import { OperationsStageBar } from "./operations-stage-bar";
@@ -20,6 +20,7 @@ export default function OperationsChannelPage() {
   const [error, setError] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
   const [douyinSync, setDouyinSync] = useState<{ enabled: boolean; connected: boolean } | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   useEffect(() => {
     let active = true;
     void getOperationsBoard().then((result) => { if (active) setBoard(result); })
@@ -40,7 +41,20 @@ export default function OperationsChannelPage() {
   const visible = [...active.sort((a, b) => Number(getOperationsAttention(a) !== "blocked") - Number(getOperationsAttention(b) !== "blocked") || b.episodeNo - a.episodeNo),
     ...drafts.sort((a, b) => a.episodeNo - b.episodeNo),
     ...(showCompleted ? completed.sort((a, b) => b.episodeNo - a.episodeNo) : [])];
-  const workUrl = `/dashboard/workbench/operations/works?tab=posts&platform=${encodeURIComponent(channel?.platforms ?? "")}`;
+  async function deletePlan(item: OperationsItem) {
+    if (!board?.canManage || deletingId !== null) return;
+    if (!window.confirm(`删除「${item.title}」的策划和进度记录？此操作不可恢复。`)) return;
+    setDeletingId(item.id);
+    setError("");
+    try {
+      await deleteOperationsEpisodePlan(item.id);
+      setBoard(await getOperationsBoard());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "删除策划失败");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return <main className="operations-progress admin-design">
     <Link className="operations-progress__back" to="/dashboard/workbench/operations">返回运营总览</Link>
@@ -55,7 +69,6 @@ export default function OperationsChannelPage() {
             <p className="operations-progress__muted">{active.length} 期进行中 · {drafts.length} 期待启动 · 最近发布 {formatOperationsDay(channel.lastCompletedOn)}</p>
           </div>
           <div className="operations-progress__header-actions">
-            <Link className="admin-button admin-button--secondary" to={workUrl}>历史发布</Link>
             {channel.platforms === "douyin" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/douyin/import">导入抖音数据</Link> : null}
             {channel.platforms === "wechat" && board.canManage ? <Link className="admin-button admin-button--secondary" to="/dashboard/workbench/operations/wechat/import">导入公众号数据</Link> : null}
             {channel.platforms === "douyin" && douyinSync?.enabled && !douyinSync.connected
@@ -83,6 +96,12 @@ export default function OperationsChannelPage() {
             </div>
             <OperationsStageBar item={item} />
             <div className="operations-progress__item-footer">
+              {board.canManage && item.steps.every((step) => step.key === "planning" || step.status === "pending")
+                && item.publications.every((target) => target.status === "pending")
+                ? <button type="button" className="operations-progress__delete-plan"
+                  disabled={deletingId !== null} onClick={() => void deletePlan(item)}>
+                    {deletingId === item.id ? "删除中…" : "删除策划"}
+                  </button> : null}
               <Link className="admin-button admin-button--secondary" to={`/dashboard/workbench/operations/works/${item.id}`}>查看作品详情</Link>
             </div>
           </article>)}

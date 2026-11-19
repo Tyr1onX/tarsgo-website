@@ -279,6 +279,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 	}
 	var published []platformLatest
 	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsPlatformPost{}).
+		Where("hidden = ?", false).
 		Select("platform, MAX(published_at) AS latest").Group("platform").Scan(&published).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "平台发布数据读取失败")
 		return
@@ -286,7 +287,7 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 	latestPosts := make([]model.OperationsPlatformPost, 0, len(published))
 	for _, entry := range published {
 		var post model.OperationsPlatformPost
-		if err := h.db.WithContext(c.Request.Context()).Where("platform = ?", entry.Platform).
+		if err := h.db.WithContext(c.Request.Context()).Where("platform = ? AND hidden = ?", entry.Platform, false).
 			Order("published_at DESC, id DESC").Take(&post).Error; err != nil {
 			writeAPIError(c, http.StatusInternalServerError, "最近发布作品读取失败")
 			return

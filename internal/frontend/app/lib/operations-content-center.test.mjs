@@ -145,3 +145,31 @@ test("quick launch starts planning without advancing to filming or forcing assig
   assert.match(css, /grid-template-rows: auto minmax\(8rem/);
   assert.match(css, /operations-progress__library-row/);
 });
+
+test("operations delete actions are permission-gated and historical posts stay suppressed after sync", async () => {
+  const [channel, works, client, handler, model, progress] = await Promise.all([
+    read("../routes/dashboard/operations-channel.tsx"),
+    read("../routes/dashboard/operations-works.tsx"),
+    read("./operations-progress-client.ts"),
+    read("../../../backend/handler/operations_production.go"),
+    read("../../../backend/model/operations_public_metrics.go"),
+    read("../../../backend/handler/operations_progress.go"),
+  ]);
+  const router = await read("../../../backend/router/router.go");
+  assert.match(channel, /board\.canManage && item\.steps\.every/);
+  assert.match(channel, /"删除策划"/);
+  assert.match(channel, /await deleteOperationsEpisodePlan\(item\.id\)/);
+  assert.doesNotMatch(channel, />历史发布</);
+  assert.match(works, /board\?\.canManage \? <button/);
+  assert.match(works, /"删除记录"/);
+  assert.match(works, /await deleteOperationsPost\(id\)/);
+  assert.match(client, /method: "DELETE"/);
+  assert.match(router, /DELETE\("\/operations\/progress\/:id\/plan"/);
+  assert.match(router, /DELETE\("\/operations\/posts\/:id"/);
+  assert.match(handler, /func \(h \*OperationsProgressHandler\) DeleteEpisodePlan/);
+  assert.match(handler, /func \(h \*OperationsProgressHandler\) DeletePost/);
+  assert.match(handler, /errOperationsPlanCannotDelete/);
+  assert.match(handler, /Where\("hidden = \?", false\)/);
+  assert.match(model, /Hidden\s+bool/);
+  assert.match(progress, /Where\("hidden = \?", false\)/);
+});
