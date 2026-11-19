@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,7 @@ type trainingDocumentStore interface {
 type TrainingDocumentHandler struct {
 	store trainingDocumentStore
 	files *privatefile.Store
+	treeMu sync.Mutex
 }
 
 func NewTrainingDocumentHandler(store trainingDocumentStore, files *privatefile.Store) *TrainingDocumentHandler {
@@ -61,8 +63,12 @@ var trainingImageName = regexp.MustCompile(`^[a-f0-9]{32}\.(?:jpg|jpeg|png|gif|w
 var trainingUploadToken = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
 
 func (h *TrainingDocumentHandler) Get(c *gin.Context) {
-	key, _, ok := trainingDocumentKey(c.Param("slug"))
-	if !ok {
+	key, _, resolveErr := h.documentKey(c.Request.Context(), c.Param("slug"))
+	if resolveErr != nil {
+		writeAPIError(c, http.StatusInternalServerError, "读取文档失败")
+		return
+	}
+	if key == "" {
 		writeAPIError(c, http.StatusNotFound, "文档不存在")
 		return
 	}
@@ -75,8 +81,12 @@ func (h *TrainingDocumentHandler) Get(c *gin.Context) {
 }
 
 func (h *TrainingDocumentHandler) Save(c *gin.Context) {
-	key, scopeID, ok := trainingDocumentKey(c.Param("slug"))
-	if !ok {
+	key, scopeID, resolveErr := h.documentKey(c.Request.Context(), c.Param("slug"))
+	if resolveErr != nil {
+		writeAPIError(c, http.StatusInternalServerError, "读取文档失败")
+		return
+	}
+	if key == "" {
 		writeAPIError(c, http.StatusNotFound, "文档不存在")
 		return
 	}
@@ -186,7 +196,7 @@ func validateTrainingImages(files []*multipart.FileHeader, tokens []string, body
 
 func (h *TrainingDocumentHandler) Image(c *gin.Context) {
 	scope, err := strconv.ParseUint(c.Param("scope"), 10, 64)
-	if err != nil || (scope < 1 || scope > 8) {
+	if err != nil || !h.scopeAllowed(c.Request.Context(), scope) {
 		c.Status(http.StatusNotFound)
 		return
 	}
