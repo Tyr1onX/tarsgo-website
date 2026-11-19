@@ -5,15 +5,16 @@ import { apiRequest } from "~/lib/api-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import "./team-state.css";
 
-type Source = { name: string; status: "available" | "partial" | "unavailable"; detail?: string; url?: string };
+type Source = { name: string; status: "available" | "partial" | "unavailable"; detail?: string; url?: string; setupUrl?: string };
 type Goal = { id: string; title: string; target: string; url: string };
 type Task = {
   id: string; title: string; assignees: string[]; status: string; priority?: string;
   due?: string; completedAt?: string; overdue: boolean;
 };
 type Project = {
-  id: string; name: string; tasks: Task[]; completed: number; goals: Goal[];
-  meetingExcerpt?: string; meetingUrl?: string; url: string;
+  id: string; name: string; owner?: string; members?: string; status?: string; tasksLoaded: boolean;
+  tasks: Task[]; completed: number; goals: Goal[];
+  planExcerpt?: string; meetingExcerpt?: string; meetingUrl?: string; url: string;
 };
 type Report = { id: number; member: string; group: string; week: string; completed?: string; blockers?: string; nextPlan?: string };
 type Insight = { kind: "事实" | "推断"; text: string; sourceUrl: string };
@@ -94,6 +95,13 @@ export default function TeamStatePage() {
     {error && <div role="alert" className="admin-alert admin-alert--error">{error}</div>}
     {loading && !snapshot && <div role="status" className="team-state__empty">正在读取运行状态…</div>}
     {snapshot && <>
+      {snapshot.sources.some((source) => source.status === "unavailable") && <section className="team-state__access" aria-label="数据源读取问题">
+        {snapshot.sources.filter((source) => source.status === "unavailable").map((source) => <div key={source.name}>
+          <strong>{source.name}</strong><span>{source.detail || "暂不可读取"}</span>
+          {source.setupUrl && <OriginalLink href={source.setupUrl}>开通飞书读取权限</OriginalLink>}
+          <OriginalLink href={source.url}>查看原始来源</OriginalLink>
+        </div>)}
+      </section>}
       {summary ? <section className="team-state__metrics" aria-label="项目任务概况">
         <div><strong>{snapshot.projects.length}</strong><span>已登记项目</span></div>
         <div><strong>{summary.completed} / {summary.total}</strong><span>任务标记完成</span></div>
@@ -122,7 +130,7 @@ export default function TeamStatePage() {
               className={"team-state__project" + (item.id === selectedID ? " team-state__project--selected" : "")}
               onClick={() => setSelectedID(item.id)} aria-pressed={item.id === selectedID}>
               <span>{item.name}</span>
-              <small>{item.completed} / {item.tasks.length} 条任务</small>
+              <small>{item.tasksLoaded ? `${item.completed} / ${item.tasks.length} 条任务` : "资料索引"}</small>
             </button>)}
           </div>
         </section>
@@ -131,22 +139,26 @@ export default function TeamStatePage() {
           {project ? <>
             <div className="team-state__section-head">
               <h2>{project.name}</h2>
-              <OriginalLink href={project.url}>原始任务</OriginalLink>
+              <OriginalLink href={project.url}>{project.tasksLoaded ? "原始任务" : "资料来源"}</OriginalLink>
             </div>
-            <h3>最终目标</h3>
+            {(project.owner || project.status) && <p className="team-state__project-meta">{project.owner ? `负责人：${project.owner}` : ""}{project.status ? ` · ${project.status}` : ""}</p>}
+            <h3>赛季验收要求</h3>
             {project.goals.length ? <div className="team-state__goals">
               {project.goals.map((goal) => <div key={goal.id} className="team-state__goal">
                 <div><strong>{goal.id} · {goal.title}</strong><OriginalLink href={goal.url}>目标来源</OriginalLink></div>
                 <p>{goal.target}</p>
                 <small>本看板尚未关联验收结果</small>
               </div>)}
-            </div> : <p className="team-state__muted">尚未关联可核验的最终目标。</p>}
+            </div> : <p className="team-state__muted">尚未关联明确的量化验收要求。</p>}
+            {project.planExcerpt && <section className="team-state__plan">
+              <h3>研发需求 · 文档摘录</h3><p>{project.planExcerpt}</p>
+            </section>}
 
             <div className="team-state__section-head team-state__subhead">
               <h3>当前任务</h3>
               <span className="team-state__muted">{project.tasks.length} 条</span>
             </div>
-            {project.tasks.length === 0 && <p className="team-state__muted">暂无关联任务。</p>}
+            {!project.tasksLoaded ? <p className="team-state__muted">任务表尚未读取，无法确认本项目任务进度。</p> : project.tasks.length === 0 ? <p className="team-state__muted">暂无关联任务。</p> : null}
             <div className="team-state__task-list">
               {[...project.tasks].sort((a, b) => Number(b.overdue) - Number(a.overdue)).map((task) =>
                 <div key={task.id} className="team-state__task">
@@ -200,6 +212,7 @@ export default function TeamStatePage() {
         <ul>{snapshot.sources.map((source) => <li key={source.name}>
           <span>{source.name} · {source.status === "available" ? "可读取" : source.status === "partial" ? "部分可读取" : "不可读取"}</span>
           <span>{source.detail}</span>
+          {source.setupUrl && <OriginalLink href={source.setupUrl}>开通权限</OriginalLink>}
           <OriginalLink href={source.url}>打开来源</OriginalLink>
         </li>)}</ul>
       </details>
