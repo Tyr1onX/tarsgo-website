@@ -39,13 +39,13 @@ test("training documents use a persistent expandable tree without losing the ori
 test("Git chapter keeps its complete hands-on walkthrough and reference links", async () => {
   const guide = await read("../content/training/git-and-github.md");
   const picture = await read("../../../../public/assets/images/training/git-workflow.svg");
-  for (const heading of ["先理解四个位置", "安装 Git 并设置提交身份", "创建自己的练习仓库", "提交并确认本地版本", "把本地仓库连接到 GitHub", "检查 GitHub 上的最终结果", "常见问题"]) {
+  for (const heading of ["工作区、暂存区、本地仓库与远程仓库", "Git 安装与提交身份", "初始化仓库与暂存文件", "提交及历史记录", "关联 GitHub 远程仓库", "本地与远程状态核对", "常见问题"]) {
     assert.ok(guide.includes(heading), heading);
   }
   for (const command of ["git --version", "git init -b main", "git add README.md", "git commit -m", "git log --oneline -1", "git remote add origin", "git push -u origin main"]) {
     assert.ok(guide.includes(command), command);
   }
-  for (const bv of ["BV1Y8aL6SEit", "BV1LwHv6LEYz"]) assert.ok(guide.includes(bv));
+  assert.match(guide, /https:\/\/git-scm\.com\/downloads/);
   assert.match(guide, /git-workflow\.svg/);
   assert.match(picture, /git (add|commit|push)/i);
 });
