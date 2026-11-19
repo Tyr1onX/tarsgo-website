@@ -43,32 +43,45 @@ type teamTask struct {
 	Overdue     bool     `json:"overdue"`
 }
 
+type teamMeetingRecord struct {
+	Date       string   `json:"date"`
+	Updates    []string `json:"updates"`
+	Blocker    string   `json:"blocker,omitempty"`
+	NextAction string   `json:"nextAction,omitempty"`
+	URL        string   `json:"url"`
+	excerpt    string
+}
+
 type teamProject struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	Owner           string     `json:"owner,omitempty"`
-	TasksLoaded     bool       `json:"tasksLoaded"`
-	Tasks           []teamTask `json:"tasks"`
-	Completed       int        `json:"completed"`
-	InProgress      int        `json:"inProgress"`
-	NotStarted      int        `json:"notStarted"`
-	Stalled         int        `json:"stalled"`
-	LastMeetingDate string     `json:"lastMeetingDate,omitempty"`
-	Updates         []string   `json:"updates"`
-	Blocker         string     `json:"blocker,omitempty"`
-	NextAction      string     `json:"nextAction,omitempty"`
-	MeetingExcerpt  string     `json:"meetingExcerpt,omitempty"`
-	MeetingURL      string     `json:"meetingUrl,omitempty"`
-	URL             string     `json:"url"`
+	ID                       string              `json:"id"`
+	Name                     string              `json:"name"`
+	Owner                    string              `json:"owner,omitempty"`
+	TasksLoaded              bool                `json:"tasksLoaded"`
+	Tasks                    []teamTask          `json:"tasks"`
+	Completed                int                 `json:"completed"`
+	InProgress               int                 `json:"inProgress"`
+	NotStarted               int                 `json:"notStarted"`
+	Stalled                  int                 `json:"stalled"`
+	MissingCompletedDate     int                 `json:"missingCompletedDate"`
+	ConflictingCompletedDate int                 `json:"conflictingCompletedDate"`
+	History                  []teamMeetingRecord `json:"history"`
+	LastMeetingDate          string              `json:"lastMeetingDate,omitempty"`
+	Updates                  []string            `json:"updates"`
+	Blocker                  string              `json:"blocker,omitempty"`
+	NextAction               string              `json:"nextAction,omitempty"`
+	MeetingExcerpt           string              `json:"meetingExcerpt,omitempty"`
+	MeetingURL               string              `json:"meetingUrl,omitempty"`
+	URL                      string              `json:"url"`
 }
 
 type teamSummary struct {
-	Total                int `json:"total"`
-	Completed            int `json:"completed"`
-	InProgress           int `json:"inProgress"`
-	NotStarted           int `json:"notStarted"`
-	Stalled              int `json:"stalled"`
-	MissingCompletedDate int `json:"missingCompletedDate"`
+	Total                    int `json:"total"`
+	Completed                int `json:"completed"`
+	InProgress               int `json:"inProgress"`
+	NotStarted               int `json:"notStarted"`
+	Stalled                  int `json:"stalled"`
+	MissingCompletedDate     int `json:"missingCompletedDate"`
+	ConflictingCompletedDate int `json:"conflictingCompletedDate"`
 }
 
 type teamStateResponse struct {
@@ -292,7 +305,10 @@ func teamBrief(name, excerpt string) (notes []string, blocker, next string) {
 		}
 		if len([]rune(line)) <= 9 && !strings.ContainsAny(line, "。；，:：") &&
 			!strings.Contains(line, "下周") && !strings.Contains(line, "已") &&
-			!strings.Contains(line, "待") && !strings.Contains(line, "测试") {
+			!strings.Contains(line, "待") && !strings.Contains(line, "测试") &&
+			!strings.Contains(line, "完成") && !strings.Contains(line, "联调") &&
+			!strings.Contains(line, "正在") && !strings.Contains(line, "准备") &&
+			!strings.Contains(line, "继续") {
 			heading = line
 			continue
 		}
@@ -350,7 +366,60 @@ func teamMeetingISO(excerpt string) string {
 	return fmt.Sprintf("%04d-%02d-%02d", date/10000, date/100%100, date%100)
 }
 
-func (h *FeishuHandler) teamRadarMeeting(ctx context.Context, token string) (string, string, error) {
+// Group meetings are already present in the same Docx payload. Extract dated
+// sections without synthesizing task completion trends from a mutable task table.
+func teamMeetingHistory(name, content, sourceURL string) []teamMeetingRecord {
+	lines := strings.Split(content, "\n")
+	records := []teamMeetingRecord{}
+	start := -1
+	add := func(end int) {
+		if start < 0 {
+			return
+		}
+		raw := strings.Join(lines[start:end], "\n")
+		excerpt := teamMeetingExcerpt(raw)
+		if excerpt == "" {
+			return
+		}
+		// The sentry and infantry share a document; only a distinct AI subsection
+		// can be attributed to sentry without mixing infantry work into its history.
+		if name == "27赛季哨兵" && !strings.Contains("\n"+excerpt+"\n", "\nai\n") {
+			return
+		}
+		updates, blocker, next := teamBrief(name, excerpt)
+		if len(updates) == 0 && blocker == "" && next == "" {
+			return
+		}
+		records = append(records, teamMeetingRecord{
+			Date: teamMeetingISO(excerpt), Updates: updates, Blocker: blocker,
+			NextAction: next, URL: sourceURL, excerpt: excerpt,
+		})
+	}
+	for i, line := range lines {
+		if teamMeetingDate(line) == 0 {
+			continue
+		}
+		add(i)
+		start = i
+	}
+	add(len(lines))
+	sort.SliceStable(records, func(i, j int) bool { return records[i].Date > records[j].Date })
+	unique := records[:0]
+	for _, record := range records {
+		if len(unique) > 0 && unique[len(unique)-1].Date == record.Date {
+			continue
+		}
+		unique = append(unique, record)
+		if len(unique) >= 4 {
+			break
+		}
+	}
+	return unique
+}
+
+// Radar stores each meeting in a separate wiki document. Read only the three
+// newest index entries, each with its own original source link.
+func (h *FeishuHandler) teamRadarMeetings(ctx context.Context, token string) ([]teamMeetingRecord, error) {
 	var blocks struct {
 		Items []struct {
 			Text struct {
@@ -366,39 +435,80 @@ func (h *FeishuHandler) teamRadarMeeting(ctx context.Context, token string) (str
 	}
 	endpoint := "https://open.feishu.cn/open-apis/docx/v1/documents/IisUdYmbMo1ypMxKVTWcSjdcnje/blocks"
 	if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"page_size": {"100"}}, nil, "", token, &blocks); err != nil {
-		return "", "", err
+		return nil, err
 	}
-	latest, nodeToken, link := 0, "", ""
+	type candidate struct {
+		date        int
+		token, link string
+	}
+	candidates := []candidate{}
 	for _, block := range blocks.Items {
 		for _, element := range block.Text.Elements {
 			doc := element.MentionDoc
-			if doc != nil {
-				if date := teamMeetingDate(doc.Title); date > latest {
-					latest, nodeToken, link = date, doc.Token, doc.URL
-				}
+			if doc == nil || doc.Token == "" {
+				continue
+			}
+			if date := teamMeetingDate(doc.Title); date > 0 {
+				candidates = append(candidates, candidate{date, doc.Token, doc.URL})
 			}
 		}
 	}
-	if nodeToken == "" {
-		return "", "", fmt.Errorf("radar meeting index has no dated document")
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("radar meeting index has no dated document")
 	}
-	var node struct {
-		Node struct {
-			ObjToken string `json:"obj_token"`
-		} `json:"node"`
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].date > candidates[j].date })
+	if len(candidates) > 4 {
+		candidates = candidates[:4]
 	}
-	endpoint = "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node"
-	if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"token": {nodeToken}, "obj_type": {"wiki"}}, nil, "", token, &node); err != nil {
-		return "", link, err
+	results := make([]teamMeetingRecord, len(candidates))
+	errs := make([]error, len(candidates))
+	var wg sync.WaitGroup
+	for i, item := range candidates {
+		wg.Add(1)
+		go func(i int, item candidate) {
+			defer wg.Done()
+			var node struct {
+				Node struct {
+					ObjToken string `json:"obj_token"`
+				} `json:"node"`
+			}
+			endpoint := "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node"
+			if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"token": {item.token}, "obj_type": {"wiki"}}, nil, "", token, &node); err != nil {
+				errs[i] = err
+				return
+			}
+			if node.Node.ObjToken == "" {
+				errs[i] = fmt.Errorf("radar meeting missing document token")
+				return
+			}
+			content, err := h.teamStateDoc(ctx, token, node.Node.ObjToken)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			parsed := teamMeetingHistory("27赛季雷达", content, item.link)
+			if len(parsed) == 0 {
+				return
+			}
+			results[i] = parsed[0]
+			results[i].Date = fmt.Sprintf("%04d-%02d-%02d", item.date/10000, item.date/100%100, item.date%100)
+		}(i, item)
 	}
-	if node.Node.ObjToken == "" {
-		return "", link, fmt.Errorf("radar meeting document has no object token")
+	wg.Wait()
+	history := []teamMeetingRecord{}
+	var firstErr error
+	for i, entry := range results {
+		if errs[i] != nil && firstErr == nil {
+			firstErr = errs[i]
+		}
+		if entry.Date != "" {
+			history = append(history, entry)
+		}
 	}
-	content, err := h.teamStateDoc(ctx, token, node.Node.ObjToken)
-	if err != nil {
-		return "", link, err
+	if len(history) == 0 && firstErr == nil {
+		firstErr = fmt.Errorf("radar meetings have no usable dated content")
 	}
-	return teamMeetingExcerpt(content), link, nil
+	return history, firstErr
 }
 
 func teamSourceSetupURL(appID string, scopes ...string) string {
@@ -414,7 +524,7 @@ var teamMeetingDocs = map[string]struct{ ID, URL string }{
 	"27赛季重装":  {"SygqdJVZGoQhGhx8tgNcp0etnC7", "https://t0ekqtnsg8e.feishu.cn/wiki/K0FAwMdRQik3pWkdSZ8cd5nvn9g"},
 	"27赛季飞镖":  {"YtTWd7MtIovj5bxdSfscKDpAnde", "https://t0ekqtnsg8e.feishu.cn/wiki/Cu8fwUbizirOaZkC9whcHwMen1b"},
 	"27赛季无人机": {"Q1H3dnqBFoDbZxxIZ51c80Ohnef", "https://t0ekqtnsg8e.feishu.cn/wiki/PwJpwv3pMiJYhIk5WS5cVUYWngf"},
-	"27赛季雷达":  {"IisUdYmbMo1ypMxKVTWcSjdcnje", "https://t0ekqtnsg8e.feishu.cn/wiki/DZISwXt0eisxN8kDhcYcmaEgncd"},
+	"27赛���雷达":  {"IisUdYmbMo1ypMxKVTWcSjdcnje", "https://t0ekqtnsg8e.feishu.cn/wiki/DZISwXt0eisxN8kDhcYcmaEgncd"},
 }
 
 func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamBaseRows) {
@@ -435,7 +545,7 @@ func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamB
 		indices[projects.RecordIDs[i]] = len(result.Projects)
 		result.Projects = append(result.Projects, teamProject{
 			ID: projects.RecordIDs[i], Name: name, Owner: teamText(row["总负责人"]),
-			TasksLoaded: true, Tasks: []teamTask{}, Updates: []string{}, URL: teamStateBaseURL,
+			TasksLoaded: true, Tasks: []teamTask{}, Updates: []string{}, History: []teamMeetingRecord{}, URL: teamStateBaseURL,
 		})
 	}
 	summary := &teamSummary{}
@@ -468,14 +578,19 @@ func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamB
 		}
 		p := &result.Projects[index]
 		p.Tasks = append(p.Tasks, task)
+		if done && finished == "" {
+			p.MissingCompletedDate++
+			summary.MissingCompletedDate++
+		}
+		if !done && finished != "" {
+			p.ConflictingCompletedDate++
+			summary.ConflictingCompletedDate++
+		}
 		summary.Total++
 		switch status {
 		case "已完成":
 			p.Completed++
 			summary.Completed++
-			if finished == "" {
-				summary.MissingCompletedDate++
-			}
 		case "进行中":
 			p.InProgress++
 			summary.InProgress++
@@ -507,7 +622,8 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 	var projects, tasks, members teamBaseRows
 	var projectsErr, tasksErr, membersErr error
 	type meetingResult struct {
-		excerpt string
+		content string
+		history []teamMeetingRecord
 		url     string
 		err     error
 	}
@@ -525,13 +641,13 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 		go func(i int, name string) {
 			defer wg.Done()
 			if name == "27赛季雷达" {
-				meetings[i].excerpt, meetings[i].url, meetings[i].err = h.teamRadarMeeting(ctx, token)
+				meetings[i].history, meetings[i].err = h.teamRadarMeetings(ctx, token)
 				return
 			}
 			doc := teamMeetingDocs[name]
 			content, readErr := h.teamStateDoc(ctx, token, doc.ID)
 			if readErr == nil {
-				meetings[i].excerpt = teamMeetingExcerpt(content)
+				meetings[i].content = content
 			}
 			meetings[i].url, meetings[i].err = doc.URL, readErr
 		}(i, name)
@@ -558,7 +674,7 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 	}
 	if len(result.Projects) == 0 {
 		for name, doc := range teamMeetingDocs {
-			result.Projects = append(result.Projects, teamProject{ID: "doc-" + name, Name: name, Tasks: []teamTask{}, Updates: []string{}, URL: doc.URL})
+			result.Projects = append(result.Projects, teamProject{ID: "doc-" + name, Name: name, Tasks: []teamTask{}, Updates: []string{}, History: []teamMeetingRecord{}, URL: doc.URL})
 		}
 	}
 
@@ -575,23 +691,28 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 		if !ok {
 			continue
 		}
-		p.MeetingURL = meeting.url
-		if p.MeetingURL == "" {
-			p.MeetingURL = teamMeetingDocs[p.Name].URL
+		p.MeetingURL = teamMeetingDocs[p.Name].URL
+		history := meeting.history
+		if p.Name != "27赛季雷达" && meeting.err == nil {
+			history = teamMeetingHistory(p.Name, meeting.content, meeting.url)
 		}
 		if meeting.err != nil {
 			failed++
 			if firstErr == nil {
 				firstErr = meeting.err
 			}
+		}
+		if len(history) == 0 {
+			if meeting.err == nil {
+				failed++
+			}
 			continue
 		}
-		if meeting.excerpt == "" {
-			failed++
-			continue
-		}
-		p.MeetingExcerpt, p.LastMeetingDate = meeting.excerpt, teamMeetingISO(meeting.excerpt)
-		p.Updates, p.Blocker, p.NextAction = teamBrief(p.Name, meeting.excerpt)
+		p.History = history
+		latest := history[0]
+		p.MeetingExcerpt, p.LastMeetingDate = latest.excerpt, latest.Date
+		p.MeetingURL = latest.URL
+		p.Updates, p.Blocker, p.NextAction = latest.Updates, latest.Blocker, latest.NextAction
 		read++
 	}
 	sort.Slice(result.Projects, func(i, j int) bool { return result.Projects[i].Name < result.Projects[j].Name })

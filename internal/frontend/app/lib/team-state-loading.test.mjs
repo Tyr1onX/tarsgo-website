@@ -49,3 +49,24 @@ test("technical dashboard uses fast cached reads and automatically revalidates",
   assert.match(page, /if \(inFlight \|\| controller\.signal\.aborted\) return/);
   assert.match(page, /controller\.abort\(\)/);
 });
+
+test("technical progress shows source-dated history and actionable task data-quality issues", async () => {
+  const page = await readFile(new URL("../routes/admin/team-state.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../routes/admin/team-state.css", import.meta.url), "utf8");
+
+  assert.match(page, /project\.history\.slice\(1\)\.map/);
+  assert.match(page, /此前组会进展/);
+  assert.match(page, /record\.date/);
+  assert.match(page, /<SourceLink url=\{record\.url\}>查看组会原文<\/SourceLink>/);
+  assert.match(page, /record\.updates/);
+  assert.match(page, /record\.blocker/);
+  assert.match(page, /record\.nextAction/);
+  assert.match(page, /summary\.missingCompletedDate/);
+  assert.match(page, /summary\.conflictingCompletedDate/);
+  assert.match(page, /project\.missingCompletedDate/);
+  assert.match(page, /project\.conflictingCompletedDate/);
+  assert.match(page, /task\.status !== "已完成" && task\.completedAt/);
+  assert.match(page, /请到飞书|请核对|核对具体任务|请到飞书核对|进入兵种详情查看具体任务/);
+  assert.match(styles, /\.team-state__history-entry/);
+  assert.match(styles, /\.team-state__quality-note/);
+});

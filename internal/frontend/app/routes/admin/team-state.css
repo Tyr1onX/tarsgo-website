@@ -52,6 +52,13 @@
 .team-state__details > .team-state__panel { display: grid; gap: .85rem; }
 .team-state__update-list { margin: 0; padding-left: 1.3rem; display: grid; gap: .5rem; font-size: .89rem; line-height: 1.55; }
 .team-state__update-list li { overflow-wrap: anywhere; }
+.team-state__quality-note { display: flex; align-items: start; gap: .45rem; margin: 0; font-size: .8rem; line-height: 1.55; color: var(--admin-warning); }
+.team-state__quality-note svg { flex: 0 0 1rem; width: 1rem; height: 1rem; margin-top: .15rem; }
+.team-state__history { display: grid; }
+.team-state__history-entry { border-top: 1px solid var(--admin-border-subtle); padding: .9rem 0; display: grid; gap: .5rem; }
+.team-state__history-entry:first-child { border-top: 0; padding-top: 0; }
+.team-state__history-entry .team-state__section-head { margin-bottom: 0; }
+.team-state__history-entry > p { margin: 0; font-size: .83rem; line-height: 1.55; overflow-wrap: anywhere; }
 .team-state__note { border-top: 1px solid var(--admin-border-subtle); padding-top: .75rem; display: grid; gap: .35rem; }
 .team-state__note strong { display: flex; align-items: center; gap: .35rem; font-size: .84rem; font-weight: 620; }
 .team-state__note strong svg { width: .92rem; height: .92rem; }
