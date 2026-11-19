@@ -39,7 +39,7 @@ test("training documents use a persistent expandable tree without losing the ori
 test("Git chapter keeps its complete hands-on walkthrough and reference links", async () => {
   const guide = await read("../content/training/git-and-github.md");
   const picture = await read("../../../../public/assets/images/training/git-workflow.svg");
-  for (const heading of ["工作区、暂存区、本地仓库与远程仓库", "Git 安装与提交身份", "初始化仓库与暂存文件", "提交及历史记录", "关联 GitHub 远程仓库", "本地与远程状态核对", "常见问题"]) {
+  for (const heading of ["为什么保存文件还需要版本记录", "一个文件怎样成为一次提交", "安装 Git 与查看版本", "创建一个最小仓库", "亲眼看到一次修改前后的区别", "GitHub 怎样与本地仓库连接", "常见问题"]) {
     assert.ok(guide.includes(heading), heading);
   }
   for (const command of ["git --version", "git init -b main", "git add README.md", "git commit -m", "git log --oneline -1", "git remote add origin", "git push -u origin main"]) {
@@ -133,11 +133,8 @@ test("foundation opens directly into real tutorials without an overview", async 
     assert.ok(guide.includes(task), task);
   }
   assert.doesNotMatch(guide + git, /\?group=foundation/);
-  assert.match(guide, /计算机的硬件组成/);
-  assert.match(guide, /操作系统、文件与目录/);
-  assert.match(guide, /软件安装、版本与依赖/);
-  assert.match(guide, /域名、网络与网页访问/);
-  assert.match(git, /工作区、暂存区、本地仓库与远程仓库/);
+  for (const heading of ["计算机怎样执行一个程序", "操作系统为什么存在", "文件、文件夹和路径", "软件为什么有版本与依赖", "浏览器打开网页时发生了什么"]) assert.ok(guide.includes(heading), heading);
+  assert.match(git, /一个文件怎样成为一次提交/);
 });
 
 test("six direction paths explain technical topics while preserving the original routes", async () => {
@@ -189,7 +186,7 @@ test("technical concepts are complete reachable lessons and all internal links r
       ? await read("../content/training/concepts/" + name + ".md")
       : await read("../content/training/" + name + ".md");
     assert.match(source, /^# .+\n/m, name);
-    assert.ok(source.length > (name.startsWith("term-") ? 220 : 1200), name + ": missing technical explanation");
+    assert.ok(source.length > (name.startsWith("term-") ? 650 : 2400), name + ": missing step-by-step explanation");
     assert.ok(backend.includes('ID: "' + name + '"'), name + ": missing catalog node");
     assert.ok(page.includes('"' + name + '":'), name + ": missing default markdown");
 
@@ -201,7 +198,7 @@ test("technical concepts are complete reachable lessons and all internal links r
     const source = await read("../content/training/" + name + ".md");
     assert.doesNotMatch(source, /\*\*(检查|完成判断)：\*\*/, name + ": contains study-process text");
     assert.match(source, /\?doc=term-/, name + ": no concept navigation");
-    assert.ok(source.length > 1200, name + ": missing explanation");
+    assert.ok(source.length > 2400, name + ": missing explanation");
   }
 });
 
@@ -215,4 +212,65 @@ test("knowledge chapters do not show audience, course outcomes, checklists or ne
     assert.doesNotMatch(source, /(?:^## (?:继续学习|自己验证)|^\*\*(?:适用方向|学完后能做什么|完成目标|完成判断|检查)：\*\*)/m, name);
     assert.doesNotMatch(source, /(?:不需要上传或打卡|不必追求标准答案|从手边的电脑开始|如果你的方向需要|返回 \[[^\]]+学习路径)/, name);
   }
+});
+
+test("beginner lessons introduce their ideas before implementation details", async () => {
+  const chapterOrder = {
+    "computer-basics": [
+      "计算机怎样执行一个程序", "操作系统为什么存在",
+      "文件、文件夹和路径", "软件为什么有版本与依赖",
+      "浏览器打开网页时发生了什么",
+    ],
+    "git-and-github": [
+      "为什么保存文件还需要版本记录",
+      "一个文件怎样成为一次提交", "安装 Git 与查看版本",
+      "创建一个最小仓库", "亲眼看到一次修改前后的区别",
+      "GitHub 怎样与本地仓库连接", "分支与协作",
+    ],
+    "path-electrical": [
+      "把“目标”和“实际”表示成数据", "把程序放到控制板上",
+      "获取真实的电机转速", "根据误差调整输出",
+      "让多个工作同时运行",
+    ],
+    "path-hardware": [
+      "电路为什么需要完整通路", "原理图与 PCB 有什么区别",
+      "为什么电源要单独设计", "STM32 为什么需要最小系统",
+      "从练习板变成主控板",
+    ],
+    "path-mechanical": [
+      "从尺寸开始理解三维建模", "几个零件怎样组成一个机构",
+      "电机的运动如何传到轴上", "同一个支架为什么可以用不同材料",
+      "仿真告诉我们什么",
+    ],
+    "path-joint": [
+      "文件与程序从哪里来", "为什么要用 Git 保存变化",
+      "Ubuntu 和终端解决什么问题", "Python：让程序计算平均转速",
+      "C++：用另一种语言表达同一个计算",
+    ],
+    "path-vision": [
+      "图片在程序里是什么", "怎样从图片里挑出目标区域",
+      "从白色像素得到一个位置", "怎样保存每一帧的检测结果",
+      "阈值方法为什么会遇到局限", "连续图片怎样组成实时系统",
+    ],
+    "path-ai": [
+      "机器人怎样知道自己在哪里", "地图告诉机器人什么",
+      "规划与控制有什么区别", "机器人系统要拆成多个节点",
+      "传感器信息不一致怎么办",
+    ],
+  };
+  for (const [name, headings] of Object.entries(chapterOrder)) {
+    const body = await read("../content/training/" + name + ".md");
+    let last = -1;
+    for (const heading of headings) {
+      const index = body.indexOf(heading);
+      assert.ok(index > last, name + ": out-of-order or missing step: " + heading);
+      last = index;
+    }
+  }
+  const basics = await read("../content/training/computer-basics.md");
+  assert.match(basics, /磁盘像书架/);
+  assert.match(basics, /路径的起点/);
+  const git = await read("../content/training/git-and-github.md");
+  assert.match(git, /已经保存的版本/);
+  assert.match(git, /git diff/);
 });
