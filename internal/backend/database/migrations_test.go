@@ -37,15 +37,21 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	}
 }
 
-
 func TestMigration86RetiresDefaultGroupWithoutDeletingHistory(t *testing.T) {
 	items := migrationRegistry("test")
 	sqlDB, mock, err := sqlmock.New()
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
-	if err != nil { _ = sqlDB.Close(); t.Fatal(err) }
+	if err != nil {
+		_ = sqlDB.Close()
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
-		if err := mock.ExpectationsWereMet(); err != nil { t.Errorf("unmet SQL expectation: %v", err) }
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectation: %v", err)
+		}
 		_ = sqlDB.Close()
 	})
 	mock.ExpectExec("DELETE members FROM user_group_members").WillReturnResult(sqlmock.NewResult(0, 3))
