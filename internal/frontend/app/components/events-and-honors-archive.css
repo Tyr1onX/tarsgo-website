@@ -65,14 +65,6 @@
   background: #101514;
 }
 
-.honors-featured-visual::after {
-  position: absolute;
-  inset: 35% 0 0;
-  background: linear-gradient(180deg, transparent, rgb(5 8 7 / 0.78));
-  content: "";
-  pointer-events: none;
-}
-
 .honors-featured-visual img {
   display: block;
   width: 100%;
@@ -80,27 +72,6 @@
   min-height: 29rem;
   object-fit: cover;
   object-position: center;
-}
-
-.honors-featured-visual figcaption {
-  position: absolute;
-  z-index: 1;
-  inset: auto 1.5rem 1.4rem;
-  display: grid;
-  gap: 0.4rem;
-  color: #fff;
-}
-
-.honors-featured-visual figcaption span {
-  color: rgb(255 255 255 / 78%);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-}
-
-.honors-featured-visual figcaption strong {
-  font-size: clamp(1.15rem, 2.4vw, 1.8rem);
-  font-weight: 600;
 }
 
 .honors-featured-records {
@@ -605,11 +576,6 @@
 
   .honors-featured-visual {
     aspect-ratio: 4 / 3;
-  }
-
-  .honors-featured-visual figcaption {
-    inset-inline: 1rem;
-    bottom: 1rem;
   }
 
   .honors-year-row {

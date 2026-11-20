@@ -2453,13 +2453,6 @@ html[data-theme-transition] :is(
   line-height: 1.45;
 }
 
-.robot-gallery__caption-copy p {
-  margin-top: 0.3rem;
-  color: var(--theme-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-}
-
 .robot-gallery__dialog {
   width: min(94vw, 70rem);
   max-width: none;

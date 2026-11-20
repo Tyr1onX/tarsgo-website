@@ -165,6 +165,31 @@ test("topic content keeps the five group definitions, dedicated about page, and 
   assert.match(joinExperience, /memberGrowthStages\.map/);
 });
 
+test("public photo illustrations do not show redundant explanatory captions", async () => {
+  const robotGallery = await readFile(new URL("../components/robot-photo-gallery.tsx", import.meta.url), "utf8");
+  const historyStyles = await readFile(new URL("../components/team-history-archive.css", import.meta.url), "utf8");
+  const robotStyles = await readFile(new URL("../app.css", import.meta.url), "utf8");
+
+  for (const component of [joinExperience, aboutPage, historyArchive, eventsArchive]) {
+    assert.doesNotMatch(component, /<figcaption/, "public illustrative photos should not display captions");
+  }
+  assert.doesNotMatch(joinExperience, /团队协作现场 · 通用团队影像|story\.caption|caption:/);
+  assert.doesNotMatch(aboutPage, /photo\.caption|caption:/);
+  assert.doesNotMatch(historyData, /caption:/);
+  assert.doesNotMatch(joinStyles, /figcaption/);
+  assert.doesNotMatch(aboutStyles, /figcaption/);
+  assert.doesNotMatch(historyStyles, /figcaption/);
+  assert.doesNotMatch(eventsStyles, /figcaption/);
+
+  assert.match(homeVisualNavigation, /!module\.image \? <p>\{module\.description\}<\/p> : null/);
+  assert.match(homeVisualNavigation, /<h3>\{module\.title\}<\/h3>/);
+  assert.match(homeVisualNavigation, /alt=\{module\.alt\}/);
+  assert.match(robotGallery, /<h2>\{robot\.name\}<\/h2>/);
+  assert.doesNotMatch(robotGallery, /<p>\{robot\.category\}<\/p>/);
+  assert.doesNotMatch(robotStyles, /\.robot-gallery__caption-copy p\s*\{/);
+  assert.match(historyArchive, /image\.sourceIds\.map/);
+});
+
 test("the homepage keeps six photos around two co-creation entries and preserves legacy navigation", () => {
   const modules = homeVisualNavigation.match(/const homeNavigationModules: HomeNavigationModule\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.deepEqual(Array.from(modules.matchAll(/title: "([^"]+)"/g), ([, title]) => title), [

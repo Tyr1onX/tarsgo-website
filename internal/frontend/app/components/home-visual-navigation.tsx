@@ -159,7 +159,7 @@ function HomeVisualCard({ module }: { module: HomeNavigationModule }) {
       ) : null}
       <div className="home-visual-card-copy">
         <h3>{module.title}</h3>
-        <p>{module.description}</p>
+        {!module.image ? <p>{module.description}</p> : null}
       </div>
       <svg className="home-visual-card-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M5 12h14m-6-6 6 6-6 6" />

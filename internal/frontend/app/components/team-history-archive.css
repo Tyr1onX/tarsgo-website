@@ -196,13 +196,6 @@ a.team-history-source:hover {
   object-fit: cover;
 }
 
-.team-history-photo figcaption {
-  margin-top: 0.5rem;
-  color: var(--admin-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
 .team-history-photo ul {
   margin-top: 0.5rem;
 }

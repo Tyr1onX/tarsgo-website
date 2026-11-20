@@ -161,7 +161,6 @@ export function RobotPhotoGallery() {
               <span className="robot-gallery__number">{robot.number}</span>
               <div className="robot-gallery__caption-copy">
                 <h2>{robot.name}</h2>
-                <p>{robot.category}</p>
               </div>
             </figcaption>
           </figure>
