@@ -36,6 +36,15 @@ const themeBootstrapScript = `(() => {
   root.dataset.theme = resolved;
   root.dataset.themePreference = preference;
   root.style.colorScheme = resolved;
+  try {
+    if (
+      window.location.pathname === "/" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+      window.sessionStorage.getItem("tarsgo-opening-seen") !== "1"
+    ) {
+      root.dataset.homeOpening = "pending";
+    }
+  } catch {}
 })();`;
 
 export const links: Route.LinksFunction = () => [
