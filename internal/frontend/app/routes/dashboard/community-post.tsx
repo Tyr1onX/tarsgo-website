@@ -161,6 +161,20 @@ export default function CommunityPostRoute() {
     if (focusedCommentTimeoutRef.current !== null) window.clearTimeout(focusedCommentTimeoutRef.current);
   }, []);
 
+  useEffect(() => {
+    if (!detail || editingPost || editingCommentID !== null || replyOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.repeat || event.key.toLowerCase() !== "r" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest("input, textarea, select, button, a, [contenteditable=true], [role=combobox]")) return;
+      event.preventDefault();
+      setReplyTarget(null);
+      setReplyOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [detail, editingPost, editingCommentID, replyOpen]);
+
   function focusComment(commentID: number) {
     setFocusedCommentID(commentID);
     if (focusedCommentTimeoutRef.current !== null) window.clearTimeout(focusedCommentTimeoutRef.current);

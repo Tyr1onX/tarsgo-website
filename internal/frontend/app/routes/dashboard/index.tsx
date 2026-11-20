@@ -69,6 +69,21 @@ export default function DashboardIndex() {
 
   useEffect(() => { setQueryDraft(query); }, [query]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.repeat || event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest("input, textarea, select, button, a, [contenteditable=true], [role=combobox]")) return;
+      const searchInput = document.getElementById("community-search") as HTMLInputElement | null;
+      if (!searchInput) return;
+      event.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const loadFirstPage = useCallback(async (keepCachedPosts = false) => {
     const requestID = ++requestRef.current;
     listAbortRef.current?.abort();

@@ -11,6 +11,7 @@ import {
 } from "~/lib/dashboard-navigation";
 import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
 import { getWeeklyReportStatus } from "~/lib/weekly-report-client";
+import { useTheme } from "~/components/theme-provider";
 import "./dashboard-steady-ui.css";
 
 export type DashboardTaskCounts = {
@@ -160,7 +161,8 @@ type CommandEntry = {
   id: string;
   label: string;
   group: string;
-  href: string;
+  href?: string;
+  action?: () => void;
   keywords: string;
 };
 
@@ -172,6 +174,7 @@ export function DashboardCommandPalette({
   hasAssignmentGroup: boolean;
 }) {
   const navigate = useNavigate();
+  const { resolvedTheme, setPreference } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -186,6 +189,18 @@ export function DashboardCommandPalette({
       items.push({ id, label, group, href, keywords: `${label} ${group} ${keywords}`.toLowerCase() });
     };
 
+    items.push({
+      id: "action-toggle-theme",
+      label: resolvedTheme === "dark" ? "切换为白金浅色主题" : "切换为黑金深色主题",
+      group: "快捷动作",
+      action: () => setPreference(resolvedTheme === "dark" ? "light" : "dark"),
+      keywords: "切换主题 theme dark light 黑金 白金 浅色 深色",
+    });
+    if (hasWorkbenchAccess(currentUser)) {
+      push("action-write-weekly", "填写本周工作周报", "快捷动作", "/dashboard/weekly-reports?edit=1", "写周报 新建周报 weekly");
+    }
+    push("action-my-profile", "打开我的个人主页", "快捷动作", `/dashboard/members/${currentUser.id}`, "个人主页 资料 徽章 profile");
+
     for (const item of getDashboardSectionMenu(currentUser)) {
       push(item.key, item.label, "主要入口", item.href);
     }
@@ -199,7 +214,7 @@ export function DashboardCommandPalette({
     }
     push("questions", "常见问题", "帮助", "/dashboard/questions", "faq 指南");
     return items;
-  }, [currentUser, hasAssignmentGroup]);
+  }, [currentUser, hasAssignmentGroup, resolvedTheme, setPreference]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -235,7 +250,11 @@ export function DashboardCommandPalette({
   function selectEntry(entry: CommandEntry | undefined) {
     if (!entry) return;
     setOpen(false);
-    navigate(entry.href);
+    if (entry.action) {
+      entry.action();
+    } else if (entry.href) {
+      navigate(entry.href);
+    }
   }
 
   return (
@@ -283,7 +302,7 @@ export function DashboardCommandPalette({
                   } else if (event.key === "ArrowUp") {
                     event.preventDefault();
                     setActiveIndex((idx) => (filtered.length ? (idx - 1 + filtered.length) % filtered.length : 0));
-                  } else if (event.key === "Enter") {
+                  } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
                     event.preventDefault();
                     selectEntry(filtered[activeIndex]);
                   }
@@ -703,7 +722,7 @@ export function DashboardBackToTop() {
       className="dashboard-back-to-top"
       aria-label="回到顶部"
       title="回到顶部"
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="m18 15-6-6-6 6" />
