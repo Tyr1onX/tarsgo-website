@@ -8,6 +8,15 @@ import { ThemeControl } from "~/components/theme-control";
 import { DashboardSectionNavigation } from "~/components/dashboard-section-navigation";
 import { AccountMenuActionIcon, AccountMenuIdentity, AccountSessionChoices, useAccountSessionChoices } from "~/components/account-session-choices";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
+import { DashboardGroupCheckinToast, markDashboardLoginCeremony } from "~/components/dashboard-group-checkin";
+import {
+  DashboardCommandPalette,
+  DashboardMobileBottomNav,
+  DashboardTopbarBreadcrumb,
+  DashboardTopbarTodoPill,
+  useDashboardTaskCounts,
+  type DashboardTaskCounts,
+} from "~/components/dashboard-steady-ui";
 import { CommunityExperienceToastHost } from "~/components/community-experience-toast-host";
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
 import { ApiError } from "~/lib/api-client";
@@ -53,6 +62,7 @@ export interface DashboardLayoutOutletContext {
   setPageTitle: (title: string) => void;
   groupResolution: UserGroupConfirmationState | null;
   groupResolutionError: string;
+  taskCounts: DashboardTaskCounts;
   openMyProfile: (tab?: "overview" | "settings" | "badges") => void;
   refreshAccountProfile: () => void;
   requestBadgeReplay: (levelCode: CoBuilderBadgeLevel) => void;
@@ -308,7 +318,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const currentBadgeReplayRequest = badgeReplayRequest?.userId === currentUser.id ? badgeReplayRequest : null;
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
+  const permissionsKey = groupResolution?.groups.map((group) => `${group.groupId}:${group.role}`).sort().join(",") ?? "";
+  const taskCounts = useDashboardTaskCounts({ currentUser, hasAssignmentGroup, permissionsKey });
   const sectionMenuItems = getDashboardSectionMenu(currentUser).filter(({ key }) => key !== "my-profile");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches) return;
+    try {
+      const saved = window.localStorage.getItem("tarsgo-dashboard-sidebar-open");
+      setSidebarOpen(saved === null ? true : saved === "1");
+    } catch {
+      setSidebarOpen(true);
+    }
+  }, []);
   const activeSectionKey = getDashboardSectionKey(location.pathname, currentUser.id);
   const currentUserName = getAuthUserName(currentUser);
   const userInitial = (currentUserName || "U")
@@ -510,7 +532,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   function toggleSidebar() {
     setSidebarOpen((open) => {
       const nextOpen = !open;
-      if (nextOpen && !window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches) {
+      if (window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches) {
+        try {
+          window.localStorage.setItem("tarsgo-dashboard-sidebar-open", nextOpen ? "1" : "0");
+        } catch {
+          // Ignore storage failures in restricted browsing modes.
+        }
+      } else if (nextOpen) {
         requestAnimationFrame(() => sidebarRef.current?.querySelector<HTMLElement>("a, button")?.focus());
       }
       return nextOpen;
@@ -553,6 +581,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     setLoggingOut(true);
     try {
       const { user } = await switchAccountSession(accountId);
+      markDashboardLoginCeremony(user.id);
       setDisplayUser(user);
       setUserMenuOpen(false);
       await navigate(getDefaultDashboardPath(user.role.name), { replace: true });
@@ -629,9 +658,15 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <SiteLogo className="h-6 max-w-[88px] sm:h-7 sm:max-w-[104px]" />
           </Link>
 
-          {isCommunityPostRoute && pageTitle ? <div className="dashboard-shell__page-title" title={pageTitle}>{pageTitle}</div> : null}
+          {isCommunityPostRoute && pageTitle ? (
+            <div className="dashboard-shell__page-title" title={pageTitle}>{pageTitle}</div>
+          ) : (
+            <DashboardTopbarBreadcrumb pathname={location.pathname} currentUser={currentUser} hasAssignmentGroup={hasAssignmentGroup} />
+          )}
 
           <div className="dashboard-shell__header-actions ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            <DashboardCommandPalette currentUser={currentUser} hasAssignmentGroup={hasAssignmentGroup} />
+            <DashboardTopbarTodoPill counts={taskCounts} />
             <ThemeControl />
             <div ref={userMenuRef}>
               <button
@@ -696,8 +731,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <DashboardSectionNavigation
               currentUser={currentUser}
               hasAssignmentGroup={hasAssignmentGroup}
-              permissionsKey={groupResolution?.groups.map((group) => `${group.groupId}:${group.role}`).sort().join(",") ?? ""}
-              visible={sidebarOpen}
+              counts={taskCounts}
               onNavigate={handleSidebarNavigate}
             />
           </nav>
@@ -707,12 +741,22 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="dashboard-shell__content relative">
             {groupResolutionError ? <div className="admin-notice admin-notice--error mb-4" role="status">所属组别暂时无法刷新，仍使用最近一次成功结果：{groupResolutionError}</div> : null}
-            <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, taskCounts, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
         <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />
         </div>
       </div>
+      <DashboardMobileBottomNav
+        currentUser={currentUser}
+        hasAssignmentGroup={hasAssignmentGroup}
+        counts={taskCounts}
+      />
+      <DashboardGroupCheckinToast
+        key={`checkin-${currentUser.id}`}
+        currentUser={currentUser}
+        groups={groupResolution?.groups ?? []}
+      />
       <CoBuilderBadgeUnlockToast
         key={currentUser.id}
         onOpenProfile={() => openMyProfile("badges")}
@@ -745,7 +789,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             items[nextIndex]?.focus();
           }}
         >
-          <AccountMenuIdentity user={currentUser} />
+          <AccountMenuIdentity user={currentUser} groups={groupResolution?.groups ?? []} />
           <div className="account-menu-actions">
             <AccountSessionChoices
               accounts={accountSessions}

@@ -812,6 +812,7 @@
   border: 1px solid var(--admin-border-subtle);
   border-radius: var(--admin-radius-lg);
   background: var(--admin-surface);
+  box-shadow: var(--admin-card-elevation, none);
 }
 
 .admin-design .admin-section-heading {
@@ -1031,6 +1032,13 @@
   letter-spacing: 0.025em;
 }
 
+.admin-design .admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--admin-surface-subtle);
+}
+
 .admin-design .admin-table th,
 .admin-design .admin-table td {
   padding: 0.625rem 0.875rem;
@@ -1052,8 +1060,9 @@
 }
 
 .admin-design .admin-table-empty {
-  padding: var(--admin-space-6) var(--admin-space-4);
-  color: var(--admin-dim);
+  padding: 2.25rem var(--admin-space-4);
+  color: var(--admin-muted);
+  font-size: 0.8125rem;
   text-align: center;
 }
 
@@ -1991,7 +2000,36 @@
   animation: content-skeleton-appear 0s 300ms both;
 }
 
+.content-skeleton [aria-hidden="true"] > span {
+  position: relative;
+  overflow: hidden;
+}
+
+.content-skeleton [aria-hidden="true"] > span::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.08) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: content-skeleton-shimmer 1.45s ease-in-out infinite;
+  content: "";
+}
+
+:root[data-theme="light"] .content-skeleton [aria-hidden="true"] > span::after {
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.65) 50%, transparent 100%);
+}
+
 @keyframes content-skeleton-appear {
   from { visibility: hidden; }
   to { visibility: visible; }
+}
+
+@keyframes content-skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-skeleton [aria-hidden="true"] > span::after {
+    display: none;
+    animation: none;
+  }
 }

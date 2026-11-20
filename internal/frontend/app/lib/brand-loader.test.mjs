@@ -120,10 +120,12 @@ test("background refresh retains existing community data without a loading banne
 
 test("navigation counts load independently without blocking the primary route", async () => {
   const navigation = await read("../components/dashboard-section-navigation.tsx");
+  const tasks = await read("../components/dashboard-steady-ui.tsx");
   const workbench = await read("../routes/dashboard/workbench.tsx");
-  assert.match(navigation, /void getWeeklyReportStatus\(\)/);
-  assert.match(navigation, /void assignmentClient\.listTodos\(\)/);
-  assert.match(navigation, /void assignmentClient\.adminTodos\(\)/);
-  assert.doesNotMatch(navigation, /<BrandLoader|Promise\.all\(/);
+  assert.match(tasks, /void getWeeklyReportStatus\(\)/);
+  assert.match(tasks, /void assignmentClient\.listTodos\(\)/);
+  assert.match(tasks, /void assignmentClient\.adminTodos\(\)/);
+  assert.doesNotMatch(tasks, /<BrandLoader|Promise\.all\(/);
+  assert.doesNotMatch(navigation, /getWeeklyReportStatus|assignmentClient\.listTodos|assignmentClient\.adminTodos/);
   assert.match(workbench, /<Navigate to=\{destination\} replace/);
 });

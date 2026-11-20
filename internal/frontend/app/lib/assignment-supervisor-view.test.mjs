@@ -6,6 +6,7 @@ const management = await readFile(new URL("../routes/admin/assignment-management
 const overview = await readFile(new URL("../routes/admin/assignment-overview.tsx", import.meta.url), "utf8");
 const reviews = await readFile(new URL("../routes/admin/assignment-submissions.tsx", import.meta.url), "utf8");
 const sidebar = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
+const dashboardTasks = await readFile(new URL("../components/dashboard-steady-ui.tsx", import.meta.url), "utf8");
 const legacy = await readFile(new URL("../routes/dashboard/workbench.tsx", import.meta.url), "utf8");
 
 test("super administrators default to a non-editable overview, but explicit review links still work", () => {
@@ -23,7 +24,7 @@ test("group selection is owned by the page and scoped to authorized options", ()
   assert.match(management, /selectedGroupId=\{selectedGroupId\}/);
   assert.match(management, /assignments\?view=review&groupId=\$\{groupId\}&assignmentId=\$\{item\.id\}/);
   assert.doesNotMatch(sidebar, /按技术组批改|reviewGroup\.groupId/);
-  assert.match(sidebar, /canReview = currentUser\.role\.name === "admin" && hasAssignmentGroup/);
+  assert.match(dashboardTasks, /canReview = currentUser\.role\.name === "admin" && hasAssignmentGroup/);
 });
 
 test("overview reads existing assignment and exact review summaries; review details avoid duplicated title cards", () => {

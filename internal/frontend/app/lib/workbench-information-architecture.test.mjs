@@ -5,6 +5,7 @@ import test from "node:test";
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 const navigation = await read("./dashboard-navigation.ts");
 const sidebar = await read("../components/dashboard-section-navigation.tsx");
+const taskCountSource = await read("../components/dashboard-steady-ui.tsx");
 const layout = await read("../routes/dashboard/layout.tsx");
 const routes = await read("../routes.ts");
 const oldOverview = await read("../routes/dashboard/workbench.tsx");
@@ -27,19 +28,21 @@ test("old overview paths lead to tasks instead of a second navigation page", () 
   assert.doesNotMatch(navigation, /label: "概览"/);
 });
 
-test("sidebar indicators come from authorized work sources without separate score state", () => {
-  assert.match(sidebar, /hasWorkbenchAccess\(currentUser\)/);
-  assert.match(sidebar, /if \(!visible\) return/);
-  assert.match(sidebar, /canReview = currentUser\.role\.name === "admin" && hasAssignmentGroup/);
-  assert.match(sidebar, /void getWeeklyReportStatus\(\)/);
-  assert.match(sidebar, /void assignmentClient\.listTodos\(\)/);
-  assert.match(sidebar, /void getAdminWorkbenchSummary\(currentUser\.id\)/);
-  assert.match(sidebar, /void assignmentClient\.adminTodos\(\)/);
-  assert.match(sidebar, /previous\.scope === scope/);
-  assert.match(sidebar, /if \(active\) setTaskCounts/);
-  assert.match(sidebar, /reviewCount: value\.reviewCount/);
-  assert.doesNotMatch(sidebar, /reviewGroups\.length|reviewGroup\.groupId/);
-  assert.doesNotMatch(sidebar, /leaveClient|Promise\.all\(/);
+test("sidebar and topbar share authorized task counts without duplicate fetching", () => {
+  assert.match(layout, /const taskCounts = useDashboardTaskCounts/);
+  assert.match(layout, /<DashboardSectionNavigation[\s\S]*?counts=\{taskCounts\}/);
+  assert.match(sidebar, /counts: DashboardTaskCounts/);
+  assert.match(sidebar, /const reviewTotal = counts\.reviewCount \?\? 0/);
+  assert.doesNotMatch(sidebar, /getWeeklyReportStatus|assignmentClient|getAdminWorkbenchSummary|setTaskCounts|externalCounts/);
+  assert.match(taskCountSource, /hasWorkbenchAccess\(currentUser\)/);
+  assert.match(taskCountSource, /canReview = currentUser\.role\.name === "admin" && hasAssignmentGroup/);
+  assert.match(taskCountSource, /void getWeeklyReportStatus\(\)/);
+  assert.match(taskCountSource, /void assignmentClient\.listTodos\(\)/);
+  assert.match(taskCountSource, /void getAdminWorkbenchSummary\(currentUser\.id\)/);
+  assert.match(taskCountSource, /void assignmentClient\.adminTodos\(\)/);
+  assert.match(taskCountSource, /previous\.scope === scope/);
+  assert.match(taskCountSource, /reviewCount: value\.reviewCount/);
+  assert.doesNotMatch(sidebar, /reviewGroups\.length|reviewGroup\.groupId|leaveClient/);
 });
 
 test("review groups are resolved from the URL with permission checks and kept during drill-down", () => {

@@ -58,6 +58,7 @@ export default function TimeCoordinationPage() {
   const [result, setResult] = useState<AvailabilityWeek | null>(null);
   const [memberId, setMemberId] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<{ weekday: number; section: number } | null>(null);
+  const [hoveredSlot, setHoveredSlot] = useState<{ weekday: number; section: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [querying, setQuerying] = useState(false);
   const [error, setError] = useState("");
@@ -233,6 +234,8 @@ export default function TimeCoordinationPage() {
                       : slotSummary(dayIndex + 1, period);
                     return <button key={`${day}-${period}`} type="button" aria-haspopup={member ? undefined : "dialog"}
                       aria-label={details} title={details}
+                      onMouseEnter={() => { if (!member) setHoveredSlot({ weekday: dayIndex + 1, section: period }); }}
+                      onFocus={() => { if (!member) setHoveredSlot({ weekday: dayIndex + 1, section: period }); }}
                       onClick={() => { if (!member) setSelectedSlot({ weekday: dayIndex + 1, section: period }); }}
                       className={`availability-heatmap__cell min-h-7 min-w-0 rounded-md border text-[10px] font-semibold tabular-nums sm:min-h-9 sm:text-xs${period === 5 || period === 9 ? " availability-heatmap__row-break" : ""} ${cellClass(dayIndex + 1, period)}`}>
                       {cellText(dayIndex + 1, period)}
@@ -241,6 +244,14 @@ export default function TimeCoordinationPage() {
                 ])}
               </div>
           </div>
+          {!member && hoveredSlot ? (() => {
+            const freePeople = filterAvailabilityMembers(result.members, hoveredSlot.weekday, hoveredSlot.section, hoveredSlot.section, "free");
+            const previewNames = freePeople.slice(0, 8).map((person) => person.name).join("、");
+            return <div className="availability-heatmap__hover-preview" role="status" aria-live="polite">
+              <span><strong>{DAYS[hoveredSlot.weekday - 1]} · {sectionTimeLabel(hoveredSlot.section)}</strong>（第 {hoveredSlot.section} 节）无课程冲突 {freePeople.length} 人</span>
+              <span className="availability-heatmap__hover-names">{freePeople.length ? `${previewNames}${freePeople.length > 8 ? ` 等 ${freePeople.length} 人` : ""}` : "该时段暂无无冲突成员"}</span>
+            </div>;
+          })() : null}
           {member ? <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--admin-muted)]" aria-label="成员时段图例">
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[var(--admin-success)]" />无课程冲突</span>
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[var(--admin-danger)]" />有课程冲突</span>

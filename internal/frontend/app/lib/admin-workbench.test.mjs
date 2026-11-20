@@ -11,17 +11,19 @@ const registrationsRoute = await readFile(new URL("../routes/admin/registrations
 const registrationsClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
 const guide = await readFile(new URL("../components/resource-guides.tsx", import.meta.url), "utf8");
 const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
+const dashboardTasks = await readFile(new URL("../components/dashboard-steady-ui.tsx", import.meta.url), "utf8");
 
 test("the sidebar shows actionable task indicators instead of a duplicate management overview", () => {
   assert.match(adminDashboard, /export \{ default \} from "~\/routes\/dashboard\/workbench"/);
   assert.match(personalWorkbench, /<Navigate to=\{destination\} replace/);
-  assert.match(sectionNavigation, /getAdminWorkbenchSummary\(currentUser\.id\)/);
-  assert.match(sectionNavigation, /assignmentClient\.adminTodos\(\)/);
-  assert.match(sectionNavigation, /getWeeklyReportStatus\(\)/);
-  assert.match(sectionNavigation, /assignmentClient\.listTodos\(\)/);
-  assert.match(sectionNavigation, /reviewCount: value\.reviewCount/);
+  assert.match(dashboardTasks, /getAdminWorkbenchSummary\(currentUser\.id\)/);
+  assert.match(dashboardTasks, /assignmentClient\.adminTodos\(\)/);
+  assert.match(dashboardTasks, /getWeeklyReportStatus\(\)/);
+  assert.match(dashboardTasks, /assignmentClient\.listTodos\(\)/);
+  assert.match(dashboardTasks, /reviewCount: value\.reviewCount/);
   assert.doesNotMatch(sectionNavigation, /aria-label="按技术组批改"/);
   assert.match(sectionNavigation, /dashboard-nav-badge/);
+  assert.match(dashboardLayout, /<DashboardSectionNavigation[\s\S]*?counts=\{taskCounts\}/);
   assert.doesNotMatch(sectionNavigation, /leaveClient|schoolSummary|leaveActionableCount/);
   assert.doesNotMatch(dashboardLayout, /managementLabel|请假待审批|leaveActionableState|candidateTodoCount/);
   assert.ok(registrationsClient.includes("const pending = pendingWorkbenchSummaryRequests.get(accountId);"));
