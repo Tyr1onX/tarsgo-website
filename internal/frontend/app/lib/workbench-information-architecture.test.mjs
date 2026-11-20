@@ -55,7 +55,7 @@ test("team pages and personal settings remain reachable after removing the overv
   assert.match(routes, /route\("team", "routes\/organization-preview\.tsx", \{ id: "dashboard-team-legacy" \}\)/);
   assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
   assert.match(layout, /redirect\("\/dashboard\/workbench\/organization"\)/);
-  assert.match(layout, /帮助与工作手册/);
+  assert.match(layout, /<AccountMenuActionIcon name="community" \/>[\s\S]*?社区/);
   assert.match(timetable, /tab=settings#timetable/);
   assert.match(weeklyReports, /getWeeklyDashboardSnapshot\(currentUser\.id\)/);
   assert.match(layout, /export async function clientLoader/);

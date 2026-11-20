@@ -10,6 +10,7 @@ export type TrainingNode = {
   kind: "folder" | "document" | "reference";
   ref?: string;
   scope?: number;
+  readonly?: boolean;
 };
 
 export function trainingNodeHref(node: TrainingNode) {
@@ -43,7 +44,7 @@ export function TrainingDocumentTree({
   canNavigate: () => boolean;
 }) {
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["handbook", "foundation-folder", "archive"]));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["resource-guides", "handbook", "foundation-folder", "archive"]));
   const [menu, setMenu] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [name, setName] = useState("");
@@ -141,7 +142,7 @@ export function TrainingDocumentTree({
     return true;
   });
 
-  return <nav aria-label="培训文档目录" className="training-tree">
+  return <nav aria-label="资料目录" className="training-tree">
     <div className="training-tree__toolbar">
       {canEdit ? <div className="training-tree__tools">
         <button type="button" aria-label="新增根级模块或文档" title="新增" onClick={() => setMenu(menu === "root" ? null : "root")}>＋</button>
@@ -154,7 +155,7 @@ export function TrainingDocumentTree({
     {action?.mode === "create" && action.parentId === "" ? form(0) : null}
     {visible.map(({ node, depth }) => {
       const children = nodes.some(({ parentId }) => parentId === node.id);
-      const canParent = node.kind !== "reference";
+      const canParent = node.kind !== "reference" && !node.readonly;
       const current = node.id === selectedId;
       return <div key={node.id} className="training-tree__entry">
         <div className={`training-tree__row${current ? " is-current" : ""}`} style={{ paddingLeft: depth * 14 }}>
@@ -167,7 +168,7 @@ export function TrainingDocumentTree({
             : <Link className="training-tree__title" title={node.title} to={trainingNodeHref(node)}
               aria-current={current ? "page" : undefined}
               onClick={(event) => { if (!canNavigate()) event.preventDefault(); }}>{node.title}</Link>}
-          {canEdit ? <div className="training-tree__tools">
+          {canEdit && !node.readonly ? <div className="training-tree__tools">
             <button type="button" className="training-tree__more" aria-label={`管理${node.title}`}
               title="管理" onClick={() => setMenu(menu === node.id ? null : node.id)}>···</button>
           </div> : null}

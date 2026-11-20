@@ -6,7 +6,9 @@ import { resolveManualDocument } from "./work-manual-content.ts";
 
 const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const routes = source("../routes.ts");
-const guide = source("../routes/dashboard/guide.tsx");
+const guide = source("../components/resource-guides.tsx");
+const legacyGuide = source("../routes/dashboard/guide.tsx");
+const trainingPage = source("../routes/dashboard/training-materials.tsx");
 const documentView = source("../components/work-manual-document.tsx");
 const styles = source("../routes/dashboard/work-manual.css");
 const navigation = source("./dashboard-navigation.ts");
@@ -25,6 +27,24 @@ test("the SOP directory switches documents in place without a dedicated briefing
   assert.doesNotMatch(navigation, /guide\/recruitment-briefing/);
 });
 
+test("the old manual URL redirects to the unified resource center", () => {
+  assert.match(legacyGuide, /training-materials\?doc=/);
+  assert.match(legacyGuide, /operations-sop/);
+  assert.match(legacyGuide, /hasOperationsWorkManualAccess/);
+  assert.doesNotMatch(legacyGuide, /<WorkManualDocument/);
+});
+
+test("resource center preserves read-only official guides and editor-backed learning documents", () => {
+  assert.match(trainingPage, /id: "resource-guides"/);
+  assert.match(trainingPage, /id: "website-guide"/);
+  assert.match(trainingPage, /id: "common-questions"/);
+  assert.match(trainingPage, /canReadOperationsSOP \? \[OPERATIONS_GUIDE\] : \[\]/);
+  assert.match(trainingPage, /selectedNode\?\.kind === "document" && !selectedNode\.readonly/);
+  assert.match(trainingPage, /<OperationsGuide \/>/);
+  assert.match(guide, /function CommonQuestions\(/);
+  assert.doesNotMatch(guide, /\/api\/admin\/training-documents/);
+});
+
 test("selecting another SOP resolves that document in the existing reading pane", () => {
   const [campus, recruitment] = catalogue.documents;
   assert.equal(resolveManualDocument(catalogue.documents, campus.slug), campus);
@@ -36,8 +56,8 @@ test("all SOPs use the same authorized catalogue and document renderer", () => {
   assert.match(router, /authenticatedAPI\.Use\(middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\)\)/);
   assert.match(router, /workbenchAPI\.GET\("\/work-manual\/operations", workManualHandler\.OperationsCatalogue\)/);
   assert.match(service, /authorizeOperations\(ctx, actor\)/);
-  assert.match(guide, /hasOperationsWorkManualAccess\(currentUser, groupResolution\?\.groups\)/);
-  assert.match(guide, /apiRequest<OperationsCatalogue>\("\/api\/work-manual\/operations"\)/);
+  assert.match(trainingPage, /hasWorkbenchAccess\(currentUser\) && hasOperationsWorkManualAccess\(currentUser, groupResolution\?\.groups\)/);
+  assert.match(guide, /apiRequest<OperationsCatalogue>\("\/api\/work-manual\/operations",/);
   assert.match(guide, /<WorkManualDocument document=\{document\} titleLevel=\{2\} \/>/);
   assert.match(documentView, /block\.completion/);
   assert.equal(catalogue.documents.length, 2);
@@ -69,5 +89,5 @@ test("briefing content remains detailed and has no separate visual treatment", (
   assert.match(document.sections[2].blocks[0].items[0], /直播必须实际监看/);
   assert.doesNotMatch(guide + styles, /briefing-flow|briefing-timeline|briefing__number/);
   assert.doesNotMatch(guide, /document\.sections\.map\(\(section\) => <li/);
-  assert.match(guide, /<OperationsSOP catalogue=\{operationsCatalogue\} \/>/);
+  assert.match(guide, /<OperationsSOP catalogue=\{catalogue\} \/>/);
 });

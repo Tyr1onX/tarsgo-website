@@ -763,12 +763,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               <AccountMenuActionIcon name="my-profile" />
               我的主页
             </button>
-            {hasWorkbenchAccess(currentUser) ? <button type="button"
-              onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
+            <button type="button" onClick={() => { setUserMenuOpen(false); navigate("/dashboard"); }}
               role="menuitem" className="account-menu-action">
-              <AccountMenuActionIcon name="guide" />
-              帮助与工作手册
-            </button> : null}
+              <AccountMenuActionIcon name="community" />
+              社区
+            </button>
             <div className="account-menu-divider" role="separator" />
             <button type="button" onClick={handleLogout} disabled={loggingOut}
               role="menuitem" className="account-menu-action account-menu-action--logout">

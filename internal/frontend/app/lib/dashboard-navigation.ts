@@ -164,7 +164,7 @@ export function getUnifiedDashboardMenu(currentUser: AuthUser, hasAssignmentGrou
       { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports", iconKey: "report" as const },
       ...(hasAssignmentGroup ? [ASSIGNMENT_MENU_ITEM] : []),
     ] : []),
-    { key: "training-materials", label: "培训资料", href: "/dashboard/training-materials", iconKey: "report" as const },
+    { key: "training-materials", label: "资料中心", href: "/dashboard/training-materials", iconKey: "report" as const },
     ...(hasWorkbench ? [{ key: "leave-workbench", label: "请假", href: "/dashboard/leave", iconKey: "report" as const }] : []),
     ...(currentUser.role.name === "user" ? [MY_REGISTRATION_ITEM] : []),
   ];

@@ -169,7 +169,8 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.doesNotMatch(routes, /route\("base", "routes\/dashboard\/base\.tsx"\)/);
   assert.doesNotMatch(layout, /currentPath\.pathname === "\/dashboard\/base"/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
-  assert.match(layout, /帮助与工作手册/);
+  assert.match(layout, /<AccountMenuActionIcon name="community" \/>[\s\S]*?社区/);
+  assert.doesNotMatch(layout, /帮助与工作手册|navigate\("\/dashboard\/guide"\)/);
   assert.match(layout, /<AccountMenuActionIcon name="my-profile" \/>[\s\S]*?我的主页/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)\.filter\(\(\{ key \}\) => key !== "my-profile"\)/);
   assert.match(sideNavigation, /getUnifiedDashboardMenu\(currentUser, hasAssignmentGroup\)/);

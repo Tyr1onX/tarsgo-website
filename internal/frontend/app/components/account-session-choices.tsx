@@ -57,10 +57,10 @@ export function AccountMenuIdentity({ user }: { user: AuthUser }) {
   );
 }
 
-export function AccountMenuActionIcon({ name }: { name: "my-profile" | "guide" | "logout" }) {
+export function AccountMenuActionIcon({ name }: { name: "my-profile" | "community" | "logout" }) {
   const paths = {
     "my-profile": "M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
-    guide: "M4 5.5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2z M20 5.5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2z",
+    community: "M20 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 2 1.5-4A8.5 8.5 0 1 1 20 11.5Z",
     logout: "M9 3H4v18h5 M14 7l5 5-5 5 M8 12h11",
   };
   return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"

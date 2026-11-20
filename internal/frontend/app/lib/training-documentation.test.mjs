@@ -10,7 +10,7 @@ test("training documents use a persistent expandable tree without losing the ori
   const backend = await read("../../../backend/handler/training_document_tree.go");
   assert.match(page, /api\/training-documents\/tree/);
   assert.match(page, /<TrainingDocumentTree/);
-  assert.match(page, /orderedTrainingNodes\(tree\)/);
+  assert.match(page, /orderedTrainingNodes\(availableNodes\)/);
   assert.match(page, /trainingNodeHref\(before\)/);
   assert.match(tree, /setExpanded/);
   assert.match(tree, /aria-expanded=\{expanded\.has\(node\.id\)\}/);
