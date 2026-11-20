@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "reac
 import { Link } from "react-router";
 
 import { memberGrowthStages } from "../data/join-growth";
+import { GroupAnimatedMark } from "./tarsgo-motion-marks";
 import "./join-experience.css";
 
 type JoinGroup = {
@@ -193,9 +194,8 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
             <div className="join-group-panel__content" aria-live="polite" aria-atomic="true">
               <div className="join-group-panel__brand" aria-hidden="true">
                 <img src={activeGroup.logoStructure} alt="" className="join-group-panel__structure" />
-                <span className="join-group-mark join-group-panel__mark">
-                  <img src={activeGroup.logoBlack} alt="" className="join-group-mark__light" />
-                  <img src={activeGroup.logoWhite} alt="" className="join-group-mark__dark" />
+                <span className="join-group-panel__mark">
+                  <GroupAnimatedMark key={activeGroup.name} groupName={activeGroup.name} play />
                 </span>
               </div>
               <p className="join-group-panel__index">

@@ -8,21 +8,22 @@ const css = await read("../components/brand-loader.css");
 const logo = await read("../../../../public/assets/images/Logo/tarsgo-logo-v5-light.svg");
 const robot = await read("../../../../public/assets/images/Logo/tarsgo-robot-loading.svg");
 
-test("loader renders the authentic TARSGO robot as an image, without the wordmark", () => {
+test("loader renders the authentic TARSGO robot as three articulated pillars, without the wordmark", () => {
   const originalRobot = logo.match(/<g id="robot-TARS"[\s\S]*?<\/g>/)?.[0];
   assert.ok(originalRobot, "the official logo must contain its robot symbol");
   assert.ok(robot.includes(originalRobot), "the transparent loader icon retains the official geometry");
   assert.doesNotMatch(robot, /wordmark-TARSGO|<rect\b/);
-  assert.match(component, /tarsgo-robot-loading\.svg/);
-  assert.match(component, /<img className="brand-loader__robot" src=\{robotImage\} alt="" \/>/);
-  assert.equal((component.match(/<img /g) ?? []).length, 1);
+  assert.match(component, /TARS_ROBOT_PATHS/);
+  assert.match(component, /brand-loader__robot/);
+  assert.match(component, /brand-loader__pillar--/);
   assert.doesNotMatch(component, /<use href=/);
   assert.match(component, /role="status" aria-label=\{label\}/);
 });
 
-test("transparent robot pulses without blur or masks and respects reduced motion", () => {
+test("robot loader animates in 1.8s cadence without blur or masks and respects reduced motion", () => {
   assert.match(css, /brand-loader-appear 0s 300ms both/);
-  assert.match(css, /brand-loader-pulse 1\.8s ease-in-out infinite/);
+  assert.match(css, /brand-loader-stride 1\.8s cubic-bezier\(0\.22, 1, 0\.36, 1\)/);
+  assert.match(css, /brand-loader-stride-gold 1\.8s cubic-bezier\(0\.22, 1, 0\.36, 1\)/);
   assert.doesNotMatch(css, /mask-image|filter: blur|brand-loader__robot--base|brand-loader__robot--shine/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });

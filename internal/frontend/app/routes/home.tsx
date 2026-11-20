@@ -1,7 +1,9 @@
 import type { Route } from "./+types/home";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { HomeVisualNavigation } from "../components/home-visual-navigation";
+import { HomeOpeningCurtain, type OpeningPhase } from "../components/home-opening-curtain";
+import { TarsgoHeroLogo } from "../components/tarsgo-motion-marks";
 import { PublicFooter } from "../components/public-footer";
 import { Link, useLocation, useNavigate } from "react-router";
 
@@ -259,6 +261,18 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
+  const [openingPhase, setOpeningPhase] = useState<OpeningPhase>("idle");
+  const [heroSweepKey, setHeroSweepKey] = useState(0);
+
+  const handleOpeningPhase = useCallback((nextPhase: OpeningPhase) => {
+    setOpeningPhase(nextPhase);
+    if (nextPhase === "done") {
+      setHeroSweepKey((k) => k + 1);
+    }
+  }, []);
+
+  const isOpeningPlaying = routePage === "home" && openingPhase === "playing";
+  const isLogoInFlight = routePage === "home" && (openingPhase === "playing" || openingPhase === "docking");
 
   const topic = routePage === "home" ? null : topicPages[routePage];
 
@@ -281,6 +295,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
 
   return (
     <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
+      <HomeOpeningCurtain enabled={routePage === "home"} onPhaseChange={handleOpeningPhase} />
       <div className="relative z-10">
       <Navbar />
       <div className="public-route-content">
@@ -292,7 +307,9 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
         <div className="absolute inset-0">
           <video
             ref={heroVideoRef}
-            className="h-full w-full object-cover"
+            className={`public-home-hero__video h-full w-full object-cover ${
+              isOpeningPlaying ? "public-home-hero__video--staged" : ""
+            }`}
             autoPlay={!prefersReducedMotion}
             muted
             loop
@@ -309,45 +326,51 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
         <div className="relative z-10 flex min-h-[64svh] items-center sm:min-h-[92svh]">
           <div className="public-home-container mx-auto flex w-full items-center pb-12 pt-24 sm:pb-20 sm:pt-32">
             <div className="flex max-w-2xl flex-col items-center gap-3 text-center sm:items-start sm:gap-4 sm:text-left min-[1920px]:max-w-5xl min-[1920px]:gap-6">
-              <img
-                src="/assets/images/Logo/tarsgo-logo-v5.svg"
-                alt="TARSGO"
-                className="h-16 w-auto max-w-full object-contain sm:h-24"
-              />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-xs">
-                吉林大学 · RoboMaster 战队
-              </p>
-              <h1 className="max-w-2xl text-[34px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px] min-[1920px]:max-w-5xl">
-                从构想，到<span className="text-[var(--hero-accent)]">赛场</span>
-              </h1>
-              <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7 min-[1920px]:max-w-3xl min-[1920px]:text-lg min-[1920px]:leading-relaxed">
-                以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
-              </p>
-              <div className="mt-2 flex w-full flex-row gap-2 sm:w-auto sm:gap-3">
-                <Link
-                  to="/about"
-                  className="motion-button inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-accent-primary px-3 py-3 text-sm font-semibold text-fg-inverse transition-colors hover:bg-[var(--admin-accent-bright)] sm:flex-none sm:px-7"
-                >
-                  了解吉甲
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+              <div
+                id="home-hero-logo-slot"
+                className={isLogoInFlight ? "public-home-hero__logo-slot--hidden" : undefined}
+              >
+                <TarsgoHeroLogo
+                  sweepKey={heroSweepKey}
+                  className="h-16 w-auto max-w-full sm:h-24"
+                />
+              </div>
+              <div className={`public-home-hero__copy ${isOpeningPlaying ? "public-home-hero__copy--staged" : ""}`}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-xs">
+                  吉林大学 · RoboMaster 战队
+                </p>
+                <h1 className="max-w-2xl text-[34px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px] min-[1920px]:max-w-5xl">
+                  从构想，到<span className="text-[var(--hero-accent)]">赛场</span>
+                </h1>
+                <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7 min-[1920px]:max-w-3xl min-[1920px]:text-lg min-[1920px]:leading-relaxed">
+                  以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
+                </p>
+                <div className="mt-2 flex w-full flex-row gap-2 sm:w-auto sm:gap-3">
+                  <Link
+                    to="/about"
+                    className="motion-button inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-accent-primary px-3 py-3 text-sm font-semibold text-fg-inverse transition-colors hover:bg-[var(--admin-accent-bright)] sm:flex-none sm:px-7"
                   >
-                    <path d="M5 12h14" />
-                    <path d="m12 5 7 7-7 7" />
-                  </svg>
-                </Link>
-                <Link
-                  to="/join"
-                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-white/35 px-3 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:flex-none sm:px-7"
-                >
-                  加入我们
-                </Link>
+                    了解吉甲
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  </Link>
+                  <Link
+                    to="/join"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-white/35 px-3 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:flex-none sm:px-7"
+                  >
+                    加入我们
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

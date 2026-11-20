@@ -244,10 +244,10 @@
 .join-group-panel__brand {
   position: relative;
   display: grid;
-  width: 4.2rem;
+  width: 5.25rem;
   aspect-ratio: 1;
   place-items: center;
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.9rem;
 }
 
 .join-group-panel__structure {
@@ -256,13 +256,16 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  opacity: 0.09;
+  opacity: 0.14;
 }
 
 .join-group-panel__mark {
   z-index: 1;
-  width: 68%;
-  height: 68%;
+  display: flex;
+  width: 78%;
+  height: 78%;
+  align-items: center;
+  justify-content: center;
 }
 
 .join-group-panel__index,
