@@ -94,6 +94,16 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
   }, [accountId, body, postId, ready, replyTarget, saving, uploads]);
 
   useEffect(() => {
+    if (!ready || busy || saving || (!body.trim() && uploads.length === 0)) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [ready, busy, saving, body, uploads.length]);
+
+  useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
     let clampFrame = 0;
@@ -224,7 +234,12 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
       void close();
     }
   }}>
-    <form id="community-reply-form" className="community-reply-panel__form" onSubmit={(event) => void submit(event)} aria-labelledby="community-reply-panel-title">
+    <form id="community-reply-form" className="community-reply-panel__form" onSubmit={(event) => void submit(event)} onKeyDown={(event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing && !busy && !saving && ready && body.trim()) {
+        event.preventDefault();
+        event.currentTarget.requestSubmit();
+      }
+    }} aria-labelledby="community-reply-panel-title">
       <header className="community-reply-panel__header" onPointerDown={startPanelDrag} onPointerMove={movePanelDrag} onPointerUp={endPanelDrag} onPointerCancel={endPanelDrag}>
         <div><h2 id="community-reply-panel-title">回复讨论</h2>{replyTarget ? <span>回复 {replyTarget.authorName}</span> : <span>继续阅读原帖并参与讨论</span>}</div>
         <button type="button" className="community-icon-button" aria-label="收起回复编辑器" onClick={() => void close()} disabled={busy || saving}><CommunityIcon name="x" /></button>
@@ -237,7 +252,7 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
         <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>
         {error ? <p className="community-error" role="alert">{error}</p> : null}
         <button type="button" className="community-button community-button--quiet" onClick={() => void close()} disabled={busy || saving}>收起</button>
-        <button type="submit" className="community-button community-button--primary" disabled={busy || saving || !ready || !body.trim()}>{busy || saving ? "发送中…" : "回复"}</button>
+        <button type="submit" className="community-button community-button--primary" disabled={busy || saving || !ready || !body.trim()}>{busy || saving ? "发送中…" : <>回复 <kbd className="dashboard-submit-kbd">⌘↵</kbd></>}</button>
       </footer>
     </form>
   </aside>;

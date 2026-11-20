@@ -255,7 +255,7 @@ export default function DashboardIndex() {
           </div>)}
         </div> : visiblePosts.length ? <>
           <div className="community-post-list">
-            {visiblePosts.map((post) => <CommunityPostCard key={post.id} post={post} />)}
+            {visiblePosts.map((post) => <CommunityPostCard key={post.id} post={post} highlightQuery={query} />)}
           </div>
         </> : !visibleLoading ? <div className="community-state community-state--empty">
           <span className="community-state__icon"><CommunityIcon name="messageCircle" /></span>

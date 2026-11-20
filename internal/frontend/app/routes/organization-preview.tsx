@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import type { OrganizationCategory, OrganizationPosition, OrganizationPreview } from "~/data/organization-preview";
 import { apiRequest } from "~/lib/api-client";
 import { organizationPositionDuty } from "~/lib/organization-preview-duties";
+import { GroupAnimatedMark } from "~/components/tarsgo-motion-marks";
 import type { Route } from "./+types/organization-preview";
 import "./organization-preview.css";
 
@@ -127,7 +128,14 @@ function CategoryBranch({
         aria-controls={panelID}
         onClick={onToggle}
       >
-        <span className="organization-directory__category-title">{category.title}</span>
+        <span className="organization-directory__category-title-wrap">
+          {/机械|电控|硬件|视觉|AI|运营/i.test(category.title) ? (
+            <span className="organization-directory__group-emblem" aria-hidden="true">
+              <GroupAnimatedMark groupName={category.title} play={expanded} />
+            </span>
+          ) : null}
+          <span className="organization-directory__category-title">{category.title}</span>
+        </span>
         <span className="organization-directory__category-meta">{category.positions.length} 个岗位 · {categoryMembers.length} 位成员</span>
         <span className="organization-directory__chevron" aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>

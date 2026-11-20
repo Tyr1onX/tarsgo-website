@@ -83,6 +83,8 @@ export default function WeeklyReportsRoute() {
   const [saveError, setSaveError] = useState("");
   const [teamError, setTeamError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [draftSavedAt, setDraftSavedAt] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
   const dashboardRequestId = useRef(0);
   const teamRequestId = useRef(0);
   const selectedReport = useMemo(() => {
@@ -184,15 +186,100 @@ export default function WeeklyReportsRoute() {
     void loadDashboard();
   }), [currentUser.id, loadDashboard, setDashboard]);
 
+  const draftStorageKey = selectedWeekStart ? `tarsgo-weekly-draft:${currentUser.id}:${selectedWeekStart}` : "";
+
   useEffect(() => {
+    const baseForm = selectedReport
+      ? { completed: selectedReport.completed, gains: selectedReport.gains ?? "", blockers: selectedReport.blockers, nextPlan: selectedReport.nextPlan }
+      : emptyReport;
+    let initialForm = baseForm;
+    let restoredAt = "";
+    let restoredGroupId = "";
+    if (typeof window !== "undefined" && draftStorageKey) {
+      try {
+        const raw = window.localStorage.getItem(draftStorageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { form?: WeeklyReportInput; groupId?: string; savedAt?: string };
+          if (parsed.form && (parsed.form.completed || parsed.form.gains || parsed.form.blockers || parsed.form.nextPlan)) {
+            const changed =
+              parsed.form.completed !== baseForm.completed ||
+              parsed.form.gains !== baseForm.gains ||
+              parsed.form.blockers !== baseForm.blockers ||
+              parsed.form.nextPlan !== baseForm.nextPlan;
+            if (changed) {
+              initialForm = { ...baseForm, ...parsed.form };
+              restoredGroupId = parsed.groupId ?? "";
+              restoredAt = parsed.savedAt ?? "";
+            }
+          }
+        }
+      } catch {
+        // Ignore malformed local drafts.
+      }
+    }
+    setForm(initialForm);
+    setDraftRestored(Boolean(restoredAt));
+    setDraftSavedAt(restoredAt);
+    const reportGroup = selectedReport?.groupId;
+    const defaultGroup = dashboard?.groups.length === 1 ? dashboard.groups[0]?.groupId : undefined;
+    setReportGroupId(
+      !selectedReport && dashboard?.groups.some((group) => String(group.groupId) === restoredGroupId)
+        ? restoredGroupId
+        : reportGroup ? String(reportGroup) : defaultGroup ? String(defaultGroup) : "",
+    );
+    setSaveError("");
+  }, [draftStorageKey, dashboard?.groups, selectedReport?.id, selectedReport?.completed, selectedReport?.gains, selectedReport?.blockers, selectedReport?.nextPlan, selectedReport?.groupId]);
+
+  useEffect(() => {
+    if (!isEditing || !draftStorageKey || typeof window === "undefined") return;
+    const hasContent = Boolean(form.completed.trim() || form.gains.trim() || form.blockers.trim() || form.nextPlan.trim());
+    const timer = window.setTimeout(() => {
+      try {
+        if (!hasContent) {
+          window.localStorage.removeItem(draftStorageKey);
+          setDraftSavedAt("");
+          return;
+        }
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        const savedAt = `${hh}:${mm}`;
+        window.localStorage.setItem(draftStorageKey, JSON.stringify({ form, groupId: reportGroupId, savedAt }));
+        setDraftSavedAt(savedAt);
+      } catch {
+        // Ignore quota/storage errors.
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [isEditing, draftStorageKey, form, reportGroupId]);
+
+  useEffect(() => {
+    if (!isEditing || saving || typeof window === "undefined") return;
+    const baseCompleted = selectedReport?.completed ?? "";
+    const baseGains = selectedReport?.gains ?? "";
+    const baseBlockers = selectedReport?.blockers ?? "";
+    const baseNext = selectedReport?.nextPlan ?? "";
+    const isDirty = form.completed !== baseCompleted || form.gains !== baseGains || form.blockers !== baseBlockers || form.nextPlan !== baseNext || pendingFiles.length > 0;
+    if (!isDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isEditing, saving, form, pendingFiles.length, selectedReport?.completed, selectedReport?.gains, selectedReport?.blockers, selectedReport?.nextPlan]);
+
+  function discardLocalDraft() {
+    if (draftStorageKey && typeof window !== "undefined") {
+      try { window.localStorage.removeItem(draftStorageKey); } catch {}
+    }
     setForm(selectedReport
       ? { completed: selectedReport.completed, gains: selectedReport.gains ?? "", blockers: selectedReport.blockers, nextPlan: selectedReport.nextPlan }
       : emptyReport);
-    const reportGroup = selectedReport?.groupId;
-    const defaultGroup = dashboard?.groups.length === 1 ? dashboard.groups[0]?.groupId : undefined;
-    setReportGroupId(reportGroup ? String(reportGroup) : defaultGroup ? String(defaultGroup) : "");
-    setSaveError("");
-  }, [dashboard?.groups, selectedReport?.id, selectedReport?.completed, selectedReport?.gains, selectedReport?.blockers, selectedReport?.nextPlan, selectedReport?.groupId]);
+    setReportGroupId(selectedReport?.groupId ? String(selectedReport.groupId) : dashboard?.groups.length === 1 ? String(dashboard.groups[0].groupId) : "");
+    setDraftRestored(false);
+    setDraftSavedAt("");
+  }
 
   useEffect(() => {
     setPendingFiles([]);
@@ -273,6 +360,11 @@ export default function WeeklyReportsRoute() {
           return;
         }
       }
+      if (draftStorageKey && typeof window !== "undefined") {
+        try { window.localStorage.removeItem(draftStorageKey); } catch {}
+      }
+      setDraftRestored(false);
+      setDraftSavedAt("");
       setSuccessMessage("周报已保存。");
       setEditing(false);
       if (dashboard.canViewTeam && teamWeek?.weekStart === saved.weekStart && teamWeek.groupId) {
@@ -382,21 +474,38 @@ export default function WeeklyReportsRoute() {
               <button className="admin-button admin-button--primary" type="button" onClick={() => setEditing(true)}>填写周报</button>
             </div> : null}
 
-            {isEditing ? <form className="weekly-report__form" onSubmit={submitReport}>
+            {isEditing ? <form className="weekly-report__form" onSubmit={submitReport} onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing && !saving) {
+                event.preventDefault();
+                event.currentTarget.requestSubmit();
+              }
+            }}>
               <label className="weekly-report__field">
-                <span>本周进展</span>
+                <span className="field-label-row">
+                  <span>本周进展</span>
+                  <span className={`field-char-count${form.completed.length >= 4250 ? " is-near-limit" : ""}`}>{form.completed.length} / 5000</span>
+                </span>
                 <textarea required maxLength={5000} value={form.completed} onChange={(event) => updateForm("completed", event.target.value)} placeholder="学习了什么、参与了什么、完成了什么" />
               </label>
               <label className="weekly-report__field">
-                <span>本周收获</span>
+                <span className="field-label-row">
+                  <span>本周收获</span>
+                  <span className={`field-char-count${form.gains.length >= 4250 ? " is-near-limit" : ""}`}>{form.gains.length} / 5000</span>
+                </span>
                 <textarea required={!(selectedReport && !selectedReport.gains?.trim())} maxLength={5000} value={form.gains} onChange={(event) => updateForm("gains", event.target.value)} placeholder={selectedReport && !selectedReport.gains?.trim() ? "历史记录未单独记录；可补充，也可保持为空" : "掌握的知识、取得的成果或经验"} />
               </label>
               <label className="weekly-report__field">
-                <span>下周计划</span>
+                <span className="field-label-row">
+                  <span>下周计划</span>
+                  <span className={`field-char-count${form.nextPlan.length >= 4250 ? " is-near-limit" : ""}`}>{form.nextPlan.length} / 5000</span>
+                </span>
                 <textarea required maxLength={5000} value={form.nextPlan} onChange={(event) => updateForm("nextPlan", event.target.value)} placeholder="准备学习、练习或推进哪些事项" />
               </label>
               <label className="weekly-report__field">
-                <span>需要帮助（选填）</span>
+                <span className="field-label-row">
+                  <span>需要帮助（选填）</span>
+                  <span className={`field-char-count${form.blockers.length >= 4250 ? " is-near-limit" : ""}`}>{form.blockers.length} / 5000</span>
+                </span>
                 <textarea maxLength={5000} value={form.blockers} onChange={(event) => updateForm("blockers", event.target.value)} placeholder="遇到的问题、需要的指导或协作支持" />
               </label>
               <div className="weekly-report__attachments">
@@ -430,12 +539,17 @@ export default function WeeklyReportsRoute() {
               <div className="weekly-report__form-footer">
                 <div aria-live="polite">
                   {saveError ? <p className="weekly-report__inline-error">{saveError}</p> : null}
-
+                  {!saveError && draftSavedAt ? (
+                    <p className="weekly-report__draft-status">
+                      <span>{draftRestored ? `已恢复本地草稿 · ${draftSavedAt}` : `草稿已自动保存 · ${draftSavedAt}`}</span>
+                      <button type="button" className="weekly-report__draft-discard" onClick={discardLocalDraft}>放弃草稿</button>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="weekly-report__form-actions">
                   <button className="admin-button admin-button--secondary" type="button" disabled={saving} onClick={() => setEditing(false)}>返回周报</button>
                   <button className="admin-button admin-button--primary" type="submit" disabled={saving}>
-                    {saving ? "保存中…" : isCurrentEntry ? (selectedReport ? "保存周报" : "提交周报") : selectedReport ? "保存修改" : "提交周报"}
+                    {saving ? "保存中…" : <>{isCurrentEntry ? (selectedReport ? "保存周报" : "提交周报") : selectedReport ? "保存修改" : "提交周报"} <kbd className="dashboard-submit-kbd">⌘↵</kbd></>}
                   </button>
                 </div>
               </div>

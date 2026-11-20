@@ -8,9 +8,12 @@ function source(relativePath) {
 
 test("operation success notifications dismiss automatically while errors remain until dismissed", () => {
   const notify = source("components/notify.tsx");
-  assert.match(notify, /if \(!open \|\| tone !== "success"\) return/);
-  assert.match(notify, /window\.setTimeout\(\(\) => onCloseRef\.current\(\), 2800\)/);
-  assert.match(notify, /return \(\) => window\.clearTimeout\(timer\)/);
+  assert.match(notify, /if \(!open \|\| tone !== "success" \|\| paused\) return/);
+  assert.match(notify, /window\.setTimeout\(\(\) => onCloseRef\.current\(\), Math\.max\(0, remainingRef\.current\)\)/);
+  assert.match(notify, /window\.clearTimeout\(timer\)/);
+  assert.match(notify, /remainingRef\.current = Math\.max\(0, remainingRef\.current -/);
+  assert.match(notify, /setPaused\(true\)/);
+  assert.match(notify, /notify-countdown/);
   assert.match(notify, /role=\{tone === "error" \? "alert" : "status"\}/);
 });
 

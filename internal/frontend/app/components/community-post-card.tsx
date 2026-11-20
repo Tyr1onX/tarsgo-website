@@ -12,14 +12,26 @@ export function CommunityAvatar({ name, src, size = "regular", className }: { na
   </span>;
 }
 
-export function CommunityPostCard({ post }: { post: CommunityListItem }) {
+function renderHighlightedText(text: string, query?: string) {
+  const terms = (query ?? "").trim().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return text;
+  const escaped = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(regex);
+  if (parts.length <= 1) return text;
+  return parts.map((part, idx) =>
+    idx % 2 === 1 ? <mark key={idx} className="community-search-highlight">{part}</mark> : part,
+  );
+}
+
+export function CommunityPostCard({ post, highlightQuery }: { post: CommunityListItem; highlightQuery?: string }) {
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const postState = { communityReturnTo: returnTo };
   const participants = post.participants?.slice(0, 5) ?? [];
   const lastActivity = post.lastReplyAt ?? post.createdAt;
   return <article className="community-topic-row">
-    <h2 className="community-topic-row__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
+    <h2 className="community-topic-row__title"><Link to={communityPostHref(post.id)} state={postState}>{renderHighlightedText(post.title, highlightQuery)}</Link></h2>
     <div className="community-topic-row__status">
       {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
       <CommunityFeaturedMark featured={post.isFeatured} />

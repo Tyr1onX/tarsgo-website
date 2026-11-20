@@ -20,6 +20,15 @@ test("weekly report defaults to submission status and saved history; editing req
   assert.doesNotMatch(route, /默认展开编辑|自动进入编辑/);
 });
 
+test("weekly local drafts preserve the chosen authorized group and guard IME shortcuts", () => {
+  assert.match(route, /tarsgo-weekly-draft:\$\{currentUser\.id\}:\$\{selectedWeekStart\}/);
+  assert.match(route, /JSON\.stringify\(\{ form, groupId: reportGroupId, savedAt \}\)/);
+  assert.match(route, /dashboard\?\.groups\.some\(\(group\) => String\(group\.groupId\) === restoredGroupId\)/);
+  assert.match(route, /groupId\?: string/);
+  assert.match(route, /!event\.nativeEvent\.isComposing/);
+  assert.match(route, /window\.localStorage\.removeItem\(draftStorageKey\)/);
+});
+
 test("team submission names load only after a permitted leader expands the disclosure", () => {
   assert.match(route, /const \[teamExpanded, setTeamExpanded\] = useState\(false\)/);
   assert.match(route, /if \(teamExpanded && dashboard\?\.canViewTeam/);

@@ -674,3 +674,40 @@ export function useActiveHeadingId(ids: string[]) {
 
   return activeId;
 }
+
+export function DashboardBackToTop() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      setVisible(window.scrollY > 420);
+    };
+    const onScroll = () => {
+      if (!raf) raf = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      type="button"
+      className="dashboard-back-to-top"
+      aria-label="回到顶部"
+      title="回到顶部"
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m18 15-6-6-6 6" />
+      </svg>
+    </button>
+  );
+}

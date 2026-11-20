@@ -83,6 +83,16 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
     return () => window.clearTimeout(timer);
   }, [accountId, body, category, draftReady, uploads, saving, title]);
 
+  useEffect(() => {
+    if (!draftReady || saving || (!title.trim() && !body.trim() && uploads.length === 0)) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [draftReady, saving, title, body, uploads.length]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const currentBody = editorFlushRef.current();
@@ -122,13 +132,22 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
     }
   }
 
-  return <form id={id} className="community-composer" onSubmit={submit} aria-labelledby="community-composer-title" aria-busy={saving || !draftReady}>
+  return <form id={id} className="community-composer" onSubmit={submit} onKeyDown={(event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing && !saving && draftReady && title.trim() && body.trim()) {
+      event.preventDefault();
+      event.currentTarget.requestSubmit();
+    }
+  }} aria-labelledby="community-composer-title" aria-busy={saving || !draftReady}>
     <div className="community-composer__header">
       <h2 id="community-composer-title">发布帖子</h2>
       <button className="community-icon-button" type="button" aria-label="收起发帖表单" onClick={() => void cancel()}><CommunityIcon name="x" /></button>
     </div>
     <div className="community-composer__fields">
-      <label className="community-field">标题
+      <label className="community-field">
+        <span className="field-label-row">
+          <span>标题</span>
+          <span className={`field-char-count${title.length >= 136 ? " is-near-limit" : ""}`}>{title.length} / 160</span>
+        </span>
         <input ref={titleRef} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required placeholder="这次想聊什么？" disabled={!draftReady || saving} />
       </label>
       <label className="community-field">分类
@@ -144,7 +163,7 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
       <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>
       {error ? <p className="community-error" role="alert">{error}</p> : null}
       <button type="button" className="community-button community-button--quiet" onClick={() => void cancel()} disabled={saving}>取消</button>
-      <button type="submit" className="community-button community-button--primary" disabled={saving || !draftReady || !title.trim() || !body.trim()}>{saving ? "发布中…" : "发布"}</button>
+      <button type="submit" className="community-button community-button--primary" disabled={saving || !draftReady || !title.trim() || !body.trim()}>{saving ? "发布中…" : <>发布 <kbd className="dashboard-submit-kbd">⌘↵</kbd></>}</button>
     </div>
   </form>;
 }
