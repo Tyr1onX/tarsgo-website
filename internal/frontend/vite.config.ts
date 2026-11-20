@@ -28,6 +28,20 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "vendor-highlight", test: /node_modules\/highlight\.js/ },
+            { name: "vendor-katex", test: /node_modules\/katex/ },
+            { name: "vendor-markdown", test: /node_modules\/(react-markdown|remark-|rehype-|mdast-|hast-|micromark|unist-|unified)/ },
+            { name: "vendor-editor", test: /node_modules\/(@tiptap|prosemirror-|@codemirror|codemirror)/ },
+          ],
+        },
+      },
+    },
+  },
   resolve: {
     tsconfigPaths: true,
   },

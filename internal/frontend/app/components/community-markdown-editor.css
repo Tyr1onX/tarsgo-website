@@ -106,12 +106,22 @@
 .community-markdown-image__open { display: block; max-width: 100%; border: 0; border-radius: 9px; padding: 0; background: transparent; cursor: zoom-in; }
 .community-markdown-image__open img { display: block; width: 100%; max-height: 720px; border-radius: inherit; object-fit: contain; }
 .community-markdown-image__caption { display: block; margin-top: 6px; color: var(--admin-dim); font-size: 11px; line-height: 1.5; text-align: center; }
-.community-markdown-lightbox { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 56px 24px 30px; background: color-mix(in srgb, #080808 91%, transparent); }
+.community-markdown-lightbox { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 62px 56px 32px; background: color-mix(in srgb, #080808 92%, transparent); }
 .community-markdown-lightbox__scrim { position: absolute; inset: 0; border: 0; background: transparent; }
-.community-markdown-lightbox__close { position: absolute; z-index: 1; top: 14px; right: 18px; display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid rgb(255 255 255 / 22%); border-radius: 50%; color: white; background: rgb(255 255 255 / 10%); }
-.community-markdown-lightbox__close .community-icon { width: 19px; height: 19px; }
+.community-markdown-lightbox__toolbar { position: absolute; z-index: 2; top: 14px; right: 18px; display: inline-flex; align-items: center; gap: 8px; }
+.community-markdown-lightbox__counter, .community-markdown-lightbox__zoom { display: inline-flex; height: 36px; align-items: center; justify-content: center; border: 1px solid rgb(255 255 255 / 20%); border-radius: 999px; padding: 0 12px; color: rgb(255 255 255 / 90%); background: rgb(255 255 255 / 10%); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.community-markdown-lightbox__zoom { cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease; }
+.community-markdown-lightbox__zoom:hover { border-color: rgb(208 173 105 / 70%); background: rgb(255 255 255 / 16%); }
+.community-markdown-lightbox__close { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid rgb(255 255 255 / 22%); border-radius: 50%; color: white; background: rgb(255 255 255 / 10%); cursor: pointer; }
+.community-markdown-lightbox__close:hover { background: rgb(255 255 255 / 18%); }
+.community-markdown-lightbox__close .community-icon { width: 18px; height: 18px; }
+.community-markdown-lightbox__nav { position: absolute; z-index: 2; top: 50%; transform: translateY(-50%); display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid rgb(255 255 255 / 22%); border-radius: 50%; color: white; background: rgb(255 255 255 / 10%); font-size: 24px; line-height: 1; cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease; }
+.community-markdown-lightbox__nav:hover { border-color: rgb(208 173 105 / 75%); background: rgb(255 255 255 / 18%); }
+.community-markdown-lightbox__nav--prev { left: 16px; }
+.community-markdown-lightbox__nav--next { right: 16px; }
 .community-markdown-lightbox figure { position: relative; z-index: 1; display: grid; max-width: min(1200px, 100%); max-height: 100%; justify-items: center; gap: 11px; margin: 0; pointer-events: none; }
-.community-markdown-lightbox figure img { max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; border-radius: 6px; }
+.community-markdown-lightbox figure img { max-width: 100%; max-height: calc(100vh - 128px); object-fit: contain; border-radius: 6px; pointer-events: auto; cursor: zoom-in; transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+.community-markdown-lightbox figure img.is-zoomed { cursor: zoom-out; }
 .community-markdown-lightbox figcaption { color: rgb(255 255 255 / 78%); font-size: 12px; }
 
 @media (max-width: 639px) {

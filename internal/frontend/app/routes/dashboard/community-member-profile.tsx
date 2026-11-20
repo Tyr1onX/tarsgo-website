@@ -5,6 +5,7 @@ import { Notify } from "~/components/notify";
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
+import { GroupAnimatedMark } from "~/components/tarsgo-motion-marks";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityAvatar } from "~/components/community-post-card";
 import { PersonalProfileSettings } from "~/components/personal-profile-settings";
@@ -388,6 +389,11 @@ export default function CommunityMemberProfileRoute() {
     {error ? <p className="community-state community-state--error" role="alert">{error}</p> : null}
 
     <header className="community-member-hero">
+      {member.groups[0] ? (
+        <span className="community-member-hero__emblem" aria-hidden="true">
+          <GroupAnimatedMark groupName={member.groups[0].name} play />
+        </span>
+      ) : null}
       <div className="community-member-hero__avatar-wrap">
         {isSelf ? <>
           <button type="button" className="community-member-hero__avatar-button" aria-label="更换头像" aria-controls="community-member-avatar-file" disabled={avatarUploading} onClick={() => avatarInputRef.current?.click()}>

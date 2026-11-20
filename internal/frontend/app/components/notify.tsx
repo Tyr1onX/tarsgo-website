@@ -1,10 +1,12 @@
 import x from "@iconify-icons/lucide/x";
 import { Icon } from "@iconify/react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export type NotifyTone = "success" | "error";
 export type NotifyPlacement = "top-right" | "bottom-right" | "center";
+
+const SUCCESS_DURATION_MS = 2800;
 
 export function Notify({
   tone,
@@ -23,11 +25,26 @@ export function Notify({
 }) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const [paused, setPaused] = useState(false);
+  const remainingRef = useRef(SUCCESS_DURATION_MS);
+  const startedAtRef = useRef(0);
+
   useEffect(() => {
-    if (!open || tone !== "success") return;
-    const timer = window.setTimeout(() => onCloseRef.current(), 2800);
-    return () => window.clearTimeout(timer);
+    remainingRef.current = SUCCESS_DURATION_MS;
+    setPaused(false);
   }, [open, tone, message]);
+
+  useEffect(() => {
+    if (!open || tone !== "success" || paused) return;
+    startedAtRef.current = Date.now();
+    const timer = window.setTimeout(() => onCloseRef.current(), Math.max(0, remainingRef.current));
+    return () => {
+      window.clearTimeout(timer);
+      if (startedAtRef.current > 0) {
+        remainingRef.current = Math.max(0, remainingRef.current - (Date.now() - startedAtRef.current));
+      }
+    };
+  }, [open, tone, message, paused]);
 
   if (typeof document === "undefined") return null;
 
@@ -59,18 +76,20 @@ export function Notify({
       <div
         role={tone === "error" ? "alert" : "status"}
         aria-live={tone === "error" ? "assertive" : "polite"}
-        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} rounded-md transition-[opacity,transform] duration-150 ${toneClass} ${motionClass}`}
+        onMouseEnter={() => { if (tone === "success") setPaused(true); }}
+        onMouseLeave={() => { if (tone === "success") setPaused(false); }}
+        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} relative overflow-hidden rounded-md transition-[opacity,transform] duration-150 ${toneClass} ${motionClass}`}
       >
         {placement === "center" ? (
           <div className="relative px-5 py-4 text-center">
-            {tone === "error" ? <button
+            <button
               type="button"
               onClick={onClose}
               className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--admin-muted)] transition hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
               aria-label="关闭提醒"
             >
               <Icon icon={x} className="h-4 w-4" />
-            </button> : null}
+            </button>
             {title ? <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div> : null}
             <div className={title ? "mt-2 text-sm leading-6" : "text-sm leading-6"}>{message}</div>
           </div>
@@ -80,16 +99,24 @@ export function Notify({
               {title ? <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div> : null}
               <div className={title ? "mt-1 text-sm leading-6" : "text-sm leading-6"}>{message}</div>
             </div>
-            {tone === "error" ? <button
+            <button
               type="button"
               onClick={onClose}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--admin-muted)] transition hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
               aria-label="关闭提醒"
             >
               <Icon icon={x} className="h-4 w-4" />
-            </button> : null}
+            </button>
           </div>
         )}
+        {open && tone === "success" ? (
+          <span
+            key={String(message)}
+            aria-hidden="true"
+            className={`notify-countdown${paused ? " is-paused" : ""}`}
+            style={{ animationDuration: `${SUCCESS_DURATION_MS}ms` }}
+          />
+        ) : null}
       </div>
     </div>,
     document.body,

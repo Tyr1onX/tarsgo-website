@@ -10,6 +10,7 @@ import { AccountMenuActionIcon, AccountMenuIdentity, AccountSessionChoices, useA
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
 import { DashboardGroupCheckinToast, markDashboardLoginCeremony } from "~/components/dashboard-group-checkin";
 import {
+  DashboardBackToTop,
   DashboardCommandPalette,
   DashboardMobileBottomNav,
   DashboardTopbarBreadcrumb,
@@ -747,6 +748,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />
         </div>
       </div>
+      <DashboardBackToTop />
       <DashboardMobileBottomNav
         currentUser={currentUser}
         hasAssignmentGroup={hasAssignmentGroup}
