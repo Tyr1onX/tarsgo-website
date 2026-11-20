@@ -297,6 +297,13 @@ const defaultMarkdown: Record<string, string> = {
   "term-engineering": termEngineeringMarkdown,
 };
 
+function headingText(children: ReactNode): string {
+  if (typeof children === "string" || typeof children === "number") return String(children);
+  if (Array.isArray(children)) return children.map(headingText).join("");
+  if (isValidElement<{ children?: ReactNode }>(children)) return headingText(children.props.children);
+  return "";
+}
+
 function headingId(title: string) {
   return title.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
 }
@@ -325,11 +332,45 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   </div>;
 }
 
+function HeadingWithAnchor({ id, children }: { id: string; children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyAnchor() {
+    if (typeof window === "undefined") return;
+    const url = `${window.location.origin}${window.location.pathname}${window.location.search}#${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <h2 id={id} className="training-docs__heading-anchor">
+      <span>{children}</span>
+      <button
+        type="button"
+        className={`training-docs__anchor-btn${copied ? " is-copied" : ""}`}
+        aria-label={`复制「${headingText(children)}」章节链接`}
+        title="复制章节链接"
+        onClick={() => void copyAnchor()}
+      >
+        {copied ? "已复制" : "#"}
+      </button>
+    </h2>
+  );
+}
+
 function DocumentationArticle({ source, title }: { source: string; title: string }) {
   const articleTitle = source.match(/^# ([^\n]+)(?:\n|$)/)?.[1] ?? title;
+  const bodyMarkdown = source.replace(/^# [^\n]*(?:\n|$)/, "");
+  const charCount = bodyMarkdown.replace(/```[\s\S]*?```/g, "").replace(/[#>*_`[\]()!-]/g, "").replace(/\s+/g, "").length;
+  const readingMinutes = Math.max(1, Math.ceil(charCount / 420));
   const components: Components = {
-    h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
-    h3: ({ children }) => <h3 id={headingId(String(children))}>{children}</h3>,
+    h2: ({ children }) => <HeadingWithAnchor id={headingId(headingText(children))}>{children}</HeadingWithAnchor>,
+    h3: ({ children }) => <h3 id={headingId(headingText(children))}>{children}</h3>,
     a: ({ href, children }) => href?.startsWith("?")
       ? <Link to={href}>{children}</Link>
       : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
@@ -347,7 +388,8 @@ function DocumentationArticle({ source, title }: { source: string; title: string
 
   return <div className="training-docs__markdown">
     <h1>{articleTitle}</h1>
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{source.replace(/^# [^\n]*(?:\n|$)/, "")}</ReactMarkdown>
+    {charCount > 40 ? <p className="training-docs__meta">约 {readingMinutes} 分钟阅读 · {charCount.toLocaleString("zh-CN")} 字</p> : null}
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>{bodyMarkdown}</ReactMarkdown>
   </div>;
 }
 

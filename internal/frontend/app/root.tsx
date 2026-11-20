@@ -9,7 +9,7 @@ import {
   useLocation,
   useNavigation,
 } from "react-router";
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -36,6 +36,8 @@ const themeBootstrapScript = `(() => {
   root.dataset.theme = resolved;
   root.dataset.themePreference = preference;
   root.style.colorScheme = resolved;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", resolved === "light" ? "#F3F1EB" : "#0B0E0E");
   try {
     if (
       window.location.pathname === "/" &&
@@ -118,15 +120,66 @@ export default function App() {
     };
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const win = window as Window & { __tarsgoConsoleGreeted?: boolean };
+    if (win.__tarsgoConsoleGreeted) return;
+    win.__tarsgoConsoleGreeted = true;
+    console.log(
+      "%c TARSGO %c 吉林大学吉甲大师机器人战队 · 如果你正在看这里，欢迎来 /join 加入我们一起造机器人与共建官网 ",
+      "background:#D0AD69;color:#171915;font-weight:700;padding:3px 8px;border-radius:4px 0 0 4px;",
+      "background:#131918;color:#DDC48F;padding:3px 8px;border-radius:0 4px 4px 0;border:1px solid #2E3835;",
+    );
+  }, []);
+
   return (
     <>
       {isNavigating ? (
         <div className="route-feedback" role="status" aria-label={getNavigationMessage(navigationPath ?? location.pathname)} />
       ) : null}
+      <NetworkStatusBanner />
       <ThemeProvider>
         <Outlet />
       </ThemeProvider>
     </>
+  );
+}
+
+function NetworkStatusBanner() {
+  const [status, setStatus] = useState<"online" | "offline" | "recovered">("online");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let timer = 0;
+    if (!window.navigator.onLine) setStatus("offline");
+    const handleOffline = () => {
+      window.clearTimeout(timer);
+      setStatus("offline");
+    };
+    const handleOnline = () => {
+      setStatus("recovered");
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setStatus("online"), 2400);
+    };
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
+
+  if (status === "online") return null;
+  return (
+    <div
+      className={`network-status-banner${status === "recovered" ? " is-recovered" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="network-status-banner__dot" aria-hidden="true" />
+      <span>{status === "offline" ? "当前网络连接已断开" : "网络已恢复"}</span>
+    </div>
   );
 }
 

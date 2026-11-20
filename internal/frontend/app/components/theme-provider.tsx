@@ -35,6 +35,9 @@ function applyTheme(preference: ThemePreference): ResolvedTheme {
   root.dataset.theme = resolvedTheme;
   root.dataset.themePreference = preference;
   root.style.colorScheme = resolvedTheme;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", resolvedTheme === "light" ? "#F3F1EB" : "#0B0E0E");
   return resolvedTheme;
 }
 

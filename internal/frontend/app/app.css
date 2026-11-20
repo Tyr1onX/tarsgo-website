@@ -3112,3 +3112,105 @@ html[data-theme-transition] :is(
 .field-char-count.is-near-limit {
   color: var(--admin-accent-text, var(--theme-accent-text));
 }
+
+/* Skip-to-content keyboard link */
+.skip-to-content {
+  position: fixed;
+  top: -4rem;
+  left: 1rem;
+  z-index: 120;
+  border: 1px solid var(--theme-accent-contrast);
+  border-radius: 999px;
+  background: var(--theme-surface);
+  padding: 0.45rem 0.9rem;
+  color: var(--theme-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.28);
+  transition: top 140ms ease;
+}
+
+.skip-to-content:focus-visible {
+  top: 0.85rem;
+  outline: 2px solid var(--theme-accent-contrast);
+  outline-offset: 2px;
+}
+
+/* Global offline / recovered network banner */
+.network-status-banner {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 115;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--theme-warning-border);
+  border-radius: 999px;
+  background: var(--theme-warning-surface);
+  padding: 0.42rem 0.95rem;
+  color: var(--theme-warning);
+  font-size: 0.78rem;
+  font-weight: 560;
+  white-space: nowrap;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.26);
+}
+
+.network-status-banner.is-recovered {
+  border-color: var(--theme-success-border);
+  background: var(--theme-success-surface);
+  color: var(--theme-success);
+}
+
+.network-status-banner__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* Training materials reading meta & heading anchor copy */
+.training-docs__meta {
+  margin: -0.25rem 0 1.25rem;
+  color: var(--admin-dim, var(--theme-dim));
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.training-docs__heading-anchor {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.training-docs__anchor-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  padding: 0 0.35rem;
+  color: var(--admin-dim, var(--theme-dim));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 140ms ease, color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.training-docs__heading-anchor:hover .training-docs__anchor-btn,
+.training-docs__anchor-btn:focus-visible,
+.training-docs__anchor-btn.is-copied {
+  opacity: 1;
+}
+
+.training-docs__anchor-btn:hover,
+.training-docs__anchor-btn.is-copied {
+  border-color: var(--admin-border-subtle, var(--theme-border-subtle));
+  background: var(--admin-surface-hover, var(--theme-surface-hover));
+  color: var(--admin-accent-text, var(--theme-accent-text));
+}

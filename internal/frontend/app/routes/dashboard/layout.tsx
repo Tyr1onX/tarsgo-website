@@ -321,6 +321,26 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const permissionsKey = groupResolution?.groups.map((group) => `${group.groupId}:${group.role}`).sort().join(",") ?? "";
   const taskCounts = useDashboardTaskCounts({ currentUser, hasAssignmentGroup, permissionsKey });
+  const totalTodoCount =
+    (taskCounts.weeklyPending ? 1 : 0) +
+    (taskCounts.assignmentCount ?? 0) +
+    (taskCounts.reviewCount ?? 0) +
+    (taskCounts.recruitmentCount ?? 0);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const syncTitle = () => {
+      const cleanTitle = document.title.replace(/^\(\d+\)\s*/, "");
+      const desired = totalTodoCount > 0 ? `(${totalTodoCount}) ${cleanTitle}` : cleanTitle;
+      if (document.title !== desired) document.title = desired;
+    };
+    const frame = window.requestAnimationFrame(syncTitle);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.title = document.title.replace(/^\(\d+\)\s*/, "");
+    };
+  }, [totalTodoCount, location.pathname, pageTitle]);
+
   const sectionMenuItems = getDashboardSectionMenu(currentUser).filter(({ key }) => key !== "my-profile");
 
   useEffect(() => {
@@ -638,6 +658,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="dashboard-shell admin-design min-h-screen text-[var(--admin-text)]">
+      <a href="#dashboard-main-content" className="skip-to-content">跳到正文内容</a>
       <header className="dashboard-shell__topbar sticky top-0 z-[60] flex h-16 min-w-0 items-center gap-3 border-b px-4 sm:gap-4 sm:px-6">
           <button
             ref={sidebarTriggerRef}
@@ -739,7 +760,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </aside>
 
         <div className="dashboard-shell__main-frame relative z-10 min-w-0 flex-1">
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main id="dashboard-main-content" tabIndex={-1} className="p-4 sm:p-6 lg:p-8 focus:outline-none">
           <div className="dashboard-shell__content relative">
             {groupResolutionError ? <div className="admin-notice admin-notice--error mb-4" role="status">所属组别暂时无法刷新，仍使用最近一次成功结果：{groupResolutionError}</div> : null}
             <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, taskCounts, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
