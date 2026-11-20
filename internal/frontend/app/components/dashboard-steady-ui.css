@@ -1,0 +1,462 @@
+/* Steady-state dashboard ergonomics: topbar breadcrumb, command palette, todo pill & weekly strip */
+
+.dashboard-breadcrumb {
+  display: none;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .dashboard-breadcrumb {
+    display: flex;
+  }
+}
+
+.dashboard-breadcrumb__divider {
+  width: 1px;
+  height: 1.05rem;
+  margin-right: 0.25rem;
+  background: var(--admin-border-subtle);
+}
+
+.dashboard-breadcrumb__parent {
+  color: var(--admin-dim);
+}
+
+.dashboard-breadcrumb__sep {
+  color: var(--admin-dim);
+  font-size: 0.7rem;
+}
+
+.dashboard-breadcrumb__current {
+  overflow: hidden;
+  color: var(--admin-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+/* Command-K trigger */
+.dashboard-cmdk-trigger {
+  display: inline-flex;
+  height: 2.15rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 0.55rem;
+  background: var(--admin-canvas);
+  padding: 0 0.6rem 0 0.7rem;
+  color: var(--admin-muted);
+  font-size: 0.78rem;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.dashboard-cmdk-trigger:hover {
+  border-color: var(--admin-accent-soft);
+  color: var(--admin-text);
+}
+
+.dashboard-cmdk-trigger__label {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .dashboard-cmdk-trigger__label {
+    display: inline;
+  }
+}
+
+.dashboard-cmdk-kbd {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--admin-border);
+  border-radius: 0.32rem;
+  background: var(--admin-surface);
+  padding: 0.05rem 0.35rem;
+  color: var(--admin-dim);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+/* Command-K Dialog */
+.dashboard-cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 13vh 1rem 1rem;
+  background: rgb(0 0 0 / 0.54);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.dashboard-cmdk-dialog {
+  width: min(100%, 32rem);
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 0.9rem;
+  background: var(--admin-surface);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.44);
+  animation: dashboard-steady-pop 160ms var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.dashboard-cmdk-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  padding: 0.8rem 1rem;
+  color: var(--admin-muted);
+}
+
+.dashboard-cmdk-input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--admin-text);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.dashboard-cmdk-input::placeholder {
+  color: var(--admin-dim);
+}
+
+.dashboard-cmdk-list {
+  display: flex;
+  max-height: 19rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.dashboard-cmdk-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  padding: 0.58rem 0.75rem;
+  color: var(--admin-text);
+  font-size: 0.84rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dashboard-cmdk-item.is-active,
+.dashboard-cmdk-item:hover {
+  background: color-mix(in srgb, var(--admin-accent) 13%, var(--admin-surface));
+  color: var(--admin-accent-text);
+}
+
+.dashboard-cmdk-item small {
+  color: var(--admin-dim);
+  font-size: 0.72rem;
+}
+
+.dashboard-cmdk-empty {
+  padding: 1.25rem;
+  color: var(--admin-dim);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* Topbar Todo Pill & Popover */
+.dashboard-todo-pill-wrap {
+  position: relative;
+}
+
+.dashboard-todo-pill {
+  display: inline-flex;
+  height: 2.15rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--admin-warning-border);
+  border-radius: 999px;
+  background: var(--admin-warning-surface);
+  padding: 0 0.72rem;
+  color: var(--admin-accent-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: border-color 140ms ease, filter 140ms ease;
+}
+
+.dashboard-todo-pill:hover {
+  filter: brightness(1.06);
+}
+
+.dashboard-todo-pill__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.dashboard-todo-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 80;
+  width: min(18.5rem, calc(100vw - 1.5rem));
+  border: 1px solid var(--admin-border);
+  border-radius: 0.8rem;
+  background: var(--admin-surface);
+  padding: 0.75rem;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.34);
+  animation: dashboard-steady-pop 160ms var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.dashboard-todo-popover__title {
+  padding: 0.1rem 0.4rem 0.5rem;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.dashboard-todo-popover__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  padding: 0.52rem 0.55rem;
+  color: var(--admin-text);
+  font-size: 0.79rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.dashboard-todo-popover__item:hover {
+  background: var(--admin-hover-overlay);
+}
+
+.dashboard-todo-popover__tag {
+  flex: 0 0 auto;
+  border: 1px solid var(--admin-warning-border);
+  border-radius: 999px;
+  background: var(--admin-warning-surface);
+  padding: 0.12rem 0.48rem;
+  color: var(--admin-accent-text);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+/* Weekly Todo Strip (Community top) */
+.dashboard-todo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-lg);
+  background: var(--admin-surface);
+  padding: 0.7rem 0.95rem;
+  box-shadow: var(--admin-card-elevation, none);
+}
+
+.dashboard-todo-strip__left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8125rem;
+}
+
+.dashboard-todo-strip__tag {
+  border: 1px solid var(--admin-warning-border);
+  border-radius: 999px;
+  background: var(--admin-warning-surface);
+  padding: 0.12rem 0.52rem;
+  color: var(--admin-accent-text);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.dashboard-todo-strip__text {
+  color: var(--admin-text);
+}
+
+.dashboard-todo-strip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dashboard-todo-strip__chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-md);
+  background: var(--admin-canvas);
+  padding: 0.34rem 0.68rem;
+  color: var(--admin-text);
+  font-size: 0.76rem;
+  font-weight: 560;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.dashboard-todo-strip__chip:hover {
+  border-color: var(--admin-accent-soft);
+  background: var(--admin-surface-hover);
+  color: var(--admin-accent-text);
+}
+
+@keyframes dashboard-steady-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-cmdk-dialog,
+  .dashboard-todo-popover {
+    animation: none;
+  }
+}
+
+/* Mobile Bottom Quick Nav (< 768px) */
+.dashboard-mobile-bottom-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 55;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border-top: 1px solid var(--admin-border-subtle);
+  background: color-mix(in srgb, var(--admin-surface-topbar) 94%, transparent);
+  padding: 0.35rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+@media (min-width: 768px) {
+  .dashboard-mobile-bottom-nav {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-shell__main-frame {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.dashboard-mobile-bottom-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 2.85rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  font-weight: 550;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.dashboard-mobile-bottom-nav__item.is-active {
+  color: var(--admin-accent-text);
+  font-weight: 650;
+}
+
+.dashboard-mobile-bottom-nav__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-mobile-bottom-nav__dot {
+  position: absolute;
+  top: -2px;
+  right: -5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--admin-accent);
+}
+
+/* Reading Progress Hairline */
+.dashboard-reading-progress {
+  position: fixed;
+  top: 4rem;
+  right: 0;
+  left: 0;
+  z-index: 59;
+  height: 2px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.dashboard-reading-progress > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--admin-accent);
+  transform-origin: left center;
+  transition: transform 80ms linear;
+}
+
+/* Active TOC link highlight in Training Materials */
+.training-docs__toc a.is-active {
+  border-left: 2px solid var(--admin-accent);
+  padding-left: 0.55rem;
+  color: var(--admin-accent-text);
+  font-weight: 620;
+}
+
+/* Heatmap live hover preview bar */
+.availability-heatmap__hover-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.9rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-md);
+  background: var(--admin-surface-subtle);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--admin-muted);
+}
+
+.availability-heatmap__hover-preview strong {
+  color: var(--admin-text);
+  font-weight: 620;
+}
+
+.availability-heatmap__hover-names {
+  color: var(--admin-accent-text);
+}

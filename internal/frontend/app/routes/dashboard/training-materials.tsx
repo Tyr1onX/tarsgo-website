@@ -4,6 +4,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { CommunityMarkdownEditor, type CommunityPendingImage } from "~/components/community-markdown-editor";
+import { ReadingProgressBar, useActiveHeadingId } from "~/components/dashboard-steady-ui";
 import { CommonQuestions, OperationsGuide, WebsiteGuide } from "~/components/resource-guides";
 import { TrainingDocumentTree, orderedTrainingNodes, trainingNodeHref, type TrainingNode } from "~/components/training-document-tree";
 import { apiRequest } from "~/lib/api-client";
@@ -465,8 +466,10 @@ export default function TrainingMaterialsPage() {
   const sections = selectedDocument
     ? Array.from((editing ? draft : documentSource ?? selectedDocument.markdown).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
     : [];
+  const activeHeadingId = useActiveHeadingId(sections.map((section) => section.id));
 
   return <section className="training-docs admin-design mx-auto w-full max-w-[84rem] p-4 sm:p-6" aria-label="资料中心">
+    {!editing ? <ReadingProgressBar /> : null}
     <header className="training-docs__top">资料中心</header>
     <label className="training-docs__mobile-picker">
       <span>选择章节</span>
@@ -571,7 +574,7 @@ export default function TrainingMaterialsPage() {
             title={rightContentsOpen ? "收起本页目录" : "展开本页目录"}
             aria-expanded={rightContentsOpen}>{rightContentsOpen ? "›" : "‹"}</button>
         </div>
-        {rightContentsOpen ? sections.map(({ title, id }) => <a key={id} href={`#${id}`}>{title}</a>) : null}
+        {rightContentsOpen ? sections.map(({ title, id }) => <a key={id} href={`#${id}`} className={activeHeadingId === id ? "is-active" : undefined}>{title}</a>) : null}
       </aside> : <div className="training-docs__toc" aria-hidden="true" />}
     </div>
   </section>;

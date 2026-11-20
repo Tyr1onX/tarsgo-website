@@ -84,7 +84,7 @@ test("heatmap uses discrete levels and exposes valid-count ratios on hover and c
   assert.match(page, /中 1\/3–&lt;2\/3/);
   assert.match(page, /高 ≥ 2\/3/);
   assert.doesNotMatch(page, /linear-gradient\(|backgroundColor:/);
-  const heatmapStyles = adminCss.slice(adminCss.indexOf(".admin-design .availability-heatmap__level--low"));
+  const heatmapStyles = [...adminCss.matchAll(/\.admin-design \.availability-heatmap__[^{}]+\{[^}]*\}/g)].map(([rule]) => rule).join("\n");
   for (const token of ["--admin-danger", "--admin-warning", "--admin-success", "--admin-neutral"]) {
     assert.ok(heatmapStyles.includes(token), token);
   }

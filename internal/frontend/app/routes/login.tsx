@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { AuthShell } from "~/components/auth-shell";
+import { markDashboardLoginCeremony } from "~/components/dashboard-group-checkin";
 import { PasswordField } from "~/components/password-field";
 import {
   ApiError,
@@ -140,10 +141,12 @@ export default function Login() {
         setNotice("密码已重置，请使用新密码登录。");
       } else if (mode === "password") {
         const user = await loginWithPassword({ email, password });
+        markDashboardLoginCeremony(user.id);
         prefetchDashboardForRole(user.role.name);
         navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating), { replace: true });
       } else {
         const user = await loginWithCode({ email, code });
+        markDashboardLoginCeremony(user.id);
         prefetchDashboardForRole(user.role.name);
         navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating), { replace: true });
       }
@@ -159,6 +162,7 @@ export default function Login() {
     setSwitchingAccountId(accountId);
     try {
       const { user } = await switchAccountSession(accountId);
+      markDashboardLoginCeremony(user.id);
       window.location.assign(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));

@@ -809,3 +809,26 @@
   .community-member-badges__selection { align-items: flex-start; flex-direction: column; }
   .community-member-badges__selection select { width: 100%; }
 }
+/* Unified tactile button tokens & refined empty state */
+.community-button {
+  border-radius: var(--admin-radius-md);
+  min-height: var(--admin-control-height);
+}
+.community-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.community-state--empty {
+  border: 1px dashed var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  background: color-mix(in srgb, var(--admin-surface) 72%, var(--admin-canvas));
+}
+.community-state--empty .community-state__icon {
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: 0.75rem;
+  background: var(--admin-surface);
+  color: var(--admin-accent-text);
+}

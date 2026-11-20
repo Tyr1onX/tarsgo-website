@@ -7,6 +7,7 @@ import {
   type AccountSessionAccount,
   type AuthUser,
 } from "~/lib/auth-client";
+import { GroupAnimatedMark } from "./tarsgo-motion-marks";
 
 export function useAccountSessionChoices(open: boolean, currentUserId: number | undefined) {
   const [accounts, setAccounts] = useState<AccountSessionAccount[]>([]);
@@ -31,7 +32,13 @@ export function useAccountSessionChoices(open: boolean, currentUserId: number | 
   return { accounts, setAccounts, loading, error, setError };
 }
 
-export function AccountMenuIdentity({ user }: { user: AuthUser }) {
+export function AccountMenuIdentity({
+  user,
+  groups = [],
+}: {
+  user: AuthUser;
+  groups?: Array<{ groupId: number; name: string; role: number }>;
+}) {
   const name = getAuthUserName(user);
   const role = getAuthUserRoleLabel(user);
   const avatarUrl = user.avatarUrl?.trim();
@@ -47,6 +54,18 @@ export function AccountMenuIdentity({ user }: { user: AuthUser }) {
         <strong className="account-menu-identity__name">{name}</strong>
         <span className="account-menu-identity__email">{user.email}</span>
         {name !== role ? <span className="account-menu-identity__role">{role}</span> : null}
+        {groups.length > 0 ? (
+          <span className="account-menu-identity__groups">
+            {groups.map((group, idx) => (
+              <span key={group.groupId} className="account-menu-identity__group-chip">
+                <span className="account-menu-identity__group-icon" aria-hidden="true">
+                  <GroupAnimatedMark groupName={group.name} play={idx === 0} />
+                </span>
+                <span>{group.name}</span>
+              </span>
+            ))}
+          </span>
+        ) : null}
       </span>
       <svg className="account-menu-identity__check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

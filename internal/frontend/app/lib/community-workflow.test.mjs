@@ -239,7 +239,7 @@ test("reply editor floats above the thread and restores drafts by account and to
 });
 
 test("community toast, reply panel, and editor share intentional overlay layers", () => {
-  assert.match(dashboardLayout, /<main[\s\S]*?<\/main>\s*<CommunityExperienceToastHost[\s\S]*?<\/div>\s*<CoBuilderBadgeUnlockToast/);
+  assert.match(dashboardLayout, /<main[\s\S]*?<\/main>\s*<CommunityExperienceToastHost[\s\S]*?<DashboardMobileBottomNav[\s\S]*?<DashboardGroupCheckinToast[\s\S]*?<CoBuilderBadgeUnlockToast/);
   assert.match(experienceToastStyles, /--community-layer-reply-panel: 40/);
   assert.match(experienceToastStyles, /--community-layer-editor-dialog: 50/);
   assert.match(experienceToastStyles, /--community-layer-toast: 60/);

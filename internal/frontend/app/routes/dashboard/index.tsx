@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useOutletContext, useSearchParams } from "rea
 import { BrandLoader } from "~/components/brand-loader";
 import { CommunityEditorDialog } from "~/components/community-editor-dialog";
 import { CommunityGrowthBar } from "~/components/community-growth";
+import { DashboardWeeklyTodoStrip } from "~/components/dashboard-steady-ui";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityPostCard } from "~/components/community-post-card";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -36,7 +37,7 @@ function readSort(value: string | null): CommunitySort {
 }
 
 export default function DashboardIndex() {
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, taskCounts } = useOutletContext<DashboardLayoutOutletContext>();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -221,6 +222,7 @@ export default function DashboardIndex() {
       </div>
     </header>
 
+    <DashboardWeeklyTodoStrip counts={taskCounts} />
     <CommunityGrowthBar userID={currentUser.id} key={currentUser.id} />
 
     {composerOpen ? <CommunityEditorDialog labelledBy="community-composer-title" onClose={closeComposer}><Suspense fallback={<BrandLoader label="正在打开编辑器" />}><CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={closeComposer} onPublish={publish} /></Suspense></CommunityEditorDialog> : null}

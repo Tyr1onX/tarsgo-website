@@ -54,11 +54,12 @@ html {
 
 :root {
   --site-nav-height: 68px;
-  --theme-canvas: #0D1010;
-  --theme-surface: #151A19;
-  --theme-deep-surface: #080B0B;
-  --theme-card: #171E1E;
-  --theme-surface-hover: #1B2322;
+  --theme-canvas: #0B0E0E;
+  --theme-surface: #131918;
+  --theme-deep-surface: #0E1312;
+  --theme-card: #18201F;
+  --theme-surface-hover: #1E2726;
+  --admin-card-elevation: inset 0 1px 0 rgb(255 255 255 / 0.045), 0 1px 2px rgb(0 0 0 / 0.22);
   --theme-text: #EDF1ED;
   --theme-muted: #A3ADA7;
   --theme-dim: #74817A;
@@ -103,11 +104,12 @@ html {
 }
 
 :root[data-theme="light"] {
-  --theme-canvas: #F7F6F2;
-  --theme-surface: #FFFFFF;
-  --theme-deep-surface: #EEECE5;
+  --theme-canvas: #F3F1EB;
+  --theme-surface: #FAF9F6;
+  --theme-deep-surface: #EAE7DF;
   --theme-card: #FFFFFF;
-  --theme-surface-hover: #F0EEE7;
+  --theme-surface-hover: #F2EFE7;
+  --admin-card-elevation: inset 0 1px 0 rgb(255 255 255 / 0.85), 0 1px 3px rgb(36 37 33 / 0.06), 0 4px 12px rgb(36 37 33 / 0.03);
   --theme-text: #242521;
   --theme-muted: #56584F;
   --theme-dim: #686A62;
