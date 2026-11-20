@@ -17,7 +17,7 @@ test("expanded sidebar keeps its labels visible and the account menu stays with 
   assert.match(layout, /<AccountMenuIdentity user=\{currentUser\} \/>/);
   assert.match(styles, /\.account-menu-identity\s*\{/);
   assert.match(styles, /\.account-menu-action\s*\{/);
-  for (const action of ["帮助与工作手册", "我的主页", "退出登录"]) assert.match(layout, new RegExp(action));
+  for (const action of ["社区", "我的主页", "退出登录"]) assert.match(layout, new RegExp(action));
   assert.doesNotMatch(layout, /handleLogoutAll|退出全部账号/);
   assert.match(layout, /<AccountSessionChoices/);
   assert.doesNotMatch(layout, /AccountSessionDialog|openAccountModal|accountModalMode/);

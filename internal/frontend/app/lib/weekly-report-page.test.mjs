@@ -74,10 +74,10 @@ test("the course schedule stays under personal profile settings", async () => {
 });
 
 test("the in-workbench guide documents open daily and assignment flows", async () => {
-  const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
+  const guide = await readFile(new URL("../components/resource-guides.tsx", import.meta.url), "utf8");
   const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
   assert.match(routeConfig, /route\("guide", "routes\/dashboard\/guide\.tsx"\)/);
-  for (const phrase of ["我的主页", "点击姓名、头像或个人介绍即可直接编辑", "课程时间", "工作周报", "请假工作台", "我的作业", "批改提交", "时间协调", "其他培养入口暂未开放"]) {
+  for (const phrase of ["我的主页", "点击姓名、头像或个人介绍即可直接编辑", "课程时间", "工作周报", "请假工作台", "我的作业", "批改提交", "时间协调", "入门与技术学习资料统一在"]) {
     assert.match(guide, new RegExp(phrase));
   }
   assert.doesNotMatch(guide, /资料设置/);

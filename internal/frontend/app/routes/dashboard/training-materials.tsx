@@ -1,12 +1,14 @@
-import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
+import { isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { CommunityMarkdownEditor, type CommunityPendingImage } from "~/components/community-markdown-editor";
+import { CommonQuestions, OperationsGuide, WebsiteGuide } from "~/components/resource-guides";
 import { TrainingDocumentTree, orderedTrainingNodes, trainingNodeHref, type TrainingNode } from "~/components/training-document-tree";
 import { apiRequest } from "~/lib/api-client";
 import { decodeCommunityImageTitle } from "~/lib/community-markdown";
+import { hasOperationsWorkManualAccess, hasWorkbenchAccess } from "~/lib/dashboard-navigation";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import gitMarkdown from "~/content/training/git-and-github.md?raw";
 import computerMarkdown from "~/content/training/computer-basics.md?raw";
@@ -46,8 +48,18 @@ import termEngineeringMarkdown from "~/content/training/concepts/term-engineerin
 import "./training-materials.css";
 
 export function meta() {
-  return [{ title: "新人培养文档 | TARSGO" }];
+  return [{ title: "资料中心 | TARSGO" }];
 }
+
+const RESOURCE_GUIDES: TrainingNode[] = [
+  { id: "resource-guides", parentId: "", title: "使用与工作流程", kind: "folder", readonly: true },
+  { id: "website-guide", parentId: "resource-guides", title: "网站使用", kind: "document", readonly: true },
+  { id: "common-questions", parentId: "resource-guides", title: "常见问题", kind: "document", readonly: true },
+];
+
+const OPERATIONS_GUIDE: TrainingNode = {
+  id: "operations-sop", parentId: "resource-guides", title: "运营组 SOP", kind: "document", readonly: true,
+};
 
 const materials = [
   {
@@ -339,7 +351,8 @@ function DocumentationArticle({ source, title }: { source: string; title: string
 }
 
 export default function TrainingMaterialsPage() {
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
+  const canReadOperationsSOP = hasWorkbenchAccess(currentUser) && hasOperationsWorkManualAccess(currentUser, groupResolution?.groups);
   const canEdit = currentUser.role.name === "super_admin";
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
@@ -369,13 +382,19 @@ export default function TrainingMaterialsPage() {
     return () => controller.abort();
   }, [treeRevision]);
 
-  const selectedNode = tree.find((node) =>
+  const availableNodes = useMemo(() => [
+    ...RESOURCE_GUIDES,
+    ...(canReadOperationsSOP ? [OPERATIONS_GUIDE] : []),
+    ...tree,
+  ], [canReadOperationsSOP, tree]);
+
+  const selectedNode = availableNodes.find((node) =>
     node.kind === "reference" ? searchParams.get("group") === node.ref && searchParams.has("group")
       : node.kind === "document" && !searchParams.has("group") && node.id === (searchParams.get("doc") ?? "welcome")
-  ) ?? (searchParams.has("group") || searchParams.has("doc") ? undefined : tree.find(({ id }) => id === "welcome"));
+  ) ?? (searchParams.has("group") || searchParams.has("doc") ? undefined : availableNodes.find(({ id }) => id === "welcome"));
   const selectedMaterial = selectedNode?.kind === "reference"
     ? materials.find(({ id }) => id === selectedNode.ref) : undefined;
-  const selectedDocument = selectedNode?.kind === "document"
+  const selectedDocument = selectedNode?.kind === "document" && !selectedNode.readonly
     ? { id: selectedNode.id, markdown: defaultMarkdown[selectedNode.id] ?? `# ${selectedNode.title}\n` }
     : undefined;
   const selectedKey = selectedNode?.id ?? "";
@@ -439,7 +458,7 @@ export default function TrainingMaterialsPage() {
     }
   }
 
-  const orderedPages = orderedTrainingNodes(tree).map(({ node }) => node).filter((node) => node.kind !== "folder");
+  const orderedPages = orderedTrainingNodes(availableNodes).map(({ node }) => node).filter((node) => node.kind !== "folder");
   const activeIndex = orderedPages.findIndex(({ id }) => id === selectedKey);
   const before = orderedPages[activeIndex - 1];
   const after = orderedPages[activeIndex + 1];
@@ -447,21 +466,21 @@ export default function TrainingMaterialsPage() {
     ? Array.from((editing ? draft : documentSource ?? selectedDocument.markdown).matchAll(/^## (.+)$/gm), ([, title]) => ({ title, id: headingId(title) }))
     : [];
 
-  return <section className="training-docs admin-design mx-auto w-full max-w-[84rem] p-4 sm:p-6" aria-label="新人培养文档">
-    <header className="training-docs__top">新人培养文档</header>
+  return <section className="training-docs admin-design mx-auto w-full max-w-[84rem] p-4 sm:p-6" aria-label="资料中心">
+    <header className="training-docs__top">资料中心</header>
     <label className="training-docs__mobile-picker">
       <span>选择章节</span>
       <select
         value={selectedKey}
         onChange={(event) => {
           if (!confirmLeave()) return;
-          const node = tree.find(({ id }) => id === event.target.value);
+          const node = availableNodes.find(({ id }) => id === event.target.value);
           if (node && node.kind !== "folder") {
             setSearchParams(node.kind === "reference" ? { group: node.ref ?? "" } : { doc: node.id });
           }
         }}
       >
-        {orderedTrainingNodes(tree).map(({ node, depth }) => <option key={node.id} value={node.id} disabled={node.kind === "folder"}>
+        {orderedTrainingNodes(availableNodes).map(({ node, depth }) => <option key={node.id} value={node.id} disabled={node.kind === "folder"}>
           {"　".repeat(depth)}{node.title}
         </option>)}
       </select>
@@ -476,7 +495,7 @@ export default function TrainingMaterialsPage() {
         </div>
         <div className="training-docs__sidebar-body" aria-hidden={!leftNavigationOpen} inert={!leftNavigationOpen}>
           <TrainingDocumentTree
-            nodes={tree}
+            nodes={availableNodes}
             selectedId={selectedKey}
             canEdit={canEdit}
             onTreeChange={setTree}
@@ -497,7 +516,10 @@ export default function TrainingMaterialsPage() {
             </> : <button type="button" onClick={beginEdit}>编辑</button>}
           </div>
         </div> : null}
-        {selectedMaterial
+        {selectedKey === "website-guide" ? <WebsiteGuide currentUser={currentUser} groupResolution={groupResolution} />
+          : selectedKey === "common-questions" ? <CommonQuestions />
+          : selectedKey === "operations-sop" && canReadOperationsSOP ? <OperationsGuide />
+          : selectedMaterial
           ? <>
               <h1>{selectedNode?.title ?? selectedMaterial.label}</h1>
               <pre className="training-docs__original">{selectedMaterial.text}</pre>

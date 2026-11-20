@@ -64,7 +64,6 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
   const location = useLocation();
   const accountMenuItems = visibleUser
     ? getDashboardSectionMenu(visibleUser)
-      .filter((item) => item.key !== "community")
       .sort((a, b) => Number(b.key === "my-profile") - Number(a.key === "my-profile"))
     : [];
   const accountSection = visibleUser
@@ -413,16 +412,10 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                           <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)}
                             aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
                             className="account-menu-action">
-                            <AccountMenuActionIcon name="my-profile" />
+                            <AccountMenuActionIcon name={item.key === "community" ? "community" : "my-profile"} />
                             {item.label}
                           </Link>
                         ))}
-                        {hasWorkbenchAccess(visibleUser) ? (
-                          <Link to="/dashboard/guide" role="menuitem" onClick={() => setUserMenuOpen(false)} className="account-menu-action">
-                            <AccountMenuActionIcon name="guide" />
-                            帮助与工作手册
-                          </Link>
-                        ) : null}
                         <div className="account-menu-divider" role="separator" />
                         <button type="button" onClick={handleLogout} disabled={loggingOut}
                           role="menuitem" className="account-menu-action account-menu-action--logout">

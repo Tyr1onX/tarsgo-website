@@ -19,7 +19,9 @@ test("the same compact header serves every viewport without public or hidden nav
 
 test("account actions reuse existing permissions and retain keyboard navigation", () => {
   assert.match(navbar, /getDashboardSectionMenu\(visibleUser\)/);
-  assert.match(navbar, /filter\(\(item\) => item.key !== "community"\)/);
+  assert.doesNotMatch(navbar, /filter\(\(item\) => item.key !== "community"\)/);
+  assert.match(navbar, /item.key === "community" \? "community" : "my-profile"/);
+  assert.doesNotMatch(navbar, /帮助与工作手册/);
   assert.match(navbar, /<AccountSessionChoices/);
   assert.match(navbar, /退出登录/);
   assert.match(navbar, /navigate\("\/login", \{ replace: true \}\)/);
