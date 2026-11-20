@@ -100,10 +100,6 @@ export function EventsAndHonorsArchive() {
                   fetchPriority="high"
                   decoding="async"
                 />
-                <figcaption>
-                  <span>{spotlightAward.year} · {spotlightAward.event}</span>
-                  <strong>RoboMaster 全国赛现场</strong>
-                </figcaption>
               </figure>
             ) : null}
             <div className="honors-featured-records">

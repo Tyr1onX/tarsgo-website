@@ -107,7 +107,6 @@ export function TeamHistoryArchive() {
               {image ? (
                 <figure className="team-history-photo">
                   <img src={image.src} alt={image.alt} loading="lazy" decoding="async" />
-                  <figcaption>{image.caption}</figcaption>
                   <ul aria-label={`${year}年照片资料依据`}>
                     {image.sourceIds.map((sourceId) => (
                       <li key={sourceId}><HistorySource sourceId={sourceId} /></li>

@@ -109,18 +109,6 @@
   object-position: center;
 }
 
-.about-origin-photo figcaption,
-.about-place-photo figcaption {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  padding: 3.5rem 0.9rem 0.75rem;
-  background: linear-gradient(transparent, rgb(0 0 0 / 68%));
-  color: rgb(255 255 255 / 86%);
-  font-size: 0.72rem;
-  line-height: 1.5;
-}
-
 .about-story-groups,
 .about-story-traces {
   border-block: 1px solid var(--admin-border-subtle);
@@ -266,11 +254,6 @@
 
 .about-place-photo--daily img {
   object-position: center 48%;
-}
-
-.about-place-photo figcaption {
-  padding-inline: 0.75rem;
-  font-size: 0.69rem;
 }
 
 .about-traces-layout {
@@ -491,11 +474,6 @@
   .about-place-photo--testing {
     grid-column: 1 / -1;
     grid-row: 4;
-  }
-
-  .about-place-photo figcaption {
-    padding: 2.75rem 0.55rem 0.55rem;
-    font-size: 0.63rem;
   }
 
   .about-traces-layout {

@@ -30,7 +30,6 @@ const activityStories = [
     description: "围绕具体任务开展机器人研发与组内协作，从承担实际工作开始积累经验。每组参与的内容会随项目不同而变化。",
     image: "/assets/images/Preparation_for_competition/preparation-02.webp",
     imageAlt: "队员围绕机器人进行赛前检查与调试。",
-    caption: "团队备赛现场记录",
   },
   {
     number: "02",
@@ -38,7 +37,6 @@ const activityStories = [
     description: "备赛成果会在 RoboMaster 比赛中接受检验。赛场上的协作、判断与调度，也是项目实践的一部分。",
     image: "/assets/images/ContestMoment/contest-moment-04.webp",
     imageAlt: "队员在 RoboMaster 比赛现场共同检查机器人。",
-    caption: "RoboMaster 比赛现场",
   },
   {
     number: "03",
@@ -46,7 +44,6 @@ const activityStories = [
     description: "技术开发之外，宣传、策划、赛事运营与对外联络同样支撑团队运转。不同兴趣与专长都能成为协作的一部分。",
     image: "/assets/images/Daily/daily-05.webp",
     imageAlt: "吉甲大师成员共同准备餐食的团队活动现场。",
-    caption: "团队活动记录",
   },
 ];
 
@@ -188,7 +185,6 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
                 loading="lazy"
                 decoding="async"
               />
-              <figcaption>团队协作现场 · 通用团队影像，不代表当前组别的专属工作现场。</figcaption>
             </figure>
 
             <div className="join-group-panel__content" aria-live="polite" aria-atomic="true">
@@ -242,7 +238,6 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
               >
                 <figure className="join-story__media">
                   <img src={story.image} alt={story.imageAlt} loading="lazy" decoding="async" />
-                  <figcaption>{story.caption}</figcaption>
                 </figure>
                 <div className="join-story__copy">
                   <p className="join-story__number">{story.number} <span aria-hidden="true">/</span> TARSGO</p>

@@ -107,7 +107,6 @@ export type TeamHistoryYear = {
   image?: {
     src: string;
     alt: string;
-    caption: string;
     sourceIds: Array<keyof typeof teamHistorySources>;
   };
 };
@@ -131,7 +130,6 @@ export const teamHistoryYears: TeamHistoryYear[] = [
     image: {
       src: "/assets/images/Milestone/2019-breakthrough.webp",
       alt: "2019 年 ICRA RoboMaster 人工智能挑战赛现场，队员举着 TARS-Go 队旗，机器人在画面前方。",
-      caption: "2019 年 5 月 · 加拿大蒙特利尔 ICRA RoboMaster AI Challenge",
       sourceIds: ["jlu2019Icra"],
     },
     stories: [
@@ -159,7 +157,6 @@ export const teamHistoryYears: TeamHistoryYear[] = [
     image: {
       src: "/assets/images/Milestone/2020-first-achievement-01.webp",
       alt: "吉甲大师梦工场与 TARS-Go 战队成员的 2020 年合影。",
-      caption: "2020 年 · 吉甲大师梦工场与 TARS-Go 战队",
       sourceIds: ["jlu2020Origin"],
     },
     stories: [
@@ -200,7 +197,6 @@ export const teamHistoryYears: TeamHistoryYear[] = [
     image: {
       src: "/assets/images/Milestone/2022-inheritance-system-02.webp",
       alt: "TARS-Go 队员与 2022 赛季机器人合影，背景为 RoboMaster 2022 高校系列赛标识。",
-      caption: "RoboMaster 2022 赛季团队与机器人",
       sourceIds: ["siteHistoryPhoto"],
     },
     stories: [
@@ -240,7 +236,6 @@ export const teamHistoryYears: TeamHistoryYear[] = [
     image: {
       src: "/assets/images/Milestone/2024-national-competition.webp",
       alt: "TARS-Go 队员与机器人在 RoboMaster 2024 赛场合影。",
-      caption: "RoboMaster 2024 赛季赛场合影",
       sourceIds: ["siteHistoryPhoto"],
     },
     stories: [
@@ -260,7 +255,6 @@ export const teamHistoryYears: TeamHistoryYear[] = [
     image: {
       src: "/assets/images/Milestone/2025-legacy.webp",
       alt: "TARS-Go 队员在 RoboMaster 2025 高校联盟赛辽宁站 3V3 对抗赛后合影。",
-      caption: "RoboMaster 2025 高校联盟赛辽宁站",
       sourceIds: ["siteHistoryPhoto"],
     },
     stories: [
@@ -288,7 +282,6 @@ export const teamHistoryYears: TeamHistoryYear[] = [
     image: {
       src: "/assets/images/Robot/2026/hero-01-1440.webp",
       alt: "TARS-Go 2026 赛季 1 号英雄机器人。",
-      caption: "TARS-Go 2026 赛季 · 1 号英雄机器人",
       sourceIds: ["siteRobotArchive"],
     },
     stories: [
