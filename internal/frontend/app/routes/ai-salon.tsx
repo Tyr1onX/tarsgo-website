@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { SalonShell, salonButton, salonPrimaryButton, useSalonIdentity } from "~/components/ai-salon-shared";
 import { BrandLoader } from "~/components/brand-loader";
+import { Reveal } from "~/components/public-motion";
 import { SalonArtwork } from "~/components/salon-artwork";
 import { SalonHeroArt } from "~/components/salon-hero-art";
 import { salonClient, salonDate, salonError, type SalonEvent } from "~/lib/ai-salon-client";
@@ -26,7 +27,10 @@ function EventCard({ event }: { event: SalonEvent }) {
         ) : <SalonArtwork />}
       </div>
       <div className="salon-event-body">
-        <span className={`salon-event-status${event.registrationOpen ? " salon-event-status--open" : ""}`}>{status}</span>
+        <span className={`salon-event-status${event.registrationOpen ? " salon-event-status--open" : ""}`}>
+          {event.registrationOpen ? <span className="salon-status-pulse" aria-hidden="true" /> : null}
+          {status}
+        </span>
         <h3>{event.title}</h3>
         <dl className="salon-event-meta">
           <div><dt>时间</dt><dd>{salonDate(event.startAt)}（北京时间）</dd></div>
@@ -71,31 +75,37 @@ export default function AISalon() {
             <div className="salon-hero-art"><SalonHeroArt /></div>
           </div>
         </section>
-        <section id="salon-events" className="salon-events" aria-labelledby="salon-events-title">
-          <div className="salon-section-heading"><h2 id="salon-events-title">近期活动</h2></div>
-          {error ? <p className="salon-empty" role="alert">{error}</p> : !events ? (
-            <BrandLoader label="正在加载活动" />
-          ) : upcoming.length ? (
-            <div className="salon-event-grid">{upcoming.map((event) => <EventCard key={event.id} event={event} />)}</div>
-          ) : <div className="salon-empty"><span className="salon-empty-dot" aria-hidden="true" /><p>新一期活动筹备中</p></div>}
-        </section>
-        <section className="salon-format" aria-labelledby="salon-format-title">
-          <div className="salon-section-heading"><h2 id="salon-format-title">让作品带来交流，让交流产生下一次共创。</h2></div>
-          <ol className="salon-steps">
-            {([
-              ["创作入门", "线上体验、线下实践，从工具上手到自主完善作品。"],
-              ["作品展示", "分享作品、创作思路与经验，从学习者成为分享者。"],
-              ["交流共创", <>围绕「像素吉大」（吉大版星露谷物语）等校园创作，在 <a className="text-accent-primary underline" href="https://jluai.cn/" target="_blank" rel="noopener noreferrer">JLUAI</a> 交流想法、一起共创。</>],
-            ] as const).map(([title, description], index) => (
-              <li key={title}><span className="salon-step-number" aria-hidden="true">0{index + 1}</span><h3>{title}</h3><p>{description}</p></li>
-            ))}
-          </ol>
-        </section>
-        {past.length ? (
-          <section className="salon-past" aria-labelledby="salon-past-title">
-            <div className="salon-section-heading"><h2 id="salon-past-title">往期活动</h2></div>
-            <div className="salon-event-grid">{past.map((event) => <EventCard key={event.id} event={event} />)}</div>
+        <Reveal>
+          <section id="salon-events" className="salon-events" aria-labelledby="salon-events-title">
+            <div className="salon-section-heading"><h2 id="salon-events-title">近期活动</h2></div>
+            {error ? <p className="salon-empty" role="alert">{error}</p> : !events ? (
+              <BrandLoader label="正在加载活动" />
+            ) : upcoming.length ? (
+              <div className="salon-event-grid">{upcoming.map((event) => <EventCard key={event.id} event={event} />)}</div>
+            ) : <div className="salon-empty"><span className="salon-empty-dot" aria-hidden="true" /><p>新一期活动筹备中</p></div>}
           </section>
+        </Reveal>
+        <Reveal delay={60}>
+          <section className="salon-format" aria-labelledby="salon-format-title">
+            <div className="salon-section-heading"><h2 id="salon-format-title">让作品带来交流，让交流产生下一次共创。</h2></div>
+            <ol className="salon-steps">
+              {([
+                ["创作入门", "线上体验、线下实践，从工具上手到自主完善作品。"],
+                ["作品展示", "分享作品、创作思路与经验，从学习者成为分享者。"],
+                ["交流共创", <>围绕「像素吉大」（吉大版星露谷物语）等校园创作，在 <a className="text-accent-primary underline" href="https://jluai.cn/" target="_blank" rel="noopener noreferrer">JLUAI</a> 交流想法、一起共创。</>],
+              ] as const).map(([title, description], index) => (
+                <li key={title}><span className="salon-step-number" aria-hidden="true">0{index + 1}</span><h3>{title}</h3><p>{description}</p></li>
+              ))}
+            </ol>
+          </section>
+        </Reveal>
+        {past.length ? (
+          <Reveal delay={60}>
+            <section className="salon-past" aria-labelledby="salon-past-title">
+              <div className="salon-section-heading"><h2 id="salon-past-title">往期活动</h2></div>
+              <div className="salon-event-grid">{past.map((event) => <EventCard key={event.id} event={event} />)}</div>
+            </section>
+          </Reveal>
         ) : null}
       </div>
     </SalonShell>

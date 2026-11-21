@@ -2415,24 +2415,6 @@ html[data-theme-transition] :is(
   object-position: center;
 }
 
-.robot-gallery__view-label {
-  position: absolute;
-  inset: auto 0 0;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(0deg, rgb(11 13 13 / 0.72), transparent);
-  color: #fff;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  opacity: 0;
-  text-align: left;
-  transition: opacity 180ms ease;
-}
-
-.robot-gallery__image-button:hover .robot-gallery__view-label,
-.robot-gallery__image-button:focus-visible .robot-gallery__view-label {
-  opacity: 1;
-}
-
 .robot-gallery__caption {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2652,7 +2634,6 @@ html[data-theme-transition] :is(
 @media (prefers-reduced-motion: reduce) {
   .robot-gallery__filter,
   .robot-gallery__season-switch button,
-  .robot-gallery__view-label,
   .robot-gallery__dialog-close,
   .robot-gallery__dialog-nav {
     transition: none;

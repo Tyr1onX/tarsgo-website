@@ -1,8 +1,9 @@
-import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Link } from "react-router";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Link, useSearchParams } from "react-router";
 
 import { memberGrowthStages } from "../data/join-growth";
 import { GroupAnimatedMark } from "./tarsgo-motion-marks";
+import { Reveal } from "./public-motion";
 import "./join-experience.css";
 
 type JoinGroup = {
@@ -107,10 +108,20 @@ function handleGroupTabKeyDown(
 }
 
 export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
+  const [searchParams] = useSearchParams();
   const [activeIndex, setActiveIndex] = useState(0);
   const tabsRef = useRef<HTMLDivElement>(null);
-  const activeGroup = groups[activeIndex] ?? groups[0];
 
+  useEffect(() => {
+    const requestedGroup = searchParams.get("group")?.trim();
+    if (!requestedGroup) return;
+    const matchIndex = groups.findIndex(
+      (g) => g.name === requestedGroup || g.name.replace(/\s+/g, "") === requestedGroup.replace(/\s+/g, ""),
+    );
+    if (matchIndex >= 0) setActiveIndex(matchIndex);
+  }, [searchParams, groups]);
+
+  const activeGroup = groups[activeIndex] ?? groups[0];
   if (!activeGroup) return null;
 
   return (
@@ -137,173 +148,183 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
       </section>
 
       <div className="join-page__container">
-        <section id="join-groups" className="join-section" aria-labelledby="join-groups-heading">
-          <div className="join-section__heading">
-            <p className="join-eyebrow">FIND YOUR DIRECTION</p>
-            <h2 id="join-groups-heading">探索五个组别</h2>
-            <p>从真实职责与兴趣出发，先找到值得深入了解的方向。</p>
-          </div>
+        <Reveal>
+          <section id="join-groups" className="join-section" aria-labelledby="join-groups-heading">
+            <div className="join-section__heading">
+              <p className="join-eyebrow">FIND YOUR DIRECTION</p>
+              <h2 id="join-groups-heading">探索五个组别</h2>
+              <p>从真实职责与兴趣出发，先找到值得深入了解的方向。</p>
+            </div>
 
-          <div className="join-group-tabs" ref={tabsRef} role="tablist" aria-label="选择一个专业组别">
-            {groups.map((group, index) => {
-              const isActive = index === activeIndex;
-              return (
-                <button
-                  key={group.name}
-                  id={"join-group-tab-" + index}
-                  type="button"
-                  role="tab"
-                  data-group-index={index}
-                  aria-selected={isActive}
-                  aria-controls="join-group-panel"
-                  tabIndex={isActive ? 0 : -1}
-                  className="join-group-tab"
-                  onClick={() => setActiveIndex(index)}
-                  onKeyDown={(event) => handleGroupTabKeyDown(event, index, groups, tabsRef, setActiveIndex)}
-                >
-                  <span className="join-group-mark" aria-hidden="true">
-                    <img src={group.logoBlack} alt="" className="join-group-mark__light" />
-                    <img src={group.logoWhite} alt="" className="join-group-mark__dark" />
+            <div className="join-group-tabs" ref={tabsRef} role="tablist" aria-label="选择一个专业组别">
+              {groups.map((group, index) => {
+                const isActive = index === activeIndex;
+                return (
+                  <button
+                    key={group.name}
+                    id={"join-group-tab-" + index}
+                    type="button"
+                    role="tab"
+                    data-group-index={index}
+                    aria-selected={isActive}
+                    aria-controls="join-group-panel"
+                    tabIndex={isActive ? 0 : -1}
+                    className="join-group-tab"
+                    onClick={() => setActiveIndex(index)}
+                    onKeyDown={(event) => handleGroupTabKeyDown(event, index, groups, tabsRef, setActiveIndex)}
+                  >
+                    <span className="join-group-mark" aria-hidden="true">
+                      <img src={group.logoBlack} alt="" className="join-group-mark__light" />
+                      <img src={group.logoWhite} alt="" className="join-group-mark__dark" />
+                    </span>
+                    <span className="join-group-tab__name">{group.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              key={activeGroup.name}
+              id="join-group-panel"
+              className="join-group-panel join-group-panel--animated"
+              role="tabpanel"
+              aria-labelledby={"join-group-tab-" + activeIndex}
+              tabIndex={0}
+            >
+              <figure className="join-group-panel__photo">
+                <img
+                  src="/assets/images/Daily/daily-03.webp"
+                  alt="吉甲大师成员在工作室围绕电脑交流。"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+
+              <div className="join-group-panel__content" aria-live="polite" aria-atomic="true">
+                <div className="join-group-panel__brand" aria-hidden="true">
+                  <img src={activeGroup.logoStructure} alt="" className="join-group-panel__structure" />
+                  <span className="join-group-panel__mark">
+                    <GroupAnimatedMark key={activeGroup.name} groupName={activeGroup.name} play />
                   </span>
-                  <span className="join-group-tab__name">{group.name}</span>
-                </button>
-              );
-            })}
-          </div>
+                </div>
+                <p className="join-group-panel__index">
+                  GROUP / {String(activeIndex + 1).padStart(2, "0")}
+                </p>
+                <h3>{activeGroup.name}</h3>
 
-          <div
-            id="join-group-panel"
-            className="join-group-panel"
-            role="tabpanel"
-            aria-labelledby={"join-group-tab-" + activeIndex}
-            tabIndex={0}
-          >
-            <figure className="join-group-panel__photo">
-              <img
-                src="/assets/images/Daily/daily-03.webp"
-                alt="吉甲大师成员在工作室围绕电脑交流。"
-                loading="lazy"
-                decoding="async"
-              />
-            </figure>
-
-            <div className="join-group-panel__content" aria-live="polite" aria-atomic="true">
-              <div className="join-group-panel__brand" aria-hidden="true">
-                <img src={activeGroup.logoStructure} alt="" className="join-group-panel__structure" />
-                <span className="join-group-panel__mark">
-                  <GroupAnimatedMark key={activeGroup.name} groupName={activeGroup.name} play />
-                </span>
-              </div>
-              <p className="join-group-panel__index">
-                GROUP / {String(activeIndex + 1).padStart(2, "0")}
-              </p>
-              <h3>{activeGroup.name}</h3>
-
-              <div className="join-group-facts">
-                <section>
-                  <h4>我们在做什么？</h4>
-                  <p>{activeGroup.description}</p>
-                </section>
-                <section>
-                  <h4>你会接触什么？</h4>
-                  <ul className="join-direction-list" aria-label={activeGroup.name + "涉及方向"}>
-                    {activeGroup.directions.map((direction) => <li key={direction}>{direction}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h4>适合怎样的兴趣方向？</h4>
-                  <p>{groupInterests[activeGroup.name] ?? "可以先从本组职责与涉及方向开始了解，再结合自己的兴趣选择。"}</p>
-                </section>
-                <section>
-                  <h4>怎样与其他组协作？</h4>
-                  <p>{activeGroup.collaboration}</p>
-                </section>
+                <div className="join-group-facts">
+                  <section>
+                    <h4>我们在做什么？</h4>
+                    <p>{activeGroup.description}</p>
+                  </section>
+                  <section>
+                    <h4>你会接触什么？</h4>
+                    <ul className="join-direction-list" aria-label={activeGroup.name + "涉及方向"}>
+                      {activeGroup.directions.map((direction) => <li key={direction}>{direction}</li>)}
+                    </ul>
+                  </section>
+                  <section>
+                    <h4>适合怎样的兴趣方向？</h4>
+                    <p>{groupInterests[activeGroup.name] ?? "可以先从本组职责与涉及方向开始了解，再结合自己的兴趣选择。"}</p>
+                  </section>
+                  <section>
+                    <h4>怎样与其他组协作？</h4>
+                    <p>{activeGroup.collaboration}</p>
+                  </section>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
 
-        <section className="join-section join-stories" aria-labelledby="join-stories-heading">
-          <div className="join-section__heading">
-            <p className="join-eyebrow">LIFE AT TARSGO</p>
-            <h2 id="join-stories-heading">在吉甲，你可以经历什么？</h2>
-            <p>研发、竞赛与团队活动呈现不同的实践场景；实际参与内容随组别、项目和赛季安排变化。</p>
-          </div>
+          </section>
+        </Reveal>
 
-          <div className="join-story-list">
-            {activityStories.map((story, index) => (
-              <article
-                key={story.number}
-                className={"join-story " + (index % 2 === 1 ? "join-story--image-right" : "")}
-              >
-                <figure className="join-story__media">
-                  <img src={story.image} alt={story.imageAlt} loading="lazy" decoding="async" />
-                </figure>
-                <div className="join-story__copy">
-                  <p className="join-story__number">{story.number} <span aria-hidden="true">/</span> TARSGO</p>
-                  <h3>{story.title}</h3>
-                  <p>{story.description}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        <Reveal delay={60}>
+          <section className="join-section join-stories" aria-labelledby="join-stories-heading">
+            <div className="join-section__heading">
+              <p className="join-eyebrow">LIFE AT TARSGO</p>
+              <h2 id="join-stories-heading">在吉甲，你可以经历什么？</h2>
+              <p>研发、竞赛与团队活动呈现不同的实践场景；实际参与内容随组别、项目和赛季安排变化。</p>
+            </div>
 
-        <section className="join-section" aria-labelledby="join-growth-heading">
-          <div className="join-section__heading">
-            <p className="join-eyebrow">A POSSIBLE JOURNEY</p>
-            <h2 id="join-growth-heading">新人如何成长？</h2>
-            <p>这是一条可能的成长方向，不代表统一课程、进度或培养承诺。组内训练、项目与赛季中的参与机会和责任，会随个人准备及实际任务变化。</p>
-          </div>
-          <ol className="join-growth-path">
-            {memberGrowthStages.map((stage) => (
-              <li key={stage.number}>
-                <span className="join-growth-path__number">{stage.number}</span>
-                <h3>{stage.title}</h3>
-                <p>{stage.description}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+            <div className="join-story-list">
+              {activityStories.map((story, index) => (
+                <article
+                  key={story.number}
+                  className={"join-story " + (index % 2 === 1 ? "join-story--image-right" : "")}
+                >
+                  <figure className="join-story__media">
+                    <img src={story.image} alt={story.imageAlt} loading="lazy" decoding="async" />
+                  </figure>
+                  <div className="join-story__copy">
+                    <p className="join-story__number">{story.number} <span aria-hidden="true">/</span> TARSGO</p>
+                    <h3>{story.title}</h3>
+                    <p>{story.description}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </Reveal>
 
-        <section id="join-process" className="join-section join-process-section" aria-labelledby="join-process-heading">
-          <div className="join-section__heading">
-            <p className="join-eyebrow">HOW TO JOIN</p>
-            <h2 id="join-process-heading">如何加入我们？</h2>
-          </div>
+        <Reveal delay={60}>
+          <section className="join-section" aria-labelledby="join-growth-heading">
+            <div className="join-section__heading">
+              <p className="join-eyebrow">A POSSIBLE JOURNEY</p>
+              <h2 id="join-growth-heading">新人如何成长？</h2>
+              <p>这是一条可能的成长方向，不代表统一课程、进度或培养承诺。组内训练、项目与赛季中的参与机会和责任，会随个人准备及实际任务变化。</p>
+            </div>
+            <ol className="join-growth-path">
+              {memberGrowthStages.map((stage) => (
+                <li key={stage.number}>
+                  <span className="join-growth-path__number">{stage.number}</span>
+                  <h3>{stage.title}</h3>
+                  <p>{stage.description}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </Reveal>
 
-          <ol className="join-process">
-            {recruitmentSteps.map((step) => (
-              <li key={step.number}>
-                <span className="join-process__number">{step.number}</span>
-                <div>
-                  <h3>{step.title}</h3>
-                  <p>{step.description}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+        <Reveal delay={60}>
+          <section id="join-process" className="join-section join-process-section" aria-labelledby="join-process-heading">
+            <div className="join-section__heading">
+              <p className="join-eyebrow">HOW TO JOIN</p>
+              <h2 id="join-process-heading">如何加入我们？</h2>
+            </div>
 
-          <p className="join-process__status">
-            <strong>{publicRecruitmentState.cycle}：</strong> {publicRecruitmentState.message} 请以当届正式公告和平台表单为准。
-          </p>
+            <ol className="join-process">
+              {recruitmentSteps.map((step) => (
+                <li key={step.number}>
+                  <span className="join-process__number">{step.number}</span>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
 
-          <div className="join-actions">
-            {publicRecruitmentState.phase === "open" ? (
-              <Link className="join-action join-action--primary" to={publicRecruitmentState.registrationPath}>
-                进入当届报名 <span aria-hidden="true">→</span>
+            <p className="join-process__status">
+              <strong>{publicRecruitmentState.cycle}：</strong> {publicRecruitmentState.message} 请以当届正式公告和平台表单为准。
+            </p>
+
+            <div className="join-actions">
+              {publicRecruitmentState.phase === "open" ? (
+                <Link className="join-action join-action--primary" to={publicRecruitmentState.registrationPath}>
+                  进入当届报名 <span aria-hidden="true">→</span>
+                </Link>
+              ) : (
+                <Link className="join-action join-action--primary" to="/join/interest">
+                  登记加入意向 <span aria-hidden="true">→</span>
+                </Link>
+              )}
+              {publicRecruitmentState.phase === "open" ? <Link className="join-action join-action--secondary" to="/join/interest">登记加入意向</Link> : null}
+              <Link className="join-action join-action--secondary" to="/dashboard/users/registrations">
+                已提交报名？查看进度
               </Link>
-            ) : (
-              <Link className="join-action join-action--primary" to="/join/interest">
-                登记加入意向 <span aria-hidden="true">→</span>
-              </Link>
-            )}
-            {publicRecruitmentState.phase === "open" ? <Link className="join-action join-action--secondary" to="/join/interest">登记加入意向</Link> : null}
-            <Link className="join-action join-action--secondary" to="/dashboard/users/registrations">
-              已提交报名？查看进度
-            </Link>
-          </div>
-        </section>
+            </div>
+          </section>
+        </Reveal>
       </div>
     </main>
   );
