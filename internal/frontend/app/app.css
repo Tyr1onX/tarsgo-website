@@ -3197,3 +3197,10 @@ html[data-theme-transition] :is(
   background: var(--admin-surface-hover, var(--theme-surface-hover));
   color: var(--admin-accent-text, var(--theme-accent-text));
 }
+
+
+@media (max-width: 639px) {
+  body :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+    font-size: max(1rem, 1em);
+  }
+}
