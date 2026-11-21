@@ -181,7 +181,7 @@ test("public photo illustrations do not show redundant explanatory captions", as
   assert.doesNotMatch(historyStyles, /figcaption/);
   assert.doesNotMatch(eventsStyles, /figcaption/);
 
-  assert.match(homeVisualNavigation, /!module\.image \? <p>\{module\.description\}<\/p> : null/);
+  assert.match(homeVisualNavigation, /<h3>\{module\.title\}<\/h3>\s*<p>\{module\.description\}<\/p>/);
   assert.match(homeVisualNavigation, /<h3>\{module\.title\}<\/h3>/);
   assert.match(homeVisualNavigation, /alt=\{module\.alt\}/);
   assert.match(robotGallery, /<h2>\{robot\.name\}<\/h2>/);
