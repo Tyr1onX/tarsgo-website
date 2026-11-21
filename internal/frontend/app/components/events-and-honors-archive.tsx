@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   honorAwards,
   honorCategoryLabels,
@@ -9,6 +9,7 @@ import {
 } from "~/lib/events-and-honors-data";
 import { honorMaterialThumbnails } from "~/lib/honor-material-thumbnails";
 import { LoadingImage } from "~/components/loading-image";
+import { AnimatedCounter, Reveal, useScrollSpy } from "~/components/public-motion";
 import "./events-and-honors-archive.css";
 
 const featuredAwards = honorAwards.filter((award) => award.featured);
@@ -17,10 +18,6 @@ const supportingFeaturedAwards = featuredAwards.filter((award) => award.id !== s
 const archiveYears = [...new Set(honorAwards.map((award) => award.year))].sort((a, b) => b - a);
 const yearsWithMaterials = [...new Set(honorMaterials.map((material) => material.year))].sort((a, b) => b - a);
 const categoryOrder: HonorCategory[] = ["team", "robot", "project", "instructor"];
-
-function getAwardsForYear(year: number) {
-  return honorAwards.filter((award) => award.year === year);
-}
 
 function getMaterialsForYear(year: number) {
   return honorMaterials.filter((material) => material.year === year);
@@ -59,6 +56,17 @@ function ArchiveSources({ award }: { award: HonorAward }) {
 export function EventsAndHonorsArchive() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedMaterialIndex, setSelectedMaterialIndex] = useState<number | null>(null);
+  const [activeCategory, setActiveCategory] = useState<"all" | HonorCategory>("all");
+  const [zoom, setZoom] = useState(1);
+
+  const visibleYears = useMemo(() => {
+    if (activeCategory === "all") return archiveYears;
+    return archiveYears.filter((year) =>
+      honorAwards.some((award) => award.year === year && award.category === activeCategory),
+    );
+  }, [activeCategory]);
+
+  const activeYearId = useScrollSpy(visibleYears.map((year) => `honors-year-${year}`));
   const activeMaterial = selectedMaterialIndex === null ? null : honorMaterials[selectedMaterialIndex];
   const activeAward = activeMaterial ? getAwardForMaterial(activeMaterial) : undefined;
   const isPendingMaterial = activeMaterial?.relation === "pending";
@@ -66,10 +74,12 @@ export function EventsAndHonorsArchive() {
   function openMaterial(material: HonorMaterial) {
     const index = honorMaterials.findIndex((candidate) => candidate.id === material.id);
     setSelectedMaterialIndex(index);
+    setZoom(1);
     dialogRef.current?.showModal();
   }
 
   function moveMaterial(direction: -1 | 1) {
+    setZoom(1);
     setSelectedMaterialIndex((current) => {
       if (current === null) return current;
       return (current + direction + honorMaterials.length) % honorMaterials.length;
@@ -85,166 +95,226 @@ export function EventsAndHonorsArchive() {
 
   return (
     <main className="events-archive">
-      <section id="highlights" className="honors-section honors-featured">
-        <div className="public-home-container">
-          <div className="honors-section-heading">
-            <h2>精选成果</h2>
-            <a href="#certificates">查看证书原件 <span aria-hidden="true">↓</span></a>
-          </div>
-          <div className="honors-featured-showcase">
-            {spotlightAward ? (
-              <figure className="honors-featured-visual">
-                <img
-                  src="/assets/images/Milestone/2024-national-competition.webp"
-                  alt="TARSGO 队员在 RoboMaster 2024 全国赛现场与机器人合影。"
-                  fetchPriority="high"
-                  decoding="async"
-                />
-              </figure>
-            ) : null}
-            <div className="honors-featured-records">
+      <Reveal>
+        <section id="highlights" className="honors-section honors-featured">
+          <div className="public-home-container">
+            <div className="honors-stats-strip" aria-label="赛事与荣誉总览">
+              <div className="honors-stat">
+                <strong><AnimatedCounter target={honorAwards.length} /></strong>
+                <span>已归档的赛事与项目成果</span>
+              </div>
+              <div className="honors-stat">
+                <strong><AnimatedCounter target={archiveYears.length} suffix=" 年" /></strong>
+                <span>成果档案覆盖年份</span>
+              </div>
+              <div className="honors-stat">
+                <strong><AnimatedCounter target={honorMaterials.filter((material) => material.relation === "certificate").length} suffix=" 份" /></strong>
+                <span>已关联的荣誉材料</span>
+              </div>
+            </div>
+
+            <div className="honors-section-heading">
+              <h2>精选成果</h2>
+              <a href="#certificates">查看证书原件 <span aria-hidden="true">↓</span></a>
+            </div>
+            <div className="honors-featured-showcase">
               {spotlightAward ? (
-                <article className="honors-spotlight-result">
-                  <span className={getCategoryClass(spotlightAward.category)}>{honorCategoryLabels[spotlightAward.category]}</span>
-                  <p>{spotlightAward.result}</p>
-                  <h3>{spotlightAward.title}</h3>
-                  <span>{spotlightAward.year} · {spotlightAward.event}</span>
-                  <ArchiveSources award={spotlightAward} />
-                </article>
+                <figure className="honors-featured-visual">
+                  <img
+                    src="/assets/images/Milestone/2024-national-competition.webp"
+                    alt="TARSGO 队员在 RoboMaster 2024 全国赛现场与机器人合影。"
+                    fetchPriority="high"
+                    decoding="async"
+                  />
+                </figure>
               ) : null}
-              <div className="honors-featured-list">
-                {supportingFeaturedAwards.map((award) => (
-                  <article className="honors-featured-item" key={award.id}>
-                    <div className="honors-featured-item-result">
-                      <span className={getCategoryClass(award.category)}>{honorCategoryLabels[award.category]}</span>
-                      <p>{award.result}</p>
-                    </div>
-                    <div>
-                      <h3>{award.title}</h3>
-                      <p className="honors-featured-event">{award.year} · {award.event}</p>
-                      <ArchiveSources award={award} />
-                    </div>
+              <div className="honors-featured-records">
+                {spotlightAward ? (
+                  <article className="honors-spotlight-result">
+                    <span className={getCategoryClass(spotlightAward.category)}>{honorCategoryLabels[spotlightAward.category]}</span>
+                    <p>{spotlightAward.result}</p>
+                    <h3>{spotlightAward.title}</h3>
+                    <span>{spotlightAward.year} · {spotlightAward.event}</span>
+                    <ArchiveSources award={spotlightAward} />
                   </article>
-                ))}
+                ) : null}
+                <div className="honors-featured-list">
+                  {supportingFeaturedAwards.map((award) => (
+                    <article className="honors-featured-item" key={award.id}>
+                      <div className="honors-featured-item-result">
+                        <span className={getCategoryClass(award.category)}>{honorCategoryLabels[award.category]}</span>
+                        <p>{award.result}</p>
+                      </div>
+                      <div>
+                        <h3>{award.title}</h3>
+                        <p className="honors-featured-event">{award.year} · {award.event}</p>
+                        <ArchiveSources award={award} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </Reveal>
 
-      <section id="competition-records" className="honors-section honors-history">
-        <div className="public-home-container">
-          <div className="honors-section-heading">
-            <h2>历年赛事</h2>
+      <Reveal delay={60}>
+        <section id="competition-records" className="honors-section honors-history">
+          <div className="public-home-container">
+            <div className="honors-section-heading">
+              <h2>历年赛事</h2>
+            </div>
+
+            <div className="honors-filter-bar" role="group" aria-label="按奖项类别筛选">
+              <button
+                type="button"
+                className="honors-filter-pill"
+                aria-pressed={activeCategory === "all"}
+                onClick={() => setActiveCategory("all")}
+              >
+                全部 ({honorAwards.length})
+              </button>
+              {categoryOrder.map((category) => {
+                const count = honorAwards.filter((award) => award.category === category).length;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    className="honors-filter-pill"
+                    aria-pressed={activeCategory === category}
+                    onClick={() => setActiveCategory(category)}
+                  >
+                    {honorCategoryLabels[category]} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            <nav className="honors-year-navigation" aria-label="按年份查看赛事档案">
+              {visibleYears.map((year) => (
+                <a
+                  key={year}
+                  href={"#honors-year-" + year}
+                  className={activeYearId === `honors-year-${year}` ? "is-active" : undefined}
+                >
+                  {year}
+                </a>
+              ))}
+            </nav>
+
+            <div className="honors-year-timeline">
+              {visibleYears.map((year) => {
+                const yearAwards = honorAwards.filter(
+                  (award) => award.year === year && (activeCategory === "all" || award.category === activeCategory),
+                );
+                return (
+                  <section className="honors-year-row" key={year} aria-labelledby={"honors-year-" + year}>
+                    <h3 id={"honors-year-" + year} className="honors-year-label">{year}</h3>
+                    <div className="honors-year-content">
+                      {categoryOrder.map((category) => {
+                        const awards = yearAwards.filter((award) => award.category === category);
+                        if (awards.length === 0) return null;
+                        return (
+                          <div className="honors-year-category" key={category}>
+                            <h4>{honorCategoryLabels[category]}</h4>
+                            <ul>
+                              {awards.map((award) => (
+                                <li key={award.id}>
+                                  <div className="honors-record-line">
+                                    <strong>{award.result}</strong>
+                                    <span>{award.title}</span>
+                                    {award.certificateIds.length > 0 ? (
+                                      <button type="button" onClick={() => scrollToCertificates(year)}>
+                                        查看证书原件 <span aria-hidden="true">↓</span>
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                  <p>{award.event}</p>
+                                  {award.sources.length > 0 ? <ArchiveSources award={award} /> : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           </div>
-          <nav className="honors-year-navigation" aria-label="按年份查看赛事档案">
-            {archiveYears.map((year) => (
-              <a key={year} href={"#honors-year-" + year}>{year}</a>
-            ))}
-          </nav>
-          <div className="honors-year-timeline">
-            {archiveYears.map((year) => {
-              const yearAwards = getAwardsForYear(year);
-              return (
-                <section className="honors-year-row" key={year} aria-labelledby={"honors-year-" + year}>
-                  <h3 id={"honors-year-" + year} className="honors-year-label">{year}</h3>
-                  <div className="honors-year-content">
-                    {categoryOrder.map((category) => {
-                      const awards = yearAwards.filter((award) => award.category === category);
-                      if (awards.length === 0) return null;
+        </section>
+      </Reveal>
+
+      <Reveal delay={60}>
+        <section id="certificates" className="honors-section honors-certificates">
+          <div className="public-home-container">
+            <div className="honors-section-heading">
+              <h2>荣誉证书</h2>
+            </div>
+            <nav className="honors-year-index" aria-label="跳转至证书年份">
+              {yearsWithMaterials.map((year) => (
+                <a key={year} href={"#certificates-" + year}>{year}</a>
+              ))}
+            </nav>
+            <div className="honors-material-years">
+              {yearsWithMaterials.map((year) => (
+                <section className="honors-material-year" id={"certificates-" + year} key={year}>
+                  <div className="honors-material-year-heading">
+                    <h3>{year}</h3>
+                  </div>
+                  <div className="honors-material-grid">
+                    {getMaterialsForYear(year).map((material) => {
+                      const award = getAwardForMaterial(material);
+                      const relationLabel = material.kind === "project-completion"
+                        ? material.relation === "pending" ? "结题证明 · 归属待核" : "项目结题证明"
+                        : material.relation === "duplicate"
+                        ? "重复扫描"
+                        : material.relation === "supporting"
+                          ? "关联材料"
+                          : material.relation === "pending"
+                            ? "归属待核"
+                            : "证书原件";
                       return (
-                        <div className="honors-year-category" key={category}>
-                          <h4>{honorCategoryLabels[category]}</h4>
-                          <ul>
-                            {awards.map((award) => (
-                              <li key={award.id}>
-                                <div className="honors-record-line">
-                                  <strong>{award.result}</strong>
-                                  <span>{award.title}</span>
-                                  {award.certificateIds.length > 0 ? (
-                                    <button type="button" onClick={() => scrollToCertificates(year)}>
-                                      查看证书原件 <span aria-hidden="true">↓</span>
-                                    </button>
-                                  ) : null}
-                                </div>
-                                <p>{award.event}</p>
-                                {award.sources.length > 0 ? <ArchiveSources award={award} /> : null}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                        <article className="honors-material" key={material.id}>
+                          <button
+                            className="honors-material-open"
+                            type="button"
+                            onClick={() => openMaterial(material)}
+                            aria-haspopup="dialog"
+                            aria-label={relationLabel + "：" + material.title + "，查看原图"}
+                          >
+                            <span className="honors-material-image">
+                              <LoadingImage frameClassName="honors-material-image-frame" src={honorMaterialThumbnails[material.id]} alt="" loading="lazy" decoding="async" />
+                            </span>
+                            <span className="honors-material-meta">
+                              <span className="honors-material-relation">{relationLabel}</span>
+                            </span>
+                            <strong>{material.title}</strong>
+                            {award ? <span className="honors-material-result">{award.result}</span> : null}
+                            <span className="honors-view-original">查看原图 <span aria-hidden="true">↗</span></span>
+                          </button>
+                        </article>
                       );
                     })}
                   </div>
                 </section>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section id="certificates" className="honors-section honors-certificates">
-        <div className="public-home-container">
-          <div className="honors-section-heading">
-            <h2>荣誉证书</h2>
-          </div>
-          <nav className="honors-year-index" aria-label="跳转至证书年份">
-            {yearsWithMaterials.map((year) => (
-              <a key={year} href={"#certificates-" + year}>{year}</a>
-            ))}
-          </nav>
-          <div className="honors-material-years">
-            {yearsWithMaterials.map((year) => (
-              <section className="honors-material-year" id={"certificates-" + year} key={year}>
-                <div className="honors-material-year-heading">
-                  <h3>{year}</h3>
-                </div>
-                <div className="honors-material-grid">
-                  {getMaterialsForYear(year).map((material) => {
-                    const award = getAwardForMaterial(material);
-                    const relationLabel = material.kind === "project-completion"
-                      ? material.relation === "pending" ? "结题证明 · 归属待核" : "项目结题证明"
-                      : material.relation === "duplicate"
-                      ? "重复扫描"
-                      : material.relation === "supporting"
-                        ? "关联材料"
-                        : material.relation === "pending"
-                          ? "归属待核"
-                          : "证书原件";
-                    return (
-                      <article className="honors-material" key={material.id}>
-                        <button
-                          className="honors-material-open"
-                          type="button"
-                          onClick={() => openMaterial(material)}
-                          aria-haspopup="dialog"
-                          aria-label={relationLabel + "：" + material.title + "，查看原图"}
-                        >
-                          <span className="honors-material-image">
-                            <LoadingImage frameClassName="honors-material-image-frame" src={honorMaterialThumbnails[material.id]} alt="" loading="lazy" decoding="async" />
-                          </span>
-                          <span className="honors-material-meta">
-                            <span className="honors-material-relation">{relationLabel}</span>
-                          </span>
-                          <strong>{material.title}</strong>
-                          {award ? <span className="honors-material-result">{award.result}</span> : null}
-                          <span className="honors-view-original">查看原图 <span aria-hidden="true">↗</span></span>
-                        </button>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      </Reveal>
 
       <dialog
         ref={dialogRef}
         className="honors-preview-dialog"
         aria-label="荣誉原始材料预览"
-        onClose={() => setSelectedMaterialIndex(null)}
+        onClose={() => {
+          setSelectedMaterialIndex(null);
+          setZoom(1);
+        }}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft") {
             event.preventDefault();
@@ -254,10 +324,14 @@ export function EventsAndHonorsArchive() {
             moveMaterial(1);
           } else if (event.key === "Home") {
             event.preventDefault();
+            setZoom(1);
             setSelectedMaterialIndex(0);
           } else if (event.key === "End") {
             event.preventDefault();
+            setZoom(1);
             setSelectedMaterialIndex(honorMaterials.length - 1);
+          } else if (event.key === "0") {
+            setZoom(1);
           }
         }}
         onClick={(event) => {
@@ -276,9 +350,26 @@ export function EventsAndHonorsArchive() {
                   <a key={source.href} href={source.href} target="_blank" rel="noreferrer">{source.label} ↗</a>
                 ))}
               </div>
-              <button type="button" className="honors-preview-close" onClick={() => dialogRef.current?.close()}>关闭</button>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  className="honors-preview-close"
+                  aria-label={zoom > 1.05 ? "还原证书图片比例" : "放大证书图片"}
+                  onClick={() => setZoom((z) => (z > 1.05 ? 1 : 1.75))}
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button type="button" className="honors-preview-close" onClick={() => dialogRef.current?.close()}>关闭</button>
+              </div>
             </div>
-            <LoadingImage frameClassName="honors-preview-image-frame" className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
+            <div
+              style={{ overflow: "hidden", cursor: zoom > 1.05 ? "zoom-out" : "zoom-in" }}
+              onClick={() => setZoom((z) => (z > 1.05 ? 1 : 1.75))}
+            >
+              <div style={{ transform: `scale(${zoom})`, transition: "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
+                <LoadingImage frameClassName="honors-preview-image-frame" className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
+              </div>
+            </div>
             {activeMaterial.note ? <p className="honors-preview-note">{activeMaterial.note}</p> : null}
             <a className="honors-preview-original" href={activeMaterial.src} target="_blank" rel="noreferrer">打开原图 <span aria-hidden="true">↗</span></a>
             <div className="honors-preview-controls">

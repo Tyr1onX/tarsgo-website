@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { robotSeasons, sortRobotsByNumber, type RobotCategory, type RobotSeasonEntry } from "~/data/robot-seasons";
 import { LoadingImage } from "~/components/loading-image";
+import "./public-motion.css";
 
 const filters: readonly ({ value: "all"; label: string } | { value: RobotCategory; label: RobotCategory })[] = [
   { value: "all", label: "全部" },
@@ -44,6 +45,7 @@ export function RobotPhotoGallery() {
   const [activeSeasonYear, setActiveSeasonYear] = useState(2026);
   const [activeCategory, setActiveCategory] = useState<"all" | RobotCategory>("all");
   const [selectedRobotId, setSelectedRobotId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const activeSeason = robotSeasons.find((season) => season.season === activeSeasonYear) ?? robotSeasons[0];
   const robots = useMemo(() => sortRobotsByNumber(activeSeason.robots), [activeSeason]);
@@ -55,6 +57,11 @@ export function RobotPhotoGallery() {
   );
   const selectedRobotIndex = visibleRobots.findIndex((robot) => robot.id === selectedRobotId);
   const selectedRobot = selectedRobotIndex >= 0 ? visibleRobots[selectedRobotIndex] : null;
+  const activeCategoriesCount = useMemo(() => new Set(robots.map((robot) => robot.category)).size, [robots]);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [selectedRobotId]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -89,7 +96,9 @@ export function RobotPhotoGallery() {
     <div className="robot-gallery" role="region" aria-label={`${activeSeason.season} 赛季机器人照片展厅`}>
       <div className="robot-gallery__season-heading">
         <div className="robot-gallery__season-copy">
-          <p className="robot-gallery__season-kicker">ROBOT SEASON ARCHIVE · {activeSeason.season}</p>
+          <p className="robot-gallery__season-kicker">
+            ROBOT SEASON ARCHIVE · {activeSeason.season} · {activeCategoriesCount} 类兵种 · {robots.length} 张影像
+          </p>
           <h2>{activeSeason.title}</h2>
         </div>
         <div className="robot-gallery__season-switch" role="group" aria-label="选择机器人赛季">
@@ -135,7 +144,11 @@ export function RobotPhotoGallery() {
 
       <div className="robot-gallery__grid">
         {visibleRobots.map((robot, index) => (
-          <figure className="robot-gallery__card" key={robot.id}>
+          <figure
+            className="robot-gallery__card"
+            key={`${activeSeason.season}-${activeCategory}-${robot.id}`}
+            style={{ "--card-idx": Math.min(index, 8) } as CSSProperties}
+          >
             <button
               className="robot-gallery__image-button"
               type="button"
@@ -155,7 +168,6 @@ export function RobotPhotoGallery() {
                 width="1440"
                 height="960"
               />
-              <span className="robot-gallery__view-label" aria-hidden="true">查看照片</span>
             </button>
             <figcaption className="robot-gallery__caption">
               <span className="robot-gallery__number">{robot.number}</span>
@@ -183,6 +195,8 @@ export function RobotPhotoGallery() {
           } else if (event.key === "ArrowRight") {
             event.preventDefault();
             movePreview(1);
+          } else if (event.key === "0") {
+            setZoom(1);
           }
         }}
         onClick={(event) => {
@@ -196,31 +210,52 @@ export function RobotPhotoGallery() {
                 <p className="robot-gallery__dialog-kicker">{activeSeason.season} SEASON · {selectedRobot.category}</p>
                 <h2 id="robot-gallery-preview-title">{selectedRobot.name}</h2>
               </div>
-              <button
-                className="robot-gallery__dialog-close"
-                type="button"
-                aria-label="关闭机器人照片预览"
-                onClick={closePreview}
-                autoFocus
-              >
-                <CloseIcon />
-              </button>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  className="robot-gallery__dialog-zoom"
+                  onClick={() => setZoom((z) => (z > 1.05 ? 1 : 1.75))}
+                  aria-label={zoom > 1.05 ? "还原比例" : "放大看机械细节"}
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  className="robot-gallery__dialog-close"
+                  type="button"
+                  aria-label="关闭机器人照片预览"
+                  onClick={closePreview}
+                  autoFocus
+                >
+                  <CloseIcon />
+                </button>
+              </div>
             </div>
 
-            <div className="robot-gallery__dialog-stage">
-              <LoadingImage
-                key={selectedRobot.id}
-                frameClassName="robot-gallery__dialog-image-frame"
-                className="robot-gallery__dialog-image"
-                src={selectedRobot.image.large}
-                srcSet={getImageSet(selectedRobot, true)}
-                sizes={getImageSizes(true)}
-                alt={`${selectedRobot.name}定妆照`}
-                decoding="async"
-                fetchPriority="high"
-                width="2400"
-                height="1600"
-              />
+            <div
+              className="robot-gallery__dialog-stage"
+              onWheel={(event) => {
+                if (Math.abs(event.deltaY) < 4) return;
+                setZoom((z) => Math.min(3, Math.max(1, Number((z + (event.deltaY < 0 ? 0.25 : -0.25)).toFixed(2)))));
+              }}
+            >
+              <div
+                onClick={() => setZoom((z) => (z > 1.05 ? 1 : 1.75))}
+                style={{ width: "100%", height: "100%", transform: `scale(${zoom})`, transition: "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)", cursor: zoom > 1.05 ? "zoom-out" : "zoom-in" }}
+              >
+                <LoadingImage
+                  key={selectedRobot.id}
+                  frameClassName="robot-gallery__dialog-image-frame"
+                  className={`robot-gallery__dialog-image${zoom > 1.05 ? " is-zoomed" : ""}`}
+                  src={selectedRobot.image.large}
+                  srcSet={getImageSet(selectedRobot, true)}
+                  sizes={getImageSizes(true)}
+                  alt={`${selectedRobot.name}定妆照`}
+                  decoding="async"
+                  fetchPriority="high"
+                  width="2400"
+                  height="1600"
+                />
+              </div>
             </div>
 
             <div className="robot-gallery__dialog-controls">

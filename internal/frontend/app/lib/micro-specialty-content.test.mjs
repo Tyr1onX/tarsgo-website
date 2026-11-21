@@ -49,8 +49,9 @@ test("四门课程按照两个学期组织，显示学习重点", () => {
     .every(({ title, description, outcome }) => title && description && outcome));
   for (const id of ["curriculum", "learning", "moments", "faq"]) {
     assert.match(route, new RegExp('id="' + id + '"'));
-    assert.match(route, new RegExp('href="#' + id + '"'));
+
   }
+  assert.ok(route.includes('href={`#${section.id}`}'), "section nav must link to actual section IDs");
   assert.match(routeConfig, /micro-specialties\/low-altitude-intelligent-sensing-control/);
   assert.match(homeVisualNavigation, /href: "\/micro-specialties\/low-altitude-intelligent-sensing-control"/);
 });
