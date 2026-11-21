@@ -36,3 +36,10 @@ test("offline banner avoids promising unsaved drafts and back-to-top respects re
   assert.match(layout, /id="dashboard-main-content" tabIndex=\{-1\}/);
   assert.match(layout, /document\.title\.replace\(\/\^\\\(\\d\+\\\)\\s\*\//);
 });
+
+
+test("mobile editable fields stay at 16px or larger to avoid iOS Safari focus zoom", async () => {
+  const styles = await read("app.css");
+  assert.match(styles, /@media \(max-width: 639px\) \{\s*body :is\(input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\), textarea, select\)/);
+  assert.match(styles, /font-size: max\(1rem, 1em\)/);
+});
