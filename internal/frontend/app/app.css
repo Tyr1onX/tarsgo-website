@@ -3124,6 +3124,7 @@ html[data-theme-transition] :is(
   left: 50%;
   z-index: 115;
   display: inline-flex;
+  max-width: calc(100vw - 1.5rem);
   align-items: center;
   gap: 0.5rem;
   transform: translateX(-50%);
@@ -3134,7 +3135,8 @@ html[data-theme-transition] :is(
   color: var(--theme-warning);
   font-size: 0.78rem;
   font-weight: 560;
-  white-space: nowrap;
+  line-height: 1.4;
+  text-align: center;
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.26);
 }
 

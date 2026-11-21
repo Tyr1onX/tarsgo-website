@@ -1,12 +1,15 @@
 import type { Route } from "./+types/robots";
 import { PublicHomePage } from "./home";
 import { RobotPhotoGallery } from "~/components/robot-photo-gallery";
+import { buildPublicMeta } from "~/lib/social-meta";
 
 export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "机器人展示 | TARSGO" },
-    { name: "description", content: "浏览 TARSGO 2026、2025 与 2024 三个赛季共 30 张真实机器人定妆照。" },
-  ];
+  return buildPublicMeta({
+    title: "机器人展示 | TARSGO",
+    description: "浏览 TARSGO 2026、2025 与 2024 三个赛季共 30 张真实机器人定妆照。",
+    path: "/robots",
+    image: "/assets/images/Social/robots.jpg",
+  });
 }
 
 export default function RobotsPage() {

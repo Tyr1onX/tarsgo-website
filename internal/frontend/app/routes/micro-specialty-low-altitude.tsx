@@ -5,6 +5,7 @@ import type { Route } from "./+types/micro-specialty-low-altitude";
 import { Navbar } from "~/components/navbar";
 import { PublicFooter } from "~/components/public-footer";
 import { PublicPhotoLightbox, Reveal, useScrollSpy, type PublicLightboxPhoto } from "~/components/public-motion";
+import { buildPublicMeta } from "~/lib/social-meta";
 import {
   lowAltitudeCourseTerms,
   lowAltitudeFaqs,
@@ -44,10 +45,12 @@ const sectionLinks = [
 ] as const;
 
 export function meta({}: Route.MetaArgs) {
-  return [
-    { title },
-    { name: "description", content: description },
-  ];
+  return buildPublicMeta({
+    title,
+    description,
+    path: "/micro-specialties/low-altitude-intelligent-sensing-control",
+    image: "/assets/images/Social/micro-specialty.jpg",
+  });
 }
 
 export default function LowAltitudeMicroSpecialty() {
@@ -68,7 +71,7 @@ export default function LowAltitudeMicroSpecialty() {
   let photoOffset = 0;
 
   return (
-    <div className="micro-specialty-page min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
+    <div className="micro-specialty-page min-h-screen overflow-x-clip bg-surface-primary text-fg-primary">
       <Navbar />
       <main className="public-route-content">
         <section className="border-b border-border-subtle">

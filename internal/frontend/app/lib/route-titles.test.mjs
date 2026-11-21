@@ -23,7 +23,10 @@ function getPageTitle(source, modulePath) {
   const inlineTitle = metaMatch[1].match(/\{\s*title:\s*"([^"]+)"\s*\}/);
   if (inlineTitle) return inlineTitle[1];
 
-  if (metaMatch[1].match(/\{\s*title\s*\}/)) {
+  const publicTitle = metaMatch[1].match(/buildPublicMeta\(\{\s*title:\s*"([^"]+)"/);
+  if (publicTitle) return publicTitle[1];
+
+  if (metaMatch[1].match(/\{\s*title\s*\}|buildPublicMeta\(\{\s*title\s*,/)) {
     const titleConstant = source.match(/const title\s*=\s*"([^"]+)"/);
     assert.ok(titleConstant, `${modulePath} must define its referenced title`);
     return titleConstant[1];

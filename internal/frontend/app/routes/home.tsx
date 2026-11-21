@@ -5,17 +5,16 @@ import { HomeVisualNavigation } from "../components/home-visual-navigation";
 import { HomeOpeningCurtain, type OpeningPhase } from "../components/home-opening-curtain";
 import { TarsgoHeroLogo } from "../components/tarsgo-motion-marks";
 import { PublicFooter } from "../components/public-footer";
+import { buildPublicMeta } from "../lib/social-meta";
 import { Link, useLocation, useNavigate } from "react-router";
 
 export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "TARSGO | 吉林大学吉甲大师战队" },
-    {
-      name: "description",
-      content:
-        "吉林大学 TARSGO 战队官网：以 RoboMaster 竞赛为牵引，持续开展机器人研发与团队协作。",
-    },
-  ];
+  return buildPublicMeta({
+    title: "TARSGO | 吉林大学吉甲大师战队",
+    description: "吉林大学 TARSGO 战队官网：以 RoboMaster 竞赛为牵引，持续开展机器人研发与团队协作。",
+    path: "/",
+    image: "/assets/images/Social/home.jpg",
+  });
 }
 
 const sponsorLogos = [
@@ -294,7 +293,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
   }, [prefersReducedMotion]);
 
   return (
-    <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
+    <div className="public-home relative min-h-screen overflow-x-clip bg-surface-primary text-fg-primary">
       <HomeOpeningCurtain enabled={routePage === "home"} onPhaseChange={handleOpeningPhase} />
       <div className="relative z-10">
       <Navbar />

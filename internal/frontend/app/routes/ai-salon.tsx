@@ -8,13 +8,16 @@ import { SalonHeroArt } from "~/components/salon-hero-art";
 import { salonClient, salonDate, salonError, type SalonEvent } from "~/lib/ai-salon-client";
 import { salonEventStatus } from "~/lib/salon-event-status";
 import { salonContent } from "~/lib/salon-content";
+import { buildPublicMeta } from "~/lib/social-meta";
 import "~/salon.css";
 
 export function meta() {
-  return [
-    { title: "吉甲 AI 沙龙 | TARSGO" },
-    { name: "description", content: "面向吉林大学学生的长期 AI 创作实践与交流活动。让想法成为作品，让作品带来交流，让交流产生下一次共创。" },
-  ];
+  return buildPublicMeta({
+    title: "吉甲 AI 沙龙 | TARSGO",
+    description: "面向吉林大学学生的长期 AI 创作实践与交流活动。让想法成为作品，让作品带来交流，让交流产生下一次共创。",
+    path: "/programs/ai-salon",
+    image: "/assets/images/Social/ai-salon.jpg",
+  });
 }
 
 function EventCard({ event }: { event: SalonEvent }) {
