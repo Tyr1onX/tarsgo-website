@@ -7,6 +7,7 @@ import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
 import { GroupAnimatedMark } from "~/components/tarsgo-motion-marks";
 import { AvatarFrame, AvatarFrameGallery } from "~/components/avatar-frame";
+import type { AvatarFrameId } from "~/lib/avatar-frames";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityAvatar } from "~/components/community-post-card";
 import { PersonalProfileSettings } from "~/components/personal-profile-settings";
@@ -135,6 +136,7 @@ export default function CommunityMemberProfileRoute() {
   const [badgeError, setBadgeError] = useState("");
   const [badgeSaving, setBadgeSaving] = useState(false);
   const [framePickerOpen, setFramePickerOpen] = useState(false);
+  const [previewFrameId, setPreviewFrameId] = useState<AvatarFrameId | null>(null);
   const [frameSaving, setFrameSaving] = useState(false);
   const [frameError, setFrameError] = useState("");
   const [featureAction, setFeatureAction] = useState<string | null>(null);
@@ -163,6 +165,7 @@ export default function CommunityMemberProfileRoute() {
     setResult(null);
     setError("");
     setFramePickerOpen(false);
+    setPreviewFrameId(null);
     setFrameError("");
     const apiTab = tab === "settings" ? "card" : tab;
     communityMemberProfileClient.get(memberID, apiTab, tab === "settings" ? 1 : page).then((next) => {
@@ -391,6 +394,7 @@ export default function CommunityMemberProfileRoute() {
       setResult((current) => current?.member.id === updated.member.id
         ? { ...current, member: { ...current.member, avatarFrameKey: updated.member.avatarFrameKey } }
         : current);
+      setPreviewFrameId(null);
     } catch (cause) {
       setFrameError(cause instanceof Error ? cause.message : "头像框保存失败，请重试");
     } finally {
@@ -429,7 +433,7 @@ export default function CommunityMemberProfileRoute() {
       ) : null}
       <div className="community-member-hero__avatar-wrap">
         {isSelf ? <>
-          <AvatarFrame context={frameContext} tier="hero">
+          <AvatarFrame context={frameContext} forcedFrameId={previewFrameId ?? undefined} tier="hero">
             <button type="button" className="community-member-hero__avatar-button" aria-label="更换头像" aria-controls="community-member-avatar-file" disabled={avatarUploading} onClick={() => avatarInputRef.current?.click()}>
               <CommunityAvatar name={member.displayName} src={member.avatarUrl} />
               <span className="community-member-hero__avatar-overlay" aria-hidden="true">{avatarUploading ? "上传中…" : "更换"}</span>
@@ -437,6 +441,7 @@ export default function CommunityMemberProfileRoute() {
           </AvatarFrame>
           <input ref={avatarInputRef} id="community-member-avatar-file" className="sr-only" type="file" accept="image/png,image/jpeg" tabIndex={-1} disabled={avatarUploading} onChange={handleAvatarChange} />
           {avatarUploading ? <span className="community-member-hero__avatar-status" role="status">正在更新头像…</span> : null}
+          {previewFrameId ? <span className="community-member-hero__avatar-status" role="status">预览中 · 未保存</span> : null}
         </> : <AvatarFrame context={frameContext} tier="hero"><CommunityAvatar name={member.displayName} src={member.avatarUrl} /></AvatarFrame>}
       </div>
       <div className="community-member-hero__identity">
@@ -453,7 +458,7 @@ export default function CommunityMemberProfileRoute() {
             className="community-member-hero__frame-toggle"
             aria-expanded={framePickerOpen}
             aria-controls={framePickerOpen ? "community-member-frame-picker" : undefined}
-            onClick={() => setFramePickerOpen((open) => !open)}
+            onClick={() => { setPreviewFrameId(null); setFramePickerOpen((open) => !open); }}
           >{framePickerOpen ? "收起头像框" : "更换头像框"}</button> : null}
         </div>
         {nameError ? <p id="community-member-name-error" className="community-member-inline-error" role="alert">{nameError}</p> : null}
@@ -475,7 +480,7 @@ export default function CommunityMemberProfileRoute() {
     </header>
 
     {isSelf && framePickerOpen ? <div id="community-member-frame-picker" className="community-member-frame-picker">
-      <AvatarFrameGallery context={frameContext} displayName={member.displayName} avatarUrl={member.avatarUrl} isSelf onChoose={(choice) => void selectAvatarFrame(choice)} saving={frameSaving} error={frameError} />
+      <AvatarFrameGallery context={frameContext} displayName={member.displayName} avatarUrl={member.avatarUrl} isSelf previewFrameId={previewFrameId} onPreview={setPreviewFrameId} onChoose={(choice) => void selectAvatarFrame(choice)} saving={frameSaving} error={frameError} />
     </div> : null}
 
     {tab !== "settings" ? <nav className="community-member-tabs" aria-label="成员主页栏目">

@@ -530,6 +530,8 @@ export function AvatarFrameGallery({
   displayName,
   avatarUrl,
   isSelf,
+  previewFrameId = null,
+  onPreview,
   onChoose,
   saving = false,
   error = "",
@@ -538,6 +540,8 @@ export function AvatarFrameGallery({
   displayName: string;
   avatarUrl?: string;
   isSelf: boolean;
+  previewFrameId?: AvatarFrameId | null;
+  onPreview?: (frameId: AvatarFrameId | null) => void;
   onChoose?: (choice: AvatarFrameChoice) => void;
   saving?: boolean;
   error?: string;
@@ -599,6 +603,7 @@ export function AvatarFrameGallery({
         {visibleFrames.map((frame) => {
           const unlocked = isAvatarFrameUnlocked(frame.id, context);
           const isEquipped = equipped === frame.id;
+          const isPreviewed = previewFrameId === frame.id;
           return (
             <article
               key={frame.id}
@@ -615,14 +620,25 @@ export function AvatarFrameGallery({
               <h3>{frame.name}</h3>
               <span className="avatar-frame-card__hint">{frame.unlockHint}</span>
               {isSelf ? (
-                <button
-                  type="button"
-                  className={`avatar-frame-card__action${isEquipped ? " is-equipped" : ""}`}
-                  disabled={!unlocked || saving}
-                  onClick={() => choose(frame.id)}
-                >
-                  {!unlocked ? "未解锁" : isEquipped ? "当前佩戴中" : "佩戴此框"}
-                </button>
+                <div className="avatar-frame-card__actions">
+                  <button
+                    type="button"
+                    className={`avatar-frame-card__action avatar-frame-card__action--preview${isPreviewed ? " is-previewing" : ""}`}
+                    aria-pressed={isPreviewed}
+                    disabled={saving}
+                    onClick={() => onPreview?.(isPreviewed ? null : frame.id)}
+                  >
+                    {isPreviewed ? "取消预览" : "预览"}
+                  </button>
+                  <button
+                    type="button"
+                    className={`avatar-frame-card__action${isEquipped ? " is-equipped" : ""}`}
+                    disabled={!unlocked || saving}
+                    onClick={() => choose(frame.id)}
+                  >
+                    {!unlocked ? "未解锁" : isEquipped ? "当前佩戴中" : "佩戴此框"}
+                  </button>
+                </div>
               ) : (
                 <span className="avatar-frame-card__state">{unlocked ? (isEquipped ? "佩戴中" : "已解锁") : "未解锁"}</span>
               )}

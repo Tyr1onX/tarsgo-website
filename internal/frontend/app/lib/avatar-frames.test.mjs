@@ -53,3 +53,19 @@ test("frame gallery shows only acquisition conditions and preserves locked statu
   assert.ok(AVATAR_FRAMES.every((frame) => frame.unlockHint.length > 0 && frame.unlockHint.length <= 30));
   assert.ok(AVATAR_FRAMES.filter((frame) => frame.track === "event").every((frame) => frame.unlockHint.includes("暂未开放")));
 });
+
+test("frame previews temporarily change only the own-profile hero without saving", async () => {
+  const route = await readFile(new URL("../routes/dashboard/community-member-profile.tsx", import.meta.url), "utf8");
+  const gallery = await readFile(new URL("../components/avatar-frame.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../components/avatar-frame.css", import.meta.url), "utf8");
+  assert.match(route, /const \[previewFrameId, setPreviewFrameId\] = useState<AvatarFrameId \| null>\(null\)/);
+  assert.match(route, /forcedFrameId=\{previewFrameId \?\? undefined\}/);
+  assert.match(route, /onPreview=\{setPreviewFrameId\}/);
+  assert.match(route, /预览中 · 未保存/);
+  assert.match(gallery, /onPreview\?: \(frameId: AvatarFrameId \| null\) => void/);
+  assert.match(gallery, /onClick=\{\(\) => onPreview\?\.\(isPreviewed \? null : frame\.id\)\}/);
+  assert.match(gallery, /aria-pressed=\{isPreviewed\}/);
+  assert.match(gallery, /disabled=\{!unlocked \|\| saving\}/);
+  assert.match(styles, /\.avatar-frame-card__action--preview\.is-previewing/);
+  assert.doesNotMatch(gallery, /onPreview\?\.\([^\n]*updateMine/);
+});
