@@ -134,6 +134,7 @@ export default function CommunityMemberProfileRoute() {
   const [selectedBadge, setSelectedBadge] = useState("");
   const [badgeError, setBadgeError] = useState("");
   const [badgeSaving, setBadgeSaving] = useState(false);
+  const [framePickerOpen, setFramePickerOpen] = useState(false);
   const [frameSaving, setFrameSaving] = useState(false);
   const [frameError, setFrameError] = useState("");
   const [featureAction, setFeatureAction] = useState<string | null>(null);
@@ -161,6 +162,8 @@ export default function CommunityMemberProfileRoute() {
     setLoading(true);
     setResult(null);
     setError("");
+    setFramePickerOpen(false);
+    setFrameError("");
     const apiTab = tab === "settings" ? "card" : tab;
     communityMemberProfileClient.get(memberID, apiTab, tab === "settings" ? 1 : page).then((next) => {
       if (!active) return;
@@ -445,6 +448,13 @@ export default function CommunityMemberProfileRoute() {
             </span> : isSelf ? <button type="button" className="community-member-name-trigger" aria-label="编辑姓名" onClick={() => { skipNameBlurRef.current = false; setNameDraft(member.displayName); setNameError(""); setEditingName(true); }}>{member.displayName}</button> : member.displayName}
           </h1>
           <TeamIdentityBadge status={member.teamIdentityStatus} />
+          {isSelf ? <button
+            type="button"
+            className="community-member-hero__frame-toggle"
+            aria-expanded={framePickerOpen}
+            aria-controls={framePickerOpen ? "community-member-frame-picker" : undefined}
+            onClick={() => setFramePickerOpen((open) => !open)}
+          >{framePickerOpen ? "收起头像框" : "更换头像框"}</button> : null}
         </div>
         {nameError ? <p id="community-member-name-error" className="community-member-inline-error" role="alert">{nameError}</p> : null}
         <div className="community-member-hero__bio-row">
@@ -463,6 +473,10 @@ export default function CommunityMemberProfileRoute() {
       </div>
       {avatarError ? <p className="community-member-avatar-error" role="alert">{avatarError}</p> : null}
     </header>
+
+    {isSelf && framePickerOpen ? <div id="community-member-frame-picker" className="community-member-frame-picker">
+      <AvatarFrameGallery context={frameContext} displayName={member.displayName} avatarUrl={member.avatarUrl} isSelf onChoose={(choice) => void selectAvatarFrame(choice)} saving={frameSaving} error={frameError} />
+    </div> : null}
 
     {tab !== "settings" ? <nav className="community-member-tabs" aria-label="成员主页栏目">
       {tabs.map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
@@ -514,7 +528,6 @@ export default function CommunityMemberProfileRoute() {
         {badgeError ? <p className="community-member-inline-error" role="alert">{badgeError}</p> : null}
       </form> : <button type="button" className="community-inline-link community-member-badges__edit" onClick={() => { setSelectedBadge(member.featuredBadgeKey ?? ""); setBadgeError(""); setEditingFeaturedBadge(true); }}>设置代表徽章</button> : null}
       {visibleBadges.length ? <div className="community-member-badge-grid">{visibleBadges.map((badge) => <BadgeCard key={badge.key} badge={badge} onReplay={isSelf ? requestBadgeReplay : undefined} />)}</div> : <EmptyState>{loading ? "" : "还没有获得徽章"}</EmptyState>}
-      <AvatarFrameGallery context={frameContext} displayName={member.displayName} avatarUrl={member.avatarUrl} isSelf={isSelf} onChoose={(choice) => void selectAvatarFrame(choice)} saving={frameSaving} error={frameError} />
     </section> : null}
     {tab === "settings" && isSelf ? <section className="community-member-section community-member-settings" aria-labelledby="community-member-settings-title">
       <header><h2 id="community-member-settings-title">资料设置</h2></header>
