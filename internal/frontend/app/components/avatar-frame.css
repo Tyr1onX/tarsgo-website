@@ -1,12 +1,14 @@
-/* Prestige sculpted mecha avatar frames (3-tier size-aware rendering) */
+/* Precision CNC-machined mecha avatar frames (3-tier size-aware rendering) */
 
 .tarsgo-av-frame {
   --frame-cyan: #5ce6d0;
   --frame-amber: #ff9c42;
+  --frame-violet: #a892ff;
   position: relative;
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
+  isolation: isolate;
 }
 
 .tarsgo-av-frame__core {
@@ -14,14 +16,16 @@
   z-index: 2;
   display: inline-grid;
   place-items: center;
+  border-radius: 50%;
 }
 
+/* Unified 1.5x canvas (200x200 viewBox -> avatar radius = 66.67) for exact bezel fit */
 .tarsgo-av-frame__back,
 .tarsgo-av-frame__front {
   position: absolute;
-  inset: -24%;
-  width: 148%;
-  height: 148%;
+  inset: -25%;
+  width: 150%;
+  height: 150%;
   pointer-events: none;
   overflow: visible;
 }
@@ -30,34 +34,47 @@
 .tarsgo-av-frame__front { z-index: 3; }
 
 .tarsgo-av-frame--compact .tarsgo-av-frame__front {
-  inset: -10%;
-  width: 120%;
-  height: 120%;
+  inset: -11%;
+  width: 122%;
+  height: 122%;
 }
 
-.tarsgo-av-frame--card .tarsgo-av-frame__back,
-.tarsgo-av-frame--card .tarsgo-av-frame__front {
-  inset: -20%;
-  width: 140%;
-  height: 140%;
+/* Hero subtle prestige ambient depth */
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-titan,
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-rm_national {
+  filter: drop-shadow(0 5px 14px color-mix(in srgb, var(--admin-accent) 30%, transparent));
+}
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-reactor {
+  filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--frame-cyan) 22%, transparent));
+}
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-overclock,
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-rm_league {
+  filter: drop-shadow(0 4px 12px rgb(255 98 70 / 0.24));
+}
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-rm_regional {
+  filter: drop-shadow(0 4px 12px rgb(77 163 255 / 0.24));
+}
+.tarsgo-av-frame--hero.tarsgo-av-frame--id-laurel {
+  filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--admin-accent) 22%, transparent));
 }
 
-/* Kinetic animations */
-.avf-spin-cw { transform-origin: 80px 80px; animation: avf-cw 16s linear infinite; }
-.avf-spin-fast { transform-origin: 80px 80px; animation: avf-cw 6s linear infinite; }
-.avf-spin-ccw { transform-origin: 80px 80px; animation: avf-ccw 12s linear infinite; }
-.avf-radar { transform-origin: 80px 80px; animation: avf-cw 3.8s linear infinite; }
-.avf-pulse { transform-origin: 80px 80px; animation: avf-breathe 2.6s ease-in-out infinite; }
-.avf-spark-1 { animation: avf-float 2.6s ease-out infinite; }
-.avf-spark-2 { animation: avf-float 3.1s ease-out 0.9s infinite; }
+/* Kinetic animations centered at (100, 100) for 200x200 viewBox */
+.avf-spin-cw { transform-origin: 100px 100px; animation: avf-cw 22s linear infinite; }
+.avf-spin-slow { transform-origin: 100px 100px; animation: avf-cw 34s linear infinite; }
+.avf-spin-fast { transform-origin: 100px 100px; animation: avf-cw 5.6s linear infinite; }
+.avf-spin-ccw { transform-origin: 100px 100px; animation: avf-ccw 15s linear infinite; }
+.avf-radar { transform-origin: 100px 100px; animation: avf-cw 4.2s linear infinite; }
+.avf-pulse { transform-origin: 100px 100px; animation: avf-breathe 2.6s ease-in-out infinite; }
+.avf-spark-1 { animation: avf-float 2.8s ease-out infinite; }
+.avf-spark-2 { animation: avf-float 3.3s ease-out 1.1s infinite; }
 
 @keyframes avf-cw { to { transform: rotate(360deg); } }
 @keyframes avf-ccw { to { transform: rotate(-360deg); } }
 @keyframes avf-breathe { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 @keyframes avf-float {
-  0% { opacity: 0; transform: translateY(7px) scale(0.6); }
-  25% { opacity: 1; transform: translateY(-2px) scale(1.08); }
-  100% { opacity: 0; transform: translateY(-16px) scale(0.4); }
+  0% { opacity: 0; transform: translateY(8px) scale(0.55); }
+  28% { opacity: 0.95; transform: translateY(-2px) scale(1.05); }
+  100% { opacity: 0; transform: translateY(-18px) scale(0.35); }
 }
 
 /* Profile Avatar Frame Gallery */
@@ -174,16 +191,16 @@
 
 .avatar-frame-card__preview {
   display: grid;
-  width: 6.25rem;
-  height: 6.25rem;
+  width: 6.5rem;
+  height: 6.5rem;
   place-items: center;
   margin-bottom: 0.25rem;
 }
 
 .avatar-frame-card__sample {
   display: grid;
-  width: 4.1rem;
-  height: 4.1rem;
+  width: 4.25rem;
+  height: 4.25rem;
   place-items: center;
   overflow: hidden;
   border-radius: 50%;
@@ -284,6 +301,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .avf-spin-cw,
+  .avf-spin-slow,
   .avf-spin-fast,
   .avf-spin-ccw,
   .avf-radar,

@@ -84,3 +84,24 @@ test("retired group artwork and picker tab are gone while preview remains", asyn
   assert.ok(component.includes("onPreview?.(isPreviewed ? null : frame.id)"));
   assert.equal(profile.includes("groups: member.groups,"), false);
 });
+
+
+test("precision CNC frames keep 200-unit artwork and engraved season-year plates", async () => {
+  const graphics = await readFile(new URL("../components/avatar-frame.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../components/avatar-frame.css", import.meta.url), "utf8");
+  assert.match(graphics, /function RadialTicks\(/);
+  assert.match(graphics, /function MicroRivet\(/);
+  assert.match(graphics, /function PrecisionInnerBezel\(/);
+  assert.match(graphics, /viewBox="0 0 200 200"/);
+  assert.doesNotMatch(graphics, /viewBox="0 0 160 160"/);
+  assert.match(graphics, /seasonYear = 2026/);
+  assert.match(graphics, /RMUL \{seasonYear\}/);
+  assert.match(graphics, /RMUC \{seasonYear\}/);
+  assert.match(css, /inset: -25%/);
+  assert.match(css, /width: 150%/);
+  assert.match(css, /transform-origin: 100px 100px/);
+  assert.deepEqual(
+    AVATAR_FRAMES.filter((frame) => frame.track === "event").map((frame) => frame.tierLabel),
+    ["赛事限定 · 2026 联盟赛", "赛事限定 · 2026 区域赛", "赛事限定 · 2026 全国赛"],
+  );
+});

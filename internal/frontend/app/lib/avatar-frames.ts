@@ -33,6 +33,7 @@ export interface AvatarFrameContext {
   likeCount?: number;
   badges?: readonly { key: string; levelCode?: string; isEarned?: boolean }[];
   grantedFrameIds?: readonly string[];
+  seasonYear?: number;
 }
 
 export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
@@ -86,28 +87,28 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     unlockHint: "连续签到 7 天",
     priority: 40,
   },
-  // 赛事限定轨: RoboMaster 出征限定
+  // 赛事限定轨: RoboMaster 出征限定（带赛季年份）
   {
     id: "rm_league",
-    name: "RMUL 联盟赛 · 破阵先锋框",
+    name: "RMUL 2026 联盟赛 · 破阵先锋框",
     track: "event",
-    tierLabel: "赛事限定 · 联盟赛",
+    tierLabel: "赛事限定 · 2026 联盟赛",
     unlockHint: "暂未开放 · 战队赛事颁发",
     priority: 65,
   },
   {
     id: "rm_regional",
-    name: "RMUC 区域赛 · 赛区突围框",
+    name: "RMUC 2026 区域赛 · 赛区突围框",
     track: "event",
-    tierLabel: "赛事限定 · 区域赛",
+    tierLabel: "赛事限定 · 2026 区域赛",
     unlockHint: "暂未开放 · 战队赛事颁发",
     priority: 72,
   },
   {
     id: "rm_national",
-    name: "RMUC 全国赛 · 殿堂远征框",
+    name: "RMUC 2026 全国赛 · 殿堂远征框",
     track: "event",
-    tierLabel: "赛事限定 · 全国赛",
+    tierLabel: "赛事限定 · 2026 全国赛",
     unlockHint: "暂未开放 · 战队赛事颁发",
     priority: 80,
   },
