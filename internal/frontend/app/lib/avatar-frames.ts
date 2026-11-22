@@ -7,17 +7,12 @@ export type AvatarFrameId =
   | "laurel"
   | "hawkeye"
   | "overclock"
-  | "group_mech"
-  | "group_elec"
-  | "group_vision"
-  | "group_ai"
-  | "group_ops"
   | "rm_league"
   | "rm_regional"
   | "rm_national";
 
 export type AvatarFrameChoice = "auto" | "none" | AvatarFrameId;
-export type AvatarFrameTrack = "level" | "honor" | "group" | "event";
+export type AvatarFrameTrack = "level" | "honor" | "event";
 
 export interface AvatarFrameDefinition {
   id: AvatarFrameId;
@@ -36,7 +31,6 @@ export interface AvatarFrameContext {
   avatarFrameKey?: string;
   replyCount?: number;
   likeCount?: number;
-  groups?: readonly { name: string; role?: string }[];
   badges?: readonly { key: string; levelCode?: string; isEarned?: boolean }[];
   grantedFrameIds?: readonly string[];
 }
@@ -92,47 +86,6 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     unlockHint: "连续签到 7 天",
     priority: 40,
   },
-  // Track C: 战队组别专属轨
-  {
-    id: "group_mech",
-    name: "机械组 · 精密传动齿轮框",
-    track: "group",
-    tierLabel: "轨道 C · 机械组",
-    unlockHint: "加入机械组",
-    priority: 20,
-  },
-  {
-    id: "group_elec",
-    name: "电控组 · 脉冲总线回路框",
-    track: "group",
-    tierLabel: "轨道 C · 电控组",
-    unlockHint: "加入电控组",
-    priority: 20,
-  },
-  {
-    id: "group_vision",
-    name: "视觉组 · 光学虹膜识别框",
-    track: "group",
-    tierLabel: "轨道 C · 视觉组",
-    unlockHint: "加入视觉组",
-    priority: 20,
-  },
-  {
-    id: "group_ai",
-    name: "AI组 · 神经矩阵星核框",
-    track: "group",
-    tierLabel: "轨道 C · AI 组",
-    unlockHint: "加入 AI 组",
-    priority: 20,
-  },
-  {
-    id: "group_ops",
-    name: "运营组 · 荣耀棱镜勋章框",
-    track: "group",
-    tierLabel: "轨道 C · 运营组",
-    unlockHint: "加入运营组",
-    priority: 20,
-  },
   // 赛事限定轨: RoboMaster 出征限定
   {
     id: "rm_league",
@@ -167,17 +120,6 @@ export function getLevelUnlockedFrameName(level: number): string | null {
   return null;
 }
 
-function matchGroupKey(groups: readonly { name: string }[] | undefined, key: "mech" | "elec" | "vision" | "ai" | "ops") {
-  if (!groups?.length) return false;
-  return groups.some(({ name }) => {
-    if (key === "mech") return name.includes("机械");
-    if (key === "elec") return name.includes("电控");
-    if (key === "vision") return name.includes("视觉");
-    if (key === "ai") return name.toUpperCase().includes("AI");
-    return name.includes("运营");
-  });
-}
-
 function hasEventGrant(ctx: AvatarFrameContext, frameId: "rm_league" | "rm_regional" | "rm_national"): boolean {
   if (ctx.grantedFrameIds?.includes(frameId)) return true;
   if (ctx.featuredBadge?.key === frameId && ctx.featuredBadge.levelCode !== "none") return true;
@@ -198,16 +140,6 @@ export function isAvatarFrameUnlocked(frameId: AvatarFrameId, ctx: AvatarFrameCo
       return ctx.level >= 3 && ((ctx.replyCount ?? 0) >= 5 || (ctx.likeCount ?? 0) >= 5);
     case "overclock":
       return ctx.hasSevenDayStreak === true;
-    case "group_mech":
-      return matchGroupKey(ctx.groups, "mech");
-    case "group_elec":
-      return matchGroupKey(ctx.groups, "elec");
-    case "group_vision":
-      return matchGroupKey(ctx.groups, "vision");
-    case "group_ai":
-      return matchGroupKey(ctx.groups, "ai");
-    case "group_ops":
-      return matchGroupKey(ctx.groups, "ops");
     case "rm_league":
     case "rm_regional":
     case "rm_national":

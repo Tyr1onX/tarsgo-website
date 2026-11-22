@@ -29,12 +29,10 @@ function FrameGraphic({
   // Compact mode (<=36px comment avatars): crisp high-recognition signature ring only, never cluttered.
   if (isCompact) {
     const stroke =
-      frameId === "reactor" || frameId === "group_elec" || frameId === "group_vision"
+      frameId === "reactor"
         ? "var(--frame-cyan)"
         : frameId === "overclock"
           ? "var(--frame-amber)"
-          : frameId === "group_ai"
-            ? "#a892ff"
             : frameId === "rm_league"
               ? "#ff5a5f"
               : frameId === "rm_regional"
@@ -42,21 +40,14 @@ function FrameGraphic({
                 : "var(--admin-accent)";
     return (
       <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
-        {frameId === "titan" || frameId === "laurel" || frameId === "group_ops" || frameId === "rm_regional" || frameId === "rm_national" ? (
+        {frameId === "titan" || frameId === "laurel" || frameId === "rm_regional" || frameId === "rm_national" ? (
           <polygon
             points="30,4 70,4 96,30 96,70 70,96 30,96 4,70 4,30"
             fill="none"
             stroke={stroke}
             strokeWidth={frameId === "rm_national" ? "6" : "5"}
           />
-        ) : frameId === "group_ai" ? (
-          <polygon
-            points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5"
-            fill="none"
-            stroke={stroke}
-            strokeWidth="5"
-          />
-        ) : frameId === "hawkeye" || frameId === "group_vision" || frameId === "rm_league" ? (
+        ) : frameId === "hawkeye" || frameId === "rm_league" ? (
           <path
             d="M26 6 H10 Q6 6 6 10 V26 M74 6 H90 Q94 6 94 10 V26 M26 94 H10 Q6 94 6 90 V74 M74 94 H90 Q94 94 94 90 V74"
             fill="none"
@@ -64,8 +55,6 @@ function FrameGraphic({
             strokeWidth="6"
             strokeLinecap="round"
           />
-        ) : frameId === "group_mech" ? (
-          <circle cx="50" cy="50" r="45.5" fill="none" stroke={stroke} strokeWidth="6" strokeDasharray="11 5.5" />
         ) : (
           <circle cx="50" cy="50" r="46" fill="none" stroke={stroke} strokeWidth="5" />
         )}
@@ -108,11 +97,6 @@ function FrameGraphic({
         <stop offset="0%" stopColor="#FF7A2F" />
         <stop offset="55%" stopColor="#F6D07A" />
         <stop offset="100%" stopColor="#FFF5D4" />
-      </linearGradient>
-      <linearGradient id={`ai-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#C4B5FD" />
-        <stop offset="52%" stopColor="#7CF7E4" />
-        <stop offset="100%" stopColor="#DFBC72" />
       </linearGradient>
       <linearGradient id={`rmred-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#FF6B6B" />
@@ -284,140 +268,6 @@ function FrameGraphic({
     );
   }
 
-  // ===== Track C: 战队组别专属轨 =====
-  if (frameId === "group_mech") {
-    return (
-      <>
-        <svg className="tarsgo-av-frame__back" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle className="avf-spin-cw" cx="80" cy="80" r="64" fill="none" stroke={`url(#armor-${uid})`} strokeWidth="11" strokeDasharray="12 8.94" />
-          <circle className="avf-spin-cw" cx="80" cy="80" r="64" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="1.8" strokeDasharray="12 8.94" />
-          <path d="M18 58 L7 64 V96 L18 102 Z" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="2" />
-          <path d="M142 58 L153 64 V96 L142 102 Z" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="2" />
-        </svg>
-        <svg className="tarsgo-av-frame__front" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="54" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="3.2" />
-          <circle cx="80" cy="80" r="59.5" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="1.4" strokeDasharray="24 14" opacity="0.82" />
-          <path d="M62 18 H98 L92 27 H68 Z" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="2" />
-          <path d="M58 134 L80 146 L102 134 L95 127 L80 135 L65 127 Z" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="2" />
-          <circle cx="15" cy="80" r="2.4" fill="#FFF4CC" />
-          <circle cx="145" cy="80" r="2.4" fill="#FFF4CC" />
-        </svg>
-      </>
-    );
-  }
-
-  if (frameId === "group_elec") {
-    return (
-      <>
-        <svg className="tarsgo-av-frame__back" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="62" fill="none" stroke={`url(#armor-${uid})`} strokeWidth="7" />
-          <circle cx="80" cy="80" r="62" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="1.5" strokeDasharray="36 12" />
-          <path d="M22 50 L10 50 L10 68 M138 50 L150 50 L150 68 M22 110 L10 110 L10 92 M138 110 L150 110 L150 92" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="2.2" strokeLinecap="round" />
-          <circle cx="10" cy="68" r="2.5" fill="#7CF7E4" />
-          <circle cx="150" cy="68" r="2.5" fill="#7CF7E4" />
-          <circle cx="10" cy="92" r="2.5" fill="#FFF4CC" />
-          <circle cx="150" cy="92" r="2.5" fill="#FFF4CC" />
-        </svg>
-        <svg className="tarsgo-av-frame__front" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="53.5" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="2.6" />
-          <circle className="avf-spin-fast" cx="80" cy="80" r="58" fill="none" stroke={`url(#plasma-${uid})`} strokeWidth="3.2" strokeDasharray="56 260" strokeLinecap="round" />
-          <rect x="66" y="13" width="28" height="10" rx="2.5" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="1.8" />
-          <path className="avf-pulse" d="M77 15 L73 19 H79 L76 23 L84 18 H78 Z" fill="#7CF7E4" />
-          <rect x="68" y="137" width="24" height="9" rx="2.5" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="1.8" />
-          <line x1="74" y1="141.5" x2="86" y2="141.5" stroke="#7CF7E4" strokeWidth="2.2" strokeLinecap="round" />
-        </svg>
-      </>
-    );
-  }
-
-  if (frameId === "group_vision") {
-    return (
-      <>
-        <svg className="tarsgo-av-frame__back" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="63" fill="none" stroke={`url(#armor-${uid})`} strokeWidth="8" />
-          <circle className="avf-spin-ccw" cx="80" cy="80" r="65" fill="none" stroke="#5CE6D0" strokeWidth="1.5" strokeDasharray="6 10" opacity="0.78" />
-          {isHero ? (
-            <g className="avf-radar">
-              <path d="M80 80 L80 18 A62 62 0 0 1 124 38 Z" fill={`url(#sweep-${uid})`} opacity="0.7" />
-            </g>
-          ) : null}
-        </svg>
-        <svg className="tarsgo-av-frame__front" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="54" fill="none" stroke={`url(#plasma-${uid})`} strokeWidth="2.6" />
-          <g fill="none" stroke={`url(#gold-${uid})`} strokeWidth="3.2" strokeLinecap="round">
-            <path d="M22 48 A62 62 0 0 1 48 22" />
-            <path d="M112 22 A62 62 0 0 1 138 48" />
-            <path d="M138 112 A62 62 0 0 1 112 138" />
-            <path d="M48 138 A62 62 0 0 1 22 112" />
-          </g>
-          <path d="M80 9 V20 M80 140 V151 M9 80 H20 M140 80 H151" stroke="#7CF7E4" strokeWidth="2.4" strokeLinecap="round" />
-          <circle className="avf-pulse" cx="80" cy="14" r="3" fill="#FFF4CC" />
-        </svg>
-      </>
-    );
-  }
-
-  if (frameId === "group_ai") {
-    return (
-      <>
-        <svg className="tarsgo-av-frame__back" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <polygon points="80,14 137,47 137,113 80,146 23,113 23,47" fill={`url(#armor-${uid})`} stroke={`url(#ai-${uid})`} strokeWidth="2.4" />
-          <circle className="avf-spin-cw" cx="80" cy="80" r="64" fill="none" stroke={`url(#ai-${uid})`} strokeWidth="1.4" strokeDasharray="18 22" opacity="0.75" />
-        </svg>
-        <svg className="tarsgo-av-frame__front" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="53.5" fill="none" stroke={`url(#ai-${uid})`} strokeWidth="2.6" />
-          <g fill="#C4B5FD" stroke={`url(#armor-${uid})`} strokeWidth="1.5">
-            <circle cx="137" cy="47" r="3.6" />
-            <circle cx="137" cy="113" r="3.6" />
-            <circle cx="23" cy="113" r="3.6" />
-            <circle cx="23" cy="47" r="3.6" />
-          </g>
-          <path className="avf-pulse" d="M80 4 L84 15 L95 19 L84 23 L80 34 L76 23 L65 19 L76 15 Z" fill={`url(#ai-${uid})`} />
-          <polygon points="80,136 88,144 80,152 72,144" fill={`url(#armor-${uid})`} stroke={`url(#ai-${uid})`} strokeWidth="2" />
-          {isHero ? (
-            <>
-              <circle className="avf-spark-1" cx="30" cy="36" r="2.2" fill="#C4B5FD" />
-              <circle className="avf-spark-2" cx="130" cy="42" r="2" fill="#7CF7E4" />
-            </>
-          ) : null}
-        </svg>
-      </>
-    );
-  }
-
-  if (frameId === "group_ops") {
-    return (
-      <>
-        <svg className="tarsgo-av-frame__back" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <polygon points="80,14 126,34 146,80 126,126 80,146 34,126 14,80 34,34" fill={`url(#armor-${uid})`} stroke={`url(#gold-${uid})`} strokeWidth="2.4" />
-          <path d="M22 68 L8 76 L20 84 L10 94 L24 96" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M138 68 L152 76 L140 84 L150 94 L136 96" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <svg className="tarsgo-av-frame__front" viewBox="0 0 160 160" aria-hidden="true">
-          {commonDefs}
-          <circle cx="80" cy="80" r="53.5" fill="none" stroke={`url(#gold-${uid})`} strokeWidth="3" />
-          <polygon className="avf-pulse" points="80,7 89,18 80,26 71,18" fill="#FFF4CC" stroke={`url(#gold-${uid})`} strokeWidth="1.6" />
-          <path d="M62 134 L80 144 L98 134 L91 127 L80 133 L69 127 Z" fill={`url(#gold-${uid})`} />
-          {isHero ? (
-            <>
-              <circle className="avf-spark-1" cx="32" cy="46" r="2.2" fill="#FFF4CC" />
-              <circle className="avf-spark-2" cx="128" cy="48" r="2" fill="#DFBC72" />
-            </>
-          ) : null}
-        </svg>
-      </>
-    );
-  }
-
   // ===== 赛事限定轨: RoboMaster =====
   if (frameId === "rm_league") {
     return (
@@ -521,7 +371,6 @@ const TRACK_FILTERS: readonly { id: "all" | AvatarFrameTrack; label: string }[] 
   { id: "all", label: "全部" },
   { id: "level", label: "轨道 A · 等级" },
   { id: "honor", label: "轨道 B · 荣誉" },
-  { id: "group", label: "轨道 C · 组别" },
   { id: "event", label: "赛事限定" },
 ];
 

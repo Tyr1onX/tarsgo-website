@@ -325,6 +325,9 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 91, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.CommunityMemberProfile{})
 		}},
+		{version: 92, apply: func(db *gorm.DB) error {
+			return db.Exec("UPDATE community_member_profiles SET avatar_frame_key = 'auto' WHERE avatar_frame_key IN ('group_mech', 'group_elec', 'group_vision', 'group_ai', 'group_ops')").Error
+		}},
 	}
 }
 

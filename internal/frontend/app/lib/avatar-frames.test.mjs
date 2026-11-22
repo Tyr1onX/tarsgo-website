@@ -3,12 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { AVATAR_FRAMES, isAvatarFrameUnlocked, resolveEquippedAvatarFrame } from "./avatar-frames.ts";
 
-test("group frame access requires actual team membership, not an unknown group", () => {
-  const outsider = { level: 2, groups: [{ name: "其他项目组" }] };
-  assert.equal(isAvatarFrameUnlocked("group_ops", outsider), false);
-  assert.equal(isAvatarFrameUnlocked("group_elec", outsider), false);
-  const teammate = { ...outsider, groups: [{ name: "运营组" }] };
-  assert.equal(isAvatarFrameUnlocked("group_ops", teammate), true);
+test("group-specific frames are retired and saved choices fall back to remaining frames", () => {
+  const retired = ["group_mech", "group_elec", "group_vision", "group_ai", "group_ops"];
+  assert.equal(AVATAR_FRAMES.length, 9);
+  assert.ok(AVATAR_FRAMES.every((frame) => frame.track !== "group"));
+  for (const key of retired) {
+    assert.equal(AVATAR_FRAMES.some((frame) => frame.id === key), false);
+    assert.equal(isAvatarFrameUnlocked(key, { level: 6, groups: [{ name: "电控组" }] }), false);
+    assert.equal(resolveEquippedAvatarFrame({ level: 2, avatarFrameKey: key }), "calibration");
+  }
 });
 
 test("server profile choice is the sole source of equipped avatar frame", () => {
@@ -49,7 +52,7 @@ test("frame gallery shows only acquisition conditions and preserves locked statu
   assert.match(source, /disabled=\{!unlocked/);
   assert.doesNotMatch(source, /frame\.description/);
   assert.doesNotMatch(css, /avatar-frame-card__desc/);
-  assert.equal(AVATAR_FRAMES.length, 14);
+  assert.equal(AVATAR_FRAMES.length, 9);
   assert.ok(AVATAR_FRAMES.every((frame) => frame.unlockHint.length > 0 && frame.unlockHint.length <= 30));
   assert.ok(AVATAR_FRAMES.filter((frame) => frame.track === "event").every((frame) => frame.unlockHint.includes("暂未开放")));
 });
@@ -68,4 +71,16 @@ test("frame previews temporarily change only the own-profile hero without saving
   assert.match(gallery, /disabled=\{!unlocked \|\| saving\}/);
   assert.match(styles, /\.avatar-frame-card__action--preview\.is-previewing/);
   assert.doesNotMatch(gallery, /onPreview\?\.\([^\n]*updateMine/);
+});
+
+test("retired group artwork and picker tab are gone while preview remains", async () => {
+  const component = await readFile(new URL("../components/avatar-frame.tsx", import.meta.url), "utf8");
+  const profile = await readFile(new URL("../routes/dashboard/community-member-profile.tsx", import.meta.url), "utf8");
+  for (const id of ["group_mech", "group_elec", "group_vision", "group_ai", "group_ops"]) {
+    assert.equal(component.includes(id), false);
+  }
+  assert.equal(component.includes("轨道 C · 组别"), false);
+  assert.ok(component.includes("onPreview?: (frameId: AvatarFrameId | null) => void"));
+  assert.ok(component.includes("onPreview?.(isPreviewed ? null : frame.id)"));
+  assert.equal(profile.includes("groups: member.groups,"), false);
 });

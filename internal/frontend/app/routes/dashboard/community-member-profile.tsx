@@ -417,7 +417,6 @@ export default function CommunityMemberProfileRoute() {
     avatarFrameKey: member.avatarFrameKey,
     replyCount: result.stats.replyCount,
     likeCount: result.stats.likeCount,
-    groups: member.groups,
     badges: result.badges,
   };
 
