@@ -381,31 +381,6 @@ func (s *Service) UpdateMyCommunityMemberProfile(ctx context.Context, actor Acto
 // canEquipAvatarFrame validates the public identity facts already held by the
 // server. Event-exclusive frames stay locked until a real grant source exists.
 func canEquipAvatarFrame(key string, member CommunityMemberView, stats CommunityMemberStats) bool {
-	for _, group := range member.Groups {
-		name := strings.ToUpper(group.Name)
-		switch key {
-		case "group_mech":
-			if strings.Contains(name, "机械") {
-				return true
-			}
-		case "group_elec":
-			if strings.Contains(name, "电控") {
-				return true
-			}
-		case "group_vision":
-			if strings.Contains(name, "视觉") {
-				return true
-			}
-		case "group_ai":
-			if strings.Contains(name, "AI") {
-				return true
-			}
-		case "group_ops":
-			if strings.Contains(name, "运营") {
-				return true
-			}
-		}
-	}
 	switch key {
 	case "calibration":
 		return member.Level.Level >= 2
