@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { BrandLoader } from "~/components/brand-loader";
 
 import { CommunityIcon } from "~/components/community-icons";
@@ -6,11 +6,42 @@ import { communityClient, type CommunityGrowthProfile } from "~/lib/community-cl
 import { getCommunityGrowthSnapshot, requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
 import "./community-growth.css";
 
+function useAnimatedXp(targetXp: number | undefined) {
+  const [displayed, setDisplayed] = useState<number>(targetXp ?? 0);
+  const prevRef = useRef<number | undefined>(targetXp);
+
+  useEffect(() => {
+    if (targetXp === undefined) return;
+    const from = prevRef.current;
+    prevRef.current = targetXp;
+    if (from === undefined || from === targetXp || typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplayed(targetXp);
+      return;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - start) / 620);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayed(Math.round(from + (targetXp - from) * eased));
+      if (progress < 1) frame = window.requestAnimationFrame(step);
+    };
+    frame = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(frame);
+  }, [targetXp]);
+
+  return displayed;
+}
+
 export function CommunityLevelBadge({ level }: { level: number }) {
   return <span className="community-level-badge" aria-label={`社区等级 Lv.${level}`} title={`社区等级 Lv.${level}`}>Lv.{level}</span>;
 }
 
 export function CommunityGrowthDetails({ profile }: { profile: CommunityGrowthProfile }) {
+  const checkinPct = profile.checkedInToday ? 100 : 0;
+  const postPct = Math.min(100, Math.round((Math.min(profile.dailyPostsUsed, 2) / 2) * 100));
+  const replyPct = Math.min(100, Math.round((Math.min(profile.dailyRepliesUsed, 5) / 5) * 100));
+
   return <div className="community-growth-details">
     <div className="community-growth-details__top">
       <span>社区成长</span>
@@ -26,12 +57,17 @@ export function CommunityGrowthDetails({ profile }: { profile: CommunityGrowthPr
     <p className="community-growth-details__caption">{profile.totalXp.toLocaleString("zh-CN")} / {profile.nextLevelXp.toLocaleString("zh-CN")} XP</p>
     <section className="community-growth-rewards" aria-label="经验规则和今日奖励进度">
       <div className="community-growth-rewards__heading"><strong>每日奖励进度</strong><span>当前有效 {profile.dailyContributionXp}/30 XP</span></div>
-      <p>发帖奖励 {Math.min(profile.dailyPostsUsed, 2)}/2 · 回复奖励 {Math.min(profile.dailyRepliesUsed, 5)}/5</p>
+      <div className="community-growth-energy" aria-hidden="true">
+        <span className="community-growth-energy__seg community-growth-energy__seg--checkin"><i style={{ width: `${checkinPct}%` }} /></span>
+        <span className="community-growth-energy__seg community-growth-energy__seg--post"><i style={{ width: `${postPct}%` }} /></span>
+        <span className="community-growth-energy__seg community-growth-energy__seg--reply"><i style={{ width: `${replyPct}%` }} /></span>
+      </div>
+      <p>签到 {profile.checkedInToday ? "已完成" : "待签到"} · 发帖奖励 {Math.min(profile.dailyPostsUsed, 2)}/2 · 回复奖励 {Math.min(profile.dailyRepliesUsed, 5)}/5</p>
       <p>发帖 +10/篇 · 回复 +2/条 · 首次上传自定义头像 +20 XP</p>
       <p>签到 10/12/15 XP · 收到点赞 +1 · 收到回复 +1 · 回答被采纳 +10 XP</p>
     </section>
     <div className="community-growth-week">
-      <div className="community-growth-week__heading"><strong>连续签到奖励</strong><span>第 3 天起奖励增加</span></div>
+      <div className="community-growth-week__heading"><strong>连续签到奖励</strong><span>第 3 天起奖励增加 · 满 7 天解锁「超频核心」头像框</span></div>
       <ol>
         {profile.upcomingCheckIns.map((day) => <li key={day.day} className={day.completed ? "is-complete" : day.isToday ? "is-today" : ""}>
           <span>{day.isToday ? "今天" : formatShortDay(day.day)}</span>
@@ -54,7 +90,14 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
   const subscribe = useCallback((notify: () => void) => subscribeCommunityGrowthProfile(userID, notify), [userID]);
   const getSnapshot = useCallback(() => getCommunityGrowthSnapshot(userID), [userID]);
   const profile = useSyncExternalStore(subscribe, getSnapshot, () => null);
+  const animatedXp = useAnimatedXp(profile?.totalXp);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [burstXp, setBurstXp] = useState<number | null>(null);
+  useEffect(() => {
+    if (burstXp === null) return;
+    const timeout = window.setTimeout(() => setBurstXp(null), 1150);
+    return () => window.clearTimeout(timeout);
+  }, [burstXp]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,10 +110,12 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
 
   async function checkIn() {
     if (checkingIn || profile?.checkedInToday) return;
+    const rewardXp = profile?.upcomingCheckIns[0]?.rewardXp ?? 10;
     setCheckingIn(true);
     setError("");
     try {
       await communityClient.checkIn(userID);
+      setBurstXp(rewardXp);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "签到失败，请稍后重试。");
     } finally {
@@ -78,19 +123,42 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
     }
   }
 
+  const progressPct = profile ? Math.min(100, Math.max(0, Math.round(profile.progress * 100))) : 0;
+
   return <section className="community-growth" aria-label="社区成长">
     <div className="community-growth__bar">
-      <button type="button" className={`community-growth__checkin${profile?.checkedInToday ? " is-complete" : ""}`} onClick={() => void checkIn()} disabled={!profile || checkingIn || profile.checkedInToday}>
-        <CommunityIcon name={profile?.checkedInToday ? "check" : "calendarCheck"} />
-        <span>{checkingIn ? "签到中…" : !profile && !error ? "读取签到状态…" : profile?.checkedInToday ? "今日已签到" : "每日签到"}</span>
-        {profile && !profile.checkedInToday ? <strong>+{profile.upcomingCheckIns[0]?.rewardXp ?? 10} XP</strong> : null}
-      </button>
+      <span className="community-growth__checkin-wrap">
+        <button type="button" className={`community-growth__checkin${profile?.checkedInToday ? " is-complete" : ""}`} onClick={() => void checkIn()} disabled={!profile || checkingIn || profile.checkedInToday}>
+          <CommunityIcon name={profile?.checkedInToday ? "check" : "calendarCheck"} />
+          <span>{checkingIn ? "签到中…" : !profile && !error ? "读取签到状态…" : profile?.checkedInToday ? "今日已签到" : "每日签到"}</span>
+          {profile && !profile.checkedInToday ? <strong>+{profile.upcomingCheckIns[0]?.rewardXp ?? 10} XP</strong> : null}
+        </button>
+        {burstXp !== null ? (
+          <>
+            <span className="community-growth__xp-float" aria-hidden="true">+{burstXp} XP</span>
+            <span className="community-growth__ripple" aria-hidden="true" />
+          </>
+        ) : null}
+      </span>
       <div className="community-growth__summary" aria-live="polite">
-        {profile ? <><CommunityLevelBadge level={profile.level} /><span>{profile.totalXp.toLocaleString("zh-CN")} XP</span><span className="community-growth__streak"><CommunityIcon name="flame" /> 连续 {profile.streakDays} 天</span></> : error ? "成长信息暂不可用" : <BrandLoader label="正在读取成长信息" size="inline" />}
+        {profile ? (
+          <>
+            <CommunityLevelBadge level={profile.level} />
+            <span className="community-growth__xp-num">{animatedXp.toLocaleString("zh-CN")} XP</span>
+            <span className={`community-growth__streak${profile.streakDays >= 3 ? " is-hot" : ""}`}>
+              <CommunityIcon name="flame" /> 连续 {profile.streakDays} 天
+            </span>
+          </>
+        ) : error ? "成长信息暂不可用" : <BrandLoader label="正在读取成长信息" size="inline" />}
       </div>
       <button type="button" className="community-growth__details-toggle" aria-expanded={open} onClick={() => { const next = !open; setOpen(next); if (next) loadProfile(); }} disabled={!profile}>
         成长详情 <CommunityIcon name="chevronDown" />
       </button>
+      {profile ? (
+        <span className="community-growth__mini-progress" aria-hidden="true" title={`升级进度 ${progressPct}%`}>
+          <i style={{ width: `${progressPct}%` }} />
+        </span>
+      ) : null}
     </div>
     {error ? <p className="community-growth__error" role="alert">{error}<button type="button" onClick={() => void loadProfile()}>重试</button></p> : null}
     {open && profile ? <CommunityGrowthDetails profile={profile} /> : null}

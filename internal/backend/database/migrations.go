@@ -322,6 +322,9 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 88, apply: enforceUniqueUserGroupMembershipV88},
 		{version: 89, apply: normalizeRetiredDefaultGroupReferencesV89},
 		{version: 90, apply: finalizeRetiredDefaultGroupV90},
+		{version: 91, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.CommunityMemberProfile{})
+		}},
 	}
 }
 

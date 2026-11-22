@@ -94,3 +94,38 @@ func TestUpdateCommunityMemberProfileRejectsInvalidPublicFields(t *testing.T) {
 		}
 	}
 }
+
+func TestAvatarFrameEquipRulesUseServerVerifiedIdentity(t *testing.T) {
+	member := CommunityMemberView{
+		Level:             CommunityMemberLevel{Level: 4},
+		Groups:            []CommunityMemberGroup{{Name: "电控组"}, {Name: "临时项目组"}},
+		FeaturedBadge:     &CommunityFeaturedBadge{Key: "co_builder"},
+		HasSevenDayStreak: true,
+	}
+	stats := CommunityMemberStats{ReplyCount: 5}
+	for _, test := range []struct {
+		frame   string
+		allowed bool
+	}{
+		{"calibration", true},
+		{"reactor", true},
+		{"titan", false},
+		{"laurel", true},
+		{"hawkeye", true},
+		{"overclock", true},
+		{"group_elec", true},
+		{"group_ops", false},
+		{"group_mech", false},
+		{"rm_league", false},
+		{"rm_regional", false},
+		{"rm_national", false},
+		{"fake", false},
+	} {
+		if allowed := canEquipAvatarFrame(test.frame, member, stats); allowed != test.allowed {
+			t.Errorf("frame %s: allowed=%t, want %t", test.frame, allowed, test.allowed)
+		}
+	}
+	if canEquipAvatarFrame("hawkeye", CommunityMemberView{Level: CommunityMemberLevel{Level: 2}}, stats) {
+		t.Fatal("reply activity cannot bypass minimum level requirement")
+	}
+}

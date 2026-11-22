@@ -388,9 +388,17 @@ func TestAcceptanceDatabaseCommunityWorkflow(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("member could not update public profile fields: %v", err)
 	}
+	frameChoice := "laurel"
+	equipped, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{AvatarFrameKey: &frameChoice})
+	if err != nil || equipped.Member.AvatarFrameKey != frameChoice {
+		t.Fatalf("earned avatar frame could not be equipped: %#v err=%v", equipped, err)
+	}
 	memberPosts, err := service.GetCommunityMemberProfile(context.Background(), peer, member.ID, CommunityMemberTabPosts, 1)
 	if err != nil {
 		t.Fatalf("same-group member could not read the community profile: %v", err)
+	}
+	if memberPosts.Member.AvatarFrameKey != frameChoice {
+		t.Fatalf("other members cannot see equipped frame: %#v", memberPosts.Member)
 	}
 	if memberPosts.Member.Bio != bio || memberPosts.Member.FeaturedBadge == nil || memberPosts.Member.FeaturedBadge.LevelCode != "bronze" || memberPosts.Member.TeamIdentityStatus != model.TeamIdentityCommunityMember {
 		t.Fatalf("community profile public identity or earned badge mismatch: member=%#v", memberPosts.Member)
@@ -423,6 +431,15 @@ func TestAcceptanceDatabaseCommunityWorkflow(t *testing.T) {
 		if strings.Contains(string(encodedBadge), `"`+field+`"`) {
 			t.Fatalf("member showcase leaked management history %q: %s", field, encodedBadge)
 		}
+	}
+	lockedFrame := "titan"
+	if _, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{AvatarFrameKey: &lockedFrame}); questionStatus(err) != http.StatusBadRequest {
+		t.Fatalf("member could equip unearned frame: %v", err)
+	}
+	frameChoice = "none"
+	updatedFrame, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{AvatarFrameKey: &frameChoice})
+	if err != nil || updatedFrame.Member.AvatarFrameKey != "none" {
+		t.Fatalf("frame selection did not persist: %#v err=%v", updatedFrame, err)
 	}
 	newBio := "[TEST_QA] 自动保存后的介绍"
 	updatedProfile, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{Bio: &newBio})

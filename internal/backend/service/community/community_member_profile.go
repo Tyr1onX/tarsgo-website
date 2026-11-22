@@ -35,6 +35,7 @@ const (
 type CommunityMemberProfileInput struct {
 	Bio              *string `json:"bio"`
 	FeaturedBadgeKey *string `json:"featuredBadgeKey"`
+	AvatarFrameKey   *string `json:"avatarFrameKey"`
 }
 
 type CommunityMemberProfileResult struct {
@@ -60,6 +61,8 @@ type CommunityMemberView struct {
 	Level              CommunityMemberLevel          `json:"level"`
 	FeaturedBadgeKey   string                        `json:"featuredBadgeKey,omitempty"`
 	FeaturedBadge      *CommunityFeaturedBadge       `json:"featuredBadge,omitempty"`
+	AvatarFrameKey     string                        `json:"avatarFrameKey"`
+	HasSevenDayStreak  bool                          `json:"hasSevenDayStreak"`
 	IsSelf             bool                          `json:"isSelf"`
 }
 
@@ -197,6 +200,10 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 		return nil, internalError("读取社区公开资料失败", err)
 	}
 	member.Bio = publicProfile.Bio
+	member.AvatarFrameKey = publicProfile.AvatarFrameKey
+	if member.AvatarFrameKey == "" {
+		member.AvatarFrameKey = "auto"
+	}
 	var groupRows []communityMemberGroupRow
 	if err := db.Table("user_group_members AS ugm").
 		Select("ug.name AS name, ugm.role AS role, ugm.joined_at AS joined_at").
@@ -221,6 +228,11 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 		return nil, internalError("读取成员社区等级失败", err)
 	}
 	member.Level = level
+	var sevenDayStreaks int64
+	if err := db.Model(&model.CommunityCheckIn{}).Where("user_id = ? AND streak_days >= ?", memberID, 7).Count(&sevenDayStreaks).Error; err != nil {
+		return nil, internalError("读取连续签到成就失败", err)
+	}
+	member.HasSevenDayStreak = sevenDayStreaks > 0
 	badge, err := s.communityMemberBadge(ctx, db, memberID)
 	if err != nil {
 		return nil, internalError("读取成员徽章失败", err)
@@ -303,7 +315,7 @@ func (s *Service) UpdateMyCommunityMemberProfile(ctx context.Context, actor Acto
 	if actor.ID == 0 {
 		return nil, forbidden("请先登录后编辑社区资料")
 	}
-	if input.Bio == nil && input.FeaturedBadgeKey == nil {
+	if input.Bio == nil && input.FeaturedBadgeKey == nil && input.AvatarFrameKey == nil {
 		return nil, badRequest("没有需要保存的社区资料")
 	}
 	updates := map[string]any{}
@@ -330,6 +342,22 @@ func (s *Service) UpdateMyCommunityMemberProfile(ctx context.Context, actor Acto
 		}
 		updates["featured_badge_key"] = key
 	}
+	if input.AvatarFrameKey != nil {
+		choice := strings.TrimSpace(*input.AvatarFrameKey)
+		if choice != "auto" && choice != "none" {
+			current, err := s.GetCommunityMemberProfile(ctx, actor, actor.ID, CommunityMemberTabOverview, 1)
+			if err != nil {
+				return nil, err
+			}
+			if !canEquipAvatarFrame(choice, current.Member, current.Stats) {
+				return nil, badRequest("只能佩戴已解锁的头像框")
+			}
+		}
+		if choice == "" {
+			return nil, badRequest("头像框选择无效")
+		}
+		updates["avatar_frame_key"] = choice
+	}
 	profile := model.CommunityMemberProfile{UserID: actor.ID}
 	for key, value := range updates {
 		switch key {
@@ -337,6 +365,8 @@ func (s *Service) UpdateMyCommunityMemberProfile(ctx context.Context, actor Acto
 			profile.Bio = value.(string)
 		case "featured_badge_key":
 			profile.FeaturedBadgeKey = value.(string)
+		case "avatar_frame_key":
+			profile.AvatarFrameKey = value.(string)
 		}
 	}
 	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
@@ -346,6 +376,52 @@ func (s *Service) UpdateMyCommunityMemberProfile(ctx context.Context, actor Acto
 		return nil, internalError("保存社区公开资料失败", err)
 	}
 	return s.GetCommunityMemberProfile(ctx, actor, actor.ID, CommunityMemberTabOverview, 1)
+}
+
+// canEquipAvatarFrame validates the public identity facts already held by the
+// server. Event-exclusive frames stay locked until a real grant source exists.
+func canEquipAvatarFrame(key string, member CommunityMemberView, stats CommunityMemberStats) bool {
+	for _, group := range member.Groups {
+		name := strings.ToUpper(group.Name)
+		switch key {
+		case "group_mech":
+			if strings.Contains(name, "机械") {
+				return true
+			}
+		case "group_elec":
+			if strings.Contains(name, "电控") {
+				return true
+			}
+		case "group_vision":
+			if strings.Contains(name, "视觉") {
+				return true
+			}
+		case "group_ai":
+			if strings.Contains(name, "AI") {
+				return true
+			}
+		case "group_ops":
+			if strings.Contains(name, "运营") {
+				return true
+			}
+		}
+	}
+	switch key {
+	case "calibration":
+		return member.Level.Level >= 2
+	case "reactor":
+		return member.Level.Level >= 4
+	case "titan":
+		return member.Level.Level >= 6
+	case "laurel":
+		return member.FeaturedBadge != nil && member.FeaturedBadge.Key == "co_builder"
+	case "hawkeye":
+		return member.Level.Level >= 3 && (stats.ReplyCount >= 5 || stats.LikeCount >= 5)
+	case "overclock":
+		return member.HasSevenDayStreak
+	default:
+		return false
+	}
 }
 
 func (s *Service) communityPublicLevel(ctx context.Context, db *gorm.DB, memberID uint64) (CommunityMemberLevel, error) {
