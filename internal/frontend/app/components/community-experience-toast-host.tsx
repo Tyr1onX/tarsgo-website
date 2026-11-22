@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getLevelUnlockedFrameName } from "~/lib/avatar-frames";
 import { subscribeAccountSessionChange, subscribeAuthStateChange } from "~/lib/auth-client";
 import { communityClient, type CommunityExperienceEntry, type CommunityGrowthProfile } from "~/lib/community-client";
 import {
@@ -198,15 +199,18 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
 
   if (!toasts.length) return null;
   return <ol className="community-xp-toasts" aria-label="经验获得提示">
-    {toasts.map((toast) => <li className="community-xp-toast" key={toast.id} role="status" aria-live="polite">
-      <span className="community-xp-toast__mark" aria-hidden="true">+{toast.points}</span>
-      <span className="community-xp-toast__copy">
-        <strong>{toast.label}<span>+{toast.points} XP</span></strong>
-        {toast.levelUp ? <small>升级成功 · Lv.{toast.levelUp}</small> : null}
-      </span>
-      <button type="button" className="community-xp-toast__close" aria-label={`关闭经验提示：${toast.label}`} onClick={() => {
-        dismissToast(toast.id);
-      }}>×</button>
-    </li>)}
+    {toasts.map((toast) => {
+      const unlockedFrame = toast.levelUp ? getLevelUnlockedFrameName(toast.levelUp) : null;
+      return <li className={`community-xp-toast${toast.levelUp ? " community-xp-toast--levelup" : ""}`} key={toast.id} role="status" aria-live="polite">
+        <span className="community-xp-toast__mark" aria-hidden="true">{toast.levelUp ? `Lv.${toast.levelUp}` : `+${toast.points}`}</span>
+        <span className="community-xp-toast__copy">
+          <strong>{toast.label}<span>+{toast.points} XP</span></strong>
+          {toast.levelUp ? <small>升级成功 · Lv.{toast.levelUp}{unlockedFrame ? ` · 解锁「${unlockedFrame}」头像框` : ""}</small> : null}
+        </span>
+        <button type="button" className="community-xp-toast__close" aria-label={`关闭经验提示：${toast.label}`} onClick={() => {
+          dismissToast(toast.id);
+        }}>×</button>
+      </li>;
+    })}
   </ol>;
 }

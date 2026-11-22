@@ -6,6 +6,7 @@ import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
 import { GroupAnimatedMark } from "~/components/tarsgo-motion-marks";
+import { AvatarFrame, AvatarFrameGallery } from "~/components/avatar-frame";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityAvatar } from "~/components/community-post-card";
 import { PersonalProfileSettings } from "~/components/personal-profile-settings";
@@ -133,6 +134,8 @@ export default function CommunityMemberProfileRoute() {
   const [selectedBadge, setSelectedBadge] = useState("");
   const [badgeError, setBadgeError] = useState("");
   const [badgeSaving, setBadgeSaving] = useState(false);
+  const [frameSaving, setFrameSaving] = useState(false);
+  const [frameError, setFrameError] = useState("");
   const [featureAction, setFeatureAction] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const skipNameBlurRef = useRef(false);
@@ -376,6 +379,22 @@ export default function CommunityMemberProfileRoute() {
     }
   }
 
+  async function selectAvatarFrame(choice: string) {
+    if (!result || !result.member.isSelf || frameSaving) return;
+    setFrameError("");
+    setFrameSaving(true);
+    try {
+      const updated = await communityMemberProfileClient.updateMine({ avatarFrameKey: choice });
+      setResult((current) => current?.member.id === updated.member.id
+        ? { ...current, member: { ...current.member, avatarFrameKey: updated.member.avatarFrameKey } }
+        : current);
+    } catch (cause) {
+      setFrameError(cause instanceof Error ? cause.message : "头像框保存失败，请重试");
+    } finally {
+      setFrameSaving(false);
+    }
+  }
+
   if (loading && !result) return <MemberProfileSkeleton tab={tab} />;
   if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link></section>;
 
@@ -383,6 +402,17 @@ export default function CommunityMemberProfileRoute() {
   const isSelf = member.isSelf && member.id === currentUser.id && member.id === memberID;
   const visibleBadges = (result.badges ?? []).filter((badge) => badge.isEarned);
   const postHrefState = { communityReturnTo: currentPath };
+  const frameContext = {
+    userId: member.id,
+    level: member.level.level,
+    featuredBadge: member.featuredBadge,
+    hasSevenDayStreak: member.hasSevenDayStreak,
+    avatarFrameKey: member.avatarFrameKey,
+    replyCount: result.stats.replyCount,
+    likeCount: result.stats.likeCount,
+    groups: member.groups,
+    badges: result.badges,
+  };
 
   return <section className="admin-design community-page community-member-page" aria-labelledby="community-member-title">
     <Link className="community-thread__back" to={tab === "settings" && isSelf ? location.pathname : returnTo} onClick={tab === "settings" && isSelf ? undefined : returnToSource}><CommunityIcon name="arrowLeft" />{tab === "settings" && isSelf ? "返回我的主页" : "返回"}</Link>
@@ -396,13 +426,15 @@ export default function CommunityMemberProfileRoute() {
       ) : null}
       <div className="community-member-hero__avatar-wrap">
         {isSelf ? <>
-          <button type="button" className="community-member-hero__avatar-button" aria-label="更换头像" aria-controls="community-member-avatar-file" disabled={avatarUploading} onClick={() => avatarInputRef.current?.click()}>
-            <CommunityAvatar name={member.displayName} src={member.avatarUrl} />
-            <span className="community-member-hero__avatar-overlay" aria-hidden="true">{avatarUploading ? "上传中…" : "更换"}</span>
-          </button>
+          <AvatarFrame context={frameContext} tier="hero">
+            <button type="button" className="community-member-hero__avatar-button" aria-label="更换头像" aria-controls="community-member-avatar-file" disabled={avatarUploading} onClick={() => avatarInputRef.current?.click()}>
+              <CommunityAvatar name={member.displayName} src={member.avatarUrl} />
+              <span className="community-member-hero__avatar-overlay" aria-hidden="true">{avatarUploading ? "上传中…" : "更换"}</span>
+            </button>
+          </AvatarFrame>
           <input ref={avatarInputRef} id="community-member-avatar-file" className="sr-only" type="file" accept="image/png,image/jpeg" tabIndex={-1} disabled={avatarUploading} onChange={handleAvatarChange} />
           {avatarUploading ? <span className="community-member-hero__avatar-status" role="status">正在更新头像…</span> : null}
-        </> : <CommunityAvatar name={member.displayName} src={member.avatarUrl} />}
+        </> : <AvatarFrame context={frameContext} tier="hero"><CommunityAvatar name={member.displayName} src={member.avatarUrl} /></AvatarFrame>}
       </div>
       <div className="community-member-hero__identity">
         <div className="community-member-hero__name">
@@ -482,6 +514,7 @@ export default function CommunityMemberProfileRoute() {
         {badgeError ? <p className="community-member-inline-error" role="alert">{badgeError}</p> : null}
       </form> : <button type="button" className="community-inline-link community-member-badges__edit" onClick={() => { setSelectedBadge(member.featuredBadgeKey ?? ""); setBadgeError(""); setEditingFeaturedBadge(true); }}>设置代表徽章</button> : null}
       {visibleBadges.length ? <div className="community-member-badge-grid">{visibleBadges.map((badge) => <BadgeCard key={badge.key} badge={badge} onReplay={isSelf ? requestBadgeReplay : undefined} />)}</div> : <EmptyState>{loading ? "" : "还没有获得徽章"}</EmptyState>}
+      <AvatarFrameGallery context={frameContext} displayName={member.displayName} avatarUrl={member.avatarUrl} isSelf={isSelf} onChoose={(choice) => void selectAvatarFrame(choice)} saving={frameSaving} error={frameError} />
     </section> : null}
     {tab === "settings" && isSelf ? <section className="community-member-section community-member-settings" aria-labelledby="community-member-settings-title">
       <header><h2 id="community-member-settings-title">资料设置</h2></header>

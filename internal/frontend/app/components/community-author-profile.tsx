@@ -2,6 +2,7 @@ import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
+import { AvatarFrame } from "~/components/avatar-frame";
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
 import { CommunityLevelBadge } from "~/components/community-growth";
@@ -64,6 +65,16 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
   const positions = member?.positions ?? authorPositions;
   const primaryPosition = positions[0];
   const positionLabel = primaryPosition?.title ?? "";
+  const frameContext = {
+    userId: id,
+    level: member?.level.level ?? level,
+    featuredBadge: badge,
+    avatarFrameKey: member?.avatarFrameKey,
+    hasSevenDayStreak: member?.hasSevenDayStreak,
+    replyCount: profile?.stats.replyCount,
+    likeCount: profile?.stats.likeCount,
+    groups,
+  };
   return <div
     className={`community-author-profile${size === "small" ? " community-author-profile--small" : ""}`}
     ref={rootRef}
@@ -79,9 +90,11 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
       aria-label={`查看 ${name} 的社区资料卡`}
       onClick={() => setOpen((value) => !value)}
     >
-      <span className={`community-avatar community-avatar--${size}`} aria-hidden="true">
-        {avatar ? <img src={avatar} alt="" loading="lazy" /> : Array.from(name.trim())[0] ?? "吉"}
-      </span>
+      <AvatarFrame context={frameContext} tier={size === "small" ? "compact" : "card"}>
+        <span className={`community-avatar community-avatar--${size}`} aria-hidden="true">
+          {avatar ? <img src={avatar} alt="" loading="lazy" /> : Array.from(name.trim())[0] ?? "吉"}
+        </span>
+      </AvatarFrame>
       <strong>{name}</strong>
       <CommunityLevelBadge level={member?.level.level ?? level} />
       <TeamIdentityBadge status={member?.teamIdentityStatus ?? teamIdentityStatus} />
@@ -90,9 +103,11 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
     {badge ? <CommunityBadgeInfo className="community-author-profile__badge" badge={badge} size={18} /> : null}
     {open ? <section className="community-author-profile__popover" role="dialog" aria-label={`${name} 的社区资料卡`}>
       <header className="community-author-profile__card-head">
-        <span className="community-avatar community-avatar--regular" aria-hidden="true">
-          {member?.avatarUrl || avatar ? <img src={member?.avatarUrl ?? avatar} alt="" /> : Array.from(member?.displayName ?? name)[0] ?? "吉"}
-        </span>
+        <AvatarFrame context={frameContext} tier="card">
+          <span className="community-avatar community-avatar--regular" aria-hidden="true">
+            {member?.avatarUrl || avatar ? <img src={member?.avatarUrl ?? avatar} alt="" /> : Array.from(member?.displayName ?? name)[0] ?? "吉"}
+          </span>
+        </AvatarFrame>
         <div className="community-author-profile__identity">
           <strong>{member?.displayName ?? name}</strong>
           <CommunityLevelBadge level={member?.level.level ?? level} />

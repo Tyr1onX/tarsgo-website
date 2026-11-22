@@ -45,6 +45,8 @@ export interface CommunityMemberProfile {
   };
   featuredBadgeKey?: string;
   featuredBadge?: CommunityFeaturedBadge;
+  avatarFrameKey: string;
+  hasSevenDayStreak: boolean;
   isSelf: boolean;
 }
 
@@ -93,6 +95,6 @@ export interface CommunityMemberProfileResult {
 export const communityMemberProfileClient = {
   get: (memberID: number, tab: CommunityMemberProfileResult["tab"] = "overview", page = 1) =>
     apiRequest<CommunityMemberProfileResult>(`/api/community/members/${memberID}?tab=${encodeURIComponent(tab)}&page=${page}`),
-  updateMine: (input: { bio?: string; featuredBadgeKey?: string }) =>
+  updateMine: (input: { bio?: string; featuredBadgeKey?: string; avatarFrameKey?: string }) =>
     apiRequest<CommunityMemberProfileResult>("/api/community/me/profile", { method: "PUT", body: input }),
 };
