@@ -697,6 +697,11 @@
 .community-member-hero__identity { min-width: 0; }
 .community-member-hero__name { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 9px; }
 .community-member-hero__name h1 { min-width: 0; margin: 0; color: var(--admin-text); font-size: clamp(23px, 3vw, 29px); font-weight: 640; letter-spacing: -.035em; line-height: 1.2; }
+.community-member-hero__frame-toggle { min-height: 30px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 4px 10px; background: var(--admin-surface); color: var(--admin-accent-text); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.community-member-hero__frame-toggle:hover { border-color: var(--admin-accent); }
+.community-member-hero__frame-toggle:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+.community-member-frame-picker { min-width: 0; }
+
 .community-member-name-trigger { max-width: 100%; border: 0; padding: 0; color: inherit; background: transparent; font: inherit; letter-spacing: inherit; text-align: left; cursor: text; }
 .community-member-name-editor { position: relative; display: inline-grid; max-width: 100%; vertical-align: top; }
 .community-member-name-editor > span,.community-member-name-editor input { grid-area: 1 / 1; min-width: 1em; max-width: 100%; margin: 0; border: 0; border-radius: 0; padding: 0; color: inherit; background: transparent; font: inherit; letter-spacing: inherit; line-height: inherit; }

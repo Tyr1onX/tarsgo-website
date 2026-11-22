@@ -25,7 +25,6 @@ export interface AvatarFrameDefinition {
   track: AvatarFrameTrack;
   tierLabel: string;
   unlockHint: string;
-  description: string;
   priority: number;
 }
 
@@ -49,8 +48,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "校准刻度环",
     track: "level",
     tierLabel: "轨道 A · Lv.2",
-    unlockHint: "社区等级达到 Lv.2 自动解锁",
-    description: "精密游标刻度与四向准星，迈入工程社区的第一枚标识。",
+    unlockHint: "达到社区 Lv.2",
     priority: 10,
   },
   {
@@ -58,8 +56,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "星核轨道反应堆",
     track: "level",
     tierLabel: "轨道 A · Lv.4",
-    unlockHint: "社区等级达到 Lv.4 自动解锁",
-    description: "双向逆转涡轮齿环与青金等离子能弧，社区核心研发标志。",
+    unlockHint: "达到社区 Lv.4",
     priority: 30,
   },
   {
@@ -67,8 +64,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "泰坦机甲皇冠",
     track: "level",
     tierLabel: "轨道 A · Lv.6",
-    unlockHint: "社区等级达到 Lv.6 自动解锁",
-    description: "双侧破框机甲翼片、三叉金属皇冠与黑曜石倒角护环，顶级常驻排面。",
+    unlockHint: "达到社区 Lv.6",
     priority: 50,
   },
   // Track B: 荣誉与成就轨
@@ -77,8 +73,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "共建者荣耀桂冠",
     track: "honor",
     tierLabel: "轨道 B · 共建者",
-    unlockHint: "获得「共建者」徽章自动解锁（随铜/银/金进阶）",
-    description: "立体锻造机械桂冠双翼与底部菱形勋章，献给建设战队平台的贡献者。",
+    unlockHint: "获得「共建者」徽章",
     priority: 60,
   },
   {
@@ -86,8 +81,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "鹰眼火控瞄准框",
     track: "honor",
     tierLabel: "轨道 B · 活跃答疑",
-    unlockHint: "Lv.3 且累计回复或获赞 ≥ 5 次解锁",
-    description: "实时旋转雷达扇区与重型四角 HUD 护角，赛场自瞄火控既视感。",
+    unlockHint: "Lv.3 且累计回复或获赞 5 次",
     priority: 25,
   },
   {
@@ -95,8 +89,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "赛场烈焰超频核心",
     track: "honor",
     tierLabel: "轨道 B · 连签 7 天",
-    unlockHint: "连续签到满 7 天自动解锁",
-    description: "碳金锋刃双翼、熔金能量内环与浮升余烬，属于最自律的打卡队员。",
+    unlockHint: "连续签到 7 天",
     priority: 40,
   },
   // Track C: 战队组别专属轨
@@ -105,8 +98,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "机械组 · 精密传动齿轮框",
     track: "group",
     tierLabel: "轨道 C · 机械组",
-    unlockHint: "所属组别包含「机械组」自动解锁",
-    description: "黑曜石倒角齿轮外圈与双侧液压卡钳护翼，致敬硬核结构与传动美学。",
+    unlockHint: "加入机械组",
     priority: 20,
   },
   {
@@ -114,8 +106,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "电控组 · 脉冲总线回路框",
     track: "group",
     tierLabel: "轨道 C · 电控组",
-    unlockHint: "所属组别包含「电控组」自动解锁",
-    description: "蚀刻金线 PCB 回路、青金脉冲电流弧与上下总线接口，底盘云台的心脏。",
+    unlockHint: "加入电控组",
     priority: 20,
   },
   {
@@ -123,8 +114,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "视觉组 · 光学虹膜识别框",
     track: "group",
     tierLabel: "轨道 C · 视觉组",
-    unlockHint: "所属组别包含「视觉组」自动解锁",
-    description: "多叶片机械光圈虹膜与光学测距刻度环，精准锁定每一帧赛场目标。",
+    unlockHint: "加入视觉组",
     priority: 20,
   },
   {
@@ -132,8 +122,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "AI组 · 神经矩阵星核框",
     track: "group",
     tierLabel: "轨道 C · AI 组",
-    unlockHint: "所属组别包含「AI 组」自动解锁",
-    description: "六边形神经突触矩阵与顶部四芒算力星核，承载自主决策与前沿算法。",
+    unlockHint: "加入 AI 组",
     priority: 20,
   },
   {
@@ -141,8 +130,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "运营组 · 荣耀棱镜勋章框",
     track: "group",
     tierLabel: "轨道 C · 运营组",
-    unlockHint: "所属组别包含「运营组」自动解锁",
-    description: "香槟金切面棱镜外环与丝带翼饰，凝聚战队品牌叙事与对外排面。",
+    unlockHint: "加入运营组",
     priority: 20,
   },
   // 赛事限定轨: RoboMaster 出征限定
@@ -151,8 +139,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "RMUL 联盟赛 · 破阵先锋框",
     track: "event",
     tierLabel: "赛事限定 · 联盟赛",
-    unlockHint: "参加 RoboMaster 高校联盟赛由战队颁发解锁",
-    description: "赤金战术V型装甲翼与红蓝赛场脉冲饰条，致敬首次披甲上阵的联盟赛征程。",
+    unlockHint: "暂未开放 · 战队赛事颁发",
     priority: 65,
   },
   {
@@ -160,8 +147,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "RMUC 区域赛 · 赛区突围框",
     track: "event",
     tierLabel: "赛事限定 · 区域赛",
-    unlockHint: "参加 RoboMaster 超级对抗赛区域赛由战队颁发解锁",
-    description: "双色对抗能环、重型八角盾甲与战旗飞翼，记录区域赛突围的高燃时刻。",
+    unlockHint: "暂未开放 · 战队赛事颁发",
     priority: 72,
   },
   {
@@ -169,8 +155,7 @@ export const AVATAR_FRAMES: readonly AvatarFrameDefinition[] = [
     name: "RMUC 全国赛 · 殿堂远征框",
     track: "event",
     tierLabel: "赛事限定 · 全国赛",
-    unlockHint: "出征 RoboMaster 全国赛由战队统一颁发解锁",
-    description: "破框镀金胜利双翼、殿堂级三叉冠冕与 RMUC 铭牌，战队最高赛事荣耀标识。",
+    unlockHint: "暂未开放 · 战队赛事颁发",
     priority: 80,
   },
 ] as const;

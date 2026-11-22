@@ -216,12 +216,6 @@
   color: var(--admin-text);
 }
 
-.avatar-frame-card__desc {
-  color: var(--admin-muted);
-  font-size: 0.72rem;
-  line-height: 1.5;
-}
-
 .avatar-frame-card__hint {
   color: var(--admin-dim);
   font-size: 0.69rem;

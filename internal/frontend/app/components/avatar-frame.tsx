@@ -613,13 +613,12 @@ export function AvatarFrameGallery({
               </div>
               <span className="avatar-frame-card__tier">{frame.tierLabel}</span>
               <h3>{frame.name}</h3>
-              <p className="avatar-frame-card__desc">{frame.description}</p>
               <span className="avatar-frame-card__hint">{frame.unlockHint}</span>
               {isSelf ? (
                 <button
                   type="button"
                   className={`avatar-frame-card__action${isEquipped ? " is-equipped" : ""}`}
-                  disabled={!unlocked}
+                  disabled={!unlocked || saving}
                   onClick={() => choose(frame.id)}
                 >
                   {!unlocked ? "未解锁" : isEquipped ? "当前佩戴中" : "佩戴此框"}
