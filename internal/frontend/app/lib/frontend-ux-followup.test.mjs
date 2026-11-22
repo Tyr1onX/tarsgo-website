@@ -43,3 +43,14 @@ test("mobile editable fields stay at 16px or larger to avoid iOS Safari focus zo
   assert.match(styles, /@media \(max-width: 639px\) \{\s*body :is\(input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\), textarea, select\)/);
   assert.match(styles, /font-size: max\(1rem, 1em\)/);
 });
+
+
+test("narrow phone dashboard header retains quick-jump but hides desktop keyboard hint", async () => {
+  const css = await read("components/dashboard-steady-ui.css");
+  assert.match(css, /@media \(max-width: 479px\)/);
+  assert.match(css, /\.dashboard-shell__topbar \{ gap: 0\.5rem; \}/);
+  assert.match(css, /\.dashboard-cmdk-kbd \{ display: none; \}/);
+  assert.match(css, /\.dashboard-cmdk-trigger \{ padding-inline: 0\.6rem; \}/);
+  const jsx = await read("components/dashboard-steady-ui.tsx");
+  assert.match(jsx, /aria-label="快速跳转工作台模块（快捷键 Command\+K）"/);
+});
