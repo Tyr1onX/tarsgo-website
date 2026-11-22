@@ -162,7 +162,7 @@
 
 .avatar-frame-gallery__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12.25rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(13.25rem, 1fr));
   gap: 0.9rem;
 }
 
@@ -184,23 +184,18 @@
   background: color-mix(in srgb, var(--admin-accent) 7%, var(--admin-surface));
 }
 
-.avatar-frame-card.is-locked .avatar-frame-card__preview {
-  filter: grayscale(0.65);
-  opacity: 0.62;
-}
-
 .avatar-frame-card__preview {
   display: grid;
-  width: 6.5rem;
-  height: 6.5rem;
+  width: 7.25rem;
+  height: 7.25rem;
   place-items: center;
   margin-bottom: 0.25rem;
 }
 
 .avatar-frame-card__sample {
   display: grid;
-  width: 4.25rem;
-  height: 4.25rem;
+  width: 4.5rem;
+  height: 4.5rem;
   place-items: center;
   overflow: hidden;
   border-radius: 50%;
