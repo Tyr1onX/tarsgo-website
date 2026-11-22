@@ -696,6 +696,8 @@ export function AvatarFrameGallery({
         ) : null}
       </div>
 
+      {error ? <p className="community-member-inline-error" role="alert">{error}</p> : null}
+
       <div className="avatar-frame-gallery__tracks" role="tablist" aria-label="头像框轨道筛选">
         {TRACK_FILTERS.map((item) => (
           <button
@@ -748,7 +750,7 @@ export function AvatarFrameGallery({
                     disabled={!unlocked || saving}
                     onClick={() => choose(frame.id)}
                   >
-                    {!unlocked ? "未解锁" : isEquipped ? "当前佩戴中" : "佩戴此框"}
+                    {!unlocked ? "未解锁" : isEquipped ? "当前佩戴中" : saving ? "保存中…" : "佩戴此框"}
                   </button>
                 </div>
               ) : (

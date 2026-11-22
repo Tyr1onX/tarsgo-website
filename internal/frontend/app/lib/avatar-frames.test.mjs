@@ -105,3 +105,17 @@ test("precision CNC frames keep 200-unit artwork and engraved season-year plates
     ["赛事限定 · 2026 联盟赛", "赛事限定 · 2026 区域赛", "赛事限定 · 2026 全国赛"],
   );
 });
+
+
+test("locked frame gallery previews retain full CNC detail and save state is visible", async () => {
+  const gallery = await readFile(new URL("../components/avatar-frame.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../components/avatar-frame.css", import.meta.url), "utf8");
+  assert.doesNotMatch(styles, /\.avatar-frame-card\.is-locked \.avatar-frame-card__preview/);
+  assert.match(styles, /minmax\(13\.25rem, 1fr\)/);
+  assert.match(styles, /width: 7\.25rem;\s*height: 7\.25rem/);
+  assert.match(styles, /width: 4\.5rem;\s*height: 4\.5rem/);
+  assert.match(gallery, /<AvatarFrame context=\{context\} forcedFrameId=\{frame.id\} tier="hero">/);
+  assert.match(gallery, /\{error \? <p className="community-member-inline-error" role="alert">\{error\}<\/p> : null\}/);
+  assert.match(gallery, /saving \? "保存中…"/);
+  assert.match(gallery, /disabled=\{!unlocked \|\| saving\}/);
+});
