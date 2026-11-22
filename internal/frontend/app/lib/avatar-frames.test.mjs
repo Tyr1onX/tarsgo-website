@@ -119,3 +119,24 @@ test("locked frame gallery previews retain full CNC detail and save state is vis
   assert.match(gallery, /saving \? "保存中…"/);
   assert.match(gallery, /disabled=\{!unlocked \|\| saving\}/);
 });
+
+
+test("compact avatar frames use nine micro-precision variants instead of plain rings", async () => {
+  const graphics = await readFile(new URL("../components/avatar-frame.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../components/avatar-frame.css", import.meta.url), "utf8");
+  const compact = graphics.slice(graphics.indexOf("if (isCompact) {"), graphics.indexOf("const commonDefs = ("));
+  assert.match(compact, /viewBox="0 0 100 100"/);
+  assert.match(compact, /const microDefs = \(/);
+  assert.match(compact, /const darkRim =/);
+  assert.match(compact, /className="avf-micro-spin"/);
+  assert.match(graphics.slice(graphics.indexOf("const isHero ="), graphics.indexOf("if (isCompact) {")), /badgeLevel === "bronze"/);
+  for (const frameId of AVATAR_FRAMES.map((frame) => frame.id).filter((id) => id !== "rm_national")) {
+    assert.ok(compact.includes(`if (frameId === "${frameId}")`), `compact frame ${frameId} is uniquely drawn`);
+  }
+  assert.match(compact, /\/\/ rm_national micro-precision/);
+  assert.doesNotMatch(compact, /ultra-clean signature ring only/);
+  assert.match(css, /\.tarsgo-av-frame--compact \.tarsgo-av-frame__back,\s*\.tarsgo-av-frame--compact \.tarsgo-av-frame__front \{\s*inset: -18%;\s*width: 136%;\s*height: 136%/);
+  assert.match(css, /\.avf-micro-spin \{ transform-origin: 50px 50px; animation: avf-cw 6s linear infinite; \}/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.avf-micro-spin/);
+  assert.match(graphics, /onPreview\?\.\(isPreviewed \? null : frame\.id\)/);
+});

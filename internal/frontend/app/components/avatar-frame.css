@@ -33,10 +33,15 @@
 .tarsgo-av-frame__back { z-index: 1; }
 .tarsgo-av-frame__front { z-index: 3; }
 
+.tarsgo-av-frame--compact {
+  margin-inline: 2px;
+}
+
+.tarsgo-av-frame--compact .tarsgo-av-frame__back,
 .tarsgo-av-frame--compact .tarsgo-av-frame__front {
-  inset: -11%;
-  width: 122%;
-  height: 122%;
+  inset: -18%;
+  width: 136%;
+  height: 136%;
 }
 
 /* Hero subtle prestige ambient depth */
@@ -62,6 +67,7 @@
 .avf-spin-cw { transform-origin: 100px 100px; animation: avf-cw 22s linear infinite; }
 .avf-spin-slow { transform-origin: 100px 100px; animation: avf-cw 34s linear infinite; }
 .avf-spin-fast { transform-origin: 100px 100px; animation: avf-cw 5.6s linear infinite; }
+.avf-micro-spin { transform-origin: 50px 50px; animation: avf-cw 6s linear infinite; }
 .avf-spin-ccw { transform-origin: 100px 100px; animation: avf-ccw 15s linear infinite; }
 .avf-radar { transform-origin: 100px 100px; animation: avf-cw 4.2s linear infinite; }
 .avf-pulse { transform-origin: 100px 100px; animation: avf-breathe 2.6s ease-in-out infinite; }
@@ -295,6 +301,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .avf-micro-spin,
   .avf-spin-cw,
   .avf-spin-slow,
   .avf-spin-fast,

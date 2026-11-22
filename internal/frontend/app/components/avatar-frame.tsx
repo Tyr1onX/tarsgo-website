@@ -139,48 +139,203 @@ function FrameGraphic({
   const isCompact = tier === "compact";
   const isHero = tier === "hero";
 
-  // Compact mode (<=36px comment avatars): ultra-clean signature ring only
-  if (isCompact) {
-    const stroke =
-      frameId === "reactor"
-        ? "var(--frame-cyan)"
-        : frameId === "overclock"
-          ? "var(--frame-amber)"
-          : frameId === "rm_league"
-            ? "#ff5a5f"
-            : frameId === "rm_regional"
-              ? "#4da3ff"
-              : "var(--admin-accent)";
-    return (
-      <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
-        {frameId === "titan" || frameId === "laurel" || frameId === "rm_regional" || frameId === "rm_national" ? (
-          <polygon
-            points="30,4 70,4 96,30 96,70 70,96 30,96 4,70 4,30"
-            fill="none"
-            stroke={stroke}
-            strokeWidth={frameId === "rm_national" ? "5.2" : "4.2"}
-          />
-        ) : frameId === "hawkeye" || frameId === "rm_league" ? (
-          <path
-            d="M27 6 H10 Q6 6 6 10 V27 M73 6 H90 Q94 6 94 10 V27 M27 94 H10 Q6 94 6 90 V73 M73 94 H90 Q94 94 94 90 V73"
-            fill="none"
-            stroke={stroke}
-            strokeWidth="5.2"
-            strokeLinecap="round"
-          />
-        ) : (
-          <circle cx="50" cy="50" r="46" fill="none" stroke={stroke} strokeWidth="4.4" />
-        )}
-      </svg>
-    );
-  }
-
   const lp =
     badgeLevel === "bronze"
       ? ["#FFE1C8", "#D69160", "#7D4924", "#F5BC93"]
       : badgeLevel === "silver"
         ? ["#FFFFFF", "#C8D2D9", "#5C6870", "#E8EEF2"]
         : ["#FFF9E0", "#E5C170", "#7A581B", "#F6DA92"];
+
+  // Compact mode (<=36px comment avatars): Plan A micro-precision sculpted silhouette (100x100, avatar r=36.76)
+  if (isCompact) {
+    const microDefs = (
+      <defs>
+        <linearGradient id={`mg-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FFF9E2" />
+          <stop offset="35%" stopColor="#E8C778" />
+          <stop offset="72%" stopColor="#9A722B" />
+          <stop offset="100%" stopColor="#FFF3C9" />
+        </linearGradient>
+        <linearGradient id={`ml-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={lp[0]} />
+          <stop offset="50%" stopColor={lp[1]} />
+          <stop offset="100%" stopColor={lp[2]} />
+        </linearGradient>
+        <linearGradient id={`mp-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#94FFF0" />
+          <stop offset="55%" stopColor="#5CE6D0" />
+          <stop offset="100%" stopColor="#F0D084" />
+        </linearGradient>
+        <linearGradient id={`mf-${uid}`} x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#FF5E2B" />
+          <stop offset="55%" stopColor="#FFAE42" />
+          <stop offset="100%" stopColor="#FFF8DC" />
+        </linearGradient>
+        <linearGradient id={`mr-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FF7B7B" />
+          <stop offset="55%" stopColor="#E63946" />
+          <stop offset="100%" stopColor="#F0C066" />
+        </linearGradient>
+        <linearGradient id={`md-${uid}`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#4DA3FF" />
+          <stop offset="50%" stopColor="#FFF4CC" />
+          <stop offset="100%" stopColor="#FF4757" />
+        </linearGradient>
+      </defs>
+    );
+    const darkRim = <circle cx="50" cy="50" r="36.5" fill="none" stroke="#080C0B" strokeWidth="2.4" opacity="0.8" />;
+
+    if (frameId === "calibration") {
+      return (
+        <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+          {microDefs}
+          {darkRim}
+          <circle cx="50" cy="50" r="38" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="2.8" />
+          <circle cx="50" cy="50" r="43" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="1.3" strokeDasharray="2.5 5.5" opacity="0.75" />
+          <path d="M50 5 V13 M50 87 V95 M5 50 H13 M87 50 H95" stroke="#FFF9E2" strokeWidth="2.8" strokeLinecap="round" />
+        </svg>
+      );
+    }
+    if (frameId === "reactor") {
+      return (
+        <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+          {microDefs}
+          {darkRim}
+          <circle cx="50" cy="50" r="38" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="2.6" />
+          <circle className="avf-micro-spin" cx="50" cy="50" r="42" fill="none" stroke={`url(#mp-${uid})`} strokeWidth="2.8" strokeDasharray="44 88" strokeLinecap="round" />
+          <circle cx="50" cy="8" r="3.4" fill="#7CF7E4" stroke="#0D1211" strokeWidth="1" />
+          <circle cx="50" cy="92" r="3" fill="#FFF4CC" stroke="#0D1211" strokeWidth="1" />
+        </svg>
+      );
+    }
+    if (frameId === "titan") {
+      return (
+        <>
+          <svg className="tarsgo-av-frame__back" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            <path d="M13 38 L3 30 L7 50 L3 70 L13 62 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+            <path d="M87 38 L97 30 L93 50 L97 70 L87 62 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+          </svg>
+          <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            {darkRim}
+            <polygon points="34,12 66,12 88,34 88,66 66,88 34,88 12,66 12,34" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="3.2" />
+            <path d="M34 15 L40 4 L47 10 L50 1 L53 10 L60 4 L66 15 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2" strokeLinejoin="round" />
+            <circle cx="50" cy="10" r="2.2" fill="#FFF9E2" />
+            <path d="M36 86 L50 96 L64 86" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2.4" strokeLinejoin="round" />
+          </svg>
+        </>
+      );
+    }
+    if (frameId === "laurel") {
+      return (
+        <>
+          <svg className="tarsgo-av-frame__back" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            <path d="M30 88 C12 78 6 58 10 36 C15 44 17 53 16 62 C17 50 16 34 24 22" fill="none" stroke={`url(#ml-${uid})`} strokeWidth="4.2" strokeLinecap="round" />
+            <path d="M70 88 C88 78 94 58 90 36 C85 44 83 53 84 62 C83 50 84 34 76 22" fill="none" stroke={`url(#ml-${uid})`} strokeWidth="4.2" strokeLinecap="round" />
+          </svg>
+          <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            {darkRim}
+            <circle cx="50" cy="50" r="38" fill="none" stroke={`url(#ml-${uid})`} strokeWidth="2.8" />
+            <polygon points="50,3 53,10 60,12 53,14 50,21 47,14 40,12 47,10" fill={lp[0]} />
+            <polygon points="50,80 58,89 50,98 42,89" fill="#1B2322" stroke={`url(#ml-${uid})`} strokeWidth="2.2" />
+            <polygon points="50,84 54,89 50,94 46,89" fill={lp[0]} />
+          </svg>
+        </>
+      );
+    }
+    if (frameId === "hawkeye") {
+      return (
+        <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+          {microDefs}
+          {darkRim}
+          <circle cx="50" cy="50" r="37.5" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="1.8" strokeDasharray="14 6" />
+          <path d="M27 10 H10 V27 M73 10 H90 V27 M27 90 H10 V73 M73 90 H90 V73" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="3.6" strokeLinecap="square" />
+          <polygon points="50,4 55,10 50,16 45,10" fill="#5CE6D0" stroke="#0D1211" strokeWidth="1" />
+          <rect x="38" y="87" width="24" height="6" rx="2" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="1.5" />
+          <line x1="43" y1="90" x2="57" y2="90" stroke="#5CE6D0" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      );
+    }
+    if (frameId === "overclock") {
+      return (
+        <>
+          <svg className="tarsgo-av-frame__back" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            <path d="M16 34 L4 20 L10 50 L4 74 L18 66 Z" fill="#1B2322" stroke={`url(#mf-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+            <path d="M84 34 L96 20 L90 50 L96 74 L82 66 Z" fill="#1B2322" stroke={`url(#mf-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+          </svg>
+          <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            {darkRim}
+            <circle cx="50" cy="50" r="38" fill="none" stroke={`url(#mf-${uid})`} strokeWidth="3" />
+            <path d="M35 16 L32 4 L45 12 L50 2 L55 12 L68 4 L65 16 Z" fill="#1B2322" stroke={`url(#mf-${uid})`} strokeWidth="2" strokeLinejoin="round" />
+            <polygon points="41,85 50,96 59,85" fill={`url(#mf-${uid})`} />
+          </svg>
+        </>
+      );
+    }
+    if (frameId === "rm_league") {
+      return (
+        <>
+          <svg className="tarsgo-av-frame__back" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            <path d="M14 36 L4 28 L9 50 L4 70 L16 62 Z" fill="#1B2322" stroke={`url(#mr-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+            <path d="M86 36 L96 28 L91 50 L96 70 L84 62 Z" fill="#1B2322" stroke={`url(#mr-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+          </svg>
+          <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            {darkRim}
+            <circle cx="50" cy="50" r="38" fill="none" stroke={`url(#mr-${uid})`} strokeWidth="3.2" />
+            <path d="M37 15 L50 4 L63 15 L57 19 L50 13 L43 19 Z" fill="#1B2322" stroke={`url(#mr-${uid})`} strokeWidth="2" strokeLinejoin="round" />
+            <rect x="34" y="84" width="32" height="9" rx="2.5" fill="#1B2322" stroke={`url(#mr-${uid})`} strokeWidth="1.8" />
+            <line x1="41" y1="88.5" x2="59" y2="88.5" stroke="#FFF4CC" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </>
+      );
+    }
+    if (frameId === "rm_regional") {
+      return (
+        <>
+          <svg className="tarsgo-av-frame__back" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            <path d="M14 34 L3 24 L9 50 L3 74 L16 64 Z" fill="#1B2322" stroke="#4DA3FF" strokeWidth="2.2" strokeLinejoin="round" />
+            <path d="M86 34 L97 24 L91 50 L97 74 L84 64 Z" fill="#1B2322" stroke="#FF4757" strokeWidth="2.2" strokeLinejoin="round" />
+          </svg>
+          <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+            {microDefs}
+            {darkRim}
+            <polygon points="34,11 66,11 89,34 89,66 66,89 34,89 11,66 11,34" fill="none" stroke={`url(#md-${uid})`} strokeWidth="3.4" />
+            <path d="M38 15 L50 4 L62 15 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2" strokeLinejoin="round" />
+            <rect x="34" y="84" width="32" height="9" rx="2.5" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="1.8" />
+            <line x1="40" y1="88.5" x2="49" y2="88.5" stroke="#4DA3FF" strokeWidth="2.2" strokeLinecap="round" />
+            <line x1="51" y1="88.5" x2="60" y2="88.5" stroke="#FF4757" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+        </>
+      );
+    }
+    // rm_national micro-precision
+    return (
+      <>
+        <svg className="tarsgo-av-frame__back" viewBox="0 0 100 100" aria-hidden="true">
+          {microDefs}
+          <path d="M16 32 L2 16 L10 42 L1 52 L11 64 L4 78 L18 70 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+          <path d="M84 32 L98 16 L90 42 L99 52 L89 64 L96 78 L82 70 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2.2" strokeLinejoin="round" />
+        </svg>
+        <svg className="tarsgo-av-frame__front" viewBox="0 0 100 100" aria-hidden="true">
+          {microDefs}
+          {darkRim}
+          <polygon points="34,11 66,11 89,34 89,66 66,89 34,89 11,66 11,34" fill="none" stroke={`url(#mg-${uid})`} strokeWidth="3.4" />
+          <path d="M32 16 L38 4 L45 10 L50 1 L55 10 L62 4 L68 16 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2" strokeLinejoin="round" />
+          <polygon points="50,5 53.5,10 50,14 46.5,10" fill="#7CF7E4" />
+          <path d="M31 84 H69 L65 95 H35 Z" fill="#1B2322" stroke={`url(#mg-${uid})`} strokeWidth="2" strokeLinejoin="round" />
+          <line x1="40" y1="89.5" x2="60" y2="89.5" stroke="#FFF9E2" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      </>
+    );
+  }
 
   const commonDefs = (
     <defs>
