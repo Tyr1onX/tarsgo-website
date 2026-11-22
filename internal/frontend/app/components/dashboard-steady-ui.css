@@ -588,3 +588,11 @@
     bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
+
+
+/* Keep the full dashboard toolbar inside narrow phone viewports. */
+@media (max-width: 479px) {
+  .dashboard-shell__topbar { gap: 0.5rem; }
+  .dashboard-cmdk-kbd { display: none; }
+  .dashboard-cmdk-trigger { padding-inline: 0.6rem; }
+}
