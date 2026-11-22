@@ -5,7 +5,7 @@ export default {
   // Config options...
   // Server-side render by default, to enable SPA mode set this to `false`
   ssr: false,
-  prerender: ["/", "/about", "/robots", "/events-and-honors", "/team-history", "/join", "/programs/ai-salon", "/micro-specialties/low-altitude-intelligent-sensing-control"],
+  prerender: ["/", "/about", "/robots", "/events-and-honors", "/team-history", "/pixel-jijia", "/join", "/programs/ai-salon", "/micro-specialties/low-altitude-intelligent-sensing-control"],
   future: {
     v8_splitRouteModules: true,
   },
