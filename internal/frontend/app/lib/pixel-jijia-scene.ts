@@ -122,18 +122,53 @@ export function renderTerrain(tiles: HTMLImageElement): HTMLCanvasElement {
   return canvas;
 }
 
-export function renderTown(
-  terrain: HTMLCanvasElement, atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
-): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = terrain.width;
-  canvas.height = terrain.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("地图画布不可用");
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(terrain, 0, 0);
-  for (const node of NODES) drawNode(ctx, node, atlas, sprites, props, { x: 0, y: 0 });
-  return canvas;
+// A semantic navigation view: paths and destinations, not a downscaled second world canvas.
+export function renderNavigationMap(
+  ctx: CanvasRenderingContext2D, player: Position, direction: Direction,
+  camera: Position, viewWidth: number, viewHeight: number,
+) {
+  const { width, height } = ctx.canvas;
+  const scaleX = width / WORLD_WIDTH, scaleY = height / WORLD_HEIGHT;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#789b73";
+  ctx.fillRect(0, 0, width, height);
+  const colors = ["#789b73", "#d4bd8b", "#9aa5a6", "#65aabc"];
+  for (const area of GROUND_AREAS) {
+    ctx.fillStyle = colors[area.kind];
+    ctx.fillRect(area.x * scaleX, area.y * scaleY,
+      area.width * scaleX, area.height * scaleY);
+  }
+  for (const place of PLACES) {
+    ctx.fillStyle = place.accent;
+    ctx.fillRect(place.x * scaleX, place.y * scaleY,
+      place.width * scaleX, place.height * scaleY);
+    ctx.strokeStyle = "#304b47";
+    ctx.strokeRect(place.x * scaleX, place.y * scaleY,
+      place.width * scaleX, place.height * scaleY);
+  }
+  for (const item of SCENERY) {
+    if (!item.story) continue;
+    ctx.fillStyle = "#ffdf8a";
+    ctx.fillRect(item.x * scaleX - 2, item.y * scaleY - 2, 4, 4);
+  }
+  ctx.strokeStyle = "rgba(255, 255, 228, 0.88)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(camera.x / TILE * scaleX, camera.y / TILE * scaleY,
+    viewWidth / TILE * scaleX, viewHeight / TILE * scaleY);
+
+  const px = player.x * scaleX, py = player.y * scaleY;
+  const heading = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[direction];
+  const [dx, dy] = heading;
+  ctx.fillStyle = "#fff5c6";
+  ctx.strokeStyle = "#1f3e3b";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px + dx * 5, py + dy * 5);
+  ctx.lineTo(px - dx * 3 - dy * 3, py - dy * 3 + dx * 3);
+  ctx.lineTo(px - dx * 3 + dy * 3, py - dy * 3 - dx * 3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 }
 
 export function renderScene(
