@@ -577,7 +577,7 @@ export default function PixelJijiaPage() {
         <span>{SEASON_LABEL[climate.season]}</span>
         <time>{String(climate.hour).padStart(2, "0")}:{String(climate.minute).padStart(2, "0")}</time>
         {!room && <span>{WEATHER_LABEL[climate.weather]} · 模拟</span>}
-      </div>
+      </div>}
       {showHelp && <div className="pixel-world-guide" role="note">
         WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
       </div>}
