@@ -6,7 +6,7 @@ export type RoomObject = Rect & {
   id: string;
   title: string;
   description: string;
-  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit";
+  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "desk" | "chair" | "lamp" | "plant" | "shelf" | "exit";
   solid?: boolean;
 };
 export type RoomScene = {
@@ -48,9 +48,21 @@ export const MECHANICAL_ROOM: RoomScene = {
   ],
 };
 
+export const HOME_ROOM: RoomScene = {
+  id: "home", title: "我的研究室",
+  width: 36, height: 24, entry: { x: 18, y: 21 },
+  theme: { floor: "#b9b0a1", rug: "#6c837b", wall: "#405958", window: "#a8dece" },
+  walls: [],
+  objects: [
+    { id: "home-exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+      title: "返回 AI 研究所", description: "离开自己的研究室，回到公共研究空间。" },
+  ],
+};
+
 const COMMON_ROOM = { width: 36, height: 24, entry: { x: 18, y: 21 } };
 
 export const ROOMS: Record<string, RoomScene> = {
+  home: HOME_ROOM,
   mechanical: MECHANICAL_ROOM,
   honors: {
     ...COMMON_ROOM, id: "honors", title: "荣誉殿堂 · 赛事记忆",
@@ -131,6 +143,8 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "自主决策工作站", description: "从环境理解到行为选择，系统需要在有限时间内做出可靠判断。" },
       { id: "strategy", kind: "workbench", x: 5, y: 16, width: 7, height: 2, solid: true,
         title: "战术讨论台", description: "策略从假设开始，经仿真、推演与实际对抗不断优化。" },
+      { id: "home-portal", kind: "display", x: 13, y: 10, width: 3, height: 2, solid: true,
+        title: "个人研究室入口", description: "从这里前往属于自己的私人研究室，摆放家具，保存成果，也可以邀请朋友参观。" },
       { id: "simulation", kind: "console", x: 25, y: 16, width: 7, height: 3, solid: true,
         title: "战术演练终端", description: "当前像素世界的战术演练入口也属于 AI 研究所的一部分。" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
@@ -269,6 +283,41 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
     ctx.fillRect(x + 12, y - 20, w - 24, 4);
     ctx.fillStyle = "#547d7d";
     ctx.fillRect(x + 8, y + 8, w - 16, 10);
+  } else if (object.kind === "chair") {
+    ctx.fillStyle = "#795640";
+    ctx.fillRect(x + 3, y - 15, w - 6, 19);
+    ctx.fillStyle = "#cfaa76";
+    ctx.fillRect(x + 2, y, w - 4, 6);
+  } else if (object.kind === "lamp") {
+    ctx.fillStyle = "#936e46";
+    ctx.fillRect(x + 6, y - 18, 4, 18);
+    ctx.fillStyle = "#f6da9b";
+    ctx.fillRect(x + 2, y - 22, w - 4, 10);
+    ctx.fillStyle = "#fff1c1";
+    ctx.fillRect(x + 5, y - 18, 6, 4);
+  } else if (object.kind === "plant") {
+    ctx.fillStyle = "#9c6951";
+    ctx.fillRect(x + 3, y - 7, w - 6, 10);
+    ctx.fillStyle = "#4e8c70";
+    ctx.fillRect(x + 1, y - 20, w - 2, 15);
+    ctx.fillStyle = "#7cc69a";
+    ctx.fillRect(x + 6, y - 26, 6, 14);
+  } else if (object.kind === "shelf") {
+    ctx.fillStyle = "#83684e";
+    ctx.fillRect(x, y - 22, w, h + 22);
+    for (let j = 0; j < 3; j++) {
+      ctx.fillStyle = "#cda875";
+      ctx.fillRect(x + 2, y - 18 + j * 10, w - 4, 3);
+      ctx.fillStyle = j % 2 ? "#75b0b8" : "#e9c68a";
+      ctx.fillRect(x + 6 + j * 3, y - 17 + j * 10, 12, 7);
+    }
+  } else if (object.kind === "desk") {
+    ctx.fillStyle = "#765c47";
+    ctx.fillRect(x + 3, y, w - 6, h);
+    ctx.fillStyle = "#d8ad79";
+    ctx.fillRect(x - 2, y - 12, w + 4, 11);
+    ctx.fillStyle = "#548c98";
+    ctx.fillRect(x + 11, y - 19, 22, 8);
   } else if (object.kind === "console") {
     ctx.fillStyle = "#665d53";
     ctx.fillRect(x, y, w, h);
