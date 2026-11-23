@@ -19,6 +19,7 @@ export default function PixelJijiaArenaPage() {
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
   const [model, setModel] = useState<CadModelId>(DEFAULT_CAD_MODEL);
+  const [viewerReady, setViewerReady] = useState(false);
   const [view, setView] = useState<FieldView>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,6 +36,7 @@ export default function PixelJijiaArenaPage() {
         () => setLoading(false),
         (message) => { setLoading(false); setError(message); },
       );
+      setViewerReady(true);
     }).catch(() => {
       if (active) { setLoading(false); setError("此设备无法打开三维场景"); }
     });
@@ -45,10 +47,15 @@ export default function PixelJijiaArenaPage() {
     };
   }, []);
 
+  // Selection may happen while the 3D module is still importing. React owns
+  // the chosen model; once mounted, the renderer loads that latest selection.
+  useEffect(() => {
+    if (viewerReady) controller.current?.show(model);
+  }, [viewerReady, model]);
+
   const selectModel = (next: CadModelId) => {
     setModel(next);
     setView("all");
-    controller.current?.show(next);
   };
 
   const selectView = (next: FieldView) => {

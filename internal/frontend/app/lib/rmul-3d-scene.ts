@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CAD_MODELS, DEFAULT_CAD_MODEL, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
+import { CAD_MODELS, cadSourceOccurrenceForMesh, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
 
 export type FieldView = "all" | "red" | "blue";
 export interface ArenaController {
@@ -129,7 +129,8 @@ export function mountArena(
         const excluded: THREE.Object3D[] = [];
         gltf.scene.traverse((object) => {
           if (!(object instanceof THREE.Mesh)) return;
-          if (required.has(object.name)) found.add(object.name);
+          const occurrence = cadSourceOccurrenceForMesh(object.name, selected.sourceNodes);
+          if (occurrence) found.add(occurrence);
           else excluded.push(object);
         });
         if (found.size !== required.size) throw new Error("CAD source occurrence missing");
@@ -207,7 +208,6 @@ export function mountArena(
     frame = requestAnimationFrame(draw);
   };
   draw();
-  show(DEFAULT_CAD_MODEL);
 
   return {
     show,
