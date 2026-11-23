@@ -1,116 +1,144 @@
-import { PLACES, TILE, TREES, WORLD_HEIGHT, WORLD_WIDTH, type Direction, type Position } from "./pixel-jijia-world";
-import { block, seed, tile, drawTree, drawFlower, drawFence, drawBench, drawLantern, drawBuilding, drawPlayer, drawSign } from "./pixel-jijia-art";
+import { PLACES, TILE, TREES, WORLD_HEIGHT, WORLD_WIDTH, type Direction, type Place, type Position } from "./pixel-jijia-world";
 
-const p = (value: number) => Math.round(value * TILE);
+export type SpriteBox = [number, number, number, number];
+export type SpriteIndex = Record<string, SpriteBox>;
 
-function fillTiles(c: CanvasRenderingContext2D, kind: "grass" | "flower" | "soil" | "stone" | "plank" | "water", x: number, y: number, width: number, height: number) {
-  for (let ty = y; ty < y + height; ty++) for (let tx = x; tx < x + width; tx++) {
-    tile(c, kind, p(tx), p(ty));
+function sprite(
+  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
+  name: string, x: number, y: number, w: number, h: number,
+) {
+  const box = sprites[name];
+  if (!box) throw new Error(`像素素材缺失：${name}`);
+  ctx.drawImage(atlas, box[0], box[1], box[2], box[3], Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+}
+
+const point = (v: number) => Math.round(v * TILE);
+function hash(x: number, y: number) {
+  let n = Math.imul(x + 47, 374761393) ^ Math.imul(y + 103, 668265263);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return (n ^ (n >>> 16)) >>> 0;
+}
+
+function terrainTile(
+  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
+  kind: string, x: number, y: number,
+) {
+  const rotation = kind === "water" ? 0 : hash(x, y) % 4;
+  ctx.save();
+  ctx.translate(point(x) + TILE / 2, point(y) + TILE / 2);
+  ctx.rotate(rotation * Math.PI / 2);
+  sprite(ctx, atlas, sprites, `terrain_${kind}`, -TILE / 2, -TILE / 2, TILE, TILE);
+  ctx.restore();
+}
+
+function drawPatch(
+  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
+  kind: string, x: number, y: number, w: number, h: number,
+) {
+  for (let row = y; row < y + h; row++) {
+    for (let col = x; col < x + w; col++) {
+      terrainTile(ctx, atlas, sprites, kind, col, row);
+    }
   }
 }
 
-function pond(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-  fillTiles(c, "stone", x - 1, y - 1, w + 2, h + 2);
-  fillTiles(c, "water", x, y, w, h);
-  for (let k = 0; k < 9; k++) {
-    const fx = p(x) + 6 + (seed(k, x) % (p(w) - 18));
-    const fy = p(y) + 7 + (seed(k, y) % (p(h) - 15));
-    block(c, fx, fy, 8, 2, "#d7f5dc");
+function ground(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex) {
+  for (let y = 0; y < WORLD_HEIGHT; y++) {
+    for (let x = 0; x < WORLD_WIDTH; x++) {
+      const n = hash(x, y);
+      const variant = n % 29 === 0 ? "flowers1" : n % 43 === 0 ? "flowers2" : n % 7 === 0 ? "grass2" : "grass";
+      terrainTile(ctx, atlas, sprites, variant, x, y);
+    }
+  }
+
+  // The paths are tiled from generated source imagery rather than hand-drawn rectangles.
+  for (const [x, y, w, h] of [
+    [0, 28, 96, 7], [44, 17, 8, 40], [18, 19, 7, 28], [73, 19, 7, 28],
+    [18, 47, 61, 7], [34, 16, 29, 6],
+  ]) drawPatch(ctx, atlas, sprites, "soil", x, y, w, h);
+
+  drawPatch(ctx, atlas, sprites, "stone", 32, 23, 32, 23);
+  for (let i = 0; i < 32; i++) {
+    terrainTile(ctx, atlas, sprites, "stone2", 32 + i, 23);
+    terrainTile(ctx, atlas, sprites, "stone2", 32 + i, 45);
+  }
+  for (const [x, y, w, h] of [[3, 28, 9, 6], [84, 28, 9, 6]]) {
+    drawPatch(ctx, atlas, sprites, "stone2", x - 1, y - 1, w + 2, h + 2);
+    drawPatch(ctx, atlas, sprites, "water", x, y, w, h);
   }
 }
 
-function fountain(c:CanvasRenderingContext2D) {
-  const x=p(48),y=p(31.5);
-  block(c,x-42,y-31,84,68,"#947d65");
-  block(c,x-38,y-37,76,68,"#ead1a4");
-  block(c,x-34,y-29,68,51,"#4a9eaa");
-  block(c,x-30,y-24,60,41,"#66c6c8");
-  block(c,x-27,y-20,54,29,"#8bd9cc");
-  block(c,x-8,y-35,16,35,"#7d9384");
-  block(c,x-4,y-48,8,15,"#a6c2a0");
-  block(c,x-2,y-54,4,8,"#f6e2a3");
-  for (const dx of [-22,21]){
-    block(c,x+dx,y-17,2,12,"#d6f4de");
-    block(c,x+dx+2,y-9,6,2,"#f7f4cc");
-  }
-  block(c,x-35,y+26,70,14,"#b48e66");
-  c.fillStyle="#fff0b8";c.font="bold 12px monospace";
-  c.textAlign="center";c.fillText("TARSGO",x,y+36);c.textAlign="left";
+function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, place: Place) {
+  const box = sprites[place.id];
+  if (!box) throw new Error(`建筑素材缺失：${place.id}`);
+  const w = point(place.width);
+  const h = Math.round(w * box[3] / box[2]);
+  const x = point(place.x);
+  const y = point(place.y + place.height) - h;
+  sprite(ctx, atlas, sprites, place.id, x, y, w, h);
 }
 
-function signposts(c: CanvasRenderingContext2D) {
-  const signs: [number,number,string][] = [
-    [40,21,"吉甲小镇"],[35,37,"向梦想出发"],[56,43,"一起探索"],
-  ];
-  for (const [x,y,label] of signs) drawSign(c,p(x),p(y),label);
+function tree(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, where: Position, index: number) {
+  const names = ["green_tree", "green_tree", "pink_tree", "orange_tree", "green_tree", "spruce"];
+  const name = names[index % names.length];
+  const box = sprites[name];
+  const width = name === "spruce" ? 50 : 67;
+  const height = Math.round(width * box[3] / box[2]);
+  sprite(ctx, atlas, sprites, name, point(where.x) - width / 2, point(where.y) - height + 5, width, height);
 }
 
-function createGround(c: CanvasRenderingContext2D) {
-  fillTiles(c,"grass",0,0,WORLD_WIDTH,WORLD_HEIGHT);
-  // The connected pathways are the navigation skeleton, not a concrete plaza.
-  for(const [x,y,w,h] of [
-    [0,28,96,7],[44,17,8,40],[18,19,7,28],[73,19,7,28],[18,47,61,7],
-  ]) {
-    fillTiles(c,"soil",x,y,w,h);
-    block(c,p(x),p(y),p(w),3,"#e2c893");
-    block(c,p(x),p(y+h)-3,p(w),3,"#b78b5c");
+function props(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex) {
+  TREES.forEach((where, index) => tree(ctx, atlas, sprites, where, index));
+  for (const [x, y] of [[29, 23], [64, 23], [29, 44], [64, 44], [8, 23], [88, 23]]) {
+    sprite(ctx, atlas, sprites, "lamp", point(x), point(y) - 30, 19, 47);
   }
-  fillTiles(c,"stone",32,23,32,23);
-  // Warm edging and garden pockets bring the six buildings together.
-  block(c,p(32)-5,p(23)-5,p(32)+10,5,"#ead09d");
-  block(c,p(32)-5,p(46),p(32)+10,5,"#c4a16d");
-  for(const [x,y,w,h] of [
-    [1,1,35,7],[60,1,35,7],[1,38,7,22],[88,38,7,22],
-    [28,10,8,12],[60,10,7,12],[28,42,8,13],[60,42,7,13],
-  ]) fillTiles(c,"flower",x,y,w,h);
-  pond(c,3,28,9,6);
-  pond(c,84,28,9,6);
-  for(const [x,y] of [[10,23],[86,23],[9,44],[87,44],[31,25],[64,25],[31,42],[64,42]]) {
-    drawFence(c,p(x),p(y),4);
+  for (const [x, y] of [[33, 26], [58, 26], [34, 42], [58, 42], [26, 17], [67, 17]]) {
+    sprite(ctx, atlas, sprites, "bench", point(x), point(y), 51, 28);
   }
-  // Field flowers around the plazas (the collider set remains unchanged).
-  for(let i=0;i<65;i++){
-    const x=3+seed(i,47)%90,y=3+seed(i,91)%58;
-    if((x>36&&x<60)||(y>24&&y<40)) continue;
-    drawFlower(c,p(x),p(y),i);
+  for (const [x, y] of [[10, 23], [86, 23], [10, 44], [86, 44]]) {
+    sprite(ctx, atlas, sprites, "fence", point(x), point(y), 84, 18);
+  }
+  for (let i = 0; i < 34; i++) {
+    const x = 2 + hash(i, 13) % 92;
+    const y = 3 + hash(i, 97) % 57;
+    if (x > 30 && x < 65 && y > 20 && y < 47) continue;
+    const name = i % 4 === 0 ? "pink_bush" : "green_bush";
+    sprite(ctx, atlas, sprites, name, point(x), point(y), 25, 18);
+  }
+
+  sprite(ctx, atlas, sprites, "fountain", point(48) - 45, point(31.5) - 51, 90, 90);
+  sprite(ctx, atlas, sprites, "robot", point(32), point(34), 47, 60);
+  sprite(ctx, atlas, sprites, "robot", point(62), point(35), 42, 54);
+
+  sprite(ctx, atlas, sprites, "noticeboard", point(38), point(21) - 12, 74, 54);
+  for (const [x, y, direction] of [
+    [17, 26, "down"], [78, 26, "left"], [31, 38, "right"], [66, 39, "up"],
+    [57, 26, "down"], [24, 38, "left"], [55, 44, "down"],
+  ] as const) {
+    sprite(ctx, atlas, sprites, `hero_${direction}`, point(x) - 11, point(y) - 28, 22, 31);
   }
 }
 
-function placeDecorations(c:CanvasRenderingContext2D) {
-  TREES.forEach((position,i)=>drawTree(c,p(position.x),p(position.y),i%4));
-  for(const [x,y] of [[29,22],[65,22],[29,44],[65,44],[8,23],[88,23]])drawLantern(c,p(x),p(y));
-  for(const [x,y] of [[34,26],[58,26],[34,42],[58,42],[27,16],[67,16],[27,49],[67,49]])drawBench(c,p(x),p(y));
-  for(const [x,y] of [[15,25],[82,25],[36,42],[60,42],[38,26],[56,26]])drawFlower(c,p(x),p(y),x%3);
-  signposts(c);
-  const travelers:[number,number,Direction][]=[
-    [17,26,"down"],[78,26,"left"],[31,38,"right"],[66,39,"up"],
-    [57,26,"down"],[24,38,"left"],[43,22,"right"],[54,22,"up"],[57,44,"left"],
-  ];
-  travelers.forEach(([x,y,d],i)=>{
-    c.save();
-    c.globalAlpha=0.85;
-    drawPlayer(c,p(x),p(y),d,false,i*3);
-    c.restore();
-  });
-  fountain(c);
-}
-
-export function renderTown(): HTMLCanvasElement {
-  const canvas=document.createElement("canvas");
-  canvas.width=WORLD_WIDTH*TILE;
-  canvas.height=WORLD_HEIGHT*TILE;
-  const c=canvas.getContext("2d");
-  if(!c)throw new Error("地图画布不可用");
-  c.imageSmoothingEnabled=false;
-  createGround(c);
-  PLACES.forEach((place,index)=>drawBuilding(c,place,index));
-  placeDecorations(c);
+export function renderTown(atlas: HTMLImageElement, sprites: SpriteIndex): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = WORLD_WIDTH * TILE;
+  canvas.height = WORLD_HEIGHT * TILE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("地图画布不可用");
+  ctx.imageSmoothingEnabled = false;
+  ground(ctx, atlas, sprites);
+  PLACES.forEach((place) => building(ctx, atlas, sprites, place));
+  props(ctx, atlas, sprites);
   return canvas;
 }
 
 export function renderExplorer(
-  ctx:CanvasRenderingContext2D,player:Position,direction:Direction,
-  walking:boolean,elapsed:number,camera:Position,
+  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
+  player: Position, direction: Direction, walking: boolean, elapsed: number, camera: Position,
 ) {
-  drawPlayer(ctx,player.x*TILE-camera.x,player.y*TILE-camera.y,direction,walking,elapsed);
+  const bob = walking ? Math.sin(elapsed * 17) * 1.1 : 0;
+  sprite(ctx, atlas, sprites, `hero_${direction}`,
+    player.x * TILE - camera.x - 12,
+    player.y * TILE - camera.y - 31 + bob,
+    25, 34);
 }

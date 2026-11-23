@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "source": "Generated with image_gen; original buildings on magenta, natural/character sprites on checkerboard; backgrounds keyed and cropped from original image pixels.",
+  "atlas": "/assets/pixel-jijia/actual-imagegen-atlas.png",
+  "sprites": {
+    "mechanical": [
+      27,
+      12,
+      140,
+      122
+    ],
+    "honors": [
+      222,
+      18,
+      140,
+      110
+    ],
+    "electrical": [
+      417,
+      16,
+      140,
+      114
+    ],
+    "vision": [
+      27,
+      161,
+      140,
+      116
+    ],
+    "guild": [
+      222,
+      164,
+      140,
+      110
+    ],
+    "ai": [
+      417,
+      161,
+      140,
+      116
+    ],
+    "green_tree": [
+      3,
+      304,
+      38,
+      55
+    ],
+    "pink_tree": [
+      63,
+      304,
+      40,
+      55
+    ],
+    "orange_tree": [
+      123,
+      304,
+      51,
+      53
+    ],
+    "snow_tree": [
+      183,
+      304,
+      50,
+      55
+    ],
+    "spruce": [
+      242,
+      304,
+      34,
+      55
+    ],
+    "green_bush": [
+      302,
+      304,
+      51,
+      38
+    ],
+    "pink_bush": [
+      362,
+      304,
+      51,
+      38
+    ],
+    "fountain": [
+      198,
+      367,
+      40,
+      40
+    ],
+    "robot": [
+      252,
+      367,
+      37,
+      47
+    ],
+    "bench": [
+      325,
+      378,
+      37,
+      20
+    ],
+    "fence": [
+      367,
+      385,
+      57,
+      11
+    ],
+    "lamp": [
+      436,
+      369,
+      13,
+      34
+    ],
+    "noticeboard": [
+      460,
+      378,
+      40,
+      29
+    ],
+    "hero_down": [
+      12,
+      422,
+      14,
+      20
+    ],
+    "hero_left": [
+      40,
+      422,
+      14,
+      20
+    ],
+    "hero_right": [
+      69,
+      422,
+      14,
+      20
+    ],
+    "hero_up": [
+      98,
+      422,
+      14,
+      20
+    ],
+    "terrain_grass": [
+      8,
+      482,
+      16,
+      16
+    ],
+    "terrain_grass2": [
+      28,
+      482,
+      16,
+      16
+    ],
+    "terrain_flowers1": [
+      48,
+      482,
+      16,
+      16
+    ],
+    "terrain_flowers2": [
+      68,
+      482,
+      16,
+      16
+    ],
+    "terrain_soil": [
+      88,
+      482,
+      16,
+      16
+    ],
+    "terrain_stone": [
+      108,
+      482,
+      16,
+      16
+    ],
+    "terrain_stone2": [
+      128,
+      482,
+      16,
+      16
+    ],
+    "terrain_wood": [
+      148,
+      482,
+      16,
+      16
+    ],
+    "terrain_water": [
+      168,
+      482,
+      16,
+      16
+    ]
+  }
+}
