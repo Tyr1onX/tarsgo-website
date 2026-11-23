@@ -19,48 +19,60 @@ function hash(x: number, y: number) {
   return (n ^ (n >>> 16)) >>> 0;
 }
 
-function terrainTile(
-  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
-  kind: string, x: number, y: number,
-) {
-  sprite(ctx, atlas, sprites, `terrain_${kind}`, point(x), point(y), TILE, TILE);
-}
+type GroundKind = 0 | 1 | 2 | 3; // grass, path, plaza, water
+const GROUND_TILE_START = [0, 4, 6, 8] as const;
+const GROUND_EDGE = ["", "#bea886", "#a89d91", "#438f99"] as const;
 
-function drawPatch(
-  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
-  kind: string, x: number, y: number, w: number, h: number,
-) {
-  for (let row = y; row < y + h; row++) {
-    for (let col = x; col < x + w; col++) {
-      terrainTile(ctx, atlas, sprites, kind, col, row);
+function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Array {
+  // Each cell has one ground material; transitions are derived from its neighbors.
+  const materials = new Uint8Array(WORLD_WIDTH * WORLD_HEIGHT);
+  const paint = (kind: GroundKind, x: number, y: number, width: number, height: number) => {
+    for (let row = y; row < y + height; row++) {
+      for (let col = x; col < x + width; col++) {
+        materials[row * WORLD_WIDTH + col] = kind;
+      }
     }
-  }
-}
+  };
 
-function ground(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex) {
+  for (const [x, y, width, height] of [
+    [0, 28, 96, 7], [44, 17, 8, 40], [18, 19, 7, 28],
+    [73, 19, 7, 28], [18, 47, 61, 7], [34, 16, 29, 6],
+  ]) paint(1, x, y, width, height);
+  paint(2, 32, 23, 32, 23);
+  for (const [x, y, width, height] of [[3, 28, 9, 6], [84, 28, 9, 6]]) {
+    paint(2, x - 1, y - 1, width + 2, height + 2);
+    paint(3, x, y, width, height);
+  }
+
+  const at = (x: number, y: number) =>
+    x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT
+      ? materials[y * WORLD_WIDTH + x] : 0;
+
   for (let y = 0; y < WORLD_HEIGHT; y++) {
     for (let x = 0; x < WORLD_WIDTH; x++) {
+      const kind = at(x, y) as GroundKind;
       const n = hash(x, y);
-      const variant = n % 211 === 0 ? "flowers1" : n % 283 === 0 ? "flowers2" : n % 23 === 0 ? "grass2" : "grass";
-      terrainTile(ctx, atlas, sprites, variant, x, y);
+      const variant = kind === 0
+        ? n % 211 === 0 ? 2 : n % 281 === 0 ? 3 : n % 29 === 0 ? 1 : 0
+        : n % (kind === 3 ? 6 : 11) === 0 ? 1 : 0;
+      const sourceX = (GROUND_TILE_START[kind] + variant) * TILE;
+      const destX = point(x), destY = point(y);
+      ctx.drawImage(tiles, sourceX, 0, TILE, TILE, destX, destY, TILE, TILE);
+
+      // Borders appear only between different materials; never along repeated tile seams.
+      if (kind === 0) continue;
+      const color = GROUND_EDGE[kind];
+      ctx.fillStyle = color;
+      const edgeWidth = kind === 3 ? 2 : 1;
+      const borders = (neighbor: number) =>
+        neighbor !== kind && (kind !== 1 || neighbor === 0) && !(kind === 2 && neighbor === 3);
+      if (borders(at(x, y - 1))) ctx.fillRect(destX, destY, TILE, edgeWidth);
+      if (borders(at(x, y + 1))) ctx.fillRect(destX, destY + TILE - edgeWidth, TILE, edgeWidth);
+      if (borders(at(x - 1, y))) ctx.fillRect(destX, destY, edgeWidth, TILE);
+      if (borders(at(x + 1, y))) ctx.fillRect(destX + TILE - edgeWidth, destY, edgeWidth, TILE);
     }
   }
-
-  // The paths are tiled from generated source imagery rather than hand-drawn rectangles.
-  for (const [x, y, w, h] of [
-    [0, 28, 96, 7], [44, 17, 8, 40], [18, 19, 7, 28], [73, 19, 7, 28],
-    [18, 47, 61, 7], [34, 16, 29, 6],
-  ]) drawPatch(ctx, atlas, sprites, "soil", x, y, w, h);
-
-  drawPatch(ctx, atlas, sprites, "stone", 32, 23, 32, 23);
-  for (let i = 0; i < 32; i++) {
-    terrainTile(ctx, atlas, sprites, "stone2", 32 + i, 23);
-    terrainTile(ctx, atlas, sprites, "stone2", 32 + i, 45);
-  }
-  for (const [x, y, w, h] of [[3, 28, 9, 6], [84, 28, 9, 6]]) {
-    drawPatch(ctx, atlas, sprites, "stone2", x - 1, y - 1, w + 2, h + 2);
-    drawPatch(ctx, atlas, sprites, "water", x, y, w, h);
-  }
+  return materials;
 }
 
 function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, place: Place) {
@@ -82,42 +94,35 @@ function tree(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: S
   sprite(ctx, atlas, sprites, name, point(where.x) - width / 2, point(where.y) - height + 5, width, height);
 }
 
-function props(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex) {
+function props(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, materials: Uint8Array) {
   TREES.forEach((where, index) => tree(ctx, atlas, sprites, where, index));
-  for (const [x, y] of [[29, 23], [64, 23], [29, 44], [64, 44], [8, 23], [88, 23]]) {
-    sprite(ctx, atlas, sprites, "lamp", point(x), point(y) - 30, 19, 47);
-  }
-  for (const [x, y] of [[33, 26], [58, 26], [34, 42], [58, 42], [26, 17], [67, 17]]) {
-    sprite(ctx, atlas, sprites, "bench", point(x), point(y), 51, 28);
-  }
-  for (const [x, y] of [[10, 23], [86, 23], [10, 44], [86, 44]]) {
-    sprite(ctx, atlas, sprites, "fence", point(x), point(y), 84, 18);
-  }
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; i < 24; i++) {
     const x = 2 + hash(i, 13) % 92;
     const y = 3 + hash(i, 97) % 57;
-    if (x > 30 && x < 65 && y > 20 && y < 47) continue;
+    // Shrubs belong on grass, not over walkways or in front of building doors.
+    const onGrass = (col: number, row: number) =>
+      col > 0 && col < WORLD_WIDTH && row > 0 && row < WORLD_HEIGHT
+      && materials[row * WORLD_WIDTH + col] === 0;
+    if (![[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => onGrass(x + dx, y + dy))) continue;
+    if (PLACES.some(p => x > p.x - 2 && x < p.x + p.width + 2 && y > p.y - 2 && y < p.y + p.height + 2)) continue;
     const name = i % 4 === 0 ? "pink_bush" : "green_bush";
     sprite(ctx, atlas, sprites, name, point(x), point(y), 25, 18);
   }
 
   sprite(ctx, atlas, sprites, "fountain", point(48) - 45, point(31.5) - 51, 90, 90);
-  sprite(ctx, atlas, sprites, "robot", point(32), point(34), 47, 60);
-  sprite(ctx, atlas, sprites, "robot", point(62), point(35), 42, 54);
 
-  sprite(ctx, atlas, sprites, "noticeboard", point(38), point(21) - 12, 74, 54);
 }
 
-export function renderTown(atlas: HTMLImageElement, sprites: SpriteIndex): HTMLCanvasElement {
+export function renderTown(atlas: HTMLImageElement, sprites: SpriteIndex, tiles: HTMLImageElement): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = WORLD_WIDTH * TILE;
   canvas.height = WORLD_HEIGHT * TILE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("地图画布不可用");
   ctx.imageSmoothingEnabled = false;
-  ground(ctx, atlas, sprites);
+  const materials = ground(ctx, tiles);
   PLACES.forEach((place) => building(ctx, atlas, sprites, place));
-  props(ctx, atlas, sprites);
+  props(ctx, atlas, sprites, materials);
   return canvas;
 }
 

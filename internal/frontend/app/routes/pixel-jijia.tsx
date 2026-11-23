@@ -54,6 +54,7 @@ export default function PixelJijiaPage() {
     let active = true;
     const atlas = new Image();
     const character = new Image();
+    const groundTiles = new Image();
     const loadImage = (image: HTMLImageElement, source: string) =>
       new Promise<HTMLImageElement>((resolve, reject) => {
         image.onload = () => resolve(image);
@@ -63,16 +64,17 @@ export default function PixelJijiaPage() {
     Promise.all([
       loadImage(atlas, "/assets/pixel-jijia/actual-imagegen-atlas.png"),
       loadImage(character, "/assets/pixel-jijia/explorer-4dir.png"),
+      loadImage(groundTiles, "/assets/pixel-jijia/ground-tiles.png"),
       fetch("/assets/pixel-jijia/actual-imagegen-atlas.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, metadata]) => {
+      .then(([image, explorer, ground, metadata]) => {
         if (!active) return;
         characterRef.current = explorer;
-        townRef.current = renderTown(image, metadata.sprites);
+        townRef.current = renderTown(image, metadata.sprites, ground);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -82,6 +84,8 @@ export default function PixelJijiaPage() {
       atlas.onerror = null;
       character.onload = null;
       character.onerror = null;
+      groundTiles.onload = null;
+      groundTiles.onerror = null;
     };
   }, []);
 
