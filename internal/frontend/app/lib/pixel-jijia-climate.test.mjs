@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { changchunClimate } from "./pixel-jijia-climate.ts";
+
+test("长春时钟不取访客本地时区，按照 UTC+8 确定季节", () => {
+  const autumn = changchunClimate(new Date("2026-11-23T10:22:00.000Z"));
+  assert.deepEqual([autumn.year, autumn.month, autumn.day, autumn.hour, autumn.minute],
+    [2026, 11, 23, 18, 22]);
+  assert.equal(autumn.season, "autumn");
+  const winterEnd = changchunClimate(new Date("2026-02-28T15:59:00.000Z"));
+  const springStart = changchunClimate(new Date("2026-02-28T16:00:00.000Z"));
+  assert.equal(winterEnd.season, "winter");
+  assert.equal(springStart.season, "spring");
+  assert.equal(springStart.dateKey, "2026-03-01");
+});
+
+test("季节天气按四小时块确定，刷新不随机跳变，也不冒充观测温度", () => {
+  for (const [month, season] of [[1, "winter"], [4, "spring"], [7, "summer"], [10, "autumn"]]) {
+    const padded = String(month).padStart(2, "0");
+    const a = changchunClimate(new Date(`2026-${padded}-14T03:01:00Z`));
+    const b = changchunClimate(new Date(`2026-${padded}-14T03:55:00Z`));
+    assert.equal(a.season, season);
+    assert.equal(a.weather, b.weather);
+    assert.equal(a.dateKey, b.dateKey);
+    assert.ok(["clear", "cloudy", "rain", "snow"].includes(a.weather));
+    assert.equal(a.weather === "snow" && season !== "winter", false);
+  }
+});
+
+test("长春晚间降低光线但保持画面可辨认，夏季日照更长", () => {
+  const noon = changchunClimate(new Date("2026-12-21T04:00:00Z"));
+  const eveningWinter = changchunClimate(new Date("2026-12-21T13:00:00Z"));
+  const eveningSummer = changchunClimate(new Date("2026-06-21T13:00:00Z"));
+  assert.equal(noon.night, 0);
+  assert.ok(eveningWinter.night > 0 && eveningWinter.night <= 0.42);
+  assert.ok(eveningSummer.night > 0 && eveningSummer.night <= 0.42);
+  assert.ok(eveningWinter.night >= eveningSummer.night);
+});
+
+test("四季地形、天气粒子与显示必须复用原 Canvas 及减少动态设置", () => {
+  const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(scene.includes('season === "winter"'));
+  assert.ok(scene.includes('season === "autumn"'));
+  assert.ok(scene.includes('season === "spring"'));
+  assert.ok(route.includes("window.setInterval(refresh, 60_000)"));
+  assert.ok(route.includes('time - lastWeather > (climate.weather === "rain" ? 65 : 150)'));
+  assert.ok(route.includes("if (reducedMotion.matches || room)"));
+  assert.ok(route.includes('aria-label="长春时间与游戏模拟天气"'));
+});
