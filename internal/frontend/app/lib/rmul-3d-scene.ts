@@ -121,19 +121,18 @@ export function mountArena(
       return loader.parseAsync(bytes, "");
     }).then((gltf) => {
       const selected = CAD_MODELS[id];
-      if ("productIds" in selected) {
-        // The official 2027 central assembly contains both Outposts and the Rune.
-        // Filter its original product nodes instead of building schematic meshes.
-        const required = new Set<string>(selected.productIds);
+      if ("sourceNodes" in selected) {
+        // Select exact STEP-derived occurrences, not all mirrored copies.
+        // The full-map view still retains every source-placed structure.
+        const required = new Set<string>(selected.sourceNodes);
         const found = new Set<string>();
         const excluded: THREE.Object3D[] = [];
         gltf.scene.traverse((object) => {
           if (!(object instanceof THREE.Mesh)) return;
-          const productId = /^source_(\d+)_/.exec(object.name)?.[1];
-          if (productId && required.has(productId)) found.add(productId);
+          if (required.has(object.name)) found.add(object.name);
           else excluded.push(object);
         });
-        if (found.size !== required.size) throw new Error("CAD source product missing");
+        if (found.size !== required.size) throw new Error("CAD source occurrence missing");
         for (const object of excluded) object.removeFromParent();
       }
       const root = new THREE.Group();

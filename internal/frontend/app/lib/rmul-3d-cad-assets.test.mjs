@@ -13,8 +13,8 @@ test("only source-backed 2027 CAD assets are selectable", () => {
     [CAD_MODELS.rmucField.catalogName, CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],
     ["full-map", "centre-platform", "centre-platform"],
   );
-  assert.deepEqual(CAD_MODELS.outpost.productIds, ["2603236", "1800898"]);
-  assert.deepEqual(CAD_MODELS.rune.productIds, ["1354629"]);
+  assert.deepEqual(CAD_MODELS.outpost.sourceNodes, ["source_1800898_10", "source_2603236_11"]);
+  assert.deepEqual(CAD_MODELS.rune.sourceNodes, ["source_1354629_1"]);
   assert.match(CAD_MODELS.field.source, /^RMUL2027_3V3_V1\.0\.0/);
   assert.match(CAD_MODELS.base.source, /^RMUC2027_V1\.0\.0/);
 });
