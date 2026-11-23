@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
@@ -8,6 +8,8 @@ import {
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import { ROOMS, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { HOME_FURNITURE, homeFurnitureObjects, validHomeFurniture, type HomeFurniture, type HomeFurnitureKind } from "~/lib/pixel-jijia-home";
+import { apiRequest, ApiError } from "~/lib/api-client";
 import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
@@ -40,6 +42,7 @@ export function meta({}: Route.MetaArgs) {
     description: "漫游吉甲大师像素小镇，探索机械、电控、视觉、AI、赛事荣誉与招新公会。",
     path: "/pixel-jijia",
     image: "/assets/images/Social/home.jpg",
+    // Invited room tokens must not appear in referrers to external services.
   });
 }
 
@@ -76,7 +79,19 @@ export default function PixelJijiaPage() {
   const [storyActivated, setStoryActivated] = useState(false);
   const [seated, setSeated] = useState<Scenery | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const room = roomId ? ROOMS[roomId] ?? null : null;
+  const [homeFurniture, setHomeFurniture] = useState<HomeFurniture[]>([]);
+  const [homeReadonly, setHomeReadonly] = useState(false);
+  const [homeStatus, setHomeStatus] = useState("");
+  const [placingKind, setPlacingKind] = useState<HomeFurnitureKind | null>(null);
+  const [selectedFurniture, setSelectedFurniture] = useState<number | null>(null);
+  const [inviteActive, setInviteActive] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const room = useMemo(() => {
+    const base = roomId ? ROOMS[roomId] ?? null : null;
+    return base?.id === "home"
+      ? { ...base, objects: [...base.objects, ...homeFurnitureObjects(homeFurniture)] }
+      : base;
+  }, [roomId, homeFurniture]);
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
