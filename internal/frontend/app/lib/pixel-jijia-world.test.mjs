@@ -212,6 +212,22 @@ test("小地图采用轻量语义导航，常驻界面按需展示", () => {
   assert.ok(!css.includes(".pixel-world-hud"), "移除常驻区域卡片");
 });
 
+test("环境粒子使用统一世界坐标与现有动画循环，数量受控", () => {
+  const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(scene.includes("export function renderParticles("));
+  assert.ok(scene.includes("const offset = snapCamera(camera)"));
+  assert.ok(route.includes("const particles: PixelParticle[] = []"));
+  assert.ok(route.includes("particles.length < 72"));
+  assert.ok(route.includes('window.matchMedia("(prefers-reduced-motion: reduce)")'));
+  assert.ok(route.includes("if (reducedMotion.matches)"));
+  assert.ok(route.includes("cherryTrees.find("));
+  assert.ok(route.includes("FOUNTAIN.x * TILE"));
+  assert.ok(route.includes("renderParticles(ctx, particles, cameraRef.current)"));
+  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 2,
+    "粒子不得新增独立动画循环");
+});
+
 test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
   const base = new URL("../../../../public/assets/pixel-jijia/", import.meta.url);
   const image = new URL("actual-imagegen-atlas.png", base);

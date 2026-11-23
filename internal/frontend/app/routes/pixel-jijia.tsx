@@ -3,10 +3,10 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  PLACES, SPAWN, TILE, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
-import { renderNavigationMap, renderScene, renderTerrain, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import { renderNavigationMap, renderParticles, renderScene, renderTerrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -214,6 +214,11 @@ export default function PixelJijiaPage() {
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
     let frame = 0, lastTime = 0, traveled = 0, lastMini = 0;
+    let lastDust = 0, lastFountain = 0, lastPetal = 0;
+    const particles: PixelParticle[] = [];
+    const cherryTrees = SCENERY.filter((item) => item.sprite === "cherry");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const emit = (particle: PixelParticle) => { if (particles.length < 72) particles.push(particle); };
 
     resizeCanvas();
     const observer = new ResizeObserver(resizeCanvas);
@@ -260,6 +265,53 @@ export default function PixelJijiaPage() {
       ctx.imageSmoothingEnabled = false;
       renderScene(ctx, terrain, atlas, sprites, props, character,
         playerRef.current, directionRef.current, walking, traveled, cameraRef.current);
+
+      if (reducedMotion.matches) {
+        particles.length = 0;
+      } else {
+        if (walking && sprinting && time - lastDust > 110) {
+          const foot = playerRef.current;
+          let surface = 0;
+          for (let index = GROUND_AREAS.length - 1; index >= 0; index--) {
+            const area = GROUND_AREAS[index];
+            if (foot.x >= area.x && foot.x < area.x + area.width &&
+                foot.y >= area.y && foot.y < area.y + area.height) {
+              surface = area.kind;
+              break;
+            }
+          }
+          emit({ x: foot.x * TILE + (Math.random() - 0.5) * 12, y: foot.y * TILE - 3,
+            vx: (Math.random() - 0.5) * 14, vy: -8, age: 0, ttl: 0.38,
+            color: surface === 0 ? "#c4d69c" : "#e5d9bd", size: 2 });
+          lastDust = time;
+        }
+        if (time - lastFountain > 220 &&
+            Math.hypot(playerRef.current.x - FOUNTAIN.x, playerRef.current.y - FOUNTAIN.y) < 19) {
+          emit({ x: FOUNTAIN.x * TILE + (Math.random() - 0.5) * 32,
+            y: (FOUNTAIN.y - 1.25) * TILE, vx: (Math.random() - 0.5) * 14,
+            vy: -14, age: 0, ttl: 0.58, color: "#a8effa", size: 2 });
+          lastFountain = time;
+        }
+        if (time - lastPetal > 560) {
+          lastPetal = time;
+          const tree = cherryTrees.find((item) =>
+            Math.hypot(playerRef.current.x - item.x, playerRef.current.y - item.y) < 16);
+          if (tree) {
+            emit({ x: tree.x * TILE + (Math.random() - 0.5) * 48,
+              y: tree.y * TILE - 68, vx: 9, vy: 12,
+              age: 0, ttl: 2.1, color: "#f7b6ce", size: 3 });
+          }
+        }
+        for (let index = particles.length - 1; index >= 0; index--) {
+          const particle = particles[index];
+          particle.age += dt;
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+          if (particle.age >= particle.ttl) particles.splice(index, 1);
+        }
+        renderParticles(ctx, particles, cameraRef.current);
+      }
+      canvas.dataset.particles = String(particles.length);
 
       const nextNearby = closestFeature(playerRef.current);
       const nearId = nextNearby ? ("href" in nextNearby ? nextNearby.id : nextNearby.story?.title ?? null) : null;
