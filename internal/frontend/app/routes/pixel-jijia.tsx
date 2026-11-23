@@ -443,6 +443,11 @@ export default function PixelJijiaPage() {
     const camera = snapCamera(cameraRef.current);
     const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
     const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
+    if (room) {
+      const object = closestRoomObject(room, { x, y });
+      if (object && object.kind !== "exit") setSelectedRoom(object);
+      return;
+    }
     const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y - 5 && y < p.y + p.height);
     if (place) selectPlace(place);
     else {
@@ -485,15 +490,19 @@ export default function PixelJijiaPage() {
 
       <header className="pixel-world-header">
         <div className="pixel-world-top-actions">
-          <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
-            aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+          {room ? (
+            <button type="button" className="pixel-world-tool" onClick={exitRoom}>返回户外</button>
+          ) : (
+            <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
+              aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+          )}
           <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
             onClick={() => setShowHelp(open => !open)} aria-label="操作帮助">?</button>
           <Link to="/" className="pixel-world-return">返回官网</Link>
         </div>
       </header>
 
-      <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
+      {!room && <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
         aria-label="小镇导航地图">
         <div className="pixel-world-map-caption"><span>吉甲地图</span><span>6 个区域 · {SCENERY.filter(p => p.story).length} 处发现</span></div>
         <canvas ref={miniRef} width={432} height={288} onClick={handleNavigationClick}
@@ -519,14 +528,21 @@ export default function PixelJijiaPage() {
           <span>{Math.round(zoom * 100)}%</span>
           <button type="button" aria-label="放大地图" onClick={() => setMapZoom(zoomRef.current + 0.1)}>+</button>
         </div>
-      </aside>
+      </aside>}
+      {room && <div className="pixel-world-room-name">{room.title}</div>}
       {showHelp && <div className="pixel-world-guide" role="note">
         WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
       </div>}
+      {!selectedRoom && room && nearbyRoom && (
+        <button type="button" className="pixel-world-interact"
+          onClick={() => { if (nearbyRoom.kind === "exit") exitRoom(); else setSelectedRoom(nearbyRoom); }}>
+          <kbd>E</kbd> {nearbyRoom.title}
+        </button>
+      )}
       {!selected && seated && (
         <button type="button" className="pixel-world-interact" onClick={standUp}><kbd>E</kbd> 起身</button>
       )}
-      {!selected && !seated && nearby && (
+      {!room && !selected && !seated && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
           <kbd>E</kbd> 探索{featureTitle(nearby)} <span aria-hidden="true">↗</span>
         </button>
@@ -541,7 +557,7 @@ export default function PixelJijiaPage() {
             className={`pixel-world-dir pixel-world-dir--${direction}`}
             onPointerDown={(event) => {
               event.preventDefault();
-              if (selectedRef.current) return;
+              if (selectedRef.current || selectedRoom) return;
               event.currentTarget.setPointerCapture(event.pointerId);
               touchRef.current.add(direction);
             }}
@@ -549,11 +565,12 @@ export default function PixelJijiaPage() {
             onPointerCancel={() => touchRef.current.delete(direction)}
             onLostPointerCapture={() => touchRef.current.delete(direction)}
             onClick={(event) => {
-              if (event.detail !== 0 || selectedRef.current) return;
+              if (event.detail !== 0 || selectedRef.current || selectedRoom) return;
               playerRef.current = movePlayer(playerRef.current,
                 Number(direction === "right") - Number(direction === "left"),
                 Number(direction === "down") - Number(direction === "up"), 0.05,
-                sprintKeyRef.current || sprintTouchRef.current);
+                sprintKeyRef.current || sprintTouchRef.current,
+                room ? (x, y) => isRoomWalkable(room, x, y) : undefined);
             }}
           >{({ up: "▲", left: "◀", down: "▼", right: "▶" } as const)[direction]}</button>
         ))}
@@ -581,6 +598,11 @@ export default function PixelJijiaPage() {
               disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
               onClick={() => sitDown(selected)}>坐下</button>
           )}
+          {"href" in selected && selected.id === MECHANICAL_ROOM.id && (
+            <button type="button" className="pixel-world-detail-link"
+              disabled={closestPlace(playerRef.current)?.id !== MECHANICAL_ROOM.id}
+              onClick={enterRoom}>进入机械工坊</button>
+          )}
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
           {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
@@ -592,6 +614,14 @@ export default function PixelJijiaPage() {
           )}
         </section>
       )}
+      {selectedRoom && <section className="pixel-world-detail" role="dialog"
+        aria-label={selectedRoom.title} aria-modal="false">
+        <button type="button" className="pixel-world-detail-close" aria-label="关闭介绍"
+          onClick={() => setSelectedRoom(null)}>×</button>
+        <span className="pixel-world-detail-eyebrow">MECHANICAL · INTERIOR</span>
+        <h1>{selectedRoom.title}</h1>
+        <p>{selectedRoom.description}</p>
+      </section>}
     </main>
   );
 }
