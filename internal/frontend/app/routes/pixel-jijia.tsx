@@ -9,7 +9,6 @@ import {
 import { renderExplorer, renderTown } from "~/lib/pixel-jijia-scene";
 import "./pixel-jijia.css";
 
-const ASSET = "/assets/pixel-jijia/urban.png";
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
   w: "up", s: "down", a: "left", d: "right",
@@ -34,7 +33,6 @@ export default function PixelJijiaPage() {
   const keysRef = useRef(new Set<Direction>());
   const touchRef = useRef(new Set<Direction>());
   const selectedRef = useRef<Place | null>(null);
-  const atlasRef = useRef<HTMLImageElement | null>(null);
   const townRef = useRef<HTMLCanvasElement | null>(null);
   const nearIdRef = useRef<string | null>(null);
   const zoomRef = useRef(2.25);
@@ -52,19 +50,12 @@ export default function PixelJijiaPage() {
   }, []);
 
   useEffect(() => {
-    const atlas = new Image();
-    atlas.onload = () => {
-      try {
-        atlasRef.current = atlas;
-        townRef.current = renderTown(atlas);
-        setAssetState("ready");
-      } catch {
-        setAssetState("error");
-      }
-    };
-    atlas.onerror = () => setAssetState("error");
-    atlas.src = ASSET;
-    return () => { atlas.onload = null; atlas.onerror = null; };
+    try {
+      townRef.current = renderTown();
+      setAssetState("ready");
+    } catch {
+      setAssetState("error");
+    }
   }, []);
 
   useEffect(() => {
@@ -107,8 +98,8 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
-    const minimap = miniRef.current, town = townRef.current, atlas = atlasRef.current;
-    if (!stage || !canvas || !town || !atlas) return;
+    const minimap = miniRef.current, town = townRef.current;
+    if (!stage || !canvas || !town) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -149,7 +140,7 @@ export default function PixelJijiaPage() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(town, -Math.round(cameraRef.current.x), -Math.round(cameraRef.current.y));
-      renderExplorer(ctx, atlas, playerRef.current, directionRef.current, walking, elapsed, cameraRef.current);
+      renderExplorer(ctx, playerRef.current, directionRef.current, walking, elapsed, cameraRef.current);
 
       const nextNearby = closestPlace(playerRef.current);
       if (nearIdRef.current !== (nextNearby?.id ?? null)) {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   PLACES, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
@@ -65,8 +65,12 @@ test("镜头平滑跟随目标并限制在地图边界", () => {
   }
 });
 
-test("城市美术来自随包保留 CC0 许可证的素材", () => {
+test("自绘通用美术及导出的可复用图集完整", () => {
+  assert.ok(existsSync(new URL("./pixel-jijia-art.ts", import.meta.url)));
   const base = new URL("../../../../public/assets/pixel-jijia/", import.meta.url);
-  assert.ok(existsSync(new URL("urban.png",base)));
-  assert.ok(existsSync(new URL("URBAN-LICENSE.txt",base)));
+  assert.ok(existsSync(new URL("general-sprites.png", base)));
+  const { sprites } = JSON.parse(readFileSync(new URL("general-sprites.json", base), "utf8"));
+  for (const id of [...PLACES.map((place) => place.id), "oak", "cherry", "autumn", "fence", "bench", "lantern", "grass", "soil", "stone"]) {
+    assert.ok(sprites[id]?.w > 0 && sprites[id]?.h > 0, `${id} 素材缺失`);
+  }
 });
