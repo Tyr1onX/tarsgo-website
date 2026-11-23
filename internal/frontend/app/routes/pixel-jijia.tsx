@@ -194,8 +194,14 @@ export default function PixelJijiaPage() {
     }
   };
   const createStudyInvite = async () => {
+    if (studySaving || studyGuest) return;
+    setStudySaving(true);
     setStudyNotice("");
     try {
+      // Invite links must point to the currently visible layout, not an old saved copy.
+      await apiRequest("/api/pixel-home/me", {
+        method: "PUT", body: { furniture: studyItems },
+      });
       const result = await apiRequest<{ token: string }>("/api/pixel-home/invite", { method: "POST" });
       const url = `${window.location.origin}/pixel-jijia?visit=${result.token}`;
       setStudyInvite(url);
@@ -203,6 +209,8 @@ export default function PixelJijiaPage() {
       setStudyNotice("邀请已生成，可复制链接发给访客");
     } catch (error) {
       setStudyNotice(error instanceof Error ? error.message : "邀请生成失败");
+    } finally {
+      setStudySaving(false);
     }
   };
   const revokeStudyInvite = async () => {
@@ -689,8 +697,15 @@ export default function PixelJijiaPage() {
         <button type="button" disabled={studySaving} onClick={() => void saveStudy()}>保存布局</button>
         <button type="button" onClick={() => void createStudyInvite()}>邀请参观</button>
         {studyHasInvite && <button type="button" onClick={() => void revokeStudyInvite()}>撤销邀请</button>}
-        {studyInvite && <input aria-label="参观邀请链接" readOnly value={studyInvite}
-          onFocus={event => event.target.select()} />}
+        {studyInvite && <>
+          <input aria-label="参观邀请链接" readOnly value={studyInvite}
+            onFocus={event => event.target.select()} />
+          <button type="button" onClick={() => {
+            void navigator.clipboard.writeText(studyInvite)
+              .then(() => setStudyNotice("链接已复制"))
+              .catch(() => setStudyNotice("请选中上方链接手动复制"));
+          }}>复制</button>
+        </>}
       </div>}
       {room?.id === "study" && studyGuest && <div className="pixel-world-study-guest">只读参观</div>}
       {studyNotice && <div className="pixel-world-study-notice" role="status">
