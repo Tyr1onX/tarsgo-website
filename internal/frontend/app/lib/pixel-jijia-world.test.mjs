@@ -4,7 +4,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  cameraAt, clampZoom, closestPlace, closestStory, isWalkable, movePlayer, sceneryBlocks, snapCamera,
+  benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -106,7 +106,7 @@ test("连续按住方向键按时间推进小数坐标，而非逐格跳跃", ()
   assert.ok(first.x > start.x && first.x < start.x + 1);
   assert.equal(first.y, start.y);
   const after = Array.from({length:60}).reduce((p) => movePlayer(p, 1, 0, 1/60), start);
-  assert.ok(after.x - start.x > 4 && after.x - start.x < 6);
+  assert.ok(after.x - start.x > 6.8 && after.x - start.x < 7.1);
   assert.ok(Math.abs(movePlayer(start, 1, 1, 1 / 60).x - start.x) < WALK_SPEED/60);
 });
 
@@ -133,6 +133,35 @@ test("Shift / 按住按钮疾跑更快且仍使用同一条安全碰撞路径", 
   assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting)"));
   assert.ok(route.includes('aria-label="按住疾跑"'));
   assert.ok(route.includes("sprintTouchRef.current = false"));
+});
+
+test("V4 提速约三成，疾跑依然有明确区别且不破坏碰撞", () => {
+  assert.equal(WALK_SPEED, 7.0);
+  assert.equal(RUN_SPEED, 10.5);
+  assert.ok(RUN_SPEED / WALK_SPEED >= 1.4);
+  const obstacle = { x: 39, y: 37.31 };
+  assert.equal(movePlayer(obstacle, 0, -1, 0.05, true).y, obstacle.y);
+});
+
+test("每张石凳有实际坐点和安全起身位置", () => {
+  const benches = SCENERY.filter(p => p.sprite === "bench");
+  assert.ok(benches.length > 2);
+  for (const bench of benches) {
+    const seat = benchSeat(bench);
+    assert.equal(seat.x, bench.x);
+    assert.ok(seat.y < bench.y);
+    const exit = benchExit(bench);
+    assert.ok(exit, `石凳 ${bench.x},${bench.y} 应能安全起身`);
+    assert.ok(isWalkable(exit.x, exit.y));
+    assert.equal(closestBench({ x: bench.x, y: bench.y })?.sprite, "bench");
+  }
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
+  assert.ok(route.includes("setSeated(bench)"));
+  assert.ok(route.includes("onClick={standUp}"));
+  assert.ok(route.includes("canvas.dataset.seated"));
+  assert.ok(scene.includes("if (seated)"));
+  assert.ok(scene.includes("const screenCamera = snapCamera(camera)"));
 });
 
 test("从出生点可实际步行抵达六个场景", () => {
@@ -205,7 +234,7 @@ test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
   assert.match(scene, /const screenCamera = snapCamera\(camera\)/);
   assert.match(scene, /ctx\.drawImage\(terrain, -screenCamera\.x, -screenCamera\.y\)/);
   assert.match(scene, /drawNode\(ctx, node, atlas, sprites, props, screenCamera\)/);
-  assert.match(scene, /renderExplorer\(ctx, characterSheet, player, direction, walking, traveled, screenCamera\)/);
+  assert.match(scene, /renderExplorer\(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated\)/);
   for (const x of [10.1, 10.49, 10.51, 10.9, 11.4]) {
     const camera = snapCamera({ x, y: 20.6 });
     const ground = 100 - camera.x;
