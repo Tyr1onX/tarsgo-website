@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
-import { CAD_MODELS, type CadModelId } from "~/lib/rmul-3d-cad-assets";
+import { CAD_MODELS, DEFAULT_CAD_MODEL, type CadModelId } from "~/lib/rmul-3d-cad-assets";
 import type { ArenaController, FieldView } from "~/lib/rmul-3d-scene";
 import "./pixel-jijia-arena.css";
 
@@ -18,7 +18,7 @@ export function meta({}: Route.MetaArgs) {
 export default function PixelJijiaArenaPage() {
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
-  const [model, setModel] = useState<CadModelId>("field");
+  const [model, setModel] = useState<CadModelId>(DEFAULT_CAD_MODEL);
   const [view, setView] = useState<FieldView>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
