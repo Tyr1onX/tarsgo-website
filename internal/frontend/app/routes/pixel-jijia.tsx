@@ -8,6 +8,7 @@ import {
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import { ROOMS, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -55,6 +56,7 @@ export default function PixelJijiaPage() {
   const sprintTouchRef = useRef(false);
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
+  const groundTilesRef = useRef<HTMLImageElement | null>(null);
   const roomTerrainRef = useRef<Record<string, HTMLCanvasElement>>({});
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
@@ -65,6 +67,7 @@ export default function PixelJijiaPage() {
   const nearRoomIdRef = useRef<string | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [climate, setClimate] = useState<ChangchunClimate | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
@@ -77,6 +80,17 @@ export default function PixelJijiaPage() {
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const refresh = () => setClimate(changchunClimate(new Date()));
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
 
   const selectPlace = useCallback((place: Feature | null) => {
     selectedRef.current = place;
@@ -196,7 +210,8 @@ export default function PixelJijiaPage() {
         artRef.current = image;
         artIndexRef.current = metadata.sprites;
         propsRef.current = environment;
-        terrainRef.current = renderTerrain(ground);
+        groundTilesRef.current = ground;
+        terrainRef.current = renderTerrain(ground, changchunClimate(new Date()).season);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
         roomTerrainRef.current = Object.fromEntries(
           Object.values(ROOMS).map(room => [room.id, renderRoomTerrain(room)]));
@@ -215,6 +230,14 @@ export default function PixelJijiaPage() {
       props.onerror = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (assetState !== "ready" || !climate || !groundTilesRef.current ||
+        !artRef.current || !artIndexRef.current || !propsRef.current) return;
+    terrainRef.current = renderTerrain(groundTilesRef.current, climate.season);
+    previewRef.current = renderWorldPreview(terrainRef.current, artRef.current,
+      artIndexRef.current, propsRef.current);
+  }, [assetState, climate?.season]);
 
   useEffect(() => {
     if (selected) closeRef.current?.focus();
@@ -301,7 +324,7 @@ export default function PixelJijiaPage() {
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
     let frame = 0, lastTime = 0, traveled = 0, lastMini = 0;
-    let lastDust = 0, lastFountain = 0, lastPetal = 0;
+    let lastDust = 0, lastFountain = 0, lastPetal = 0, lastWeather = 0;
     const particles: PixelParticle[] = [];
     const cherryTrees = SCENERY.filter((item) => item.sprite === "cherry");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -358,6 +381,10 @@ export default function PixelJijiaPage() {
       } else {
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
+        if (climate?.night) {
+          ctx.fillStyle = `rgba(13, 29, 55, ${climate.night})`;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
       }
 
       if (reducedMotion.matches || room) {
@@ -395,6 +422,15 @@ export default function PixelJijiaPage() {
               y: tree.y * TILE - 68, vx: 9, vy: 12,
               age: 0, ttl: 2.1, color: "#f7b6ce", size: 3 });
           }
+        }
+        if (climate && (climate.weather === "rain" || climate.weather === "snow") &&
+            time - lastWeather > (climate.weather === "rain" ? 65 : 150)) {
+          const snow = climate.weather === "snow";
+          emit({ x: cameraRef.current.x + Math.random() * canvas.width,
+            y: cameraRef.current.y - 6, vx: snow ? 4 : -20,
+            vy: snow ? 24 : 140, age: 0, ttl: snow ? 4 : 1.4,
+            color: snow ? "#f4f7ed" : "#a3d3e0", size: snow ? 3 : 2 });
+          lastWeather = time;
         }
         for (let index = particles.length - 1; index >= 0; index--) {
           const particle = particles[index];
@@ -440,7 +476,8 @@ export default function PixelJijiaPage() {
       observer.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, selectedRoom]);
+  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, selectedRoom,
+    climate?.season, climate?.weather, climate?.night]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -536,6 +573,11 @@ export default function PixelJijiaPage() {
         </div>
       </aside>}
       {room && <div className="pixel-world-room-name">{room.title}</div>}
+      {climate && <div className="pixel-world-climate" role="status" aria-label="长春时间与游戏模拟天气">
+        <span>{SEASON_LABEL[climate.season]}</span>
+        <time>{String(climate.hour).padStart(2, "0")}:{String(climate.minute).padStart(2, "0")}</time>
+        {!room && <span>{WEATHER_LABEL[climate.weather]} · 模拟</span>}
+      </div>
       {showHelp && <div className="pixel-world-guide" role="note">
         WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
       </div>}
