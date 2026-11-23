@@ -23,12 +23,7 @@ function terrainTile(
   ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
   kind: string, x: number, y: number,
 ) {
-  const rotation = kind === "water" ? 0 : hash(x, y) % 4;
-  ctx.save();
-  ctx.translate(point(x) + TILE / 2, point(y) + TILE / 2);
-  ctx.rotate(rotation * Math.PI / 2);
-  sprite(ctx, atlas, sprites, `terrain_${kind}`, -TILE / 2, -TILE / 2, TILE, TILE);
-  ctx.restore();
+  sprite(ctx, atlas, sprites, `terrain_${kind}`, point(x), point(y), TILE, TILE);
 }
 
 function drawPatch(
@@ -46,7 +41,7 @@ function ground(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites:
   for (let y = 0; y < WORLD_HEIGHT; y++) {
     for (let x = 0; x < WORLD_WIDTH; x++) {
       const n = hash(x, y);
-      const variant = n % 29 === 0 ? "flowers1" : n % 43 === 0 ? "flowers2" : n % 7 === 0 ? "grass2" : "grass";
+      const variant = n % 211 === 0 ? "flowers1" : n % 283 === 0 ? "flowers2" : n % 23 === 0 ? "grass2" : "grass";
       terrainTile(ctx, atlas, sprites, variant, x, y);
     }
   }
@@ -111,12 +106,6 @@ function props(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: 
   sprite(ctx, atlas, sprites, "robot", point(62), point(35), 42, 54);
 
   sprite(ctx, atlas, sprites, "noticeboard", point(38), point(21) - 12, 74, 54);
-  for (const [x, y, direction] of [
-    [17, 26, "down"], [78, 26, "left"], [31, 38, "right"], [66, 39, "up"],
-    [57, 26, "down"], [24, 38, "left"], [55, 44, "down"],
-  ] as const) {
-    sprite(ctx, atlas, sprites, `hero_${direction}`, point(x) - 11, point(y) - 28, 22, 31);
-  }
 }
 
 export function renderTown(atlas: HTMLImageElement, sprites: SpriteIndex): HTMLCanvasElement {
@@ -132,13 +121,27 @@ export function renderTown(atlas: HTMLImageElement, sprites: SpriteIndex): HTMLC
   return canvas;
 }
 
+const EXPLORER_ROWS: Record<Direction, number> = {
+  down: 0, left: 1, right: 2, up: 3,
+};
+const EXPLORER_FRAME_WIDTH = 40;
+const EXPLORER_FRAME_HEIGHT = 54;
+
 export function renderExplorer(
-  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
-  player: Position, direction: Direction, walking: boolean, elapsed: number, camera: Position,
+  ctx: CanvasRenderingContext2D, characterSheet: HTMLImageElement,
+  player: Position, direction: Direction, walking: boolean, traveled: number, camera: Position,
 ) {
-  const bob = walking ? Math.sin(elapsed * 17) * 1.1 : 0;
-  sprite(ctx, atlas, sprites, `hero_${direction}`,
-    player.x * TILE - camera.x - 12,
-    player.y * TILE - camera.y - 31 + bob,
-    25, 34);
+  const footX = Math.round(player.x * TILE - camera.x);
+  const footY = Math.round(player.y * TILE - camera.y);
+  const frame = walking ? Math.floor(traveled / 0.5) % 4 : 0;
+  ctx.fillStyle = "rgba(44, 66, 48, 0.20)";
+  ctx.beginPath();
+  ctx.ellipse(footX, footY - 2, 12, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(
+    characterSheet,
+    frame * EXPLORER_FRAME_WIDTH, EXPLORER_ROWS[direction] * EXPLORER_FRAME_HEIGHT,
+    EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT,
+    footX - 20, footY - 54, 40, 54,
+  );
 }
