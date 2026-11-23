@@ -12,7 +12,7 @@ PATCH = 128
 TILE = 16
 MATERIALS = ("grass", "soil", "stone", "water")
 SOURCE = Path(__file__).parent / "assets/pixel-ground-source.png"
-DESTINATION = Path(__file__).resolve().parents[1] / "public/assets/pixel-jijia/ground-tiles.png"
+DESTINATION = Path(__file__).resolve().parents[1] / "internal/frontend/app/assets/pixel-jijia/ground-tiles.png"
 
 
 def read_rgb_png(path):

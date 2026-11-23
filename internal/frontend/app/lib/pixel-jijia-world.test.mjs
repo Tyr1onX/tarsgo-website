@@ -83,12 +83,20 @@ test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", 
   assert.equal(Object.keys(sprites).filter((key) => key.startsWith("terrain_")).length, 0);
 });
 
+test("地面纹理由构建系统生成带指纹的资源地址，避免旧图集缓存错位", () => {
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(route.includes('import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url"'));
+  assert.ok(route.includes("loadImage(groundTiles, groundTilesUrl)"));
+  assert.ok(route.includes("ground.naturalWidth !== 384 || ground.naturalHeight !== 528"));
+  assert.ok(!route.includes('loadImage(groundTiles, "/assets/pixel-jijia/ground-tiles.png")'));
+});
+
 test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透明正确", () => {
   const source = readFileSync(new URL("../../../../scripts/assets/pixel-ground-source.png", import.meta.url));
   assert.deepEqual([...source.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.equal(source.readUInt32BE(16), 512);
   assert.equal(source.readUInt32BE(20), 512);
-  const path = new URL("../../../../public/assets/pixel-jijia/ground-tiles.png", import.meta.url);
+  const path = new URL("../assets/pixel-jijia/ground-tiles.png", import.meta.url);
   const png = readFileSync(path);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.equal(png.readUInt32BE(16), 384); // 3 image-derived variations × 128px
