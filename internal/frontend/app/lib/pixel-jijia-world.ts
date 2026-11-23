@@ -1,9 +1,10 @@
-export const WORLD_WIDTH = 40;
-export const WORLD_HEIGHT = 27;
+export const TILE = 16;
+export const WORLD_WIDTH = 96;
+export const WORLD_HEIGHT = 64;
+export const WALK_SPEED = 5.4; // tiles / second
 
 export type Direction = "up" | "down" | "left" | "right";
 export type Position = { x: number; y: number };
-
 export type Place = Position & {
   id: string;
   title: string;
@@ -13,54 +14,69 @@ export type Place = Position & {
   action: string;
   width: number;
   height: number;
-  building: "blue" | "red" | "castle";
+  accent: string;
 };
 
 export const PLACES: Place[] = [
-  { id: "mechanical", title: "机械工坊", caption: "MECHANICAL", description: "从结构设计到加工装配，把机器人的想法变成真实的机械结构。", href: "/about", action: "认识机械组", x: 4, y: 4, width: 4, height: 3, building: "blue" },
-  { id: "electrical", title: "电控实验室", caption: "ELECTRICAL", description: "电路、嵌入式与电机控制，让每个部件协同运转。", href: "/about", action: "认识电控组", x: 32, y: 4, width: 4, height: 3, building: "red" },
-  { id: "honors", title: "荣誉殿堂", caption: "HALL OF FAME", description: "每一次站上赛场、每一份沉甸甸的荣誉，都在这里留下了记录。", href: "/events-and-honors", action: "查看赛事与荣誉", x: 16, y: 3, width: 8, height: 3, building: "castle" },
-  { id: "vision", title: "视觉观测站", caption: "VISION", description: "让机器人看见目标、识别环境，把画面转化为可靠的信息。", href: "/about", action: "认识视觉组", x: 5, y: 18, width: 4, height: 3, building: "red" },
-  { id: "ai", title: "AI 研究所", caption: "ARTIFICIAL INTELLIGENCE", description: "在感知、决策与规划之间，探索机器人自主行动的可能。", href: "/about", action: "认识 AI 组", x: 31, y: 18, width: 4, height: 3, building: "blue" },
-  { id: "guild", title: "冒险者公会", caption: "JOIN TARSGO", description: "五个组别，不同的专长。下一段冒险，可以从这里开始。", href: "/join", action: "加入吉甲", x: 18, y: 22, width: 4, height: 3, building: "red" },
+  { id: "mechanical", title: "机械工坊", caption: "MECHANICAL WORKSHOP", description: "结构设计、建模加工与整机装配。每一颗螺丝背后，都藏着把想法变成现实的功夫。", href: "/about", action: "认识机械组", x: 9, y: 10, width: 18, height: 11, accent: "#d4a552" },
+  { id: "honors", title: "荣誉殿堂", caption: "HALL OF HONOR", description: "从初次出发，到一次次登上赛场。这里收藏吉甲一路走来的奖杯与故事。", href: "/events-and-honors", action: "查看赛事与荣誉", x: 38, y: 5, width: 20, height: 12, accent: "#e1c374" },
+  { id: "electrical", title: "电控实验室", caption: "ELECTRICAL LAB", description: "电路、嵌入式与电机控制。那些看不见的信号，点亮了每一台机器人的生命力。", href: "/about", action: "认识电控组", x: 69, y: 10, width: 18, height: 11, accent: "#b8cce3" },
+  { id: "vision", title: "视觉观测站", caption: "VISION STATION", description: "目标识别、视觉定位与自瞄算法，让机器人学会看见这个世界。", href: "/about", action: "认识视觉组", x: 9, y: 42, width: 18, height: 11, accent: "#98c8bd" },
+  { id: "guild", title: "冒险者公会", caption: "JOIN THE TEAM", description: "寻找你的下一场冒险。机械、电控、视觉、AI 与运营，总有一种热爱能在这里发光。", href: "/join", action: "加入吉甲", x: 38, y: 49, width: 20, height: 11, accent: "#efc28d" },
+  { id: "ai", title: "AI 研究所", caption: "AI RESEARCH", description: "从感知到决策，从规划到自主控制。下一代机器人的想象力，正在这里发生。", href: "/about", action: "认识 AI 组", x: 69, y: 42, width: 18, height: 11, accent: "#c3b6eb" },
 ];
 
 export const TREES: Position[] = [
-  { x: 1, y: 1 }, { x: 8, y: 1 }, { x: 12, y: 4 }, { x: 27, y: 3 }, { x: 37, y: 1 },
-  { x: 1, y: 9 }, { x: 12, y: 9 }, { x: 27, y: 9 }, { x: 37, y: 10 },
-  { x: 1, y: 17 }, { x: 13, y: 18 }, { x: 27, y: 18 }, { x: 37, y: 18 },
-  { x: 2, y: 23 }, { x: 11, y: 24 }, { x: 28, y: 24 }, { x: 37, y: 24 },
+  { x: 2, y: 5 }, { x: 6, y: 27 }, { x: 4, y: 37 }, { x: 2, y: 56 }, { x: 30, y: 5 },
+  { x: 32, y: 20 }, { x: 35, y: 43 }, { x: 32, y: 57 }, { x: 61, y: 5 },
+  { x: 64, y: 21 }, { x: 62, y: 43 }, { x: 62, y: 57 }, { x: 92, y: 8 },
+  { x: 91, y: 28 }, { x: 92, y: 44 }, { x: 90, y: 57 },
+  { x: 16, y: 26 }, { x: 28, y: 31 }, { x: 68, y: 30 }, { x: 83, y: 27 },
 ];
 
-export function isPath(x: number, y: number): boolean {
-  return (y >= 12 && y <= 14 && x >= 3 && x <= 36)
-    || (x >= 19 && x <= 20 && y >= 6 && y <= 24)
-    || (x >= 6 && x <= 7 && y >= 7 && y <= 19)
-    || (x >= 33 && x <= 34 && y >= 7 && y <= 19)
-    || (y >= 23 && y <= 24 && x >= 7 && x <= 34)
-    || (x >= 16 && x <= 23 && y >= 10 && y <= 17);
-}
+const ROCKS: Position[] = [{ x: 15, y: 37 }, { x: 76, y: 37 }];
+export const SPAWN: Position = { x: 48, y: 21.5 };
 
 export function isWalkable(x: number, y: number): boolean {
-  if (x < 0 || y < 0 || x >= WORLD_WIDTH || y >= WORLD_HEIGHT) return false;
-  if (PLACES.some((place) => x >= place.x && x < place.x + place.width && y >= place.y && y < place.y + place.height)) return false;
-  if (TREES.some((tree) => x === tree.x && y >= tree.y && y <= tree.y + 1)) return false;
-  if (x === 19 && y === 12) return false; // 广场中央的水井
+  const radius = 0.3;
+  if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
+  if (PLACES.some((p) => x + radius > p.x && x - radius < p.x + p.width && y + radius > p.y + 0.9 && y - radius < p.y + p.height - 0.7)) return false;
+  if (TREES.some((p) => Math.hypot(x - p.x, y - p.y) < 0.8)) return false;
+  if (ROCKS.some((p) => Math.hypot(x - p.x, y - p.y) < 0.8)) return false;
+  if (Math.hypot(x - 48, y - 31.5) < 2.3) return false;
   return true;
 }
 
-export function closestPlace({ x, y }: Position): Place | null {
-  const matches = PLACES.map((place) => {
-    const dx = Math.max(place.x - x, 0, x - (place.x + place.width - 1));
-    const dy = Math.max(place.y - y, 0, y - (place.y + place.height - 1));
-    return { place, distance: dx + dy };
-  }).sort((a, b) => a.distance - b.distance);
-  return matches[0]?.distance <= 2 ? matches[0].place : null;
+export function movePlayer(position: Position, horizontal: number, vertical: number, dt: number): Position {
+  const len = Math.hypot(horizontal, vertical);
+  if (!len || dt <= 0) return position;
+  const step = WALK_SPEED * Math.min(dt, 0.05) / len;
+  const x = position.x + horizontal * step;
+  const y = position.y + vertical * step;
+  // Slide along solid building edges rather than teleporting across tile boundaries.
+  const nextX = isWalkable(x, position.y) ? x : position.x;
+  const nextY = isWalkable(nextX, y) ? y : position.y;
+  return { x: nextX, y: nextY };
 }
 
-export function cameraAt(position: Position, columns: number, rows: number): Position {
+export function closestPlace({ x, y }: Position): Place | null {
+  let nearest: Place | null = null;
+  let best = Infinity;
+  for (const place of PLACES) {
+    const dx = Math.max(place.x - x, 0, x - (place.x + place.width));
+    const dy = Math.max(place.y - y, 0, y - (place.y + place.height));
+    const distance = Math.hypot(dx, dy);
+    if (distance < 3 && distance < best) {
+      best = distance;
+      nearest = place;
+    }
+  }
+  return nearest;
+}
+
+export function cameraAt(position: Position, viewWidth: number, viewHeight: number): Position {
   return {
-    x: Math.max(0, Math.min(WORLD_WIDTH - columns, position.x - Math.floor(columns / 2))),
-    y: Math.max(0, Math.min(WORLD_HEIGHT - rows, position.y - Math.floor(rows / 2))),
+    x: Math.max(0, Math.min(WORLD_WIDTH * TILE - viewWidth, position.x * TILE - viewWidth / 2)),
+    y: Math.max(0, Math.min(WORLD_HEIGHT * TILE - viewHeight, position.y * TILE - viewHeight * 0.7)),
   };
 }
