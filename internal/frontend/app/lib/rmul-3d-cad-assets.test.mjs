@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { CAD_MODELS, DEFAULT_CAD_MODEL } from "./rmul-3d-cad-assets.ts";
+import { CAD_MODELS, DEFAULT_CAD_MODEL, cadSourceOccurrenceForMesh } from "./rmul-3d-cad-assets.ts";
 
 test("only source-backed 2027 CAD assets are selectable", () => {
   assert.deepEqual(Object.keys(CAD_MODELS), ["rmucField", "base", "outpost", "rune", "field", "energy"]);
@@ -74,4 +74,15 @@ test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies",
   } finally {
     globalThis.fetch = savedFetch;
   }
+});
+
+
+test("source occurrence filtering keeps all GLTF mesh primitives from one side", () => {
+  const outpost = CAD_MODELS.outpost.sourceNodes;
+  assert.equal(cadSourceOccurrenceForMesh("source_1800898_10", outpost), "source_1800898_10");
+  assert.equal(cadSourceOccurrenceForMesh("source_2603236_11_0", outpost), "source_2603236_11");
+  assert.equal(cadSourceOccurrenceForMesh("source_2603236_11_16", outpost), "source_2603236_11");
+  assert.equal(cadSourceOccurrenceForMesh("source_1800898_9", outpost), undefined);
+  assert.equal(cadSourceOccurrenceForMesh("source_2603236_12_0", outpost), undefined);
+  assert.equal(cadSourceOccurrenceForMesh("source_1354629_1_9", CAD_MODELS.rune.sourceNodes), "source_1354629_1");
 });

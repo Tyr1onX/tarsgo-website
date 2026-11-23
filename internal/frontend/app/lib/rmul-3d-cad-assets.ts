@@ -49,6 +49,16 @@ export const CAD_MODELS = {
 export type CadModelId = keyof typeof CAD_MODELS;
 export const DEFAULT_CAD_MODEL: CadModelId = "rmucField";
 
+// GLTFLoader puts multi-primitive source meshes under a named parent node.
+// Match the source occurrence and its primitive children, but not its sibling
+// occurrence (for example, source_2603236_11 vs source_2603236_12).
+export function cadSourceOccurrenceForMesh(
+  meshName: string,
+  sourceNodes: readonly string[],
+): string | undefined {
+  return sourceNodes.find((node) => meshName === node || meshName.startsWith(node + "_"));
+}
+
 
 // A 2027 release already publishes the unchanged source-rest-pose meshes.
 // Resolve only these pinned RMUC product IDs; never substitute 2026 or
