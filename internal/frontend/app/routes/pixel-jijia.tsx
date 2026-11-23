@@ -16,12 +16,15 @@ const DEFAULT_ZOOM = 1.35;
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
 const closestFeature = (position: Position): Feature | null => {
-  const place = closestPlace(position), story = closestStory(position) ?? closestBench(position);
-  if (!place || !story) return place ?? story;
+  const place = closestPlace(position);
+  const story = closestStory(position), bench = closestBench(position);
+  const scenery = story && bench && Math.hypot(position.x - bench.x, position.y - bench.y) <
+    Math.hypot(position.x - story.x, position.y - story.y) ? bench : story ?? bench;
+  if (!place || !scenery) return place ?? scenery;
   const dx = Math.max(place.x - position.x, 0, position.x - place.x - place.width);
   const dy = Math.max(place.y - position.y, 0, position.y - place.y - place.height);
-  return Math.hypot(position.x - story.x, position.y - story.y) < Math.hypot(dx, dy)
-    ? story : place;
+  return Math.hypot(position.x - scenery.x, position.y - scenery.y) < Math.hypot(dx, dy)
+    ? scenery : place;
 };
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
