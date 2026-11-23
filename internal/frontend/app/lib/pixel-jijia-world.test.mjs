@@ -83,13 +83,13 @@ test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", 
   assert.equal(Object.keys(sprites).filter((key) => key.startsWith("terrain_")).length, 0);
 });
 
-test("专用地面图块全部无透明像素、重复边缘一致，不会产生贴图接缝", () => {
+test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透明正确", () => {
   const path = new URL("../../../../public/assets/pixel-jijia/ground-tiles.png", import.meta.url);
   const png = readFileSync(path);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.equal(png.readUInt32BE(16), 160);
-  assert.equal(png.readUInt32BE(20), 16);
-  assert.equal(png[25], 2); // RGB, no transparent or partially keyed pixels
+  assert.equal(png.readUInt32BE(16), 192); // 3 variations × 64px
+  assert.equal(png.readUInt32BE(20), 272); // 4 materials × 64px + edge sprites
+  assert.equal(png[25], 6); // RGBA for transparent transition edges
 
   const parts = [];
   for (let offset = 8; offset < png.length;) {
@@ -100,25 +100,41 @@ test("专用地面图块全部无透明像素、重复边缘一致，不会产�
     offset += length + 12;
   }
   const pixels = inflateSync(Buffer.concat(parts));
-  const stride = 160 * 3 + 1;
-  const rgb = (tile, x, y) => {
-    assert.equal(pixels[y * stride], 0, "地面图集必须使用零过滤，便于边缘校验");
-    const index = y * stride + 1 + (tile * 16 + x) * 3;
-    return [...pixels.subarray(index, index + 3)];
+  const stride = 192 * 4 + 1;
+  const rgba = (x, y) => {
+    assert.equal(pixels[y * stride], 0, "需使用零过滤，便于逐像素验证");
+    const offset = y * stride + 1 + x * 4;
+    return [...pixels.subarray(offset, offset + 4)];
   };
 
-  for (let tile = 0; tile < 10; tile++) {
-    const base = rgb(tile, 0, 0);
-    for (let i = 0; i < 16; i++) {
-      assert.deepEqual(rgb(tile, i, 0), base);
-      assert.deepEqual(rgb(tile, i, 15), base);
-      assert.deepEqual(rgb(tile, 0, i), base);
-      assert.deepEqual(rgb(tile, 15, i), base);
+  for (let material = 0; material < 4; material++) {
+    const row = material * 64;
+    const colors = new Set();
+    for (let variant = 0; variant < 3; variant++) {
+      const col = variant * 64;
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+        const color = rgba(col + x, row + y);
+        assert.equal(color[3], 255, "地面材质不能透出黑边");
+        colors.add(color.join(","));
+      }
+      // Every variation shares exactly the same four outer pixel edges,
+      // so different 64px patches never introduce a discontinuous seam.
+      for (let i = 0; i < 64; i++) {
+        for (const [x, y] of [[0, i], [63, i], [i, 0], [i, 63]]) {
+          assert.deepEqual(rgba(col + x, row + y), rgba(x, row + y));
+        }
+      }
     }
+    assert.ok(colors.size >= 5, "地面不能退化为单一色块");
   }
-  for (const group of [[0, 1, 2, 3], [4, 5], [6, 7], [8, 9]]) {
-    for (const tile of group.slice(1)) {
-      assert.deepEqual(rgb(tile, 0, 0), rgb(group[0], 0, 0));
+
+  for (let edge = 0; edge < 12; edge++) {
+    const start = edge * 16;
+    const alphas = [];
+    for (let y = 256; y < 272; y++) for (let x = start; x < start + 16; x++) {
+      alphas.push(rgba(x, y)[3]);
     }
+    assert.ok(alphas.some(a => a === 0) && alphas.some(a => a > 0),
+      "过渡贴图必须既有透明区域也有真实边缘像素");
   }
 });

@@ -20,8 +20,8 @@ function hash(x: number, y: number) {
 }
 
 type GroundKind = 0 | 1 | 2 | 3; // grass, path, plaza, water
-const GROUND_TILE_START = [0, 4, 6, 8] as const;
-const GROUND_EDGE = ["", "#bea886", "#a89d91", "#438f99"] as const;
+const GROUND_PATCH = TILE * 4;
+const GROUND_EDGE_Y = GROUND_PATCH * 4;
 
 function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Array {
   // Each cell has one ground material; transitions are derived from its neighbors.
@@ -51,25 +51,22 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Ar
   for (let y = 0; y < WORLD_HEIGHT; y++) {
     for (let x = 0; x < WORLD_WIDTH; x++) {
       const kind = at(x, y) as GroundKind;
-      const n = hash(x, y);
-      const variant = kind === 0
-        ? n % 211 === 0 ? 2 : n % 281 === 0 ? 3 : n % 29 === 0 ? 1 : 0
-        : n % (kind === 3 ? 6 : 11) === 0 ? 1 : 0;
-      const sourceX = (GROUND_TILE_START[kind] + variant) * TILE;
+      // A 4×4-cell masonry patch preserves grout continuity across its tiles.
+      const variant = hash(Math.floor(x / 4), Math.floor(y / 4)) % 3;
+      const sourceX = variant * GROUND_PATCH + (x % 4) * TILE;
+      const sourceY = kind * GROUND_PATCH + (y % 4) * TILE;
       const destX = point(x), destY = point(y);
-      ctx.drawImage(tiles, sourceX, 0, TILE, TILE, destX, destY, TILE, TILE);
+      ctx.drawImage(tiles, sourceX, sourceY, TILE, TILE, destX, destY, TILE, TILE);
 
-      // Borders appear only between different materials; never along repeated tile seams.
+      // Draw reusable pixel-art edge sprites only on real material boundaries.
       if (kind === 0) continue;
-      const color = GROUND_EDGE[kind];
-      ctx.fillStyle = color;
-      const edgeWidth = kind === 3 ? 2 : 1;
       const borders = (neighbor: number) =>
         neighbor !== kind && (kind !== 1 || neighbor === 0) && !(kind === 2 && neighbor === 3);
-      if (borders(at(x, y - 1))) ctx.fillRect(destX, destY, TILE, edgeWidth);
-      if (borders(at(x, y + 1))) ctx.fillRect(destX, destY + TILE - edgeWidth, TILE, edgeWidth);
-      if (borders(at(x - 1, y))) ctx.fillRect(destX, destY, edgeWidth, TILE);
-      if (borders(at(x + 1, y))) ctx.fillRect(destX + TILE - edgeWidth, destY, edgeWidth, TILE);
+      for (const [side, nx, ny] of [[0, x, y - 1], [1, x, y + 1], [2, x - 1, y], [3, x + 1, y]]) {
+        if (borders(at(nx, ny))) {
+          ctx.drawImage(tiles, ((kind - 1) * 4 + side) * TILE, GROUND_EDGE_Y, TILE, TILE, destX, destY, TILE, TILE);
+        }
+      }
     }
   }
   return materials;
