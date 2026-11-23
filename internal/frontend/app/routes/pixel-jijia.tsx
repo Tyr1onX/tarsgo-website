@@ -108,6 +108,9 @@ export default function PixelJijiaPage() {
     const place = closestPlace(playerRef.current);
     if (place?.id !== MECHANICAL_ROOM.id) return;
     playerRef.current = { ...MECHANICAL_ROOM.entry };
+    const canvas = canvasRef.current;
+    if (canvas) cameraRef.current = cameraAt(MECHANICAL_ROOM.entry, canvas.width, canvas.height,
+      MECHANICAL_ROOM.width * TILE, MECHANICAL_ROOM.height * TILE);
     keysRef.current.clear();
     touchRef.current.clear();
     setSeated(null);
@@ -121,6 +124,8 @@ export default function PixelJijiaPage() {
     const place = PLACES.find(p => p.id === MECHANICAL_ROOM.id);
     if (!place) return;
     playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
+    const canvas = canvasRef.current;
+    if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
     keysRef.current.clear();
     touchRef.current.clear();
     setSelectedRoom(null);
