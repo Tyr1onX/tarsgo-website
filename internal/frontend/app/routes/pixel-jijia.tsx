@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, movePlayer,
+  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, movePlayer, snapCamera,
   type Direction, type Place, type Position,
 } from "~/lib/pixel-jijia-world";
 import { renderScene, renderTerrain, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
@@ -270,8 +270,9 @@ export default function PixelJijiaPage() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width * canvas.width + cameraRef.current.x) / TILE;
-    const y = ((event.clientY - rect.top) / rect.height * canvas.height + cameraRef.current.y) / TILE;
+    const camera = snapCamera(cameraRef.current);
+    const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
+    const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
     const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y - 5 && y < p.y + p.height);
     if (place) selectPlace(place);
   };
