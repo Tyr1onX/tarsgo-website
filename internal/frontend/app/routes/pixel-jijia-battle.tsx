@@ -125,7 +125,7 @@ export default function PixelJijiaBattlePage() {
       <header className="pixel-battle-header">
         <Link to="/pixel-jijia" className="pixel-battle-back">← 返回像素吉甲</Link>
         <span className="pixel-battle-title">战术演练 <small>TACTICAL TRAINING / 01</small></span>
-        <span className="pixel-battle-mode">2 VS 2 · TRAINING V0</span>
+        <span className="pixel-battle-mode">2 VS 2 · RMUL 2027</span>
       </header>
 
       <div className="pixel-battle-layout">
@@ -205,7 +205,7 @@ export default function PixelJijiaBattlePage() {
           )}
         </aside>
       </div>
-      <p className="pixel-battle-footnote">改编自 TARS-Go Simulator 的 synthetic training-v0，非官方 RMUC 竞赛规则模拟。</p>
+      <p className="pixel-battle-footnote">场地布局预览；对战机制不等同于 RMUL 正式赛制。</p>
     </main>
   );
 }

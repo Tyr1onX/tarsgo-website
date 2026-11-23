@@ -1,9 +1,8 @@
 import { FIELD_HEIGHT, FIELD_WIDTH, MATCH_SECONDS, OBSTACLES,
   type Battle, type Robot } from "./pixel-jijia-battle";
+import { FIELD_INSET, HIGH_WALLS } from "./pixel-jijia-field";
 
 const COLORS = {
-  grass: "#779580", grassDark: "#718e79", stone: "#c9bea2",
-  stoneLight: "#d7caae", wall: "#526b66", wallTop: "#aab9a4",
   red: "#efbd6d", redDark: "#765a40", blue: "#cd7d75", blueDark: "#6f4548",
 };
 const square = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) => {
@@ -11,54 +10,75 @@ const square = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, 
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 };
 
+function paintPolygon(ctx: CanvasRenderingContext2D, points: readonly { x: number; y: number }[]) {
+  ctx.beginPath();
+  points.forEach((point, index) => index === 0
+    ? ctx.moveTo(point.x, point.y)
+    : ctx.lineTo(point.x, point.y));
+  ctx.closePath();
+}
+
 function drawTerrain(ctx: CanvasRenderingContext2D) {
-  square(ctx, 0, 0, FIELD_WIDTH, FIELD_HEIGHT, COLORS.grass);
-  // The town's warm sandstone and sage-green palette continues inside the arena.
-  for (let y = 0; y < FIELD_HEIGHT; y += 20) {
-    for (let x = 0; x < FIELD_WIDTH; x += 20) {
-      if ((x * 13 + y * 7) % 11 < 5) square(ctx, x, y, 20, 20, COLORS.grassDark);
-      if ((x * 3 + y * 17) % 67 === 0) square(ctx, x + 9, y + 8, 3, 3, "#b3be8d");
+  // Map dimensions, perimeter and raised footprints come from rmul_2027.stl.
+  square(ctx, 0, 0, FIELD_WIDTH, FIELD_HEIGHT, "#779589");
+  for (let y = 0; y < FIELD_HEIGHT; y += 22) {
+    for (let x = 0; x < FIELD_WIDTH; x += 22) {
+      if ((x * 17 + y * 3) % 9 < 3) square(ctx, x, y, 22, 22, "#718b7e");
+      if ((x * 3 + y * 11) % 19 === 0) square(ctx, x + 9, y + 8, 2, 2, "#a1ab8d");
     }
   }
-  square(ctx, 0, 228, FIELD_WIDTH, 64, COLORS.stone);
-  square(ctx, 0, 236, FIELD_WIDTH, 4, COLORS.stoneLight);
-  square(ctx, 0, 284, FIELD_WIDTH, 4, "#a99e86");
-  for (let x = 0; x < FIELD_WIDTH; x += 32) {
-    square(ctx, x, 229, 2, 60, "#b4a98e");
-    square(ctx, x + 16, 228, 2, 2, "#ece0bf");
+
+  // 300-unit-high perimeter top footprint, including visible metal joints.
+  square(ctx, 0, 0, FIELD_WIDTH, FIELD_INSET, "#354e4d");
+  square(ctx, 0, FIELD_HEIGHT - FIELD_INSET, FIELD_WIDTH, FIELD_INSET, "#354e4d");
+  square(ctx, 0, 0, FIELD_INSET, FIELD_HEIGHT, "#354e4d");
+  square(ctx, FIELD_WIDTH - FIELD_INSET, 0, FIELD_INSET, FIELD_HEIGHT, "#354e4d");
+  square(ctx, FIELD_INSET - 5, FIELD_INSET, 3, FIELD_HEIGHT - 2 * FIELD_INSET, "#b1bdab");
+  square(ctx, FIELD_WIDTH - FIELD_INSET + 2, FIELD_INSET, 3, FIELD_HEIGHT - 2 * FIELD_INSET, "#b1bdab");
+  square(ctx, FIELD_INSET, FIELD_INSET - 5, FIELD_WIDTH - 2 * FIELD_INSET, 3, "#b1bdab");
+  square(ctx, FIELD_INSET, FIELD_HEIGHT - FIELD_INSET + 2, FIELD_WIDTH - 2 * FIELD_INSET, 3, "#b1bdab");
+  for (let x = 12; x < FIELD_WIDTH - 12; x += 38) {
+    square(ctx, x, 8, 5, 5, "#80998a");
+    square(ctx, x, FIELD_HEIGHT - 13, 5, 5, "#80998a");
   }
-  for (const x of [70, 790]) {
-    square(ctx, x, 84, 40, 40, "#a4b6aa");
-    square(ctx, x + 6, 90, 28, 28, "#e6d3a7");
-    square(ctx, x + 12, 96, 16, 16, "#72897e");
-    square(ctx, x, 396, 40, 40, "#a4b6aa");
-    square(ctx, x + 6, 402, 28, 28, "#e6d3a7");
-    square(ctx, x + 12, 408, 16, 16, "#72897e");
+  for (let y = 26; y < FIELD_HEIGHT - 26; y += 36) {
+    square(ctx, 8, y, 5, 5, "#80998a");
+    square(ctx, FIELD_WIDTH - 13, y, 5, 5, "#80998a");
   }
-  square(ctx, 445, 0, 10, FIELD_HEIGHT, "#d9d5b54b");
-  for (let y = 20; y < FIELD_HEIGHT; y += 36) square(ctx, 449, y, 2, 16, "#eeead184");
-  // Distinct deployment regions.
-  square(ctx, 23, 168, 5, 184, "#e9c87c");
-  square(ctx, 872, 168, 5, 184, "#d88383");
-  for (const [x, color] of [[17, "#ffe0a4"], [840, "#eab0aa"]] as const) {
-    square(ctx, x, 218, 44, 5, color);
-    square(ctx, x, 296, 44, 5, color);
-  }
-  for (const o of OBSTACLES) {
-    square(ctx, o.x + 5, o.y + 7, o.width, o.height, "#2d504baa");
-    square(ctx, o.x, o.y, o.width, o.height, "#4b655e");
-    square(ctx, o.x, o.y, o.width, 9, "#e5d6af");
-    square(ctx, o.x + 6, o.y + 9, o.width - 12, o.height - 15, "#9cad96");
-    for (let y = o.y + 14; y < o.y + o.height - 7; y += 24) {
-      square(ctx, o.x + 6, y, o.width - 12, 3, "#899c89");
-      for (let x = o.x + 11 + (Math.floor(y / 24) % 2) * 12; x < o.x + o.width - 7; x += 24)
-        square(ctx, x, y + 3, 3, 20, "#899c89");
+
+  for (const feature of OBSTACLES) {
+    ctx.save();
+    ctx.translate(5, 7);
+    paintPolygon(ctx, feature.points);
+    ctx.fillStyle = "#293f3ba0";
+    ctx.fill();
+    ctx.restore();
+
+    paintPolygon(ctx, feature.points);
+    ctx.fillStyle = feature.kind === "platform" ? "#c1aa84" : "#738b82";
+    ctx.fill();
+    ctx.strokeStyle = feature.kind === "platform" ? "#e6d7ad" : "#b8c4aa";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    ctx.save();
+    paintPolygon(ctx, feature.points);
+    ctx.clip();
+    for (let y = feature.bounds.y; y < feature.bounds.y + feature.bounds.height; y += 21) {
+      square(ctx, feature.bounds.x, y, feature.bounds.width, 2, feature.kind === "platform" ? "#b29c7b" : "#627d76");
+      for (let x = feature.bounds.x + (Math.floor(y / 21) % 2) * 19; x < feature.bounds.x + feature.bounds.width; x += 38) {
+        square(ctx, x, y + 2, 2, 19, feature.kind === "platform" ? "#d9c6a0" : "#95a89a");
+      }
     }
+    ctx.restore();
   }
-  square(ctx, 0, 0, FIELD_WIDTH, 8, "#294f49");
-  square(ctx, 0, FIELD_HEIGHT - 8, FIELD_WIDTH, 8, "#294f49");
-  square(ctx, 0, 0, 8, FIELD_HEIGHT, "#294f49");
-  square(ctx, FIELD_WIDTH - 8, 0, 8, FIELD_HEIGHT, "#294f49");
+
+  for (const wall of HIGH_WALLS) {
+    square(ctx, wall.x, wall.y, wall.width, wall.height, "#4a625d");
+    square(ctx, wall.x, wall.y, 4, wall.height, "#a3b7a1");
+    for (let y = wall.y + 9; y < wall.y + wall.height; y += 17)
+      square(ctx, wall.x + 5, y, Math.max(2, wall.width - 6), 2, "#72897a");
+  }
 }
 
 function drawRobot(ctx: CanvasRenderingContext2D, robot: Robot, selected: boolean, seconds: number) {
@@ -139,7 +159,7 @@ export function renderBattle(ctx: CanvasRenderingContext2D, battle: Battle) {
   ctx.textAlign = "center";
   ctx.font = "bold 14px ui-monospace, monospace";
   ctx.fillStyle = "#f7dfac";
-  ctx.fillText("TARSGO  ·  TRAINING V0", FIELD_WIDTH / 2, 35);
+  ctx.fillText("TARSGO  ·  RMUL 2027", FIELD_WIDTH / 2, 42);
   ctx.font = "bold 11px ui-monospace, monospace";
   ctx.fillStyle = "#e3e6d1";
   ctx.fillText(`剩余 ${Math.ceil(MATCH_SECONDS - battle.seconds)} 秒`, FIELD_WIDTH / 2, 54);

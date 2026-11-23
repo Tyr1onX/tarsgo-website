@@ -1,7 +1,9 @@
 // Browser-native port of the simulator's synthetic training-v0 (first-steps.yaml).
 // This intentionally does not implement official RMUC rules.
-export const FIELD_WIDTH = 900;
-export const FIELD_HEIGHT = 520;
+import { FIELD_WIDTH, FIELD_HEIGHT, FIELD_INSET, OBSTACLES, type Point } from "./pixel-jijia-field.ts";
+export { FIELD_WIDTH, FIELD_HEIGHT, OBSTACLES } from "./pixel-jijia-field.ts";
+export type { Point } from "./pixel-jijia-field.ts";
+
 export const MATCH_SECONDS = 150;
 export const ROBOT_RADIUS = 14;
 const SPEED = 190;
@@ -9,10 +11,8 @@ const RANGE = 125;
 const SHOT_INTERVAL = 0.75;
 const SHOT_DAMAGE = 10;
 
-export type Point = { x: number; y: number };
 export type Team = "red" | "blue";
 export type Phase = "ready" | "playing" | "victory" | "defeat" | "draw";
-export type Obstacle = Point & { width: number; height: number };
 export type Robot = Point & {
   id: string;
   team: Team;
@@ -30,22 +30,16 @@ export type Battle = {
   phase: Phase;
 };
 
-export const OBSTACLES: readonly Obstacle[] = [
-  { x: 410, y: 125, width: 80, height: 270 },
-  { x: 235, y: 170, width: 110, height: 32 },
-  { x: 555, y: 318, width: 105, height: 32 },
-];
-
 export function createBattle(): Battle {
   const robot = (id: string, team: Team, x: number, y: number): Robot => ({
     id, team, x, y, hp: 100, route: [], cooldown: 0, rethink: 0,
   });
   return {
     robots: [
-      robot("tarsgo-infantry-1", "red", 120, 210),
-      robot("tarsgo-infantry-2", "red", 120, 310),
-      robot("opponent-infantry-1", "blue", 780, 210),
-      robot("opponent-infantry-2", "blue", 780, 310),
+      robot("tarsgo-infantry-1", "red", 120, 190),
+      robot("tarsgo-infantry-2", "red", 120, 425),
+      robot("opponent-infantry-1", "blue", 780, 190),
+      robot("opponent-infantry-2", "blue", 780, 425),
     ],
     selected: ["tarsgo-infantry-1", "tarsgo-infantry-2"],
     shots: [],
@@ -63,11 +57,22 @@ function distance(a: Point, b: Point) {
 }
 
 export function canStand({ x, y }: Point, radius = ROBOT_RADIUS): boolean {
-  if (x < radius || y < radius || x > FIELD_WIDTH - radius || y > FIELD_HEIGHT - radius) return false;
-  return !OBSTACLES.some((block) => {
-    const dx = x - clamp(x, block.x, block.x + block.width);
-    const dy = y - clamp(y, block.y, block.y + block.height);
-    return dx * dx + dy * dy <= radius * radius;
+  if (x < FIELD_INSET + radius || y < FIELD_INSET + radius ||
+      x > FIELD_WIDTH - FIELD_INSET - radius || y > FIELD_HEIGHT - FIELD_INSET - radius) return false;
+  return !OBSTACLES.some(({ points, bounds }) => {
+    if (x + radius < bounds.x || y + radius < bounds.y ||
+        x - radius > bounds.x + bounds.width || y - radius > bounds.y + bounds.height) return false;
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const a = points[i], b = points[j];
+      if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x)
+        inside = !inside;
+      const t = clamp(((x - a.x) * (b.x - a.x) + (y - a.y) * (b.y - a.y)) /
+        ((b.x - a.x) ** 2 + (b.y - a.y) ** 2), 0, 1);
+      if ((x - a.x - t * (b.x - a.x)) ** 2 + (y - a.y - t * (b.y - a.y)) ** 2 <= radius * radius)
+        return true;
+    }
+    return inside;
   });
 }
 
@@ -80,13 +85,12 @@ function clearSegment(a: Point, b: Point, radius: number): boolean {
   return true;
 }
 
-// The arena has only three rectangular walls. A small visibility graph
-// around their padded corners avoids introducing a full navigation engine.
+// Visibility graph around the STL-derived solid footprints; no navigation dependency.
 export function findRoute(start: Point, goal: Point): Point[] {
   if (!canStand(goal)) return [];
   if (clearSegment(start, goal, ROBOT_RADIUS)) return [{ ...goal }];
   const padding = ROBOT_RADIUS + 5;
-  const corners = OBSTACLES.flatMap((o) => [
+  const corners = OBSTACLES.flatMap(({ bounds: o }) => [
     { x: o.x - padding, y: o.y - padding },
     { x: o.x + o.width + padding, y: o.y - padding },
     { x: o.x - padding, y: o.y + o.height + padding },
