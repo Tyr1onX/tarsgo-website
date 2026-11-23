@@ -6,7 +6,7 @@ export type RoomObject = Rect & {
   id: string;
   title: string;
   description: string;
-  kind: "workbench" | "cabinet" | "machine" | "console" | "exit";
+  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit";
   solid?: boolean;
 };
 export type RoomScene = {
@@ -15,6 +15,7 @@ export type RoomScene = {
   width: number;
   height: number;
   entry: Position;
+  theme: { floor: string; rug: string; wall: string; window: string };
   walls: Rect[];
   objects: RoomObject[];
 };
@@ -25,6 +26,7 @@ export const MECHANICAL_ROOM: RoomScene = {
   width: 36,
   height: 24,
   entry: { x: 18, y: 21 },
+  theme: { floor: "#999b90", rug: "#5a695e", wall: "#334d53", window: "#6faabb" },
   walls: [
     // A central doorway connects two genuinely traversable work areas.
     { x: 17, y: 5, width: 1, height: 6 },
@@ -44,6 +46,97 @@ export const MECHANICAL_ROOM: RoomScene = {
     { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
       title: "返回吉甲小镇", description: "推开工坊大门，回到室外的林荫道路。" },
   ],
+};
+
+const COMMON_ROOM = { width: 36, height: 24, entry: { x: 18, y: 21 } };
+
+export const ROOMS: Record<string, RoomScene> = {
+  mechanical: MECHANICAL_ROOM,
+  honors: {
+    ...COMMON_ROOM, id: "honors", title: "荣誉殿堂 · 赛事记忆",
+    theme: { floor: "#b8a78b", rug: "#75564b", wall: "#5b4043", window: "#f5dca0" },
+    walls: [{ x: 2, y: 13, width: 12, height: 1 }, { x: 22, y: 13, width: 12, height: 1 }],
+    objects: [
+      { id: "trophies", kind: "display", x: 3, y: 7, width: 6, height: 2, solid: true,
+        title: "荣誉展柜", description: "每一个奖杯都属于曾经在训练场上反复试验的队员。荣誉有日期，但成长不会停止。" },
+      { id: "history", kind: "display", x: 25, y: 7, width: 7, height: 2, solid: true,
+        title: "吉甲历史长廊", description: "墙上排列着战队从创立到赛季出征的片段，记录技术和团队一起前进的轨迹。" },
+      { id: "screen", kind: "console", x: 5, y: 17, width: 6, height: 3, solid: true,
+        title: "赛事影像台", description: "在这里可以回顾那些决定胜负的瞬间，以及镜头没有拍下的训练日常。" },
+      { id: "archive", kind: "cabinet", x: 25, y: 17, width: 6, height: 2, solid: true,
+        title: "资料档案室", description: "纸质资料、设计草案和赛事记录被按照年份仔细收存。" },
+      { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+        title: "返回吉甲小镇", description: "走出荣誉殿堂，回到校园道路。" },
+    ],
+  },
+  electrical: {
+    ...COMMON_ROOM, id: "electrical", title: "电控实验室 · 信号与电路",
+    theme: { floor: "#a3adb0", rug: "#4a677a", wall: "#354e66", window: "#92dcf5" },
+    walls: [{ x: 13, y: 5, width: 1, height: 6 }, { x: 13, y: 15, width: 1, height: 5 }],
+    objects: [
+      { id: "solder", kind: "workbench", x: 4, y: 8, width: 6, height: 3, solid: true,
+        title: "电路焊接区", description: "焊台、放大镜与电路板整齐排列。每个焊点都需要耐心和精确。" },
+      { id: "oscilloscope", kind: "console", x: 21, y: 7, width: 8, height: 3, solid: true,
+        title: "示波器与信号台", description: "蓝色屏幕上的波形让原本看不见的电信号有了形状。" },
+      { id: "embedded", kind: "machine", x: 23, y: 16, width: 6, height: 3, solid: true,
+        title: "嵌入式测试台", description: "从开发板到电机控制器，每一次调试都会让机器人更可靠一些。" },
+      { id: "components", kind: "cabinet", x: 4, y: 17, width: 6, height: 2, solid: true,
+        title: "元件收纳柜", description: "电阻、电容和芯片都有自己的编号，方便下一次实验快速找到。" },
+      { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+        title: "返回吉甲小镇", description: "离开实验室，回到户外。" },
+    ],
+  },
+  vision: {
+    ...COMMON_ROOM, id: "vision", title: "视觉观测站 · 感知与识别",
+    theme: { floor: "#a1aeaa", rug: "#476e6c", wall: "#365762", window: "#a3e6cf" },
+    walls: [{ x: 21, y: 5, width: 1, height: 7 }, { x: 21, y: 16, width: 1, height: 4 }],
+    objects: [
+      { id: "camera", kind: "camera", x: 5, y: 8, width: 4, height: 3, solid: true,
+        title: "视觉采集设备", description: "标定板和相机共同决定目标位置。细微的像素误差也会影响识别结果。" },
+      { id: "dataset", kind: "console", x: 11, y: 8, width: 7, height: 3, solid: true,
+        title: "图像数据工作站", description: "画面中的物体被逐帧分析，算法在真实环境中不断修正判断。" },
+      { id: "observe", kind: "display", x: 26, y: 8, width: 6, height: 2, solid: true,
+        title: "观测窗", description: "这里用于观察机器人在试验区的移动和目标跟踪表现。" },
+      { id: "compute", kind: "server", x: 26, y: 16, width: 6, height: 3, solid: true,
+        title: "图像处理计算站", description: "计算资源支持实时图像处理与识别算法的测试。" },
+      { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+        title: "返回吉甲小镇", description: "走出观测站，重新回到自然光线中。" },
+    ],
+  },
+  guild: {
+    ...COMMON_ROOM, id: "guild", title: "冒险者公会 · 招新大厅",
+    theme: { floor: "#b4a38b", rug: "#8e6d4b", wall: "#59443c", window: "#f5d59a" },
+    walls: [{ x: 2, y: 14, width: 12, height: 1 }, { x: 23, y: 14, width: 11, height: 1 }],
+    objects: [
+      { id: "welcome", kind: "reception", x: 13, y: 8, width: 9, height: 3, solid: true,
+        title: "招新接待台", description: "每个来到吉甲的人，都可以从这里了解不同组别的工作和训练生活。" },
+      { id: "board", kind: "display", x: 3, y: 7, width: 7, height: 2, solid: true,
+        title: "活动公告栏", description: "展示近期活动、开放实践日和团队见面安排。" },
+      { id: "events", kind: "workbench", x: 5, y: 17, width: 7, height: 2, solid: true,
+        title: "共创交流桌", description: "不同组别的想法在这里碰撞，一次简单的讨论可能成为下一项实践项目。" },
+      { id: "welcome-wall", kind: "display", x: 25, y: 17, width: 7, height: 2, solid: true,
+        title: "成员故事墙", description: "从第一次参与训练到第一次走上赛场，团队由一段段共同经历组成。" },
+      { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+        title: "返回吉甲小镇", description: "离开公会大厅，回到中央广场。" },
+    ],
+  },
+  ai: {
+    ...COMMON_ROOM, id: "ai", title: "AI 研究所 · 自主决策",
+    theme: { floor: "#a0a5bc", rug: "#565e8b", wall: "#414b70", window: "#accdf8" },
+    walls: [{ x: 18, y: 5, width: 1, height: 5 }, { x: 18, y: 14, width: 1, height: 6 }],
+    objects: [
+      { id: "models", kind: "server", x: 4, y: 7, width: 6, height: 3, solid: true,
+        title: "模型计算集群", description: "感知、预测和规划模型在这里进行推理与验证。" },
+      { id: "planning", kind: "console", x: 24, y: 7, width: 8, height: 3, solid: true,
+        title: "自主决策工作站", description: "从环境理解到行为选择，系统需要在有限时间内做出可靠判断。" },
+      { id: "strategy", kind: "workbench", x: 5, y: 16, width: 7, height: 2, solid: true,
+        title: "战术讨论台", description: "策略从假设开始，经仿真、推演与实际对抗不断优化。" },
+      { id: "simulation", kind: "console", x: 25, y: 16, width: 7, height: 3, solid: true,
+        title: "战术演练终端", description: "当前像素世界的战术演练入口也属于 AI 研究所的一部分。" },
+      { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+        title: "返回吉甲小镇", description: "从研究所走回小镇。" },
+    ],
+  },
 };
 
 export function isRoomWalkable(room: RoomScene, x: number, y: number): boolean {
@@ -72,31 +165,33 @@ export function renderRoomTerrain(room: RoomScene): HTMLCanvasElement {
   canvas.height = room.height * TILE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("室内画布不可用");
-  ctx.fillStyle = "#24333a";
+  ctx.fillStyle = room.theme.wall;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   for (let y = 5; y < room.height; y++) {
     for (let x = 0; x < room.width; x++) {
-      ctx.fillStyle = (x * 7 + y * 11) % 9 === 0 ? "#89928a" : "#999b90";
+      ctx.fillStyle = (x * 7 + y * 11) % 9 === 0 ? "#b9b6ab" : room.theme.floor;
       ctx.fillRect(x * TILE, y * TILE, TILE - 1, TILE - 1);
       ctx.fillStyle = "#adb1a3";
       ctx.fillRect(x * TILE + 2, y * TILE + 2, 2, 2);
     }
   }
   // Distinct workshop and review-room floor treatment, with no floor collider mismatch.
-  ctx.fillStyle = "#5a695e";
+  ctx.fillStyle = room.theme.rug;
   ctx.fillRect(20 * TILE, 5 * TILE, 14 * TILE, 14 * TILE);
   for (let y = 6; y < 19; y++) for (let x = 20; x < 34; x++) {
-    ctx.fillStyle = (x + y) % 2 ? "#68776c" : "#718076";
+    ctx.fillStyle = room.theme.rug;
+    ctx.globalAlpha = (x + y) % 2 ? 0.75 : 0.9;
     ctx.fillRect(x * TILE, y * TILE, 15, 15);
   }
-  ctx.fillStyle = "#334d53";
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = room.theme.wall;
   ctx.fillRect(0, 0, canvas.width, 5 * TILE);
   ctx.fillStyle = "#5e7677";
   ctx.fillRect(0, 4 * TILE - 5, canvas.width, 5);
   for (const x of [3, 13, 23, 31]) {
     ctx.fillStyle = "#182c3b";
     ctx.fillRect(x * TILE, TILE, 3 * TILE, 2 * TILE);
-    ctx.fillStyle = "#6faabb";
+    ctx.fillStyle = room.theme.window;
     ctx.fillRect(x * TILE + 4, TILE + 4, 3 * TILE - 8, 2 * TILE - 8);
     ctx.fillStyle = "#d0d1b2";
     ctx.fillRect(x * TILE + 13, TILE + 4, 4, 2 * TILE - 8);
@@ -133,6 +228,47 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
     for (let i = 1; i < object.width; i++) ctx.fillRect(x + i * TILE, y - 25, 2, h + 23);
     ctx.fillStyle = "#b9d5d4";
     ctx.fillRect(x + 6, y - 16, w - 12, 5);
+  } else if (object.kind === "display") {
+    ctx.fillStyle = "#916e4b";
+    ctx.fillRect(x, y - 29, w, h + 29);
+    ctx.fillStyle = "#273f47";
+    ctx.fillRect(x + 5, y - 23, w - 10, 25);
+    for (let i = 0; i < Math.max(1, object.width - 2); i += 2) {
+      ctx.fillStyle = "#e6c37e";
+      ctx.fillRect(x + 11 + i * TILE, y - 17, 9, 12);
+      ctx.fillRect(x + 13 + i * TILE, y - 21, 5, 4);
+    }
+    ctx.fillStyle = "#c8e4dd";
+    ctx.fillRect(x + 5, y - 23, w - 10, 2);
+  } else if (object.kind === "camera") {
+    ctx.fillStyle = "#345566";
+    ctx.fillRect(x + w / 2 - 7, y - 30, 14, 29);
+    ctx.fillStyle = "#aec1b5";
+    ctx.fillRect(x + w / 2 - 18, y - 35, 36, 16);
+    ctx.fillStyle = "#64b4d4";
+    ctx.fillRect(x + w / 2 - 3, y - 32, 12, 10);
+    ctx.fillStyle = "#c5ac73";
+    ctx.fillRect(x + 7, y, w - 14, 5);
+  } else if (object.kind === "server") {
+    ctx.fillStyle = "#33445c";
+    ctx.fillRect(x, y - 37, w, h + 37);
+    for (let i = 0; i < object.width; i += 2) {
+      ctx.fillStyle = "#64778f";
+      ctx.fillRect(x + 5 + i * TILE, y - 32, 24, h + 29);
+      for (let j = 0; j < 3; j++) {
+        ctx.fillStyle = j === 1 ? "#b9e59d" : "#71c6e5";
+        ctx.fillRect(x + 9 + i * TILE, y - 25 + j * 12, 5, 3);
+      }
+    }
+  } else if (object.kind === "reception") {
+    ctx.fillStyle = "#896248";
+    ctx.fillRect(x, y - 18, w, h + 18);
+    ctx.fillStyle = "#d6a16b";
+    ctx.fillRect(x - 3, y - 23, w + 6, 11);
+    ctx.fillStyle = "#f6db9a";
+    ctx.fillRect(x + 12, y - 20, w - 24, 4);
+    ctx.fillStyle = "#547d7d";
+    ctx.fillRect(x + 8, y + 8, w - 16, 10);
   } else if (object.kind === "console") {
     ctx.fillStyle = "#665d53";
     ctx.fillRect(x, y, w, h);

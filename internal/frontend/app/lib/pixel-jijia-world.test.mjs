@@ -309,12 +309,31 @@ test("机械工坊具备可通行室内、独立功能区与真实进出闭环",
   assert.ok(world.includes("walkable: (x: number, y: number) => boolean = isWalkable"));
   assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting,"));
   assert.ok(route.includes("renderRoomScene(ctx, roomTerrain, room, character"));
-  assert.ok(route.includes("cameraRef.current = cameraAt(MECHANICAL_ROOM.entry"));
+  assert.ok(route.includes("cameraRef.current = cameraAt(destination.entry"));
   assert.ok(route.includes('canvas.dataset.scene = room?.id ?? "outdoor"'));
   assert.ok(route.includes("if (object.kind === \"exit\") exitRoom()"));
-  assert.ok(route.includes("onClick={enterRoom}"));
+  assert.ok(route.includes("onClick={() => enterRoom(selected.id)}"));
   assert.ok(route.includes("setRoomId(null)"));
   assert.ok(route.includes("{!room && <aside"));
+});
+
+test("六栋建筑都有不同的可进入室内与独立设备，不复制人物控制器", () => {
+  const source = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(source.includes("export const ROOMS: Record<string, RoomScene>"));
+  for (const id of PLACES.map(place => place.id)) {
+    assert.ok(source.includes(`  ${id}: {`) || (id === "mechanical" && source.includes("mechanical: MECHANICAL_ROOM")),
+      `缺少 ${id} 的室内布局`);
+  }
+  for (const kind of ["display", "camera", "server", "reception"]) {
+    assert.ok(source.includes(`kind: "${kind}"`), `缺少 ${kind} 类型设施`);
+  }
+  assert.ok(route.includes("Object.values(ROOMS).map(room => [room.id, renderRoomTerrain(room)])"));
+  assert.ok(route.includes("const destination = ROOMS[placeId]"));
+  assert.ok(route.includes("const place = PLACES.find(p => p.id === roomId)"));
+  assert.ok(route.includes("onClick={() => enterRoom(selected.id)}"));
+  assert.equal(source.split("export function renderRoomScene(").length, 2,
+    "所有室内必须复用同一个渲染入口");
 });
 
 test("环境粒子使用统一世界坐标与现有动画循环，数量受控", () => {

@@ -7,7 +7,7 @@ import {
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
-import { MECHANICAL_ROOM, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOMS, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -55,7 +55,7 @@ export default function PixelJijiaPage() {
   const sprintTouchRef = useRef(false);
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
-  const roomTerrainRef = useRef<HTMLCanvasElement | null>(null);
+  const roomTerrainRef = useRef<Record<string, HTMLCanvasElement>>({});
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
@@ -73,7 +73,7 @@ export default function PixelJijiaPage() {
   const [storyActivated, setStoryActivated] = useState(false);
   const [seated, setSeated] = useState<Scenery | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const room = roomId === MECHANICAL_ROOM.id ? MECHANICAL_ROOM : null;
+  const room = roomId ? ROOMS[roomId] ?? null : null;
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -104,24 +104,24 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   };
 
-  const enterRoom = useCallback(() => {
-    const place = closestPlace(playerRef.current);
-    if (place?.id !== MECHANICAL_ROOM.id) return;
-    playerRef.current = { ...MECHANICAL_ROOM.entry };
+  const enterRoom = useCallback((placeId: string) => {
+    const destination = ROOMS[placeId];
+    if (!destination || closestPlace(playerRef.current)?.id !== placeId) return;
+    playerRef.current = { ...destination.entry };
     const canvas = canvasRef.current;
-    if (canvas) cameraRef.current = cameraAt(MECHANICAL_ROOM.entry, canvas.width, canvas.height,
-      MECHANICAL_ROOM.width * TILE, MECHANICAL_ROOM.height * TILE);
+    if (canvas) cameraRef.current = cameraAt(destination.entry, canvas.width, canvas.height,
+      destination.width * TILE, destination.height * TILE);
     keysRef.current.clear();
     touchRef.current.clear();
     setSeated(null);
-    setRoomId(MECHANICAL_ROOM.id);
+    setRoomId(placeId);
     setSelectedRoom(null);
     setMapOpen(false);
     selectPlace(null);
   }, [selectPlace]);
 
   const exitRoom = useCallback(() => {
-    const place = PLACES.find(p => p.id === MECHANICAL_ROOM.id);
+    const place = PLACES.find(p => p.id === roomId);
     if (!place) return;
     playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
     const canvas = canvasRef.current;
@@ -130,7 +130,7 @@ export default function PixelJijiaPage() {
     touchRef.current.clear();
     setSelectedRoom(null);
     setRoomId(null);
-  }, []);
+  }, [roomId]);
 
   const resizeCanvas = useCallback(() => {
     const stage = stageRef.current, canvas = canvasRef.current;
@@ -198,7 +198,8 @@ export default function PixelJijiaPage() {
         propsRef.current = environment;
         terrainRef.current = renderTerrain(ground);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
-        roomTerrainRef.current = renderRoomTerrain(MECHANICAL_ROOM);
+        roomTerrainRef.current = Object.fromEntries(
+          Object.values(ROOMS).map(room => [room.id, renderRoomTerrain(room)]));
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -249,11 +250,11 @@ export default function PixelJijiaPage() {
         }
         if (seated) { event.preventDefault(); standUp(); return; }
         const place = closestFeature(playerRef.current);
-        if (place && "href" in place && place.id === MECHANICAL_ROOM.id &&
+        if (place && "href" in place && ROOMS[place.id] &&
             Math.hypot(playerRef.current.x - place.x - place.width / 2,
               playerRef.current.y - place.y - place.height - 0.8) < 1.8) {
           event.preventDefault();
-          enterRoom();
+          enterRoom(place.id);
         } else if (place) { event.preventDefault(); selectPlace(place); }
         return;
       }
@@ -292,7 +293,7 @@ export default function PixelJijiaPage() {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
     const minimap = miniRef.current, terrain = terrainRef.current, preview = previewRef.current;
-    const roomTerrain = roomTerrainRef.current;
+    const roomTerrain = room ? roomTerrainRef.current[room.id] : null;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
     if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props || (room && !roomTerrain)) return;
@@ -603,10 +604,10 @@ export default function PixelJijiaPage() {
               disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
               onClick={() => sitDown(selected)}>坐下</button>
           )}
-          {"href" in selected && selected.id === MECHANICAL_ROOM.id && (
+          {"href" in selected && ROOMS[selected.id] && (
             <button type="button" className="pixel-world-detail-link"
-              disabled={closestPlace(playerRef.current)?.id !== MECHANICAL_ROOM.id}
-              onClick={enterRoom}>进入机械工坊</button>
+              disabled={closestPlace(playerRef.current)?.id !== selected.id}
+              onClick={() => enterRoom(selected.id)}>进入{selected.title}</button>
           )}
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
@@ -623,7 +624,7 @@ export default function PixelJijiaPage() {
         aria-label={selectedRoom.title} aria-modal="false">
         <button type="button" className="pixel-world-detail-close" aria-label="关闭介绍"
           onClick={() => setSelectedRoom(null)}>×</button>
-        <span className="pixel-world-detail-eyebrow">MECHANICAL · INTERIOR</span>
+        <span className="pixel-world-detail-eyebrow">{room?.title ?? "INDOOR SPACE"}</span>
         <h1>{selectedRoom.title}</h1>
         <p>{selectedRoom.description}</p>
       </section>}
