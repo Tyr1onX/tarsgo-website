@@ -373,6 +373,7 @@ export default function PixelJijiaPage() {
           <h1>{featureTitle(selected)}</h1>
           <p>{"href" in selected ? selected.description : selected.story?.description}</p>
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
+          {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
         </section>
       )}
     </main>

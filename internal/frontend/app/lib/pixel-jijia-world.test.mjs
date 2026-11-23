@@ -9,6 +9,7 @@ import {
 
 test("六个场景均有独立地址与可用官网入口", () => {
   assert.equal(PLACES.length, 6);
+  assert.equal(PLACES.find((place) => place.id === "ai")?.href, "/pixel-jijia/battle");
   assert.equal(new Set(PLACES.map((p) => p.id)).size, 6);
   for (const place of PLACES) {
     assert.match(place.href, /^\/(?!\/)/);
