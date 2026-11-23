@@ -1,164 +1,182 @@
-"""Reproducible, seam-aware pixel ground for Pixel Jijia.
+"""Extract an original image-generated terrain sheet into seamless RPG ground sprites.
 
-Create original structured flagstone, brick-path, grass and water textures.
-No runtime or Python third-party dependencies.
-Usage: python3 scripts/generate-pixel-ground.py
+Run: python3 scripts/generate-pixel-ground.py
+Only Python's standard library is required. The source artwork lives in
+scripts/assets/pixel-ground-source.png; no generated rectangles replace it.
 """
 from pathlib import Path
-import random
 import struct
 import zlib
 
-PATCH = 64
-STEP = 16
-VARIANTS = 3
+PATCH = 128
+TILE = 16
 MATERIALS = ("grass", "soil", "stone", "water")
-WIDTH, HEIGHT = PATCH * VARIANTS, PATCH * len(MATERIALS) + STEP
-canvas = bytearray(WIDTH * HEIGHT * 4)
-
-BASE = {
-    "grass": (119, 158, 109),
-    "soil": (208, 191, 163),
-    "stone": (175, 174, 180),
-    "water": (81, 157, 173),
-}
+SOURCE = Path(__file__).parent / "assets/pixel-ground-source.png"
+DESTINATION = Path(__file__).resolve().parents[1] / "public/assets/pixel-jijia/ground-tiles.png"
 
 
-def put(x, y, color, a=255):
-    if 0 <= x < WIDTH and 0 <= y < HEIGHT:
-        i = (y * WIDTH + x) * 4
-        canvas[i:i + 4] = bytes((*color, a))
-
-
-def rectangle(x, y, w, h, color, a=255):
-    for yy in range(max(0, y), min(HEIGHT, y + h)):
-        for xx in range(max(0, x), min(WIDTH, x + w)):
-            put(xx, yy, color, a)
-
-
-def tint(rgb, delta):
-    return tuple(max(0, min(255, value + delta)) for value in rgb)
-
-
-for material_index, kind in enumerate(MATERIALS):
-    top = material_index * PATCH
-    for variant in range(VARIANTS):
-        left = variant * PATCH
-        rng = random.Random(713 + material_index * 221 + variant * 41)
-        rectangle(left, top, PATCH, PATCH, BASE[kind])
-
-        if kind == "grass":
-            # Two greens and a few clover-like tufts, with wide uninterrupted grass.
-            for _ in range(14):
-                x, y = rng.randrange(5, 57), rng.randrange(5, 57)
-                dark = rng.choice([(103, 148, 97), (109, 151, 102), (139, 169, 119)])
-                rectangle(left + x, top + y, rng.randrange(2, 6), rng.randrange(1, 3), dark)
-                if rng.random() < .35:
-                    put(left + x + 2, top + y - 2, (158, 182, 135))
-            for _ in range(5):
-                x, y = rng.randrange(7, 55), rng.randrange(8, 55)
-                put(left + x, top + y + 1, (84, 136, 91))
-                put(left + x + 1, top + y, (157, 186, 139))
-                put(left + x + 2, top + y + 2, (95, 141, 89))
-            if variant != 1:
-                x, y = rng.randrange(9, 52), rng.randrange(9, 52)
-                put(left + x, top + y, (232, 196, 150))
-                put(left + x + 1, top + y - 1, (248, 215, 170))
-                put(left + x + 2, top + y, (232, 196, 150))
-                put(left + x + 1, top + y + 1, (104, 142, 94))
-
-        elif kind in ("soil", "stone"):
-            # Repeating mortar geometry gives an intentional rhythm; variants only
-            # change sparse wear marks, so cross-patch joints always align.
-            if kind == "soil":
-                mortar, brick, width, height = (164, 147, 126), (212, 192, 162), 32, 16
+def read_rgb_png(path):
+    """Read 8-bit RGB PNGs, including all five standard row filters."""
+    data = path.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", "Expected PNG source artwork"
+    chunks = []
+    pos = 8
+    width = height = 0
+    while pos < len(data):
+        size = int.from_bytes(data[pos:pos + 4], "big")
+        kind = data[pos + 4:pos + 8]
+        content = data[pos + 8:pos + 8 + size]
+        if kind == b"IHDR":
+            width, height, depth, color, _, _, _ = struct.unpack(">IIBBBBB", content)
+            assert depth == 8 and color == 2, "Expected 8-bit RGB PNG"
+        elif kind == b"IDAT":
+            chunks.append(content)
+        pos += 12 + size
+    stream = zlib.decompress(b"".join(chunks))
+    stride = width * 3
+    rows = []
+    position = 0
+    last = bytearray(stride)
+    for _ in range(height):
+        method = stream[position]
+        row = bytearray(stream[position + 1:position + 1 + stride])
+        position += 1 + stride
+        for i in range(stride):
+            a = row[i - 3] if i >= 3 else 0
+            b = last[i]
+            c = last[i - 3] if i >= 3 else 0
+            if method == 1:
+                row[i] = (row[i] + a) & 255
+            elif method == 2:
+                row[i] = (row[i] + b) & 255
+            elif method == 3:
+                row[i] = (row[i] + (a + b) // 2) & 255
+            elif method == 4:
+                p = a + b - c
+                nearest = min((a, b, c), key=lambda q: abs(p - q))
+                # Ties follow PNG Paeth order: left, above, upper-left.
+                row[i] = (row[i] + nearest) & 255
             else:
-                mortar, brick, width, height = (130, 130, 142), (181, 181, 188), 32, 32
-            rectangle(left, top, PATCH, PATCH, mortar)
-            for row in range(PATCH // height):
-                offset = 0 if row % 2 == 0 else -(width // 2)
-                for col in range(-1, PATCH // width + 2):
-                    x = col * width + offset
-                    y = row * height
-                    # Shared geometry across variants; random tints are only interior details.
-                    base = tint(brick, ((col * 5 + row * 7) % 5 - 2) * 2)
-                    # Clip to 64x64 patch so other material strips never receive pixels.
-                    for yy in range(max(0, y + 2), min(PATCH, y + height - 1)):
-                        for xx in range(max(0, x + 1), min(PATCH, x + width - 1)):
-                            color = base
-                            if yy == y + 2:
-                                color = tint(base, 13)
-                            elif yy == y + height - 2:
-                                color = tint(base, -11)
-                            elif xx == x + 1:
-                                color = tint(base, -9)
-                            put(left + xx, top + yy, color)
-            # Modest pixel wear / subtle chipped corners within stones, not pixel snow.
-            for _ in range(13 if kind == "soil" else 10):
-                x, y = rng.randrange(4, 60), rng.randrange(4, 60)
-                i = (top + y) * WIDTH * 4 + (left + x) * 4
-                if tuple(canvas[i:i + 3]) == mortar:
-                    continue
-                color = tint(tuple(canvas[i:i + 3]), rng.choice((-14, -9, 10, 15)))
-                rectangle(left + x, top + y, rng.randrange(1, 4), 1, color)
-
-        else:
-            # Turquoise bands with spaced original 2-3px highlights.
-            for _ in range(12):
-                x, y = rng.randrange(5, 53), rng.randrange(5, 59)
-                length = rng.randrange(4, 12)
-                color = rng.choice([(95, 172, 184), (111, 190, 197), (63, 136, 158)])
-                rectangle(left + x, top + y, length, 2, color)
-                if rng.random() < .5:
-                    rectangle(left + x + 2, top + y - 1, length - 3, 1, (143, 206, 206))
-
-        # All patch variations have exactly the same outer pixel frame.
-        # This avoids a hard seam when adjacent map chunks choose different variants.
-        if kind in ("grass", "water"):
-            for i in range(PATCH):
-                put(left + i, top, BASE[kind])
-                put(left + i, top + PATCH - 1, BASE[kind])
-                put(left, top + i, BASE[kind])
-                put(left + PATCH - 1, top + i, BASE[kind])
+                assert method == 0, f"Unknown PNG filter {method}"
+        rows.append(row)
+        last = row
+    return width, height, rows
 
 
-# Overlay sprites with transparent backgrounds: 3 terrains x 4 facing edges.
-# They appear only where material type changes, never between equal tiles.
-EDGE_COLORS = {
-    "soil": ((159, 142, 117), (232, 215, 187)),
-    "stone": ((122, 120, 133), (202, 201, 204)),
-    "water": ((46, 118, 145), (143, 202, 207)),
-}
-for kind_index, kind in enumerate(MATERIALS[1:]):
-    outer, inner = EDGE_COLORS[kind]
-    for side in range(4):
-        left = (kind_index * 4 + side) * STEP
-        top = PATCH * len(MATERIALS)
-        for t in range(STEP):
-            # Four discrete orientations: top, bottom, left, right.
-            if side == 0:
-                points = ((t, 0), (t, 1))
-            elif side == 1:
-                points = ((t, STEP - 1), (t, STEP - 2))
-            elif side == 2:
-                points = ((0, t), (1, t))
-            else:
-                points = ((STEP - 1, t), (STEP - 2, t))
-            for n, (x, y) in enumerate(points):
-                put(left + x, top + y, outer if n == 0 else inner, 225 if n == 0 else 115)
+def chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
 
 
-def chunk(tag, data):
-    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+def pixel(rows, width, x, y):
+    start = x * 3
+    return rows[y][start:start + 3]
 
 
-raw = b"".join(b"\0" + bytes(canvas[y * WIDTH * 4:(y + 1) * WIDTH * 4]) for y in range(HEIGHT))
-image = (
-    b"\x89PNG\r\n\x1a\n"
-    + chunk(b"IHDR", struct.pack(">IIBBBBB", WIDTH, HEIGHT, 8, 6, 0, 0, 0))
-    + chunk(b"IDAT", zlib.compress(raw, 9))
-    + chunk(b"IEND", b"")
-)
-output = Path(__file__).resolve().parents[1] / "public/assets/pixel-jijia/ground-tiles.png"
-output.write_bytes(image)
-print(f"Generated {output.name}: {WIDTH}x{HEIGHT}, {len(image)} bytes")
+def smooth(value):
+    return value * value * (3 - 2 * value)
+
+
+def make_tile(rows, width, ox, oy):
+    """Art-derived periodic tile: join opposite edges from adjacent source pixels."""
+    colors = []
+    overlap = 30
+    for y in range(PATCH):
+        vertical = smooth((overlap - 1 - y) / (overlap - 1)) if y < overlap else 0
+        for x in range(PATCH):
+            horizontal = smooth((overlap - 1 - x) / (overlap - 1)) if x < overlap else 0
+            samples = [
+                (pixel(rows, width, ox + x, oy + y), (1 - horizontal) * (1 - vertical)),
+                (pixel(rows, width, ox + x + PATCH, oy + y), horizontal * (1 - vertical)) if x < overlap else (b"\0\0\0", 0),
+                (pixel(rows, width, ox + x, oy + y + PATCH), (1 - horizontal) * vertical) if y < overlap else (b"\0\0\0", 0),
+                (pixel(rows, width, ox + x + PATCH, oy + y + PATCH), horizontal * vertical) if x < overlap and y < overlap else (b"\0\0\0", 0),
+            ]
+            colors.append(tuple(round(sum(rgb[c] * weight for rgb, weight in samples)) for c in range(3)))
+    # Copy a shared 1px periodic border to opposite sides; every variant keeps it.
+    for y in range(PATCH):
+        a = colors[y * PATCH]
+        b = colors[y * PATCH + PATCH - 1]
+        center = tuple(round((u + v) / 2) for u, v in zip(a, b))
+        colors[y * PATCH] = colors[y * PATCH + PATCH - 1] = center
+    for x in range(PATCH):
+        a = colors[x]
+        b = colors[(PATCH - 1) * PATCH + x]
+        center = tuple(round((u + v) / 2) for u, v in zip(a, b))
+        colors[x] = colors[(PATCH - 1) * PATCH + x] = center
+    return colors
+
+
+def shade(rgb, factor):
+    return tuple(max(0, min(255, round(v * factor))) for v in rgb)
+
+
+def color_grade(material, rgb):
+    # Match the quieter campus-game palette while retaining image-generated detail.
+    centers = ((99, 162, 76), (215, 189, 166), (155, 161, 182), (47, 177, 192))
+    targets = ((93, 142, 92), (204, 186, 165), (153, 154, 164), (66, 158, 179))
+    contrast = (.78, .93, .92, .87)[material]
+    return tuple(max(0, min(255, round((v - center) * contrast + target)))
+                 for v, center, target in zip(rgb, centers[material], targets[material]))
+
+
+def main():
+    width, height, source = read_rgb_png(SOURCE)
+    assert (width, height) == (512, 512), "Expected 512×512 original art source"
+    W, H = PATCH * 3, PATCH * len(MATERIALS) + TILE
+    atlas = bytearray(W * H * 4)
+
+    def set_pixel(x, y, rgb, alpha=255):
+        index = (y * W + x) * 4
+        atlas[index:index + 4] = bytes((*rgb, alpha))
+
+    tile_bases = []
+    for material, kind in enumerate(MATERIALS):
+        qx, qy = (material % 2) * 256, (material // 2) * 256
+        offset_x, offset_y = ((11, 17), (21, 10), (13, 15), (9, 21))[material]
+        base = make_tile(source, width, qx + 5 + offset_x, qy + 5 + offset_y)
+        tile_bases.append(base)
+        for variant in range(3):
+            for y in range(PATCH):
+                for x in range(PATCH):
+                    rgb = base[y * PATCH + x]
+                    if variant and 23 <= x < 105 and 23 <= y < 105:
+                        start_x, start_y = ((0, 0), (70, 38), (27, 50))[variant]
+                        detail = pixel(source, width, qx + start_x + x, qy + start_y + y)
+                        feather = max(0, min((x - 22) / 18, (105 - x) / 18, (y - 22) / 18, (105 - y) / 18, 1))
+                        strength = (.22 if kind in ("grass", "water") else .12) * feather
+                        rgb = tuple(round(a * (1 - strength) + b * strength) for a, b in zip(rgb, detail))
+                    set_pixel(variant * PATCH + x, material * PATCH + y, color_grade(material, rgb))
+
+    # Material edges use tonal samples from the generated art rather than painted CSS colors.
+    for material in range(1, len(MATERIALS)):
+        mid = color_grade(material, tile_bases[material][PATCH * 40 + 40])
+        dark = shade(mid, .74 if material < 3 else .68)
+        light = shade(mid, 1.13)
+        for direction in range(4):
+            left = ((material - 1) * 4 + direction) * TILE
+            top = PATCH * len(MATERIALS)
+            for t in range(TILE):
+                for line in range(2):
+                    if direction == 0:
+                        x, y = t, line
+                    elif direction == 1:
+                        x, y = t, TILE - 1 - line
+                    elif direction == 2:
+                        x, y = line, t
+                    else:
+                        x, y = TILE - 1 - line, t
+                    set_pixel(left + x, top + y, dark if line == 0 else light, 225 if line == 0 else 125)
+
+    raw = b"".join(b"\0" + atlas[y * W * 4:(y + 1) * W * 4] for y in range(H))
+    output = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", W, H, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b"")
+    )
+    DESTINATION.parent.mkdir(parents=True, exist_ok=True)
+    DESTINATION.write_bytes(output)
+    print(f"{DESTINATION.name}: {W}×{H}, {len(output)} bytes; based on {SOURCE.name}")
+
+
+if __name__ == "__main__":
+    main()
