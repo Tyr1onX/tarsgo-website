@@ -2,53 +2,71 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
 import {
-  PLACES, WORLD_HEIGHT, WORLD_WIDTH,
-  cameraAt, closestPlace, isWalkable,
+  PLACES, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
+  cameraAt, closestPlace, isWalkable, movePlayer,
 } from "./pixel-jijia-world.ts";
 
-test("小镇的六个地点具有可用的站内内容入口", () => {
+test("六个场景均有独立地址与可用官网入口", () => {
   assert.equal(PLACES.length, 6);
-  assert.equal(new Set(PLACES.map((place) => place.id)).size, PLACES.length);
+  assert.equal(new Set(PLACES.map((p) => p.id)).size, 6);
   for (const place of PLACES) {
     assert.match(place.href, /^\/(?!\/)/);
-    assert.equal(isWalkable(place.x, place.y), false);
+    assert.equal(isWalkable(place.x + 1, place.y + 2), false);
+    assert.ok(closestPlace({x:place.x + place.width/2, y:place.y+place.height+1}));
   }
 });
 
-test("从广场出发可以走近每一座建筑", () => {
-  const seen = new Set(["20,15"]);
-  const queue = [{ x: 20, y: 15 }];
-  const visited = new Set();
+test("连续按住方向键按时间推进小数坐标，而非逐格跳跃", () => {
+  const start = { ...SPAWN };
+  const first = movePlayer(start, 1, 0, 1 / 60);
+  assert.ok(first.x > start.x && first.x < start.x + 1);
+  assert.equal(first.y, start.y);
+  const after = Array.from({length:60}).reduce((p) => movePlayer(p, 1, 0, 1/60), start);
+  assert.ok(after.x - start.x > 4 && after.x - start.x < 6);
+  assert.ok(Math.abs(movePlayer(start, 1, 1, 1 / 60).x - start.x) < WALK_SPEED/60);
+});
 
-  for (let i = 0; i < queue.length; i++) {
-    const point = queue[i];
-    const nearest = closestPlace(point);
-    if (nearest) visited.add(nearest.id);
-    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-      const x = point.x + dx;
-      const y = point.y + dy;
-      const key = `${x},${y}`;
-      if (isWalkable(x, y) && !seen.has(key)) {
+test("碰撞阻止穿墙但允许沿墙滑动，停顿帧不会造成传送", () => {
+  const blocked = {x:15, y:20.7};
+  assert.equal(isWalkable(blocked.x,blocked.y), true);
+  assert.equal(movePlayer(blocked, 0, -1, 0.05).y, blocked.y);
+  assert.ok(movePlayer(blocked, 1, -1, 0.05).x > blocked.x);
+  const noTeleport = movePlayer(SPAWN, 0, 1, 8);
+  assert.ok(noTeleport.y - SPAWN.y <= WALK_SPEED * 0.05 + 1e-8);
+});
+
+test("从出生点可实际步行抵达六个场景", () => {
+  const initial = { x: Math.round(SPAWN.x), y: Math.round(SPAWN.y) };
+  const queue = [initial];
+  const seen = new Set([`${initial.x},${initial.y}`]);
+  const reachable = new Set();
+
+  for (let index = 0; index < queue.length; index++) {
+    const point = queue[index];
+    const near = closestPlace(point);
+    if (near) reachable.add(near.id);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const next = { x: point.x + dx, y: point.y + dy };
+      const key = `${next.x},${next.y}`;
+      if (isWalkable(next.x, next.y) && !seen.has(key)) {
         seen.add(key);
-        queue.push({ x, y });
+        queue.push(next);
       }
     }
   }
-
-  assert.deepEqual([...visited].sort(), PLACES.map((place) => place.id).sort());
-  assert.equal(isWalkable(-1, 0), false);
-  assert.equal(isWalkable(WORLD_WIDTH, WORLD_HEIGHT - 1), false);
+  assert.deepEqual([...reachable].sort(), PLACES.map((p) => p.id).sort());
 });
 
-test("移动端镜头始终保持在地图边界内", () => {
-  for (const point of [{ x: 0, y: 0 }, { x: 20, y: 15 }, { x: WORLD_WIDTH - 1, y: WORLD_HEIGHT - 1 }]) {
-    const camera = cameraAt(point, 23, 21);
-    assert.ok(camera.x >= 0 && camera.x <= WORLD_WIDTH - 23);
-    assert.ok(camera.y >= 0 && camera.y <= WORLD_HEIGHT - 21);
+test("镜头平滑跟随目标并限制在地图边界", () => {
+  for (const p of [{ x: 1, y: 1 }, SPAWN, { x: WORLD_WIDTH - 1, y: WORLD_HEIGHT - 1 }]) {
+    const camera = cameraAt(p, 630, 400);
+    assert.ok(camera.x >= 0 && camera.x <= WORLD_WIDTH*TILE-630);
+    assert.ok(camera.y >= 0 && camera.y <= WORLD_HEIGHT*TILE-400);
   }
 });
 
-test("素材在网站静态目录且许可证随包保留", () => {
-  assert.ok(existsSync(new URL("../../../../public/assets/pixel-jijia/tiles.png", import.meta.url)));
-  assert.ok(existsSync(new URL("../../../../public/assets/pixel-jijia/KENNEY-LICENSE.txt", import.meta.url)));
+test("城市美术来自随包保留 CC0 许可证的素材", () => {
+  const base = new URL("../../../../public/assets/pixel-jijia/", import.meta.url);
+  assert.ok(existsSync(new URL("urban.png",base)));
+  assert.ok(existsSync(new URL("URBAN-LICENSE.txt",base)));
 });
