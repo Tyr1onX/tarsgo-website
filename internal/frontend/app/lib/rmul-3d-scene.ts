@@ -1,264 +1,162 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { CAD_MODELS, type CadModelId } from "./rmul-3d-cad-assets";
 
-import { FACILITIES, type FacilityId } from "./rmul-3d-facilities";
-
-// The STL is the original user-provided mesh, verified against Git blob
-// 4b35550ad7fc552ed76479ef01a7529b2598bd38 (3811 triangles).
-// Facilities are schematic references, not models extracted from that STL.
-const MODEL_URL = "/assets/pixel-jijia/rmul_2027.stl";
-const center = (x: number, z: number) => new THREE.Vector3(x - 6.3, 0, z - 4.3);
-const palette = {
-  red: { body: 0xad383e, bright: 0xff736a },
-  blue: { body: 0x325ea6, bright: 0x78bdff },
-};
-const steel = new THREE.MeshStandardMaterial({ color: 0x4c6168, metalness: .55, roughness: .42 });
-const charcoal = new THREE.MeshStandardMaterial({ color: 0x26363c, metalness: .7, roughness: .34 });
-const sand = new THREE.MeshStandardMaterial({ color: 0xbdb2a0, roughness: .88 });
-
-function part(group: THREE.Group, geometry: THREE.BufferGeometry, material: THREE.Material,
-  x: number, y: number, z: number) {
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  group.add(mesh);
-  return mesh;
-}
-function block(group: THREE.Group, width: number, height: number, depth: number,
-  x: number, y: number, z: number, material: THREE.Material) {
-  return part(group, new THREE.BoxGeometry(width, height, depth), material, x, y, z);
-}
-function cylinder(group: THREE.Group, top: number, bottom: number, height: number,
-  x: number, y: number, z: number, material: THREE.Material, radial = 8) {
-  return part(group, new THREE.CylinderGeometry(top, bottom, height, radial),
-    material, x, y, z);
-}
-function ring(group: THREE.Group, radius: number, color: number, y: number, thickness = .03) {
-  const mesh = part(group, new THREE.TorusGeometry(radius, thickness, 6, 48),
-    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .35 }),
-    0, y, 0);
-  mesh.rotation.x = Math.PI / 2;
-}
-
-function baseModel(group: THREE.Group, color: { body: number; bright: number }) {
-  const body = new THREE.MeshStandardMaterial({ color: color.body, metalness: .44, roughness: .38 });
-  const light = new THREE.MeshStandardMaterial({
-    color: color.bright, emissive: color.bright, emissiveIntensity: .85,
-    metalness: .15, roughness: .36,
-  });
-  cylinder(group, .62, .74, .14, 0, .08, 0, charcoal);
-  cylinder(group, .48, .58, .5, 0, .4, 0, body);
-  cylinder(group, .36, .49, .16, 0, .72, 0, steel);
-  cylinder(group, .3, .4, .1, 0, .83, 0, body);
-  ring(group, .52, color.bright, .63, .035);
-  ring(group, .37, color.bright, .87, .026);
-  cylinder(group, .105, .125, .2, 0, 1.0, 0, light, 12);
-  for (let k = 0; k < 8; k++) {
-    const angle = k * Math.PI / 4;
-    const plate = block(group, .22, .19, .055, Math.sin(angle) * .516, .45,
-      Math.cos(angle) * .516, k % 2 === 0 ? light : steel);
-    plate.rotation.y = angle;
-    cylinder(group, .035, .035, .07, Math.sin(angle) * .58, .24,
-      Math.cos(angle) * .58, light, 8);
-  }
-}
-
-function outpostModel(group: THREE.Group, color: { body: number; bright: number }) {
-  const body = new THREE.MeshStandardMaterial({ color: color.body, metalness: .5, roughness: .35 });
-  const armor = new THREE.MeshStandardMaterial({
-    color: color.bright, emissive: color.bright, emissiveIntensity: .6,
-    metalness: .26, roughness: .28,
-  });
-  cylinder(group, .31, .4, .12, 0, .06, 0, steel);
-  cylinder(group, .18, .22, .94, 0, .55, 0, body, 8);
-  cylinder(group, .12, .12, .29, 0, 1.17, 0, steel, 12);
-  ring(group, .24, color.bright, .96, .022);
-  const rotor = new THREE.Group();
-  rotor.position.y = .92;
-  group.add(rotor);
-  cylinder(rotor, .26, .26, .15, 0, 0, 0, charcoal, 12);
-  for (let k = 0; k < 3; k++) {
-    const a = k * Math.PI * 2 / 3;
-    const plate = block(rotor, .27, .18, .045,
-      Math.sin(a) * .28, .01, Math.cos(a) * .28, armor);
-    plate.rotation.y = a;
-  }
-  cylinder(group, .19, .19, .12, 0, 1.36, 0, charcoal, 12);
-  cylinder(group, .085, .12, .11, 0, 1.47, 0, armor, 12);
-  group.userData.rotor = rotor;
-}
-
-function energyModel(group: THREE.Group, color: { body: number; bright: number }) {
-  const shell = new THREE.MeshStandardMaterial({ color: color.body, metalness: .47, roughness: .42 });
-  const glow = new THREE.MeshStandardMaterial({
-    color: color.bright, emissive: color.bright, emissiveIntensity: .72,
-    roughness: .3, metalness: .25,
-  });
-  block(group, 1.04, .08, .42, 0, .05, 0, charcoal);
-  for (const dx of [-.34, 0, .34]) {
-    const g = new THREE.Group();
-    g.position.set(dx, .28, 0);
-    group.add(g);
-    part(g, new THREE.DodecahedronGeometry(.155), shell, 0, 0, 0);
-    cylinder(g, .105, .105, .21, 0, 0, 0, glow, 6).rotation.z = Math.PI / 2;
-    ring(g, .155, color.bright, -.03, .014);
-    cylinder(g, .05, .05, .09, 0, .16, 0, steel, 6);
-  }
-}
-
-function nameplate(text: string, color: string, x: number, y: number, z: number) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 384;
-  canvas.height = 80;
-  const context = canvas.getContext("2d")!;
-  context.fillStyle = "#142b32ec";
-  context.fillRect(5, 4, 374, 70);
-  context.strokeStyle = color;
-  context.lineWidth = 4;
-  context.strokeRect(5, 4, 374, 70);
-  context.fillStyle = "#fff2dc";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.font = "bold 32px system-ui, sans-serif";
-  context.fillText(text, 192, 40);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: texture, transparent: true, depthTest: false,
-  }));
-  sprite.position.set(x, y, z);
-  sprite.scale.set(1.5, .31, 1);
-  return sprite;
-}
-
-function colorizeField(geometry: THREE.BufferGeometry) {
-  const position = geometry.getAttribute("position");
-  const normal = geometry.getAttribute("normal");
-  const colors = new Float32Array(position.count * 3);
-  const color = new THREE.Color();
-  for (let i = 0; i < position.count; i += 3) {
-    const x = (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3;
-    const y = (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3;
-    const z = (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3;
-    const side = Math.abs(normal.getY(i)) < .3;
-    const boundary = x < 340 || x > 12260 || z < 340 || z > 8260;
-    const hex = boundary ? (side ? 0x53676b : 0x83979a) :
-      y > 350 ? (side ? 0x667a7d : 0xc6b69b) :
-      y > 140 ? (side ? 0x8e8879 : 0xcbb590) :
-      (side ? 0x849792 : 0x9aaba0);
-    color.setHex(hex);
-    for (let j = i; j < i + 3; j++)
-      color.toArray(colors, j * 3);
-  }
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  // The CAD export has Y increasing downward: the full 520-mm backing
-  // surface is the underside. Flip it to put the battlefield on top.
-  geometry.scale(.001, -.001, .001);
-  geometry.translate(-6.3, .52, -4.3);
-  geometry.computeBoundingBox();
-  return geometry;
-}
-
+export type FieldView = "all" | "red" | "blue";
 export interface ArenaController {
-  focus: (id: FacilityId | null) => void;
+  show: (id: CadModelId) => void;
+  view: (side: FieldView) => void;
   dispose: () => void;
 }
-export function mountArena(host: HTMLDivElement, onSelect: (id: FacilityId) => void,
-  onError: (message: string) => void, onReady: () => void): ArenaController {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x101f28);
-  scene.fog = new THREE.FogExp2(0x101f28, .025);
 
-  const camera = new THREE.PerspectiveCamera(45, 1, .05, 100);
-  camera.position.set(13, 11, 14);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+export function mountArena(
+  host: HTMLDivElement,
+  onBusy: () => void,
+  onReady: () => void,
+  onError: (message: string) => void,
+): ArenaController {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x13232d);
+  const camera = new THREE.PerspectiveCamera(45, 1, .01, 200);
+  camera.position.set(14, 13, 16);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.domElement.role = "img";
+  renderer.domElement.setAttribute(
+    "aria-label", "2027 官方 CAD 三维模型。使用鼠标拖拽或触屏旋转，滚轮或双指缩放。",
+  );
   host.appendChild(renderer.domElement);
-  renderer.domElement.setAttribute("aria-label", "RMUL 2027 三维场地，可拖拽旋转、滚轮缩放、点击红蓝基地、前哨站及能量单元");
-  renderer.domElement.setAttribute("role", "img");
+
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = .08;
+  controls.dampingFactor = .075;
   controls.enablePan = true;
-  controls.minDistance = 3;
-  controls.maxDistance = 30;
-  controls.maxPolarAngle = Math.PI * .49;
-  controls.target.set(0, .18, 0);
-
-  scene.add(new THREE.HemisphereLight(0xc4e2ec, 0x576760, 2.5));
-  const sun = new THREE.DirectionalLight(0xffe6ba, 3.4);
-  sun.position.set(-3, 12, 8);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
-  sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
-  sun.shadow.normalBias = .025;
+  controls.maxPolarAngle = Math.PI;
+  scene.add(new THREE.HemisphereLight(0xd8e5ee, 0x65737a, 2.1));
+  const sun = new THREE.DirectionalLight(0xffedd7, 3.1);
+  sun.position.set(-6, 13, 9);
   scene.add(sun);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 14), sand);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -.06;
-  floor.receiveShadow = true;
-  scene.add(floor);
-  const grid = new THREE.GridHelper(19, 38, 0x617273, 0x617273);
-  grid.position.y = -.055;
-  (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = .23;
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x475c60, roughness: .92 }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const grid = new THREE.GridHelper(1, 20, 0x8ba5a8, 0x668086);
   scene.add(grid);
 
-  const raycastTargets: THREE.Object3D[] = [];
-  const facilities = new Map<FacilityId, THREE.Group>();
-  const rotors: THREE.Group[] = [];
-  for (const item of FACILITIES) {
-    const group = new THREE.Group();
-    const p = center(item.x, item.z);
-    group.position.set(p.x, item.y, p.z);
-    group.userData.facilityId = item.id;
-    const colors = palette[item.team];
-    const highlight = new THREE.Mesh(new THREE.RingGeometry(.56, .6, 56),
-      new THREE.MeshBasicMaterial({
-        color: colors.bright, transparent: true, opacity: .85, side: THREE.DoubleSide,
-        depthWrite: false,
-      }));
-    highlight.rotation.x = -Math.PI / 2;
-    highlight.position.y = .025;
-    group.add(highlight);
-    if (item.kind === "base") baseModel(group, colors);
-    if (item.kind === "outpost") {
-      outpostModel(group, colors);
-      rotors.push(group.userData.rotor as THREE.Group);
-    }
-    if (item.kind === "energy") energyModel(group, colors);
-    group.add(nameplate(item.name, item.team === "red" ? "#f07c73" : "#83b6f8",
-      0, item.kind === "outpost" ? 2.02 : item.kind === "base" ? 1.46 : .82, 0));
-    scene.add(group);
-    facilities.set(item.id, group);
-    raycastTargets.push(group);
-  }
-
   let disposed = false;
-  new STLLoader().load(MODEL_URL, (geometry) => {
-    if (disposed) { geometry.dispose(); return; }
-    const mesh = new THREE.Mesh(colorizeField(geometry),
-      new THREE.MeshStandardMaterial({
-        vertexColors: true, flatShading: true, roughness: .87, metalness: .08,
-        side: THREE.DoubleSide,
-      }));
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    onReady();
-  }, undefined, () => { if (!disposed) onError("无法加载原始三维场地模型"); });
+  let requested = 0;
+  let active: THREE.Group | null = null;
+  let span = 12.6;
+  let height = .52;
+  let frame = 0;
+  const loader = new GLTFLoader();
+  const cached = new Map<CadModelId, Promise<THREE.Group>>();
+  const loaded = new Set<THREE.Group>();
+
+  const disposeTree = (root: THREE.Object3D) => {
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.geometry.dispose();
+      for (const material of (Array.isArray(object.material) ? object.material : [object.material])) {
+        if (material instanceof THREE.MeshStandardMaterial) {
+          material.map?.dispose();
+          material.normalMap?.dispose();
+          material.roughnessMap?.dispose();
+        }
+        material.dispose();
+      }
+    });
+  };
+
+  const fitCamera = (side: FieldView = "all") => {
+    const distance = Math.max(.24, span * (side === "all" ? 1.7 : .85));
+    controls.target.set(
+      side === "all" ? 0 : side === "red" ? -span * .22 : span * .22,
+      height * .32, 0,
+    );
+    const sign = side === "blue" ? -1 : 1;
+    camera.position.set(
+      controls.target.x + sign * distance * .75,
+      controls.target.y + distance * .8,
+      sign * distance * .95,
+    );
+    camera.near = Math.max(.0005, span / 600);
+    camera.far = Math.max(30, span * 18);
+    camera.updateProjectionMatrix();
+    controls.minDistance = Math.max(.045, span * .16);
+    controls.maxDistance = Math.max(.65, span * 5);
+    controls.update();
+  };
+
+  const load = (id: CadModelId): Promise<THREE.Group> => {
+    const old = cached.get(id);
+    if (old) return old;
+    // HTTP servers may transparently decompress .gz assets. Inspect the actual
+    // response bytes so both predecoded and raw-gzip responses load correctly.
+    const promise = fetch(CAD_MODELS[id].url).then(async (response) => {
+      if (!response.ok) throw new Error("CAD asset unavailable");
+      const payload = await response.arrayBuffer();
+      const signature = new Uint8Array(payload, 0, 2);
+      const bytes = signature[0] === 0x1f && signature[1] === 0x8b
+        ? await new Response(
+          new Blob([payload]).stream().pipeThrough(new DecompressionStream("gzip")),
+        ).arrayBuffer()
+        : payload;
+      return loader.parseAsync(bytes, "");
+    }).then((gltf) => {
+      const root = new THREE.Group();
+      root.add(gltf.scene);
+      // Release package "full-map" and RMUC "base" use right-handed Z-up.
+      // WebGL/Three.js uses Y-up; this is a rigid coordinate transform only.
+      root.rotation.x = -Math.PI / 2;
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root);
+      const mid = box.getCenter(new THREE.Vector3());
+      root.position.set(-mid.x, -box.min.y, -mid.z);
+      root.updateMatrixWorld(true);
+      loaded.add(root);
+      if (disposed) disposeTree(root);
+      return root;
+    });
+    cached.set(id, promise);
+    return promise;
+  };
+
+  const show = (id: CadModelId) => {
+    const request = ++requested;
+    onBusy();
+    void load(id).then((root) => {
+      if (disposed || request !== requested) return;
+      if (active) scene.remove(active);
+      active = root;
+      scene.add(root);
+      const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+      span = Math.max(size.x, size.z, size.y * 1.5);
+      height = size.y;
+      const groundSize = span * 1.25;
+      ground.scale.set(groundSize, groundSize, 1);
+      ground.position.y = -Math.max(.001, span * .002);
+      grid.scale.setScalar(groundSize);
+      grid.position.y = ground.position.y + .0005;
+      fitCamera();
+      onReady();
+    }).catch(() => {
+      if (disposed || request !== requested) return;
+      onError("三维 CAD 模型加载失败，请重新选择模型");
+    });
+  };
 
   const resize = () => {
-    const width = Math.max(host.clientWidth, 1);
-    const height = Math.max(host.clientHeight, 1);
+    const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
@@ -266,68 +164,30 @@ export function mountArena(host: HTMLDivElement, onSelect: (id: FacilityId) => v
   const observer = new ResizeObserver(resize);
   observer.observe(host);
   resize();
-  const caster = new THREE.Raycaster();
-  const cursor = new THREE.Vector2();
-  let pointerStart = { x: 0, y: 0 };
-  const down = (event: PointerEvent) => { pointerStart = { x: event.clientX, y: event.clientY }; };
-  const up = (event: PointerEvent) => {
-    if (Math.hypot(pointerStart.x - event.clientX, pointerStart.y - event.clientY) > 6) return;
-    const bounds = renderer.domElement.getBoundingClientRect();
-    cursor.set((event.clientX - bounds.left) / bounds.width * 2 - 1,
-      -(event.clientY - bounds.top) / bounds.height * 2 + 1);
-    caster.setFromCamera(cursor, camera);
-    for (const hit of caster.intersectObjects(raycastTargets, true)) {
-      let node: THREE.Object3D | null = hit.object;
-      while (node && !node.userData.facilityId) node = node.parent;
-      if (node?.userData.facilityId) {
-        onSelect(node.userData.facilityId as FacilityId);
-        break;
-      }
-    }
-  };
-  renderer.domElement.addEventListener("pointerdown", down);
-  renderer.domElement.addEventListener("pointerup", up);
-  let frame = 0;
-  const timer = new THREE.Clock();
-  const render = () => {
+
+  const draw = () => {
     if (disposed) return;
-    const time = timer.getElapsedTime();
-    for (const rotor of rotors) rotor.rotation.y = time * .58;
     controls.update();
     renderer.render(scene, camera);
-    frame = requestAnimationFrame(render);
+    frame = requestAnimationFrame(draw);
   };
-  frame = requestAnimationFrame(render);
+  draw();
+  show("field");
 
   return {
-    focus(id) {
-      const facility = id ? facilities.get(id) : undefined;
-      const target = facility ? facility.position.clone() : new THREE.Vector3(0, .18, 0);
-      if (facility) target.y += .6;
-      controls.target.copy(target);
-      camera.position.copy(target.clone().add(facility
-        ? new THREE.Vector3(3.3, 4.3, 4.8) : new THREE.Vector3(13, 11, 14)));
-      controls.update();
-    },
+    show,
+    view: fitCamera,
     dispose() {
       disposed = true;
+      requested++;
       cancelAnimationFrame(frame);
       observer.disconnect();
-      renderer.domElement.removeEventListener("pointerdown", down);
-      renderer.domElement.removeEventListener("pointerup", up);
       controls.dispose();
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          for (const material of materials) material.dispose();
-        }
-        if (object instanceof THREE.Sprite) {
-          object.material.map?.dispose();
-          object.material.dispose();
-        }
-      });
-      steel.dispose(); charcoal.dispose(); sand.dispose();
+      for (const root of loaded) disposeTree(root);
+      ground.geometry.dispose();
+      (ground.material as THREE.Material).dispose();
+      grid.geometry.dispose();
+      for (const material of (Array.isArray(grid.material) ? grid.material : [grid.material])) material.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
