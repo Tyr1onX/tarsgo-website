@@ -212,3 +212,21 @@ export function renderExplorer(
     footX - 20, footY - 54, 40, 54,
   );
 }
+
+export type PixelParticle = {
+  x: number; y: number; vx: number; vy: number;
+  age: number; ttl: number; color: string; size: number;
+};
+
+// Particles live in the same world coordinates as every static prop.
+export function renderParticles(ctx: CanvasRenderingContext2D, particles: PixelParticle[], camera: Position) {
+  const offset = snapCamera(camera);
+  ctx.save();
+  for (const particle of particles) {
+    ctx.globalAlpha = Math.max(0, 1 - particle.age / particle.ttl);
+    ctx.fillStyle = particle.color;
+    ctx.fillRect(Math.round(particle.x - offset.x), Math.round(particle.y - offset.y),
+      particle.size, particle.size);
+  }
+  ctx.restore();
+}
