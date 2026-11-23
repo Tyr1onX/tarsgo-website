@@ -125,7 +125,7 @@ export default function PixelJijiaBattlePage() {
       <header className="pixel-battle-header">
         <Link to="/pixel-jijia" className="pixel-battle-back">← 返回像素吉甲</Link>
         <span className="pixel-battle-title">战术演练 <small>TACTICAL TRAINING / 01</small></span>
-        <span className="pixel-battle-mode">2 VS 2 · RMUL 2027</span>
+        <Link to="/pixel-jijia/arena" className="pixel-battle-back">查看三维场地</Link>
       </header>
 
       <div className="pixel-battle-layout">
