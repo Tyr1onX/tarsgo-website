@@ -200,19 +200,19 @@ export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, direction: Direction,
-  walking: boolean, traveled: number, camera: Position,
+  walking: boolean, traveled: number, camera: Position, seated = false,
 ) {
   const screenCamera = snapCamera(camera);
   ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y);
   let playerDrawn = false;
   for (const node of NODES) {
     if (!playerDrawn && node.y > player.y) {
-      renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera);
+      renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated);
       playerDrawn = true;
     }
     drawNode(ctx, node, atlas, sprites, props, screenCamera);
   }
-  if (!playerDrawn) renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera);
+  if (!playerDrawn) renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated);
 }
 
 const EXPLORER_ROWS: Record<Direction, number> = { down: 0, left: 1, right: 2, up: 3 };
@@ -222,10 +222,17 @@ const EXPLORER_FRAME_HEIGHT = 54;
 export function renderExplorer(
   ctx: CanvasRenderingContext2D, characterSheet: HTMLImageElement,
   player: Position, direction: Direction, walking: boolean, traveled: number, camera: Position,
+  seated = false,
 ) {
   const footX = Math.round(player.x * TILE - camera.x);
   const footY = Math.round(player.y * TILE - camera.y);
   const frame = walking ? Math.floor(traveled / 0.5) % 4 : 0;
+  if (seated) {
+    // Draw the idle torso behind the seat; the bench front hides the legs.
+    ctx.drawImage(characterSheet, 0, EXPLORER_ROWS.down * EXPLORER_FRAME_HEIGHT,
+      EXPLORER_FRAME_WIDTH, 42, footX - 20, footY - 45, 40, 42);
+    return;
+  }
   ctx.fillStyle = "rgba(44, 66, 48, 0.20)";
   ctx.beginPath();
   ctx.ellipse(footX, footY - 2, 12, 4, 0, 0, Math.PI * 2);
