@@ -116,7 +116,7 @@ export default function PixelJijiaArenaPage() {
             {model === "energy" && <span>单元本体：约 150 × 95 mm，独立模型展示</span>}
             {model === "base" && <span>此基地属于 RMUC，不属于 RMUL 3V3 场地总成</span>}
             {model === "rmucField" && <span>场地尺寸：28 × 15 m；包含基地、前哨站、能量机关等官方 CAD 静态构件</span>}
-            {model === "outpost" && <span>RMUC 前哨站独立产品网格，保留官方 CAD 静止装配位姿</span>}
+            {model === "outpost" && <span>单侧前哨站及底座，保留官方 CAD 静止装配位姿；完整场地仍显示双方前哨</span>}
             {model === "rune" && <span>中央能量机关（俗称大风车）官方 CAD，旋转动画尚未进行 2027 机构验证</span>}
           </div>
 

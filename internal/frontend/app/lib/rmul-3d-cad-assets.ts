@@ -17,13 +17,15 @@ export const CAD_MODELS = {
   outpost: {
     label: "RMUC 2027 前哨站",
     catalogName: "centre-platform",
-    productIds: ["2603236", "1800898"],
+    // One source-matched outpost + footing. The CAD assembly has two distant
+    // mirrored occurrences; framing both makes each appear tiny.
+    sourceNodes: ["source_1800898_10", "source_2603236_11"],
     source: "RMUC2027_V1.0.0.stp（前哨站 #2603236、底座 #1800898）",
   },
   rune: {
     label: "RMUC 2027 能量机关（大风车）",
     catalogName: "centre-platform",
-    productIds: ["1354629"],
+    sourceNodes: ["source_1354629_1"],
     source: "RMUC2027_V1.0.0.stp（能量机关产品 #1354629）",
   },
   field: {
