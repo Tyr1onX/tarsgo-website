@@ -14,12 +14,12 @@ import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyF
 import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
-import mechanicalRoomUrl from "../assets/pixel-jijia/interior-mechanical-v5.png?url";
-import honorsRoomUrl from "../assets/pixel-jijia/interior-honors-v5.png?url";
-import electricalRoomUrl from "../assets/pixel-jijia/interior-electrical-v5.png?url";
-import visionRoomUrl from "../assets/pixel-jijia/interior-vision-v5.png?url";
-import guildRoomUrl from "../assets/pixel-jijia/interior-guild-v5.png?url";
-import aiRoomUrl from "../assets/pixel-jijia/interior-ai-v5.png?url";
+import mechanicalRoomUrl from "../assets/pixel-jijia/interior-mechanical-v6.webp?url";
+import honorsRoomUrl from "../assets/pixel-jijia/interior-honors-v6.webp?url";
+import electricalRoomUrl from "../assets/pixel-jijia/interior-electrical-v6.webp?url";
+import visionRoomUrl from "../assets/pixel-jijia/interior-vision-v6.webp?url";
+import guildRoomUrl from "../assets/pixel-jijia/interior-guild-v6.webp?url";
+import aiRoomUrl from "../assets/pixel-jijia/interior-ai-v6.webp?url";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;

@@ -345,13 +345,15 @@ test("六栋室内使用六张各自独立的原创图片，比例与世界一�
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
   for (const id of ids) {
-    const data = readFileSync(new URL(`../assets/pixel-jijia/interior-${id}-v5.png`, import.meta.url));
-    assert.equal(data.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", id);
-    const w = data.readUInt32BE(16), h = data.readUInt32BE(20);
-    assert.ok(w >= 200 && h >= 130, `${id} 素材尺寸不足`);
+    const data = readFileSync(new URL(`../assets/pixel-jijia/interior-${id}-v6.webp`, import.meta.url));
+    assert.equal(data.toString("ascii", 0, 4), "RIFF", id);
+    assert.equal(data.toString("ascii", 8, 12), "WEBP", id);
+    assert.equal(data.toString("ascii", 12, 16), "VP8 ", id);
+    const w = data.readUInt16LE(26) & 0x3fff, h = data.readUInt16LE(28) & 0x3fff;
+    assert.ok(w >= 36 * TILE && h >= 24 * TILE, `${id} 室内图片不得低于场景实际渲染尺寸`);
     assert.ok(Math.abs(w / h - 1.5) < 0.02, `${id} 素材比例会导致拉伸`);
     seen.add(data.toString("base64"));
-    assert.ok(route.includes(`interior-${id}-v5.png?url`), `${id} 尚未加载室内图片`);
+    assert.ok(route.includes(`interior-${id}-v6.webp?url`), `${id} 尚未加载室内图片`);
   }
   assert.equal(seen.size, ids.length, "六张室内图片不能重复复用");
   assert.ok(scene.includes('room.id !== "study"'), "公开建筑使用图片、研究室保留可编辑家具");
