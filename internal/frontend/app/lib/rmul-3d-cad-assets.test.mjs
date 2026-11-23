@@ -9,7 +9,7 @@ test("only source-backed 2027 CAD assets are selectable", () => {
   assert.deepEqual(Object.keys(CAD_MODELS), ["rmucField", "base", "outpost", "rune", "field", "energy"]);
   assert.equal(DEFAULT_CAD_MODEL, "rmucField");
   assert.equal(new Set(Object.values(CAD_MODELS).filter((m) => "url" in m).map((m) => m.url)).size, 4);
-  assert.match(CAD_MODELS.rmucField.url, /^\/assets\/pixel-jijia\/rmuc-2027-field-[0-9a-f]{8}\.glb\.gz$/);
+  assert.match(CAD_MODELS.rmucField.url, /^\/assets\/pixel-jijia\/rmuc-2027-arena-[0-9a-f]{8}\.glb\.gz$/);
   assert.deepEqual([CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],
     ["centre-platform", "centre-platform"]);
   assert.deepEqual(CAD_MODELS.outpost.sourceNodes, ["source_1800898_10", "source_2603236_11"]);
