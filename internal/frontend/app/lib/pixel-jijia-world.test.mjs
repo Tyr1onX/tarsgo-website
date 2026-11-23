@@ -260,17 +260,21 @@ test("缩放可精细调节并根据屏幕尺寸避免露出地图外区域", ()
   assert.ok(!route.includes('[assetState, zoom]'), "缩放不能反复重建动画循环");
 });
 
-test("小地图采用轻量语义导航，常驻界面按需展示", () => {
+test("小地图缩小真实世界场景，默认紧凑且展开后仍可导航", () => {
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../routes/pixel-jijia.css", import.meta.url), "utf8");
+  assert.ok(scene.includes("export function renderWorldPreview("));
   assert.ok(scene.includes("export function renderNavigationMap("));
-  assert.ok(scene.includes("ctx.drawImage(terrain, 0, 0, width, height)"));
+  assert.ok(scene.includes("for (const node of NODES) drawNode(ctx, node, atlas, sprites, props, { x: 0, y: 0 })"));
+  assert.ok(scene.includes("ctx.drawImage(terrain, 0, 0)"));
+  assert.ok(scene.includes("ctx.drawImage(preview, 0, 0, width, height)"));
   assert.ok(scene.includes("ctx.fillText(place.title,"));
   assert.ok(scene.includes("for (const place of PLACES)"));
   assert.ok(scene.includes("if (!item.story) continue"));
   assert.ok(!scene.includes("export function renderTown("), "不能保留额外的完整世界小地图缓存");
-  assert.ok(route.includes("renderNavigationMap(miniCtx, terrain"));
+  assert.ok(route.includes("renderNavigationMap(miniCtx, preview"));
+  assert.ok(route.includes("previewRef.current = renderWorldPreview("));
   assert.ok(route.includes("width={432} height={288}"));
   assert.ok(route.includes("handleNavigationClick"));
   assert.ok(route.includes("pixel-world-map-destinations"));
@@ -280,9 +284,11 @@ test("小地图采用轻量语义导航，常驻界面按需展示", () => {
   assert.ok(!route.includes("townRef"));
   assert.ok(route.includes('event.key.toLowerCase() === "m"'));
   assert.ok(route.includes("aria-expanded={mapOpen}"));
-  assert.ok(route.includes("aria-hidden={!mapOpen}"));
-  assert.ok(css.includes(".pixel-world-map-panel.is-open { display: block; }"));
-  assert.ok(css.includes(".pixel-world-map-panel {\n  display: none;"));
+  assert.ok(!route.includes("aria-hidden={!mapOpen}"));
+  assert.ok(route.includes("if (!mapOpen) { setMapOpen(true); return; }"));
+  assert.ok(css.includes(".pixel-world-map-panel:not(.is-open) canvas { cursor: zoom-in; }"));
+  assert.ok(css.includes(".pixel-world-map-panel.is-open {"));
+  assert.ok(!css.includes(".pixel-world-map-panel {\n  display: none;"));
   assert.ok(!css.includes(".pixel-world-hud"), "移除常驻区域卡片");
 });
 
