@@ -149,7 +149,102 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   }, [selectPlace]);
 
+  const openHomeScene = useCallback((items: HomeFurniture[], readonly: boolean) => {
+    if (!validHomeFurniture(items)) {
+      setHomeStatus("研究室家具数据不合法");
+      return;
+    }
+    setHomeFurniture(items);
+    setHomeReadonly(readonly);
+    setSelectedFurniture(null);
+    setPlacingKind(null);
+    setHomeStatus("");
+    setInviteLink(null);
+    playerRef.current = { ...ROOMS.home.entry };
+    const canvas = canvasRef.current;
+    if (canvas) cameraRef.current = cameraAt(ROOMS.home.entry, canvas.width, canvas.height,
+      ROOMS.home.width * TILE, ROOMS.home.height * TILE);
+    keysRef.current.clear();
+    touchRef.current.clear();
+    setRoomId("home");
+    setSelectedRoom(null);
+    setMapOpen(false);
+  }, []);
+
+  const enterHome = useCallback(async () => {
+    try {
+      const home = await apiRequest<{ furniture: HomeFurniture[]; inviteActive: boolean }>(
+        "/api/pixel-home/me", { cache: "no-store" });
+      setInviteActive(home.inviteActive);
+      openHomeScene(home.furniture, false);
+    } catch (error) {
+      setHomeStatus(error instanceof ApiError && error.status === 401
+        ? "请先登录网站账号，才能布置自己的研究室"
+        : error instanceof Error ? error.message : "研究室加载失败");
+    }
+  }, [openHomeScene]);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("visit");
+    if (!token) return;
+    let alive = true;
+    apiRequest<{ furniture: HomeFurniture[] }>(
+      `/api/pixel-home/visit?token=${encodeURIComponent(token)}`, { cache: "no-store" },
+    ).then(data => { if (alive) openHomeScene(data.furniture, true); })
+      .catch((error: unknown) => {
+        if (alive) setHomeStatus(error instanceof Error ? error.message : "邀请已失效");
+      });
+    return () => { alive = false; };
+  }, [openHomeScene]);
+
+  const saveHome = async () => {
+    try {
+      await apiRequest("/api/pixel-home/me", {
+        method: "PUT", body: { furniture: homeFurniture },
+      });
+      setHomeStatus("布局已保存");
+    } catch (error) {
+      setHomeStatus(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
+  const inviteHome = async () => {
+    try {
+      const response = await apiRequest<{ token: string }>("/api/pixel-home/invite", { method: "POST" });
+      const url = new URL("/pixel-jijia", window.location.origin);
+      url.searchParams.set("visit", response.token);
+      setInviteActive(true);
+      setInviteLink(url.toString());
+      setHomeStatus("只读邀请已生成，可复制链接");
+    } catch (error) {
+      setHomeStatus(error instanceof Error ? error.message : "邀请生成失败");
+    }
+  };
+
+  const revokeHome = async () => {
+    try {
+      await apiRequest("/api/pixel-home/invite", { method: "DELETE" });
+      setInviteActive(false);
+      setInviteLink(null);
+      setHomeStatus("邀请已撤销");
+    } catch (error) {
+      setHomeStatus(error instanceof Error ? error.message : "撤销失败");
+    }
+  };
+
   const exitRoom = useCallback(() => {
+    if (roomId === "home") {
+      const parent = ROOMS.ai;
+      playerRef.current = { ...parent.entry };
+      const canvas = canvasRef.current;
+      if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height,
+        parent.width * TILE, parent.height * TILE);
+      setRoomId("ai");
+      setSelectedRoom(null);
+      setSelectedFurniture(null);
+      setPlacingKind(null);
+      return;
+    }
     const place = PLACES.find(p => p.id === roomId);
     if (!place) return;
     playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
