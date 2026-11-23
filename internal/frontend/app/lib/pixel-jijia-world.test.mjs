@@ -367,12 +367,16 @@ test("生成场景的家具碰撞与可见物件位置对应且入口可通行",
     'id: "assembly", kind: "workbench", x: 14, y: 11.5',
     'id: "trophies", kind: "display", x: 14, y: 5.5',
     'id: "embedded", kind: "machine", x: 13.5, y: 14.5',
-    'id: "lens-calibration", kind: "console", x: 16, y: 15.5',
+    'id: "lens-calibration", kind: "console", x: 15, y: 15',
     'id: "welcome", kind: "reception", x: 11, y: 9',
     'id: "planning", kind: "console", x: 14, y: 10',
   ]) assert.ok(source.includes(marker), `室内物件未与新美术对齐：${marker}`);
   // Entry (18, 19.4) remains below each central solid object's footprint.
   assert.ok(source.includes('entry: { x: 18, y: 19.4 }'));
+  assert.ok(source.includes('entry: { x: 18, y: 21.7 }'), "电控入口必须在工作台前方");
+  assert.ok(source.includes('entry: { x: 18, y: 22.1 }'), "视觉入口必须在中央装置前方");
+  assert.ok(source.includes('position.y <= exit.y + exit.height - 0.4'),
+    "室内出口触发范围要覆盖入口门槛，避免无法返回");
   assert.ok(source.includes('id: "exit", kind: "exit", x: 16, y: 21'));
 });
 
