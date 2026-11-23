@@ -847,7 +847,7 @@ func TestMigration91AddsPublicAvatarFrameChoice(t *testing.T) {
 
 func TestMigration92ResetsRetiredGroupAvatarChoices(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 92 || items[91].version != 92 {
+	if len(items) < 92 || items[91].version != 92 {
 		t.Fatal("retired group avatar cleanup migration is missing")
 	}
 	sqlDB, mock, err := sqlmock.New()
