@@ -142,7 +142,7 @@ func TestTeamStateRefreshReturnsSnapshotImmediatelyAndDeduplicates(t *testing.T)
 		strings.Contains(refreshed.Body.String(), "\"refreshing\":true") {
 		t.Fatalf("background result was not published: %d %s", refreshed.Code, refreshed.Body.String())
 	}
-	if calls.Load() > 19 {
+	if calls.Load() > 20 {
 		t.Fatalf("concurrent viewers must share one refresh, Feishu calls=%d", calls.Load())
 	}
 }
@@ -200,8 +200,8 @@ func TestTeamStateConcurrentColdRequestsShareOneFetch(t *testing.T) {
 	time.Sleep(15 * time.Millisecond)
 	close(gate)
 	wg.Wait()
-	if calls.Load() != 9 {
-		t.Fatalf("8 concurrent viewers should share 1 token + 3 Base + 5 document requests, got %d", calls.Load())
+	if calls.Load() != 10 {
+		t.Fatalf("8 concurrent viewers should share 1 token + 3 Base + 4 document + 2 folder requests, got %d", calls.Load())
 	}
 }
 
