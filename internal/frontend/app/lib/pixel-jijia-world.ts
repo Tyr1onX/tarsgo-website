@@ -224,6 +224,17 @@ export function movePlayer(
   return next;
 }
 
+// Doors are part of each building's existing footprint, not separate invisible portals.
+// Enter only while walking towards the front threshold, never by passing along the facade.
+export function outdoorDoorAt(position: Position, vertical: number): Place | null {
+  if (vertical >= 0) return null;
+  return PLACES.find(place => {
+    const bottom = place.y + place.height;
+    return Math.abs(position.x - (place.x + place.width / 2)) <= 1.35 &&
+      position.y >= bottom + 0.3 && position.y <= bottom + 0.75;
+  }) ?? null;
+}
+
 export function closestPlace({ x, y }: Position): Place | null {
   let nearest: Place | null = null;
   let best = Infinity;

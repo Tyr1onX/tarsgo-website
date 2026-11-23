@@ -4,7 +4,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, sceneryBlocks, snapCamera,
+  benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -311,8 +311,8 @@ test("机械工坊具备可通行室内、独立功能区与真实进出闭环",
   assert.ok(route.includes("renderRoomScene(ctx, roomTerrain, room, character"));
   assert.ok(route.includes("cameraRef.current = cameraAt(destination.entry"));
   assert.ok(route.includes('canvas.dataset.scene = room?.id ?? "outdoor"'));
-  assert.ok(route.includes("if (object.kind === \"exit\") exitRoom()"));
-  assert.ok(route.includes("onClick={() => enterRoom(selected.id)}"));
+  assert.ok(route.includes("roomExitAt(room, next, y)"));
+  assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"), "进入建筑不能再依赖点击按钮");
   assert.ok(route.includes("setRoomId(null)"));
   assert.ok(route.includes("{!room && <aside"));
 });
@@ -331,9 +331,61 @@ test("六栋建筑都有不同的可进入室内与独立设备，不复制人�
   assert.ok(route.includes("Object.values(ROOMS).map(room => [room.id, renderRoomTerrain(room)])"));
   assert.ok(route.includes("const destination = ROOMS[placeId]"));
   assert.ok(route.includes("const place = PLACES.find(p => p.id === roomId)"));
-  assert.ok(route.includes("onClick={() => enterRoom(selected.id)}"));
+  assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"), "进入建筑不能再依赖点击按钮");
   assert.equal(source.split("export function renderRoomScene(").length, 2,
     "所有室内必须复用同一个渲染入口");
+});
+
+test("六栋建筑正门自动触发进入，横向经过不会误触发", () => {
+  for (const place of PLACES) {
+    const x = place.x + place.width / 2;
+    const bottom = place.y + place.height;
+    const outside = { x, y: bottom + 1.4 };
+    assert.ok(isWalkable(outside.x, outside.y), `${place.id} 门前需可行走`);
+    let position = outside, entered = null;
+    for (let i = 0; i < 12; i++) {
+      position = movePlayer(position, 0, -1, 0.05);
+      entered = outdoorDoorAt(position, -1);
+      if (entered) break;
+    }
+    assert.equal(entered?.id, place.id, `${place.id} 正门应可实际走到`);
+    assert.equal(outdoorDoorAt(position, 0), null);
+    assert.equal(outdoorDoorAt(position, 1), null);
+    assert.equal(outdoorDoorAt({ x: x + 2, y: bottom + 0.5 }, -1), null);
+    assert.equal(outdoorDoorAt(outside, -1), null);
+  }
+});
+
+test("室内出口、可见门槛和户外入口自动构成进出闭环", () => {
+  const source = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(source.includes("export function roomExitAt("));
+  assert.ok(source.includes('object.kind === "exit"'));
+  assert.ok(source.includes("position.y >= exit.y - 0.55"));
+  assert.ok(source.includes("ctx.fillRect(x, y, exit.width * TILE, 7)"));
+  assert.ok(source.includes("entry: { x: 18, y: 19.4 }"));
+  assert.ok(route.includes("roomExitAt(room, next, y)"));
+  assert.ok(route.includes("outdoorDoorAt(next, y)"));
+  assert.ok(route.includes("if (room) exitRoom()"));
+  assert.ok(route.includes("enterRoom(door.id)"));
+  assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"));
+  assert.ok(!route.includes('if (object.kind === "exit") exitRoom()'));
+  assert.ok(route.includes("Keep held directions across room changes"));
+  assert.ok(route.includes("place.y + place.height + 1.2"));
+});
+
+test("六栋室内均增加不同工作站，并在室内保留真实功能链接", () => {
+  const source = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  for (const id of ["calibration", "team-photo", "signal-wall",
+      "lens-calibration", "journey-map", "field-log"]) {
+    assert.ok(source.includes(`id: "${id}"`), `缺少独立互动设备: ${id}`);
+  }
+  for (const href of ["/events-and-honors", "/join", "/pixel-jijia/battle", "/about"]) {
+    assert.ok(source.includes(`href: "${href}"`), `缺少已存在功能入口: ${href}`);
+  }
+  assert.ok(route.includes("selectedRoom.href && <Link to={selectedRoom.href}"));
+  assert.ok(source.includes("if (object.href)"), "可用终端应有可辨认的视觉标识");
 });
 
 test("环境粒子使用统一世界坐标与现有动画循环，数量受控", () => {
@@ -348,8 +400,9 @@ test("环境粒子使用统一世界坐标与现有动画循环，数量受控",
   assert.ok(route.includes("cherryTrees.find("));
   assert.ok(route.includes("FOUNTAIN.x * TILE"));
   assert.ok(route.includes("renderParticles(ctx, particles, cameraRef.current)"));
-  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 2,
-    "粒子不得新增独立动画循环");
+  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3,
+    "初始化、帧末、切门提前结束都必须调度同一个 tick，不得启动独立粒子循环");
+  assert.ok(route.includes("const tick = (time: number) => {"));
 });
 
 test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
