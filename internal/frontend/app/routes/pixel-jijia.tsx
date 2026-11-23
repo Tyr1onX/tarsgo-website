@@ -10,7 +10,7 @@ import { renderNavigationMap, renderParticles, renderScene, renderTerrain, rende
 import { ROOMS, STUDY_ROOM, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser } from "~/lib/auth-client";
-import { STUDY_CATALOG, canPlaceStudy, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
+import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
@@ -589,9 +589,20 @@ export default function PixelJijiaPage() {
     if (room?.id === "study" && !studyGuest) {
       const cellX = Math.floor(x), cellY = Math.floor(y);
       if (studyTool === "erase") {
-        setStudyItems(items => items.filter(item => item.x !== cellX || item.y !== cellY));
+        setStudyItems(items => items.filter(item => {
+          const shape = furnitureSize(item.kind);
+          return !(cellX >= item.x && cellX < item.x + shape.width &&
+            cellY >= item.y && cellY < item.y + shape.height);
+        }));
       } else {
-        const furniture = { kind: studyTool, x: cellX, y: cellY, rotation: 0 };
+        const furniture = { kind: studyTool, x: cellX, y: cellY };
+        const shape = furnitureSize(studyTool);
+        const player = playerRef.current;
+        if (player.x + 0.3 > cellX && player.x - 0.3 < cellX + shape.width &&
+            player.y + 0.3 > cellY && player.y - 0.3 < cellY + shape.height) {
+          setStudyNotice("不能将家具放在角色脚下");
+          return;
+        }
         setStudyItems(items => canPlaceStudy(items, furniture) ? [...items, furniture] : items);
       }
       setStudyNotice("");
