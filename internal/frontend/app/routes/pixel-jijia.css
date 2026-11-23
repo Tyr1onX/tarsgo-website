@@ -161,6 +161,22 @@
 }
 .pixel-world-zoom button:hover { background: #53776a; }
 
+.pixel-world-room-name {
+  position: absolute;
+  top: 19px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: calc(100vw - 240px);
+  color: #f6e2ba;
+  background: #1d373bc7;
+  border: 1px solid #c3a47888;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 750;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .pixel-world-guide {
   position: absolute;
   z-index: 4;
@@ -264,6 +280,7 @@
 
 @media (max-width: 700px) {
   .pixel-world-header { top: 10px; left: 10px; right: 10px; gap: 5px; }
+  .pixel-world-room-name { top: 54px; max-width: calc(100vw - 40px); }
   .pixel-world-top-actions { gap: 4px; }
   .pixel-world-tool, .pixel-world-return { min-height: 34px; padding: 5px 7px; font-size: 11px; }
   .pixel-world-tool kbd { display: none; }

@@ -183,19 +183,20 @@ export function sceneryBlocks(object: Scenery, x: number, y: number, radius = 0.
   return Boolean(object.solid && Math.hypot(x - object.x, y - object.y) < object.solid + radius);
 }
 
+export function overlapsRect(x: number, y: number, radius: number,
+  rect: { x: number; y: number; width: number; height: number }): boolean {
+  return x + radius > rect.x && x - radius < rect.x + rect.width &&
+    y + radius > rect.y && y - radius < rect.y + rect.height;
+}
+
 export function isWalkable(x: number, y: number): boolean {
   const radius = 0.3;
   if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
   // Water is defined by the same ground areas used to paint the scene.
-  if (GROUND_AREAS.some((area) =>
-    area.kind === 3 &&
-    x + radius > area.x && x - radius < area.x + area.width &&
-    y + radius > area.y && y - radius < area.y + area.height
-  )) return false;
+  if (GROUND_AREAS.some(area => area.kind === 3 && overlapsRect(x, y, radius, area))) return false;
   // Every building has a solid body; its painted roof can overlap a rear path.
   // The interaction is in front of the body, not in a non-solid wall strip.
-  if (PLACES.some((p) => x + radius > p.x && x - radius < p.x + p.width &&
-    y + radius > p.y && y - radius < p.y + p.height)) return false;
+  if (PLACES.some(place => overlapsRect(x, y, radius, place))) return false;
   if (SCENERY.some((p) => sceneryBlocks(p, x, y, radius))) return false;
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.radius + radius) return false;
   return true;
@@ -203,6 +204,7 @@ export function isWalkable(x: number, y: number): boolean {
 
 export function movePlayer(
   position: Position, horizontal: number, vertical: number, dt: number, sprinting = false,
+  walkable: (x: number, y: number) => boolean = isWalkable,
 ): Position {
   const len = Math.hypot(horizontal, vertical);
   if (!len || dt <= 0) return position;
@@ -214,9 +216,9 @@ export function movePlayer(
   let next = position;
   for (let i = 0; i < steps; i++) {
     const x = next.x + dx;
-    const nextX = isWalkable(x, next.y) ? x : next.x;
+    const nextX = walkable(x, next.y) ? x : next.x;
     const y = next.y + dy;
-    const nextY = isWalkable(nextX, y) ? y : next.y;
+    const nextY = walkable(nextX, y) ? y : next.y;
     next = { x: nextX, y: nextY };
   }
   return next;
@@ -293,9 +295,14 @@ export function snapCamera(camera: Position): Position {
   return { x: Math.round(camera.x), y: Math.round(camera.y) };
 }
 
-export function cameraAt(position: Position, viewWidth: number, viewHeight: number): Position {
+export function cameraAt(
+  position: Position, viewWidth: number, viewHeight: number,
+  worldWidth = WORLD_WIDTH * TILE, worldHeight = WORLD_HEIGHT * TILE,
+): Position {
+  const axis = (target: number, view: number, span: number) =>
+    span <= view ? (span - view) / 2 : Math.max(0, Math.min(span - view, target));
   return {
-    x: Math.max(0, Math.min(WORLD_WIDTH * TILE - viewWidth, position.x * TILE - viewWidth / 2)),
-    y: Math.max(0, Math.min(WORLD_HEIGHT * TILE - viewHeight, position.y * TILE - viewHeight * 0.7)),
+    x: axis(position.x * TILE - viewWidth / 2, viewWidth, worldWidth),
+    y: axis(position.y * TILE - viewHeight * 0.7, viewHeight, worldHeight),
   };
 }

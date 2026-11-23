@@ -130,7 +130,7 @@ test("Shift / 按住按钮疾跑更快且仍使用同一条安全碰撞路径", 
   assert.ok(movePlayer(wall, 1, -1, 0.05, true).x > wall.x);
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes('event.key === "Shift"'));
-  assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting)"));
+  assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting,"));
   assert.ok(route.includes('aria-label="按住疾跑"'));
   assert.ok(route.includes("sprintTouchRef.current = false"));
 });
@@ -292,6 +292,31 @@ test("小地图缩小真实世界场景，默认紧凑且展开后仍可导航",
   assert.ok(!css.includes(".pixel-world-hud"), "移除常驻区域卡片");
 });
 
+test("机械工坊具备可通行室内、独立功能区与真实进出闭环", () => {
+  const room = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  const world = readFileSync(new URL("./pixel-jijia-world.ts", import.meta.url), "utf8");
+  assert.ok(room.includes("export const MECHANICAL_ROOM: RoomScene"));
+  assert.ok(room.includes('id: "mechanical"'));
+  assert.ok(room.includes("walls: ["));
+  assert.ok(room.includes('id: "assembly"'));
+  assert.ok(room.includes('id: "tool-storage"'));
+  assert.ok(room.includes('id: "cad"'));
+  assert.ok(room.includes('id: "exit"'));
+  assert.ok(room.includes("export function isRoomWalkable("));
+  assert.ok(room.includes("overlapsRect(x, y, radius, w)"));
+  assert.ok(room.includes("renderExplorer(ctx, character, player, direction, walking, traveled, screenCamera)"));
+  assert.ok(world.includes("walkable: (x: number, y: number) => boolean = isWalkable"));
+  assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting,"));
+  assert.ok(route.includes("renderRoomScene(ctx, roomTerrain, room, character"));
+  assert.ok(route.includes("cameraRef.current = cameraAt(MECHANICAL_ROOM.entry"));
+  assert.ok(route.includes('canvas.dataset.scene = room?.id ?? "outdoor"'));
+  assert.ok(route.includes("if (object.kind === \"exit\") exitRoom()"));
+  assert.ok(route.includes("onClick={enterRoom}"));
+  assert.ok(route.includes("setRoomId(null)"));
+  assert.ok(route.includes("{!room && <aside"));
+});
+
 test("环境粒子使用统一世界坐标与现有动画循环，数量受控", () => {
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
@@ -300,7 +325,7 @@ test("环境粒子使用统一世界坐标与现有动画循环，数量受控",
   assert.ok(route.includes("const particles: PixelParticle[] = []"));
   assert.ok(route.includes("particles.length < 72"));
   assert.ok(route.includes('window.matchMedia("(prefers-reduced-motion: reduce)")'));
-  assert.ok(route.includes("if (reducedMotion.matches)"));
+  assert.ok(route.includes("if (reducedMotion.matches || room)"));
   assert.ok(route.includes("cherryTrees.find("));
   assert.ok(route.includes("FOUNTAIN.x * TILE"));
   assert.ok(route.includes("renderParticles(ctx, particles, cameraRef.current)"));

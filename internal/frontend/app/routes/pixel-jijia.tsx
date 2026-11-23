@@ -7,6 +7,7 @@ import {
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import { MECHANICAL_ROOM, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -54,12 +55,14 @@ export default function PixelJijiaPage() {
   const sprintTouchRef = useRef(false);
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
+  const roomTerrainRef = useRef<HTMLCanvasElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
   const artIndexRef = useRef<SpriteIndex | null>(null);
   const propsRef = useRef<HTMLImageElement | null>(null);
   const nearIdRef = useRef<string | null>(null);
+  const nearRoomIdRef = useRef<string | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [mapOpen, setMapOpen] = useState(false);
@@ -69,6 +72,10 @@ export default function PixelJijiaPage() {
   const [selected, setSelected] = useState<Feature | null>(null);
   const [storyActivated, setStoryActivated] = useState(false);
   const [seated, setSeated] = useState<Scenery | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const room = roomId === MECHANICAL_ROOM.id ? MECHANICAL_ROOM : null;
+  const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const selectPlace = useCallback((place: Feature | null) => {
@@ -97,6 +104,34 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   };
 
+  const enterRoom = useCallback(() => {
+    const place = closestPlace(playerRef.current);
+    if (place?.id !== MECHANICAL_ROOM.id) return;
+    playerRef.current = { ...MECHANICAL_ROOM.entry };
+    const canvas = canvasRef.current;
+    if (canvas) cameraRef.current = cameraAt(MECHANICAL_ROOM.entry, canvas.width, canvas.height,
+      MECHANICAL_ROOM.width * TILE, MECHANICAL_ROOM.height * TILE);
+    keysRef.current.clear();
+    touchRef.current.clear();
+    setSeated(null);
+    setRoomId(MECHANICAL_ROOM.id);
+    setSelectedRoom(null);
+    setMapOpen(false);
+    selectPlace(null);
+  }, [selectPlace]);
+
+  const exitRoom = useCallback(() => {
+    const place = PLACES.find(p => p.id === MECHANICAL_ROOM.id);
+    if (!place) return;
+    playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
+    const canvas = canvasRef.current;
+    if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
+    keysRef.current.clear();
+    touchRef.current.clear();
+    setSelectedRoom(null);
+    setRoomId(null);
+  }, []);
+
   const resizeCanvas = useCallback(() => {
     const stage = stageRef.current, canvas = canvasRef.current;
     if (!stage || !canvas) return;
@@ -112,8 +147,9 @@ export default function PixelJijiaPage() {
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.imageSmoothingEnabled = false;
-    cameraRef.current = cameraAt(playerRef.current, width, height);
-  }, []);
+    cameraRef.current = cameraAt(playerRef.current, width, height,
+      (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
+  }, [room]);
 
   const setMapZoom = useCallback((next: number) => {
     const stage = stageRef.current;
@@ -162,6 +198,7 @@ export default function PixelJijiaPage() {
         propsRef.current = environment;
         terrainRef.current = renderTerrain(ground);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
+        roomTerrainRef.current = renderRoomTerrain(MECHANICAL_ROOM);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -186,7 +223,8 @@ export default function PixelJijiaPage() {
     const down = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
       if (event.key === "Escape") {
-        if (selectedRef.current) selectPlace(null);
+        if (selectedRoom) setSelectedRoom(null);
+        else if (selectedRef.current) selectPlace(null);
         else { setMapOpen(false); setShowHelp(false); }
         return;
       }
@@ -195,18 +233,32 @@ export default function PixelJijiaPage() {
         return;
       }
       if (event.key.toLowerCase() === "m") {
-        event.preventDefault();
-        setMapOpen(open => !open);
+        if (!room) { event.preventDefault(); setMapOpen(open => !open); }
         return;
       }
       if (event.key.toLowerCase() === "e") {
+        if (selectedRoom) return;
+        if (room) {
+          const object = closestRoomObject(room, playerRef.current);
+          if (object) {
+            event.preventDefault();
+            if (object.kind === "exit") exitRoom();
+            else setSelectedRoom(object);
+          }
+          return;
+        }
         if (seated) { event.preventDefault(); standUp(); return; }
         const place = closestFeature(playerRef.current);
-        if (place) { event.preventDefault(); selectPlace(place); }
+        if (place && "href" in place && place.id === MECHANICAL_ROOM.id &&
+            Math.hypot(playerRef.current.x - place.x - place.width / 2,
+              playerRef.current.y - place.y - place.height - 0.8) < 1.8) {
+          event.preventDefault();
+          enterRoom();
+        } else if (place) { event.preventDefault(); selectPlace(place); }
         return;
       }
       const dir = KEY_DIRECTIONS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
-      if (!dir || selectedRef.current) return;
+      if (!dir || selectedRef.current || selectedRoom) return;
       event.preventDefault();
       if (seated) standUp();
       keysRef.current.add(dir);
@@ -234,15 +286,16 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, seated, standUp]);
+  }, [selectPlace, seated, standUp, room, selectedRoom, enterRoom, exitRoom]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
     const minimap = miniRef.current, terrain = terrainRef.current, preview = previewRef.current;
+    const roomTerrain = roomTerrainRef.current;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
-    if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props) return;
+    if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props || (room && !roomTerrain)) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -280,26 +333,33 @@ export default function PixelJijiaPage() {
       let walking = false;
       const sprinting = sprintKeyRef.current || sprintTouchRef.current;
 
-      if ((x !== 0 || y !== 0) && !selectedRef.current && !seated) {
+      if ((x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated) {
         const previous = playerRef.current;
-        const next = movePlayer(previous, x, y, dt, sprinting);
+        const next = movePlayer(previous, x, y, dt, sprinting,
+          room ? (px, py) => isRoomWalkable(room, px, py) : undefined);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = x !== 0 ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
         walking = distance > 0.0001;
         if (walking) traveled += distance;
       }
-      const target = cameraAt(playerRef.current, canvas.width, canvas.height);
+      const target = cameraAt(playerRef.current, canvas.width, canvas.height,
+        (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
       const follow = 1 - Math.exp(-(sprinting ? 8 : 6) * dt);
       cameraRef.current.x += (target.x - cameraRef.current.x) * follow;
       cameraRef.current.y += (target.y - cameraRef.current.y) * follow;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
-      renderScene(ctx, terrain, atlas, sprites, props, character,
-        playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
+      if (room && roomTerrain) {
+        renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
+          directionRef.current, walking, traveled, cameraRef.current);
+      } else {
+        renderScene(ctx, terrain, atlas, sprites, props, character,
+          playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
+      }
 
-      if (reducedMotion.matches) {
+      if (reducedMotion.matches || room) {
         particles.length = 0;
       } else {
         if (walking && sprinting && time - lastDust > 110) {
@@ -345,8 +405,14 @@ export default function PixelJijiaPage() {
         renderParticles(ctx, particles, cameraRef.current);
       }
       canvas.dataset.particles = String(particles.length);
+      canvas.dataset.scene = room?.id ?? "outdoor";
 
-      const nextNearby = seated ? null : closestFeature(playerRef.current);
+      const nextNearby = seated || room ? null : closestFeature(playerRef.current);
+      const nextRoom = room && !selectedRoom ? closestRoomObject(room, playerRef.current) : null;
+      if (nearRoomIdRef.current !== (nextRoom?.id ?? null)) {
+        nearRoomIdRef.current = nextRoom?.id ?? null;
+        setNearbyRoom(nextRoom);
+      }
       const nearId = nextNearby ? ("href" in nextNearby ? nextNearby.id : nextNearby.story?.title ?? `bench-${nextNearby.x}-${nextNearby.y}`) : null;
       if (nearIdRef.current !== nearId) {
         nearIdRef.current = nearId;
@@ -360,7 +426,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.seated = String(Boolean(seated));
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
-      if (miniCtx && time - lastMini > 100) {
+      if (!room && miniCtx && time - lastMini > 100) {
         renderNavigationMap(miniCtx, preview, playerRef.current, directionRef.current,
           cameraRef.current, canvas.width, canvas.height, mapOpen);
         lastMini = time;
@@ -373,7 +439,7 @@ export default function PixelJijiaPage() {
       observer.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen]);
+  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, selectedRoom]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -382,6 +448,11 @@ export default function PixelJijiaPage() {
     const camera = snapCamera(cameraRef.current);
     const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
     const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
+    if (room) {
+      const object = closestRoomObject(room, { x, y });
+      if (object && object.kind !== "exit") setSelectedRoom(object);
+      return;
+    }
     const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y - 5 && y < p.y + p.height);
     if (place) selectPlace(place);
     else {
@@ -424,15 +495,19 @@ export default function PixelJijiaPage() {
 
       <header className="pixel-world-header">
         <div className="pixel-world-top-actions">
-          <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
-            aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+          {room ? (
+            <button type="button" className="pixel-world-tool" onClick={exitRoom}>返回户外</button>
+          ) : (
+            <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
+              aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+          )}
           <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
             onClick={() => setShowHelp(open => !open)} aria-label="操作帮助">?</button>
           <Link to="/" className="pixel-world-return">返回官网</Link>
         </div>
       </header>
 
-      <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
+      {!room && <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
         aria-label="小镇导航地图">
         <div className="pixel-world-map-caption"><span>吉甲地图</span><span>6 个区域 · {SCENERY.filter(p => p.story).length} 处发现</span></div>
         <canvas ref={miniRef} width={432} height={288} onClick={handleNavigationClick}
@@ -458,14 +533,21 @@ export default function PixelJijiaPage() {
           <span>{Math.round(zoom * 100)}%</span>
           <button type="button" aria-label="放大地图" onClick={() => setMapZoom(zoomRef.current + 0.1)}>+</button>
         </div>
-      </aside>
+      </aside>}
+      {room && <div className="pixel-world-room-name">{room.title}</div>}
       {showHelp && <div className="pixel-world-guide" role="note">
         WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
       </div>}
+      {!selectedRoom && room && nearbyRoom && (
+        <button type="button" className="pixel-world-interact"
+          onClick={() => { if (nearbyRoom.kind === "exit") exitRoom(); else setSelectedRoom(nearbyRoom); }}>
+          <kbd>E</kbd> {nearbyRoom.title}
+        </button>
+      )}
       {!selected && seated && (
         <button type="button" className="pixel-world-interact" onClick={standUp}><kbd>E</kbd> 起身</button>
       )}
-      {!selected && !seated && nearby && (
+      {!room && !selected && !seated && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
           <kbd>E</kbd> 探索{featureTitle(nearby)} <span aria-hidden="true">↗</span>
         </button>
@@ -480,7 +562,7 @@ export default function PixelJijiaPage() {
             className={`pixel-world-dir pixel-world-dir--${direction}`}
             onPointerDown={(event) => {
               event.preventDefault();
-              if (selectedRef.current) return;
+              if (selectedRef.current || selectedRoom) return;
               event.currentTarget.setPointerCapture(event.pointerId);
               touchRef.current.add(direction);
             }}
@@ -488,11 +570,12 @@ export default function PixelJijiaPage() {
             onPointerCancel={() => touchRef.current.delete(direction)}
             onLostPointerCapture={() => touchRef.current.delete(direction)}
             onClick={(event) => {
-              if (event.detail !== 0 || selectedRef.current) return;
+              if (event.detail !== 0 || selectedRef.current || selectedRoom) return;
               playerRef.current = movePlayer(playerRef.current,
                 Number(direction === "right") - Number(direction === "left"),
                 Number(direction === "down") - Number(direction === "up"), 0.05,
-                sprintKeyRef.current || sprintTouchRef.current);
+                sprintKeyRef.current || sprintTouchRef.current,
+                room ? (x, y) => isRoomWalkable(room, x, y) : undefined);
             }}
           >{({ up: "▲", left: "◀", down: "▼", right: "▶" } as const)[direction]}</button>
         ))}
@@ -520,6 +603,11 @@ export default function PixelJijiaPage() {
               disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
               onClick={() => sitDown(selected)}>坐下</button>
           )}
+          {"href" in selected && selected.id === MECHANICAL_ROOM.id && (
+            <button type="button" className="pixel-world-detail-link"
+              disabled={closestPlace(playerRef.current)?.id !== MECHANICAL_ROOM.id}
+              onClick={enterRoom}>进入机械工坊</button>
+          )}
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
           {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
@@ -531,6 +619,14 @@ export default function PixelJijiaPage() {
           )}
         </section>
       )}
+      {selectedRoom && <section className="pixel-world-detail" role="dialog"
+        aria-label={selectedRoom.title} aria-modal="false">
+        <button type="button" className="pixel-world-detail-close" aria-label="关闭介绍"
+          onClick={() => setSelectedRoom(null)}>×</button>
+        <span className="pixel-world-detail-eyebrow">MECHANICAL · INTERIOR</span>
+        <h1>{selectedRoom.title}</h1>
+        <p>{selectedRoom.description}</p>
+      </section>}
     </main>
   );
 }
