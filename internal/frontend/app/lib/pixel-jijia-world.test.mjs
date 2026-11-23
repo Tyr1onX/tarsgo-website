@@ -4,7 +4,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  cameraAt, clampZoom, closestPlace, closestStory, isWalkable, movePlayer, snapCamera,
+  cameraAt, clampZoom, closestPlace, closestStory, isWalkable, movePlayer, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -41,6 +41,38 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
   const arch = SCENERY.find(obj => obj.sprite === "arch");
   assert.ok(arch);
   assert.ok(!arch.solid, "门廊必须可通行");
+});
+
+test("建筑顶部和入口前的实体不会再出现可穿过的缝隙", () => {
+  for (const place of PLACES) {
+    for (const y of [place.y + 0.25, place.y + place.height - 0.25]) {
+      assert.equal(isWalkable(place.x + place.width / 2, y), false,
+        `${place.id}: 建筑主体不能出现上下边缘穿模`);
+    }
+    assert.equal(isWalkable(place.x + place.width / 2, place.y + place.height + 0.6), true,
+      `${place.id}: 正面入口必须可停留互动`);
+    assert.equal(closestPlace({
+      x: place.x + place.width / 2, y: place.y + place.height + 0.6,
+    })?.id, place.id);
+  }
+});
+
+test("桌椅、栅栏、花坛和花丛使用真实宽度脚底碰撞，门廊中央仍可通过", () => {
+  for (const type of ["bench", "fence", "planter", "rocks", "hydrangea"]) {
+    const object = SCENERY.find(p => p.sprite === type);
+    assert.ok(object);
+    assert.equal(sceneryBlocks(object, object.x + object.width / TILE * 0.25, object.y), true,
+      `${type} 横向边缘也必须阻挡`);
+  }
+  const decorative = SCENERY.find(p => p.sprite === "hydrangea" && !p.solid);
+  assert.ok(decorative);
+  assert.equal(isWalkable(decorative.x, decorative.y), false, "未单独配置 solid 的花丛不能穿过");
+  const arch = SCENERY.find(p => p.sprite === "arch");
+  assert.ok(arch);
+  assert.equal(sceneryBlocks(arch, arch.x, arch.y), false, "门廊中间是可通行的");
+  const offset = arch.width / (2 * TILE) - 0.8;
+  assert.equal(sceneryBlocks(arch, arch.x - offset, arch.y), true, "门廊两侧立柱须有实体");
+  assert.equal(sceneryBlocks(arch, arch.x + offset, arch.y), true);
 });
 
 test("池塘水面不可穿行，岸边道路仍可通行", () => {
