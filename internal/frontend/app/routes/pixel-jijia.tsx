@@ -14,9 +14,19 @@ import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyF
 import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
+import mechanicalRoomUrl from "../assets/pixel-jijia/interior-mechanical-v5.png?url";
+import honorsRoomUrl from "../assets/pixel-jijia/interior-honors-v5.png?url";
+import electricalRoomUrl from "../assets/pixel-jijia/interior-electrical-v5.png?url";
+import visionRoomUrl from "../assets/pixel-jijia/interior-vision-v5.png?url";
+import guildRoomUrl from "../assets/pixel-jijia/interior-guild-v5.png?url";
+import aiRoomUrl from "../assets/pixel-jijia/interior-ai-v5.png?url";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
+const INTERIOR_ART = {
+  mechanical: mechanicalRoomUrl, honors: honorsRoomUrl, electrical: electricalRoomUrl,
+  vision: visionRoomUrl, guild: guildRoomUrl, ai: aiRoomUrl,
+} as const;
 
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
@@ -60,7 +70,8 @@ export default function PixelJijiaPage() {
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const groundTilesRef = useRef<HTMLImageElement | null>(null);
-  const roomTerrainRef = useRef<Record<string, HTMLCanvasElement>>({});
+  const roomTerrainRef = useRef<HTMLCanvasElement | null>(null);
+  const roomArtRef = useRef<Record<string, HTMLImageElement>>({});
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
@@ -290,13 +301,15 @@ export default function PixelJijiaPage() {
       loadImage(character, "/assets/pixel-jijia/explorer-4dir.png"),
       loadImage(groundTiles, groundTilesUrl),
       loadImage(props, plazaPropsUrl),
+      Promise.all(Object.entries(INTERIOR_ART).map(async ([id, url]) =>
+        [id, await loadImage(new Image(), url)] as const)),
       fetch("/assets/pixel-jijia/actual-imagegen-atlas.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, ground, environment, metadata]) => {
+      .then(([image, explorer, ground, environment, interiors, metadata]) => {
         if (!active) return;
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 528) {
           throw new Error("地面图集与场景版本不匹配");
@@ -311,8 +324,8 @@ export default function PixelJijiaPage() {
         groundTilesRef.current = ground;
         terrainRef.current = renderTerrain(ground, changchunClimate(new Date()).season);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
-        roomTerrainRef.current = Object.fromEntries(
-          Object.values(ROOMS).map(room => [room.id, renderRoomTerrain(room)]));
+        roomTerrainRef.current = renderRoomTerrain(STUDY_ROOM);
+        roomArtRef.current = Object.fromEntries(interiors);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -408,7 +421,8 @@ export default function PixelJijiaPage() {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
     const minimap = miniRef.current, terrain = terrainRef.current, preview = previewRef.current;
-    const roomTerrain = room ? roomTerrainRef.current[room.id] : null;
+    const roomTerrain = room?.id === "study" ? roomTerrainRef.current
+      : room ? roomArtRef.current[room.id] : null;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
     if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props || (room && !roomTerrain)) return;

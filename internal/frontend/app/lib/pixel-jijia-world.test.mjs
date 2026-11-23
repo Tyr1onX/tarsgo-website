@@ -298,7 +298,7 @@ test("机械工坊具备可通行室内、独立功能区与真实进出闭环",
   const world = readFileSync(new URL("./pixel-jijia-world.ts", import.meta.url), "utf8");
   assert.ok(room.includes("export const MECHANICAL_ROOM: RoomScene"));
   assert.ok(room.includes('id: "mechanical"'));
-  assert.ok(room.includes("walls: ["));
+  assert.ok(room.includes("walls: []"), "重绘房间不能残留图片中不存在的隔墙");
   assert.ok(room.includes('id: "assembly"'));
   assert.ok(room.includes('id: "tool-storage"'));
   assert.ok(room.includes('id: "cad"'));
@@ -328,12 +328,56 @@ test("六栋建筑都有不同的可进入室内与独立设备，不复制人�
   for (const kind of ["display", "camera", "server", "reception"]) {
     assert.ok(source.includes(`kind: "${kind}"`), `缺少 ${kind} 类型设施`);
   }
-  assert.ok(route.includes("Object.values(ROOMS).map(room => [room.id, renderRoomTerrain(room)])"));
+  assert.ok(route.includes("roomArtRef.current = Object.fromEntries(interiors)"),
+    "六栋室内应加载独立原创素材而非旧几何铺装");
+  assert.ok(route.includes("renderRoomTerrain(STUDY_ROOM)"),
+    "个人研究室应继续使用可编辑家具层");
   assert.ok(route.includes("const destination = ROOMS[placeId]"));
   assert.ok(route.includes("const place = PLACES.find(p => p.id === roomId)"));
   assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"), "进入建筑不能再依赖点击按钮");
   assert.equal(source.split("export function renderRoomScene(").length, 2,
     "所有室内必须复用同一个渲染入口");
+});
+
+test("六栋室内使用六张各自独立的原创图片，比例与世界一致", () => {
+  const ids = PLACES.map(p => p.id);
+  const seen = new Set();
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  for (const id of ids) {
+    const data = readFileSync(new URL(`../assets/pixel-jijia/interior-${id}-v5.png`, import.meta.url));
+    assert.equal(data.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", id);
+    const w = data.readUInt32BE(16), h = data.readUInt32BE(20);
+    assert.ok(w >= 200 && h >= 130, `${id} 素材尺寸不足`);
+    assert.ok(Math.abs(w / h - 1.5) < 0.02, `${id} 素材比例会导致拉伸`);
+    seen.add(data.toString("base64"));
+    assert.ok(route.includes(`interior-${id}-v5.png?url`), `${id} 尚未加载室内图片`);
+  }
+  assert.equal(seen.size, ids.length, "六张室内图片不能重复复用");
+  assert.ok(scene.includes('room.id !== "study"'), "公开建筑使用图片、研究室保留可编辑家具");
+  assert.ok(scene.includes("drawRoomObject(ctx, object, screenCamera)"), "不能破坏研究室家具绘制");
+  assert.ok(route.includes('const roomTerrain = room?.id === "study"'));
+});
+
+test("生成场景的家具碰撞与可见物件位置对应且入口可通行", () => {
+  const source = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  // Old partition walls belonged to hand-drawn geometry and would become invisible blockers.
+  assert.ok(!source.includes("width: 1, height: 6 },\n    { x: 17, y: 15"));
+  for (const marker of [
+    'id: "assembly", kind: "workbench", x: 14, y: 11.5',
+    'id: "trophies", kind: "display", x: 14, y: 5.5',
+    'id: "embedded", kind: "machine", x: 13.5, y: 14.5',
+    'id: "lens-calibration", kind: "console", x: 15, y: 15',
+    'id: "welcome", kind: "reception", x: 11, y: 9',
+    'id: "planning", kind: "console", x: 14, y: 10',
+  ]) assert.ok(source.includes(marker), `室内物件未与新美术对齐：${marker}`);
+  // Entry (18, 19.4) remains below each central solid object's footprint.
+  assert.ok(source.includes('entry: { x: 18, y: 19.4 }'));
+  assert.ok(source.includes('entry: { x: 18, y: 21.7 }'), "电控入口必须在工作台前方");
+  assert.ok(source.includes('entry: { x: 18, y: 22.1 }'), "视觉入口必须在中央装置前方");
+  assert.ok(source.includes('position.y <= exit.y + exit.height - 0.4'),
+    "室内出口触发范围要覆盖入口门槛，避免无法返回");
+  assert.ok(source.includes('id: "exit", kind: "exit", x: 16, y: 21'));
 });
 
 test("六栋建筑正门自动触发进入，横向经过不会误触发", () => {
