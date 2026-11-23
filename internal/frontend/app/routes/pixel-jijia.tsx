@@ -3,13 +3,15 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, closestPlace, movePlayer,
+  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, movePlayer, snapCamera,
   type Direction, type Place, type Position,
 } from "~/lib/pixel-jijia-world";
 import { renderScene, renderTerrain, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
+
+const DEFAULT_ZOOM = 1.35;
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
@@ -42,8 +44,8 @@ export default function PixelJijiaPage() {
   const artIndexRef = useRef<SpriteIndex | null>(null);
   const propsRef = useRef<HTMLImageElement | null>(null);
   const nearIdRef = useRef<string | null>(null);
-  const zoomRef = useRef(1.7);
-  const [zoom, setZoom] = useState(1.7);
+  const zoomRef = useRef(DEFAULT_ZOOM);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
   const [nearby, setNearby] = useState<Place | null>(null);
   const [selected, setSelected] = useState<Place | null>(null);
@@ -55,6 +57,34 @@ export default function PixelJijiaPage() {
     touchRef.current.clear();
     setSelected(place);
   }, []);
+
+  const resizeCanvas = useCallback(() => {
+    const stage = stageRef.current, canvas = canvasRef.current;
+    if (!stage || !canvas) return;
+    const value = clampZoom(zoomRef.current, stage.clientWidth, stage.clientHeight);
+    if (value !== zoomRef.current) {
+      zoomRef.current = value;
+      setZoom(value);
+    }
+    const width = Math.max(1, Math.round(stage.clientWidth / value));
+    const height = Math.max(1, Math.round(stage.clientHeight / value));
+    if (canvas.width === width && canvas.height === height) return;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.imageSmoothingEnabled = false;
+    cameraRef.current = cameraAt(playerRef.current, width, height);
+  }, []);
+
+  const setMapZoom = useCallback((next: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const value = clampZoom(next, stage.clientWidth, stage.clientHeight);
+    if (value === zoomRef.current) return;
+    zoomRef.current = value;
+    setZoom(value);
+    resizeCanvas();
+  }, [resizeCanvas]);
 
   useEffect(() => {
     let active = true;
@@ -158,18 +188,23 @@ export default function PixelJijiaPage() {
     if (!ctx) return;
     let frame = 0, lastTime = 0, traveled = 0, lastMini = 0;
 
-    const resize = () => {
-      const scale = zoomRef.current;
-      canvas.width = Math.max(1, Math.round(stage.clientWidth / scale));
-      canvas.height = Math.max(1, Math.round(stage.clientHeight / scale));
-      ctx.imageSmoothingEnabled = false;
-      // Keep the player centered at the current position when the viewport changes.
-      cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
+    resizeCanvas();
+    const observer = new ResizeObserver(resizeCanvas);
     observer.observe(stage);
-    cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
+    // Wheel/trackpad zoom keeps sub-step deltas until a visible 1% change is possible.
+    let wheelDelta = 0;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      wheelDelta += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1);
+      const next = clampZoom(zoomRef.current * Math.exp(-wheelDelta * 0.0015), stage.clientWidth, stage.clientHeight);
+      if (next !== zoomRef.current) {
+        wheelDelta = 0;
+        setMapZoom(next);
+      } else if (Math.abs(wheelDelta) > 120) {
+        wheelDelta = 0;
+      }
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
 
     const tick = (time: number) => {
       const dt = lastTime ? Math.min((time - lastTime) / 1000, 0.05) : 0;
@@ -224,21 +259,20 @@ export default function PixelJijiaPage() {
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
-  }, [assetState, zoom]);
-
-  const setMapZoom = (next: number) => {
-    const value = Math.min(3.2, Math.max(1.5, Math.round(next * 20) / 20));
-    zoomRef.current = value;
-    setZoom(value);
-  };
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      canvas.removeEventListener("wheel", onWheel);
+    };
+  }, [assetState, resizeCanvas, setMapZoom]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width * canvas.width + cameraRef.current.x) / TILE;
-    const y = ((event.clientY - rect.top) / rect.height * canvas.height + cameraRef.current.y) / TILE;
+    const camera = snapCamera(cameraRef.current);
+    const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
+    const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
     const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y - 5 && y < p.y + p.height);
     if (place) selectPlace(place);
   };
@@ -274,9 +308,9 @@ export default function PixelJijiaPage() {
         <div className="pixel-world-map-caption"><span>吉甲地图</span><span>MAP · 01</span></div>
         <canvas ref={miniRef} width={196} height={130} aria-label="小镇鸟瞰地图，黄色光点表示你的当前位置" role="img" />
         <div className="pixel-world-zoom">
-          <button type="button" aria-label="缩小地图" onClick={() => setMapZoom(zoom - 0.25)}>−</button>
+          <button type="button" aria-label="缩小地图" onClick={() => setMapZoom(zoomRef.current - 0.1)}>−</button>
           <span>{Math.round(zoom * 100)}%</span>
-          <button type="button" aria-label="放大地图" onClick={() => setMapZoom(zoom + 0.25)}>+</button>
+          <button type="button" aria-label="放大地图" onClick={() => setMapZoom(zoomRef.current + 0.1)}>+</button>
         </div>
       </aside>
 
@@ -289,7 +323,7 @@ export default function PixelJijiaPage() {
           <kbd>E</kbd> 探索{nearby.title} <span aria-hidden="true">↗</span>
         </button>
       )}
-      <div className="pixel-world-help">WASD / 方向键移动 · 靠近建筑按 E 或点击建筑</div>
+      <div className="pixel-world-help">WASD / 方向键移动 · 滚轮缩放 · 靠近建筑按 E 或点击建筑</div>
 
       <div className="pixel-world-dpad" role="group" aria-label="移动方向">
         {(["up", "left", "down", "right"] as Direction[]).map((direction) => (
