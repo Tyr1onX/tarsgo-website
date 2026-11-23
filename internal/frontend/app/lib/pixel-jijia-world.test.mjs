@@ -187,7 +187,8 @@ test("故事点复用可见素材和碰撞配置，不制造不可见标记", ()
   assert.equal(stories.length, 17);
   assert.equal(new Set(stories.map(p => p.story.title)).size, stories.length);
   for (const item of stories) {
-    assert.ok(item.solid, "故事地标须有可见实体与碰撞");
+    const checkX = item.sprite === "arch" ? item.x + item.width / (2 * TILE) - 0.8 : item.x;
+    assert.ok(sceneryBlocks(item, checkX, item.y), "故事地标须有可见实体与碰撞");
     assert.ok(item.story.caption && item.story.description);
     assert.equal(closestStory({ x: item.x + 1.5, y: item.y })?.story?.title, item.story.title);
   }
