@@ -235,7 +235,7 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
     const shades: Record<string, [string, string]> = {
       desk: ["#8b6545", "#ddab78"], chair: ["#667a6b", "#b0c49f"],
       shelf: ["#735846", "#d2b076"], lamp: ["#556d77", "#ffdf8b"],
-      plant: ["#6b5846", "#8aba75"], terminal: ["#334855", "#79cddd"],
+      plant: ["#6b5846", "#8aba75"],
     };
     const [base, detail] = shades[object.kind];
     ctx.fillStyle = base;
@@ -245,10 +245,6 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
     if (object.kind === "plant") {
       ctx.fillStyle = "#79a66b";
       ctx.fillRect(x + 5, y - 20, w - 10, 15);
-    }
-    if (object.kind === "terminal") {
-      ctx.fillStyle = "#78caed";
-      ctx.fillRect(x + 4, y - 23, w - 8, 13);
     }
     return;
   }
