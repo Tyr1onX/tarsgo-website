@@ -360,14 +360,42 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
 }
 
 export function renderRoomScene(
-  ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement, room: RoomScene,
+  ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, direction: Direction,
   walking: boolean, traveled: number, camera: Position,
 ) {
   const screenCamera = snapCamera(camera);
+  const width = room.width * TILE, height = room.height * TILE;
   ctx.fillStyle = "#172d35";
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y, width, height);
+
+  // The public interiors are authored image assets. Repainting their former
+  // geometric furniture would duplicate it and break the single art direction.
+  // Private-study furniture remains separately rendered because it is editable.
+  if (room.id !== "study") {
+    renderExplorer(ctx, character, player, direction, walking, traveled, screenCamera);
+    // A shallow foreground redraw preserves foot-depth occlusion without making
+    // a second sprite/collision configuration for the flattened room artwork.
+    const foreground = room.objects.filter(object =>
+      object.solid && player.y < object.y + object.height &&
+      player.x >= object.x - 1 && player.x <= object.x + object.width + 1);
+    for (const object of foreground) {
+      const x = Math.max(0, (object.x - 0.5) * TILE);
+      const y = Math.max(0, (object.y - 1.5) * TILE);
+      const w = Math.min(width - x, (object.width + 1) * TILE);
+      const h = Math.min(height - y, (object.height + 1.5) * TILE);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - screenCamera.x, y - screenCamera.y, w, h);
+      ctx.clip();
+      ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y, width, height);
+      ctx.restore();
+    }
+    return;
+  }
+
   let playerDrawn = false;
   const props = [...room.objects].filter(o => o.kind !== "exit")
     .sort((a, b) => a.y + a.height - b.y - b.height);
