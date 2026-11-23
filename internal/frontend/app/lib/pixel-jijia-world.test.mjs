@@ -84,11 +84,15 @@ test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", 
 });
 
 test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透明正确", () => {
+  const source = readFileSync(new URL("../../../../scripts/assets/pixel-ground-source.png", import.meta.url));
+  assert.deepEqual([...source.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(source.readUInt32BE(16), 512);
+  assert.equal(source.readUInt32BE(20), 512);
   const path = new URL("../../../../public/assets/pixel-jijia/ground-tiles.png", import.meta.url);
   const png = readFileSync(path);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.equal(png.readUInt32BE(16), 192); // 3 variations × 64px
-  assert.equal(png.readUInt32BE(20), 272); // 4 materials × 64px + edge sprites
+  assert.equal(png.readUInt32BE(16), 384); // 3 image-derived variations × 128px
+  assert.equal(png.readUInt32BE(20), 528); // 4 materials × 128px + edge sprites
   assert.equal(png[25], 6); // RGBA for transparent transition edges
 
   const parts = [];
@@ -100,7 +104,7 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
     offset += length + 12;
   }
   const pixels = inflateSync(Buffer.concat(parts));
-  const stride = 192 * 4 + 1;
+  const stride = 384 * 4 + 1;
   const rgba = (x, y) => {
     assert.equal(pixels[y * stride], 0, "需使用零过滤，便于逐像素验证");
     const offset = y * stride + 1 + x * 4;
@@ -108,30 +112,32 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
   };
 
   for (let material = 0; material < 4; material++) {
-    const row = material * 64;
+    const row = material * 128;
     const colors = new Set();
     for (let variant = 0; variant < 3; variant++) {
-      const col = variant * 64;
-      for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+      const col = variant * 128;
+      for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
         const color = rgba(col + x, row + y);
         assert.equal(color[3], 255, "地面材质不能透出黑边");
         colors.add(color.join(","));
       }
       // Every variation shares exactly the same four outer pixel edges,
       // so different 64px patches never introduce a discontinuous seam.
-      for (let i = 0; i < 64; i++) {
-        for (const [x, y] of [[0, i], [63, i], [i, 0], [i, 63]]) {
+      for (let i = 0; i < 128; i++) {
+        for (const [x, y] of [[0, i], [127, i], [i, 0], [i, 127]]) {
           assert.deepEqual(rgba(col + x, row + y), rgba(x, row + y));
         }
+        assert.deepEqual(rgba(col, row + i), rgba(col + 127, row + i));
+        assert.deepEqual(rgba(col + i, row), rgba(col + i, row + 127));
       }
     }
-    assert.ok(colors.size >= 5, "地面不能退化为单一色块");
+    assert.ok(colors.size >= 40, "地面必须包含生成美术中的真实纹理细节");
   }
 
   for (let edge = 0; edge < 12; edge++) {
     const start = edge * 16;
     const alphas = [];
-    for (let y = 256; y < 272; y++) for (let x = start; x < start + 16; x++) {
+    for (let y = 512; y < 528; y++) for (let x = start; x < start + 16; x++) {
       alphas.push(rgba(x, y)[3]);
     }
     assert.ok(alphas.some(a => a === 0) && alphas.some(a => a > 0),

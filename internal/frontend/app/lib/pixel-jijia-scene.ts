@@ -20,7 +20,7 @@ function hash(x: number, y: number) {
 }
 
 type GroundKind = 0 | 1 | 2 | 3; // grass, path, plaza, water
-const GROUND_PATCH = TILE * 4;
+const GROUND_PATCH = TILE * 8;
 const GROUND_EDGE_Y = GROUND_PATCH * 4;
 
 function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Array {
@@ -51,10 +51,10 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Ar
   for (let y = 0; y < WORLD_HEIGHT; y++) {
     for (let x = 0; x < WORLD_WIDTH; x++) {
       const kind = at(x, y) as GroundKind;
-      // A 4×4-cell masonry patch preserves grout continuity across its tiles.
-      const variant = hash(Math.floor(x / 4), Math.floor(y / 4)) % 3;
-      const sourceX = variant * GROUND_PATCH + (x % 4) * TILE;
-      const sourceY = kind * GROUND_PATCH + (y % 4) * TILE;
+      // Each 8×8-cell patch comes from the original generated terrain artwork.
+      const variant = hash(Math.floor(x / 8), Math.floor(y / 8)) % 3;
+      const sourceX = variant * GROUND_PATCH + (x % 8) * TILE;
+      const sourceY = kind * GROUND_PATCH + (y % 8) * TILE;
       const destX = point(x), destY = point(y);
       ctx.drawImage(tiles, sourceX, sourceY, TILE, TILE, destX, destY, TILE, TILE);
 
