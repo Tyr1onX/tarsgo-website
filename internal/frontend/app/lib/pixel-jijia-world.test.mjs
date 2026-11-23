@@ -4,7 +4,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  cameraAt, closestPlace, isWalkable, movePlayer,
+  cameraAt, clampZoom, closestPlace, isWalkable, movePlayer, snapCamera,
 } from "./pixel-jijia-world.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -103,6 +103,47 @@ test("镜头平滑跟随目标并限制在地图边界", () => {
     assert.ok(camera.x >= 0 && camera.x <= WORLD_WIDTH*TILE-630);
     assert.ok(camera.y >= 0 && camera.y <= WORLD_HEIGHT*TILE-400);
   }
+});
+
+test("广场人工设施按同一轴线对齐，环境装饰仍可自由错落", () => {
+  const at = (name, y) => SCENERY.filter(p => p.sprite === name && p.y === y).map(p => p.x);
+  assert.deepEqual(at("bench", 33), [38, 58]);
+  assert.deepEqual(at("lamp", 45.3), [38, 58]);
+  assert.deepEqual(at("planter", 26.1), [35, 61]);
+  assert.deepEqual(at("planter", 43.7), [35, 61]);
+  assert.equal(SCENERY.find(p => p.sprite === "arch")?.x, FOUNTAIN.x);
+  assert.equal(SCENERY.find(p => p.sprite === "statue")?.x, 58);
+});
+
+test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
+  const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
+  assert.match(scene, /const screenCamera = snapCamera\(camera\)/);
+  assert.match(scene, /ctx\.drawImage\(terrain, -screenCamera\.x, -screenCamera\.y\)/);
+  assert.match(scene, /drawNode\(ctx, node, atlas, sprites, props, screenCamera\)/);
+  assert.match(scene, /renderExplorer\(ctx, characterSheet, player, direction, walking, traveled, screenCamera\)/);
+  for (const x of [10.1, 10.49, 10.51, 10.9, 11.4]) {
+    const camera = snapCamera({ x, y: 20.6 });
+    const ground = 100 - camera.x;
+    const statue = Math.round(58 * TILE - 49 / 2) - camera.x;
+    assert.equal(statue - ground, Math.round(58 * TILE - 49 / 2) - 100);
+  }
+});
+
+test("缩放可精细调节并根据屏幕尺寸避免露出地图外区域", () => {
+  assert.equal(clampZoom(1.35, 1440, 900), 1.35);
+  assert.equal(clampZoom(0.5, 1440, 900), 1);
+  assert.equal(clampZoom(1, 1920, 1080), 1.25);
+  assert.equal(clampZoom(1.256, 1440, 900), 1.26);
+  assert.equal(clampZoom(9, 1440, 900), 3.2);
+  for (const [w, h] of [[390, 844], [1440, 900], [1920, 1080], [2560, 1440]]) {
+    const zoom = clampZoom(0.5, w, h);
+    assert.ok(Math.round(w / zoom) <= WORLD_WIDTH * TILE);
+    assert.ok(Math.round(h / zoom) <= WORLD_HEIGHT * TILE);
+  }
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(route.includes('canvas.addEventListener("wheel", onWheel, { passive: false })'));
+  assert.ok(route.includes('}, [assetState, resizeCanvas, setMapZoom])'));
+  assert.ok(!route.includes('[assetState, zoom]'), "缩放不能反复重建动画循环");
 });
 
 test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
