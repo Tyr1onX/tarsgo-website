@@ -293,13 +293,13 @@ export default function PixelJijiaPage() {
           lastFountain = time;
         }
         if (time - lastPetal > 560) {
+          lastPetal = time;
           const tree = cherryTrees.find((item) =>
             Math.hypot(playerRef.current.x - item.x, playerRef.current.y - item.y) < 16);
           if (tree) {
             emit({ x: tree.x * TILE + (Math.random() - 0.5) * 48,
               y: tree.y * TILE - 68, vx: 9, vy: 12,
               age: 0, ttl: 2.1, color: "#f7b6ce", size: 3 });
-            lastPetal = time;
           }
         }
         for (let index = particles.length - 1; index >= 0; index--) {
