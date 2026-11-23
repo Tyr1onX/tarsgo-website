@@ -400,8 +400,9 @@ test("环境粒子使用统一世界坐标与现有动画循环，数量受控",
   assert.ok(route.includes("cherryTrees.find("));
   assert.ok(route.includes("FOUNTAIN.x * TILE"));
   assert.ok(route.includes("renderParticles(ctx, particles, cameraRef.current)"));
-  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 2,
-    "粒子不得新增独立动画循环");
+  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3,
+    "初始化、帧末、切门提前结束都必须调度同一个 tick，不得启动独立粒子循环");
+  assert.ok(route.includes("const tick = (time: number) => {"));
 });
 
 test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
