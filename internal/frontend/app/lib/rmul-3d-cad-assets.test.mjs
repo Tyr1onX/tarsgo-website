@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { CAD_MODELS, DEFAULT_CAD_MODEL, cadSourceOccurrenceForMesh } from "./rmul-3d-cad-assets.ts";
+import { CAD_MODELS, DEFAULT_CAD_MODEL, retainCadSourceNodes } from "./rmul-3d-cad-assets.ts";
 
 test("only source-backed 2027 CAD assets are selectable", () => {
   assert.deepEqual(Object.keys(CAD_MODELS), ["rmucField", "base", "outpost", "rune", "field", "energy"]);
@@ -77,12 +77,26 @@ test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies",
 });
 
 
-test("source occurrence filtering keeps all GLTF mesh primitives from one side", () => {
-  const outpost = CAD_MODELS.outpost.sourceNodes;
-  assert.equal(cadSourceOccurrenceForMesh("source_1800898_10", outpost), "source_1800898_10");
-  assert.equal(cadSourceOccurrenceForMesh("source_2603236_11_0", outpost), "source_2603236_11");
-  assert.equal(cadSourceOccurrenceForMesh("source_2603236_11_16", outpost), "source_2603236_11");
-  assert.equal(cadSourceOccurrenceForMesh("source_1800898_9", outpost), undefined);
-  assert.equal(cadSourceOccurrenceForMesh("source_2603236_12_0", outpost), undefined);
-  assert.equal(cadSourceOccurrenceForMesh("source_1354629_1_9", CAD_MODELS.rune.sourceNodes), "source_1354629_1");
+test("retain only a CAD source occurrence even when two placements share a mesh", () => {
+  const assembly = { children: [] };
+  const node = (name, sharedMesh) => {
+    const value = {
+      name, sharedMesh,
+      removeFromParent() {
+        assembly.children.splice(assembly.children.indexOf(value), 1);
+      },
+    };
+    assembly.children.push(value);
+    return value;
+  };
+  const first = node("source_2603236_11", "reused-outpost-mesh");
+  node("source_2603236_12", "reused-outpost-mesh");
+  const footing = node("source_1800898_10", "footing-mesh");
+  node("source_1800898_9", "footing-mesh");
+
+  retainCadSourceNodes(assembly, CAD_MODELS.outpost.sourceNodes);
+  assert.deepEqual(assembly.children, [first, footing]);
+  assert.equal(first.sharedMesh, "reused-outpost-mesh");
+  assert.throws(() => retainCadSourceNodes(assembly, ["not-a-real-occurrence"]), /CAD source occurrence missing/);
+  assert.deepEqual(assembly.children, [first, footing]);
 });

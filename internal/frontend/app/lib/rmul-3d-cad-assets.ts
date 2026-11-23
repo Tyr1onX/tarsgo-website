@@ -49,14 +49,17 @@ export const CAD_MODELS = {
 export type CadModelId = keyof typeof CAD_MODELS;
 export const DEFAULT_CAD_MODEL: CadModelId = "rmucField";
 
-// GLTFLoader puts multi-primitive source meshes under a named parent node.
-// Match the source occurrence and its primitive children, but not its sibling
-// occurrence (for example, source_2603236_11 vs source_2603236_12).
-export function cadSourceOccurrenceForMesh(
-  meshName: string,
-  sourceNodes: readonly string[],
-): string | undefined {
-  return sourceNodes.find((node) => meshName === node || meshName.startsWith(node + "_"));
+// One source mesh can be instanced at multiple placements, and GLTFLoader
+// reuses child Mesh names. Select the occurrence parents, not their child meshes.
+export function retainCadSourceNodes(
+  assembly: { children: { name: string; removeFromParent: () => void }[] },
+  names: readonly string[],
+): void {
+  const required = new Set(names);
+  if ([...required].some((name) => !assembly.children.some((child) => child.name === name)))
+    throw new Error("CAD source occurrence missing");
+  for (const child of [...assembly.children])
+    if (!required.has(child.name)) child.removeFromParent();
 }
 
 

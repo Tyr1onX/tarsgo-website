@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CAD_MODELS, cadSourceOccurrenceForMesh, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
+import { CAD_MODELS, retainCadSourceNodes, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
 
 export type FieldView = "all" | "red" | "blue";
 export interface ArenaController {
@@ -122,19 +122,11 @@ export function mountArena(
     }).then((gltf) => {
       const selected = CAD_MODELS[id];
       if ("sourceNodes" in selected) {
-        // Select exact STEP-derived occurrences, not all mirrored copies.
-        // The full-map view still retains every source-placed structure.
-        const required = new Set<string>(selected.sourceNodes);
-        const found = new Set<string>();
-        const excluded: THREE.Object3D[] = [];
-        gltf.scene.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          const occurrence = cadSourceOccurrenceForMesh(object.name, selected.sourceNodes);
-          if (occurrence) found.add(occurrence);
-          else excluded.push(object);
-        });
-        if (found.size !== required.size) throw new Error("CAD source occurrence missing");
-        for (const object of excluded) object.removeFromParent();
+        // The CAD has mirrored instances sharing mesh data. Keep only the
+        // requested assembly children while retaining every mesh primitive.
+        const assembly = gltf.scene.getObjectByName("centre-platform");
+        if (!assembly) throw new Error("CAD central assembly missing");
+        retainCadSourceNodes(assembly, selected.sourceNodes);
       }
       const root = new THREE.Group();
       root.add(gltf.scene);
