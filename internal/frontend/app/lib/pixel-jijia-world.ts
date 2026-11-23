@@ -58,20 +58,20 @@ export type Scenery = Position & {
   solid?: number; // feet collision radius in world tiles; absent means passable
 };
 export const SCENERY: Scenery[] = [
-  // The plaza is designed as one coherent composition, not scattered random props.
+  // Man-made fixtures align around the fountain at x=48; planting stays deliberately irregular.
   { sprite: "arch", x: 48, y: 23.8, width: 104, height: 92 },
   { sprite: "planter", x: 35, y: 26.1, width: 51, height: 40, solid: 0.72 },
   { sprite: "planter", x: 61, y: 26.1, width: 51, height: 40, solid: 0.72 },
   { sprite: "planter", x: 35, y: 43.7, width: 51, height: 40, solid: 0.72 },
   { sprite: "planter", x: 61, y: 43.7, width: 51, height: 40, solid: 0.72 },
   { sprite: "bench", x: 38, y: 33, width: 57, height: 38, solid: 0.8 },
-  { sprite: "bench", x: 58.5, y: 33, width: 57, height: 38, solid: 0.8 },
+  { sprite: "bench", x: 58, y: 33, width: 57, height: 38, solid: 0.8 },
   { sprite: "lamp", x: 33, y: 32, width: 30, height: 75, solid: 0.4 },
   { sprite: "lamp", x: 63, y: 32, width: 30, height: 75, solid: 0.4 },
   { sprite: "lamp", x: 38, y: 45.3, width: 30, height: 75, solid: 0.4 },
   { sprite: "lamp", x: 58, y: 45.3, width: 30, height: 75, solid: 0.4 },
-  { sprite: "statue", x: 57.5, y: 39, width: 49, height: 62, solid: 0.9 },
-  { sprite: "sign", x: 44.2, y: 43, width: 40, height: 59, solid: 0.38 },
+  { sprite: "statue", x: 58, y: 39, width: 49, height: 62, solid: 0.9 },
+  { sprite: "sign", x: 44, y: 43, width: 40, height: 59, solid: 0.38 },
   { sprite: "hydrangea", x: 40, y: 25.2, width: 45, height: 36 },
   { sprite: "hydrangea", x: 56, y: 25.2, width: 45, height: 36 },
   // Landscape framing extends beyond the hero square, using the same authored kit.
@@ -133,6 +133,17 @@ export function closestPlace({ x, y }: Position): Place | null {
     }
   }
   return nearest;
+}
+
+// Fit the map to the viewport without exposing off-world canvas; retain fine 1% zoom steps.
+export function clampZoom(zoom: number, viewportWidth: number, viewportHeight: number): number {
+  const fit = Math.ceil(Math.max(1, viewportWidth / (WORLD_WIDTH * TILE), viewportHeight / (WORLD_HEIGHT * TILE)) * 100) / 100;
+  return Math.max(fit, Math.min(3.2, Math.round(zoom * 100) / 100));
+}
+
+// All scene layers must use the same whole-pixel camera offset per frame.
+export function snapCamera(camera: Position): Position {
+  return { x: Math.round(camera.x), y: Math.round(camera.y) };
 }
 
 export function cameraAt(position: Position, viewWidth: number, viewHeight: number): Position {
