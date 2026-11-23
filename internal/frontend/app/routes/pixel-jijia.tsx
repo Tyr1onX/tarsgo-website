@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
@@ -7,7 +7,10 @@ import {
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
-import { ROOMS, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOMS, STUDY_ROOM, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { apiRequest } from "~/lib/api-client";
+import { getCurrentUser } from "~/lib/auth-client";
+import { STUDY_CATALOG, canPlaceStudy, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
@@ -76,7 +79,17 @@ export default function PixelJijiaPage() {
   const [storyActivated, setStoryActivated] = useState(false);
   const [seated, setSeated] = useState<Scenery | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const room = roomId ? ROOMS[roomId] ?? null : null;
+  const [studyItems, setStudyItems] = useState<StudyFurniture[]>([]);
+  const [studyRevision, setStudyRevision] = useState(0);
+  const [studyGuest, setStudyGuest] = useState(false);
+  const [studyTool, setStudyTool] = useState<StudyFurnitureKind | "erase">("desk");
+  const [studySaving, setStudySaving] = useState(false);
+  const [studyNotice, setStudyNotice] = useState("");
+  const [studyHasInvite, setStudyHasInvite] = useState(false);
+  const [studyInvite, setStudyInvite] = useState("");
+  const room = useMemo(() => roomId === "study"
+    ? makeStudyRoom(studyItems, studyGuest)
+    : roomId ? ROOMS[roomId] ?? null : null, [roomId, studyItems, studyGuest]);
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -134,7 +147,89 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   }, [selectPlace]);
 
+  const openStudy = useCallback(async (invitation?: string) => {
+    setStudyNotice("");
+    try {
+      if (!invitation) await getCurrentUser();
+      const data = await apiRequest<{
+        items: StudyFurniture[]; revision: number; hasInvite?: boolean;
+      }>(invitation ? `/api/pixel-jijia/study/visit/${encodeURIComponent(invitation)}`
+        : "/api/pixel-jijia/study", { cache: "no-store" });
+      setStudyItems(data.items);
+      setStudyRevision(data.revision);
+      setStudyHasInvite(Boolean(data.hasInvite));
+      setStudyGuest(Boolean(invitation));
+      setStudyInvite("");
+      playerRef.current = { ...STUDY_ROOM.entry };
+      const canvas = canvasRef.current;
+      if (canvas) cameraRef.current = cameraAt(STUDY_ROOM.entry, canvas.width, canvas.height,
+        STUDY_ROOM.width * TILE, STUDY_ROOM.height * TILE);
+      keysRef.current.clear();
+      touchRef.current.clear();
+      setRoomId("study");
+      setSelectedRoom(null);
+      setMapOpen(false);
+      selectPlace(null);
+    } catch (error) {
+      setStudyNotice(error instanceof Error ? error.message : "研究室无法打开");
+    }
+  }, [selectPlace]);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("visit");
+    if (token) void openStudy(token);
+  }, [openStudy]);
+
+  const saveStudy = async () => {
+    if (studyGuest || studySaving) return;
+    setStudySaving(true);
+    setStudyNotice("");
+    try {
+      const result = await apiRequest<{ revision: number }>("/api/pixel-jijia/study", {
+        method: "PUT", body: { items: studyItems, revision: studyRevision },
+      });
+      setStudyRevision(result.revision);
+      setStudyNotice("布局已保存");
+    } catch (error) {
+      setStudyNotice(error instanceof Error ? error.message : "保存失败");
+    } finally {
+      setStudySaving(false);
+    }
+  };
+  const createStudyInvite = async () => {
+    setStudyNotice("");
+    try {
+      const result = await apiRequest<{ token: string }>("/api/pixel-jijia/study/invite", { method: "POST" });
+      const url = `${window.location.origin}/pixel-jijia?visit=${result.token}`;
+      setStudyInvite(url);
+      setStudyHasInvite(true);
+      setStudyNotice("邀请已生成，可复制链接发给访客");
+    } catch (error) {
+      setStudyNotice(error instanceof Error ? error.message : "邀请生成失败");
+    }
+  };
+  const revokeStudyInvite = async () => {
+    try {
+      await apiRequest("/api/pixel-jijia/study/invite", { method: "DELETE" });
+      setStudyInvite("");
+      setStudyHasInvite(false);
+      setStudyNotice("旧邀请链接已失效");
+    } catch (error) {
+      setStudyNotice(error instanceof Error ? error.message : "撤销失败");
+    }
+  };
+
   const exitRoom = useCallback(() => {
+    if (roomId === "study") {
+      playerRef.current = { ...SPAWN };
+      const canvas = canvasRef.current;
+      if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.width, canvas.height);
+      setRoomId(null);
+      setSelectedRoom(null);
+      setStudyGuest(false);
+      if (window.location.search.includes("visit=")) window.history.replaceState(null, "", "/pixel-jijia");
+      return;
+    }
     const place = PLACES.find(p => p.id === roomId);
     if (!place) return;
     playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
@@ -486,6 +581,17 @@ export default function PixelJijiaPage() {
     const camera = snapCamera(cameraRef.current);
     const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
     const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
+    if (room?.id === "study" && !studyGuest) {
+      const cellX = Math.floor(x), cellY = Math.floor(y);
+      if (studyTool === "erase") {
+        setStudyItems(items => items.filter(item => item.x !== cellX || item.y !== cellY));
+      } else {
+        const furniture = { kind: studyTool, x: cellX, y: cellY, rotation: 0 };
+        setStudyItems(items => canPlaceStudy(items, furniture) ? [...items, furniture] : items);
+      }
+      setStudyNotice("");
+      return;
+    }
     if (room) {
       const object = closestRoomObject(room, { x, y });
       if (object && object.kind !== "exit") setSelectedRoom(object);
@@ -536,8 +642,11 @@ export default function PixelJijiaPage() {
           {room ? (
             <button type="button" className="pixel-world-tool" onClick={exitRoom}>返回户外</button>
           ) : (
-            <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
-              aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+            <>
+              <button type="button" className="pixel-world-tool" onClick={() => void openStudy()}>我的研究室</button>
+              <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
+                aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+            </>
           )}
           <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
             onClick={() => setShowHelp(open => !open)} aria-label="操作帮助">?</button>
@@ -573,6 +682,23 @@ export default function PixelJijiaPage() {
         </div>
       </aside>}
       {room && <div className="pixel-world-room-name">{room.title}</div>}
+      {room?.id === "study" && !studyGuest && <div className="pixel-world-study-tools" role="group" aria-label="研究室家具布置">
+        <select aria-label="选择家具或删除" value={studyTool}
+          onChange={event => setStudyTool(event.target.value as StudyFurnitureKind | "erase")}>
+          {Object.entries(STUDY_CATALOG).map(([kind, title]) =>
+            <option value={kind} key={kind}>{title}</option>)}
+          <option value="erase">移除家具</option>
+        </select>
+        <button type="button" disabled={studySaving} onClick={() => void saveStudy()}>保存布局</button>
+        <button type="button" onClick={() => void createStudyInvite()}>邀请参观</button>
+        {studyHasInvite && <button type="button" onClick={() => void revokeStudyInvite()}>撤销邀请</button>}
+        {studyInvite && <input aria-label="参观邀请链接" readOnly value={studyInvite}
+          onFocus={event => event.target.select()} />}
+      </div>}
+      {room?.id === "study" && studyGuest && <div className="pixel-world-study-guest">只读参观</div>}
+      {studyNotice && <div className="pixel-world-study-notice" role="status">
+        {studyNotice} {studyNotice.includes("未登录") && <Link to="/login">前往登录</Link>}
+      </div>}
       {climate && <div className="pixel-world-climate" role="status" aria-label="长春时间与游戏模拟天气">
         <span>{SEASON_LABEL[climate.season]}</span>
         <time>{String(climate.hour).padStart(2, "0")}:{String(climate.minute).padStart(2, "0")}</time>
