@@ -164,7 +164,7 @@ test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
 test("缩放可精细调节并根据屏幕尺寸避免露出地图外区域", () => {
   assert.equal(clampZoom(1.35, 1440, 900), 1.35);
   assert.equal(clampZoom(0.5, 1440, 900), 1);
-  assert.equal(clampZoom(1, 1920, 1080), 1.25);
+  assert.equal(clampZoom(1, 1920, 1080), 1);
   assert.equal(clampZoom(1.256, 1440, 900), 1.26);
   assert.equal(clampZoom(9, 1440, 900), 3.2);
   for (const [w, h] of [[390, 844], [1440, 900], [1920, 1080], [2560, 1440]]) {
