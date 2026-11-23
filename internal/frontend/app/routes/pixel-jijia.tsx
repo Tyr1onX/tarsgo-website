@@ -516,7 +516,7 @@ export default function PixelJijiaPage() {
             <button type="button" className="pixel-world-detail-link"
               disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
               onClick={() => sitDown(selected)}>坐下</button>
-          )
+          )}
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
           {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
