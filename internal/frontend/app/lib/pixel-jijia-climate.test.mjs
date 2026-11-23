@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { changchunClimate } from "./pixel-jijia-climate.ts";
 
@@ -38,7 +39,6 @@ test("长春晚间降低光线但保持画面可辨认，夏季日照更长", ()
 });
 
 test("四季地形、天气粒子与显示必须复用原 Canvas 及减少动态设置", () => {
-  const { readFileSync } = await import("node:fs");
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(scene.includes('season === "winter"'));
