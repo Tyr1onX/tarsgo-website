@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
@@ -15,7 +15,14 @@ const DEFAULT_ZOOM = 1.35;
 
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? "发现";
-const closestFeature = (position: Position): Feature | null => closestPlace(position) ?? closestStory(position);
+const closestFeature = (position: Position): Feature | null => {
+  const place = closestPlace(position), story = closestStory(position);
+  if (!place || !story) return place ?? story;
+  const dx = Math.max(place.x - position.x, 0, position.x - place.x - place.width);
+  const dy = Math.max(place.y - position.y, 0, position.y - place.y - place.height);
+  return Math.hypot(position.x - story.x, position.y - story.y) < Math.hypot(dx, dy)
+    ? story : place;
+};
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
@@ -56,6 +63,7 @@ export default function PixelJijiaPage() {
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
   const [nearby, setNearby] = useState<Feature | null>(null);
   const [selected, setSelected] = useState<Feature | null>(null);
+  const [storyActivated, setStoryActivated] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const selectPlace = useCallback((place: Feature | null) => {
@@ -64,6 +72,7 @@ export default function PixelJijiaPage() {
     touchRef.current.clear();
     sprintKeyRef.current = false;
     sprintTouchRef.current = false;
+    setStoryActivated(false);
     setSelected(place);
   }, []);
 
@@ -327,7 +336,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
       if (miniCtx && time - lastMini > 100) {
-        renderNavigationMap(miniCtx, playerRef.current, directionRef.current,
+        renderNavigationMap(miniCtx, terrain, playerRef.current, directionRef.current,
           cameraRef.current, canvas.width, canvas.height);
         lastMini = time;
       }
@@ -356,6 +365,19 @@ export default function PixelJijiaPage() {
     }
   };
 
+  const handleNavigationClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width * WORLD_WIDTH;
+    const y = (event.clientY - rect.top) / rect.height * WORLD_HEIGHT;
+    const story = SCENERY.find(p => p.story && Math.hypot(x - p.x, y - p.y) < 2.8);
+    const place = PLACES.find(p => x >= p.x && x <= p.x + p.width &&
+      y >= p.y && y <= p.y + p.height);
+    if (story || place) {
+      selectPlace(story ?? place ?? null);
+      setMapOpen(false);
+    }
+  };
+
   return (
     <main className="pixel-world">
       <div className="pixel-world-stage" ref={stageRef}>
@@ -375,10 +397,6 @@ export default function PixelJijiaPage() {
       </div>
 
       <header className="pixel-world-header">
-        <div className="pixel-world-brand">
-          <img src="/assets/images/Logo/tarsgo-robot-v5.svg" alt="" aria-hidden="true" />
-          <span><strong>像素吉甲</strong><small>TARSGO · PIXEL WORLD</small></span>
-        </div>
         <div className="pixel-world-top-actions">
           <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
             aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
@@ -390,9 +408,25 @@ export default function PixelJijiaPage() {
 
       <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
         aria-label="小镇导航地图" aria-hidden={!mapOpen}>
-        <div className="pixel-world-map-caption"><span>吉甲地图</span><span>建筑与发现</span></div>
-        <canvas ref={miniRef} width={216} height={144}
-          aria-label="小镇道路、建筑、故事地标、玩家朝向及当前视野" role="img" />
+        <div className="pixel-world-map-caption"><span>吉甲地图</span><span>6 个区域 · {SCENERY.filter(p => p.story).length} 处发现</span></div>
+        <canvas ref={miniRef} width={432} height={288} onClick={handleNavigationClick}
+          aria-label="小镇详细地图，点击地标查看介绍。也可使用下方目的地按钮" role="img" />
+        <div className="pixel-world-map-destinations" aria-label="建筑目的地">
+          {PLACES.map(place => (
+            <button type="button" key={place.id} onClick={() => { selectPlace(place); setMapOpen(false); }}>
+              {place.title}
+            </button>
+          ))}
+        </div>
+        <details className="pixel-world-map-discoveries">
+          <summary>探索发现 · {SCENERY.filter(p => p.story).length}</summary>
+          <div className="pixel-world-map-discovery-list">
+            {SCENERY.filter(p => p.story).map(item => (
+              <button type="button" key={item.story!.title}
+                onClick={() => { selectPlace(item); setMapOpen(false); }}>{item.story!.title}</button>
+            ))}
+          </div>
+        </details>
         <div className="pixel-world-zoom">
           <button type="button" aria-label="缩小地图" onClick={() => setMapZoom(zoomRef.current - 0.1)}>−</button>
           <span>{Math.round(zoom * 100)}%</span>
@@ -454,6 +488,13 @@ export default function PixelJijiaPage() {
           <p>{"href" in selected ? selected.description : selected.story?.description}</p>
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
+          {"story" in selected && selected.story?.action && !storyActivated && (
+            <button type="button" className="pixel-world-detail-link"
+              onClick={() => setStoryActivated(true)}>{selected.story.action}</button>
+          )}
+          {"story" in selected && selected.story?.result && storyActivated && (
+            <p className="pixel-world-story-result" role="status">{selected.story.result}</p>
+          )}
         </section>
       )}
     </main>

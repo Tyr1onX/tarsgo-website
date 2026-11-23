@@ -123,36 +123,61 @@ export function renderTerrain(tiles: HTMLImageElement): HTMLCanvasElement {
 }
 
 // A semantic navigation view: paths and destinations, not a downscaled second world canvas.
+// The existing terrain canvas supplies texture; navigation adds readable landmarks
+// without allocating a second full-world image.
 export function renderNavigationMap(
-  ctx: CanvasRenderingContext2D, player: Position, direction: Direction,
+  ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement,
+  player: Position, direction: Direction,
   camera: Position, viewWidth: number, viewHeight: number,
 ) {
   const { width, height } = ctx.canvas;
   const scaleX = width / WORLD_WIDTH, scaleY = height / WORLD_HEIGHT;
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#789b73";
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(terrain, 0, 0, width, height);
+  ctx.fillStyle = "rgba(16, 43, 38, .13)";
   ctx.fillRect(0, 0, width, height);
-  const colors = ["#789b73", "#d4bd8b", "#9aa5a6", "#65aabc"];
-  for (const area of GROUND_AREAS) {
-    ctx.fillStyle = colors[area.kind];
-    ctx.fillRect(area.x * scaleX, area.y * scaleY,
-      area.width * scaleX, area.height * scaleY);
+
+  // Subtle survey grid keeps the expanded map legible without covering paths.
+  ctx.strokeStyle = "rgba(248, 237, 194, .25)";
+  ctx.lineWidth = 1;
+  for (let tile = 16; tile < WORLD_WIDTH; tile += 16) {
+    ctx.beginPath();
+    ctx.moveTo(Math.round(tile * scaleX) + .5, 0);
+    ctx.lineTo(Math.round(tile * scaleX) + .5, height);
+    ctx.stroke();
   }
+  for (let tile = 16; tile < WORLD_HEIGHT; tile += 16) {
+    ctx.beginPath();
+    ctx.moveTo(0, Math.round(tile * scaleY) + .5);
+    ctx.lineTo(width, Math.round(tile * scaleY) + .5);
+    ctx.stroke();
+  }
+
   for (const place of PLACES) {
+    const x = Math.round(place.x * scaleX), y = Math.round(place.y * scaleY);
+    const w = Math.round(place.width * scaleX), h = Math.round(place.height * scaleY);
+    ctx.fillStyle = "#1c3836";
+    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
     ctx.fillStyle = place.accent;
-    ctx.fillRect(place.x * scaleX, place.y * scaleY,
-      place.width * scaleX, place.height * scaleY);
-    ctx.strokeStyle = "#304b47";
-    ctx.strokeRect(place.x * scaleX, place.y * scaleY,
-      place.width * scaleX, place.height * scaleY);
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = "#1d3737";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(place.title, x + w / 2, y + h / 2, w - 4);
   }
   for (const item of SCENERY) {
     if (!item.story) continue;
-    ctx.fillStyle = "#ffdf8a";
-    ctx.fillRect(item.x * scaleX - 2, item.y * scaleY - 2, 4, 4);
+    const x = Math.round(item.x * scaleX), y = Math.round(item.y * scaleY);
+    ctx.fillStyle = "#223d3c";
+    ctx.fillRect(x - 4, y - 4, 8, 8);
+    ctx.fillStyle = "#fce19a";
+    ctx.fillRect(x - 2, y - 2, 4, 4);
   }
-  ctx.strokeStyle = "rgba(255, 255, 228, 0.88)";
-  ctx.lineWidth = 1;
+
+  ctx.strokeStyle = "rgba(255, 251, 208, .96)";
+  ctx.lineWidth = 2;
   ctx.strokeRect(camera.x / TILE * scaleX, camera.y / TILE * scaleY,
     viewWidth / TILE * scaleX, viewHeight / TILE * scaleY);
 
@@ -161,11 +186,11 @@ export function renderNavigationMap(
   const [dx, dy] = heading;
   ctx.fillStyle = "#fff5c6";
   ctx.strokeStyle = "#1f3e3b";
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(px + dx * 5, py + dy * 5);
-  ctx.lineTo(px - dx * 3 - dy * 3, py - dy * 3 + dx * 3);
-  ctx.lineTo(px - dx * 3 + dy * 3, py - dy * 3 - dx * 3);
+  ctx.moveTo(px + dx * 7, py + dy * 7);
+  ctx.lineTo(px - dx * 4 - dy * 5, py - dy * 4 + dx * 5);
+  ctx.lineTo(px - dx * 4 + dy * 5, py - dy * 4 - dx * 5);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
