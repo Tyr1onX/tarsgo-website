@@ -492,7 +492,8 @@ export default function PixelJijiaPage() {
       ctx.imageSmoothingEnabled = false;
       if (room && roomTerrain) {
         renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
-          directionRef.current, walking, traveled, cameraRef.current);
+          directionRef.current, walking, traveled, cameraRef.current,
+          time, !reducedMotion.matches);
       } else {
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));

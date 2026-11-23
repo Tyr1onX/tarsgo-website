@@ -357,10 +357,108 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
   }
 }
 
+// A few artwork-aligned, low-contrast details. Coordinates are in the same
+// 36 × 24 tile space as the room image; they do not alter physical objects.
+function renderRoomAmbient(
+  ctx: CanvasRenderingContext2D, room: RoomScene, camera: Position, elapsed: number,
+) {
+  const t = elapsed / 1000;
+  const pulse = (speed: number, phase = 0) => (Math.sin(t * speed + phase) + 1) / 2;
+  const mark = (x: number, y: number, w: number, h: number, color: string, alpha: number) => {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x * TILE), Math.round(y * TILE), w, h);
+  };
+  const gleam = (x: number, y: number, phase: number, color: string) => {
+    const strength = Math.pow(pulse(0.65, phase), 14) * 0.46;
+    if (strength < 0.025) return;
+    mark(x, y, 2, 2, color, strength);
+    mark(x - 0.16, y + 0.03, 1, 1, color, strength * 0.6);
+    mark(x + 0.18, y + 0.03, 1, 1, color, strength * 0.6);
+  };
+
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+
+  // Near-invisible airborne specks drift slowly through the shared interior light.
+  // Their paths are deterministic, so room changes never allocate particle state.
+  for (let i = 0; i < 5; i++) {
+    const drift = (t * (0.045 + i * 0.008) + i * 0.19) % 1;
+    const x = 4.6 + i * 6.3 + Math.sin(t * 0.28 + i * 2.4) * 0.32;
+    const y = 17.4 - drift * 8 + i % 2;
+    mark(x, y, i % 3 === 0 ? 2 : 1, 1, room.theme.window,
+      Math.sin(drift * Math.PI) * (0.08 + (i % 3) * 0.045));
+  }
+
+  switch (room.id) {
+    case "mechanical":
+      // Robot-arm joint indicators and a slowly traversing CAD cursor.
+      mark(13.7, 11.25, 2, 2, "#f8c978", 0.13 + pulse(1.7) * 0.31);
+      mark(22.05, 11.25, 2, 2, "#f8c978", 0.11 + pulse(1.35, 2) * 0.3);
+      mark(24.6 + (t * 0.3) % 3.8, 9.2, 1, 16, "#b9f4ff", 0.1);
+      gleam(18.3, 10.65, 1.4, "#fff3d5");
+      break;
+    case "honors":
+      // Display-case reflections arrive at different times, never in sync.
+      gleam(18.4, 3.8, 0.4, "#fff4d0");
+      gleam(8.5, 16, 2.7, "#fff1c2");
+      gleam(27.1, 15.9, 4.7, "#fff1c2");
+      mark(4.05, 4.6, 3, 4, "#ffe0a0", 0.08 + pulse(0.75) * 0.12);
+      mark(31.5, 4.6, 3, 4, "#ffe0a0", 0.08 + pulse(0.67, 2.1) * 0.12);
+      break;
+    case "electrical":
+      // A tiny measured signal inside the existing main oscilloscope.
+      for (let i = 0; i < 35; i++) {
+        const x = 15 + i * 0.17;
+        const y = 8.95 + Math.sin(i * 0.55 - t * 1.3) * 0.13;
+        mark(x, y, 2, 1, "#d6f8ff", 0.17 + pulse(1.6, i * 0.14) * 0.12);
+      }
+      mark(14.7 + (t * 0.24) % 6.6, 7.15, 1, 37, "#8bdaf6", 0.09);
+      mark(10.55, 11.1, 2, 2, "#b5f1ce", 0.1 + pulse(1.6) * 0.34);
+      mark(25.1, 10.3, 2, 2, "#b5f1ce", 0.12 + pulse(1.25, 1.7) * 0.32);
+      break;
+    case "vision":
+      // The projection and camera retain their painted silhouettes; only light moves.
+      for (let i = 0; i < 4; i++) {
+        const phase = t * (0.37 + i * 0.06) + i * 1.7;
+        mark(18 + Math.sin(phase) * (1.3 + i * 0.18),
+          15.25 + Math.cos(phase) * 0.6, 2, 2, "#a4fff5",
+          0.13 + pulse(1.1, i) * 0.17);
+      }
+      mark(5.72, 15.6, 2, 2, "#a4fff5", 0.1 + pulse(1.3) * 0.3);
+      mark(13.1 + (t * 0.24) % 8.2, 12.0, 2, 1, "#a8f4fb", 0.18);
+      break;
+    case "guild":
+      // Independent candle-like shifts at the wall lamps, plus crest polish.
+      for (const [x, phase] of [[11.15, 0], [24.85, 2.4]] as const) {
+        const flicker = pulse(2.2, phase) * 0.13 + pulse(3.7, phase + 1) * 0.09;
+        mark(x, 6.45, 3, 5, "#ffe2a0", 0.1 + flicker);
+        mark(x + 0.07, 6.33, 1, 2, "#fff0c0", 0.1 + flicker * 0.8);
+      }
+      gleam(18.15, 3.1, 3.5, "#fff2ba");
+      break;
+    case "ai":
+      // Data-rack LEDs and a few points ascending inside the holographic tree.
+      for (let i = 0; i < 4; i++) {
+        const cycle = (t * (0.12 + i * 0.016) + i * 0.21) % 1;
+        mark(18 + Math.sin(t * 0.62 + i) * (0.25 + i * 0.22),
+          12.2 - cycle * 5.3, 2, 2, "#c5faff", Math.sin(cycle * Math.PI) * 0.34);
+      }
+      for (let i = 0; i < 4; i++) {
+        mark(29.9 + (i % 2) * 1.9, 6.6 + i * 1.05, 2, 2, "#7be4ff",
+          0.12 + Math.pow(pulse(1.1 + i * 0.22, i * 1.3), 4) * 0.29);
+      }
+      gleam(18, 14.6, 1.1, "#d8feff");
+      break;
+  }
+  ctx.restore();
+}
+
 export function renderRoomScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, direction: Direction,
   walking: boolean, traveled: number, camera: Position,
+  elapsed: number, motionAllowed: boolean,
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -368,6 +466,7 @@ export function renderRoomScene(
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y, width, height);
+  if (motionAllowed && room.id !== "study") renderRoomAmbient(ctx, room, screenCamera, elapsed);
 
   // The public interiors are authored image assets. Repainting their former
   // geometric furniture would duplicate it and break the single art direction.

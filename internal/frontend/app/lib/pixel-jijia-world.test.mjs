@@ -361,6 +361,19 @@ test("六栋室内使用六张各自独立的原创图片，比例与世界一�
   assert.ok(route.includes('const roomTerrain = room?.id === "study"'));
 });
 
+test("六栋室内的微动效与房间共用一条动画循环，减少动态时停用", () => {
+  const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(scene.includes("function renderRoomAmbient("));
+  for (const { id } of PLACES) {
+    assert.ok(scene.includes(`case "${id}":`), `${id} 缺少专属微动效`);
+  }
+  assert.ok(scene.includes('if (motionAllowed && room.id !== "study") renderRoomAmbient('));
+  assert.ok(route.includes("time, !reducedMotion.matches)"));
+  assert.ok(!scene.includes("requestAnimationFrame("), "室内动效不得另开动画循环");
+  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3);
+});
+
 test("生成场景的家具碰撞与可见物件位置对应且入口可通行", () => {
   const source = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
   // Old partition walls belonged to hand-drawn geometry and would become invisible blockers.
