@@ -42,6 +42,17 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
   assert.ok(!arch.solid, "门廊必须可通行");
 });
 
+test("池塘水面不可穿行，岸边道路仍可通行", () => {
+  const ponds = GROUND_AREAS.filter((area) => area.kind === 3);
+  assert.equal(ponds.length, 2);
+  for (const pond of ponds) {
+    const y = pond.y + pond.height / 2;
+    assert.equal(isWalkable(pond.x + pond.width / 2, y), false);
+    assert.equal(isWalkable(pond.x - 0.31, y), true);
+    assert.equal(isWalkable(pond.x + pond.width + 0.31, y), true);
+  }
+});
+
 test("统一场景图集必须包含十二个真实透明环境素材", () => {
   const path = new URL("../assets/pixel-jijia/plaza-props.png", import.meta.url);
   const png = readFileSync(path);
