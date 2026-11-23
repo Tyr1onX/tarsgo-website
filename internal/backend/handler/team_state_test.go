@@ -74,6 +74,19 @@ func TestTechnicalMeetingNewestSectionEvenInReverseOrder(t *testing.T) {
 	if teamMeetingISO("未标注具体会议日期\n已完成测试") != "" {
 		t.Fatal("meeting date must not be invented")
 	}
+	if got := teamMeetingDate("飞机周会 11.21"); got != 20261121 {
+		t.Fatalf("title-first meeting date was ignored: %d", got)
+	}
+	if got := teamMeetingDate("2026.11.22雷达站与自定义终端会议记录"); got != 20261122 {
+		t.Fatalf("date-first meeting title was ignored: %d", got)
+	}
+	if got := teamMeetingDate("预计 11.29 完成任务"); got != 0 {
+		t.Fatalf("task due dates must not be treated as meetings: %d", got)
+	}
+	flight := teamMeetingHistory("27赛季无人机", "飞机周会 11.21\n定位在不同光照条件下已稳定悬停\n11.14飞机周会记录\n上周完成装配", "https://example.com/flight")
+	if len(flight) != 2 || flight[0].Date != "2026-11-21" || !strings.Contains(flight[0].Updates[0], "定位") {
+		t.Fatalf("drone's prefix-dated weekly meeting must be visible: %+v", flight)
+	}
 }
 
 func TestTechnicalBriefDoesNotMixInfantryAndSentry(t *testing.T) {
@@ -90,7 +103,7 @@ func TestTechnicalBriefDoesNotMixInfantryAndSentry(t *testing.T) {
 	}
 }
 
-func TestTechnicalRadarMeetingsReadDatedHistory(t *testing.T) {
+func TestTechnicalRadarMeetingsDiscoverNewestFolderEntries(t *testing.T) {
 	calls := 0
 	var mu sync.Mutex
 	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
@@ -99,36 +112,61 @@ func TestTechnicalRadarMeetingsReadDatedHistory(t *testing.T) {
 		mu.Unlock()
 		body := `{"code":0,"data":{}}`
 		switch {
-		case strings.HasSuffix(req.URL.Path, "/blocks"):
-			body = `{"code":0,"data":{"items":[{"text":{"elements":[{"mention_doc":{"title":"2026.11.15雷达站会议记录","token":"wiki_new","url":"https://example.com/latest"}}]}},{"text":{"elements":[{"mention_doc":{"title":"2026.11.8雷达站会议记录","token":"wiki_old","url":"https://example.com/old"}}]}}]}}`
-		case strings.HasSuffix(req.URL.Path, "/get_node"):
-			switch req.URL.Query().Get("token") {
-			case "wiki_new":
-				body = `{"code":0,"data":{"node":{"obj_token":"doc_new"}}}`
-			case "wiki_old":
-				body = `{"code":0,"data":{"node":{"obj_token":"doc_old"}}}`
-			default:
-				t.Errorf("unrecognized wiki token: %s", req.URL)
+		case strings.HasSuffix(req.URL.Path, "/nodes"):
+			if req.URL.Query().Get("parent_node_token") != teamRadarFolder {
+				t.Errorf("unexpected wiki folder: %s", req.URL)
+			}
+			if req.URL.Query().Get("page_token") == "" {
+				body = `{"code":0,"data":{"items":[{"title":"2026.11.8雷达站会议记录","node_token":"wiki_old","obj_token":"doc_old","obj_type":"docx"}],"has_more":true,"page_token":"next"}}`
+			} else {
+				body = `{"code":0,"data":{"items":[{"title":"2026.11.22雷达站与自定义终端会议记录","node_token":"wiki_new","obj_token":"doc_new","obj_type":"docx"},{"title":"技术方案","node_token":"ignored","obj_token":"ignored","obj_type":"docx"}],"has_more":false}}`
 			}
 		case strings.HasSuffix(req.URL.Path, "/raw_content"):
 			if strings.Contains(req.URL.Path, "doc_new") {
-				body = `{"code":0,"data":{"content":"2026.11.15雷达站会议记录\n第一次联调完成\n后续安排：\n购买镜头测试"}}`
+				body = `{"code":0,"data":{"content":"2026.11.22雷达站与自定义终端会议记录\n本周已完成：\n行为树demo已经跑通\n后续安排：\n调整数据集标注脚本"}}`
 			} else {
 				body = `{"code":0,"data":{"content":"2026.11.8雷达站会议记录\n信息波部署已完成"}}`
 			}
+		default:
+			t.Errorf("unexpected API request: %s", req.URL)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
 	})}
 	h := &FeishuHandler{client: client}
-	history, err := h.teamRadarMeetings(context.Background(), "token")
-	if err != nil || len(history) != 2 || calls != 5 {
-		t.Fatalf("expected index and two linked source documents: history=%+v err=%v calls=%d", history, err, calls)
+	history, err := h.teamFolderMeetings(context.Background(), "token", teamRadarSpace, teamRadarFolder, "27赛季雷达", 4)
+	if err != nil || len(history) != 2 || calls != 4 {
+		t.Fatalf("expected both pages and two source documents: history=%+v err=%v calls=%d", history, err, calls)
 	}
-	if history[0].Date != "2026-11-15" || history[1].Date != "2026-11-08" ||
-		history[0].URL != "https://example.com/latest" || history[1].URL != "https://example.com/old" ||
-		!strings.Contains(history[0].Updates[0], "第一次联调") ||
-		!strings.Contains(history[0].NextAction, "购买镜头") {
-		t.Fatalf("timeline and provenance must match the index: %+v", history)
+	if history[0].Date != "2026-11-22" || history[1].Date != "2026-11-08" ||
+		history[0].URL != teamWikiURL+"wiki_new" || history[1].URL != teamWikiURL+"wiki_old" ||
+		!strings.Contains(history[0].Updates[0], "行为树") || strings.Contains(strings.Join(history[0].Updates, " "), "本周已完成：") ||
+		!strings.Contains(history[0].NextAction, "数据集") {
+		t.Fatalf("latest radar meeting must be attributed and separated from plans: %+v", history)
+	}
+}
+
+func TestTechnicalWeeklyMeetingReadsNewDocumentWithoutManualIndex(t *testing.T) {
+	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
+		body := `{"code":0,"data":{}}`
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/nodes"):
+			if req.URL.Query().Get("parent_node_token") != teamWeeklyFolder {
+				t.Errorf("unexpected weekly folder: %s", req.URL)
+			}
+			body = `{"code":0,"data":{"items":[{"title":"11.15周会","node_token":"old","obj_token":"old_doc","obj_type":"docx"},{"title":"11.22周会","node_token":"new","obj_token":"new_doc","obj_type":"docx"}],"has_more":false}}`
+		case strings.HasSuffix(req.URL.Path, "/new_doc/raw_content"):
+			body = `{"code":0,"data":{"content":"11.22周会\n一、进度\n步哨\n重装 大臂等待零件，11.30预计完成\n飞镖 制导11.29待测试\n2026.11.22雷达站与自定义终端会议记录\n下周继续联调"}}`
+		default:
+			t.Errorf("unexpected API request: %s", req.URL)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	h := &FeishuHandler{client: client}
+	history, err := h.teamFolderMeetings(context.Background(), "token", teamWeeklySpace, teamWeeklyFolder, "全队周会", 1)
+	if err != nil || len(history) != 1 || history[0].Date != "2026-11-22" ||
+		history[0].URL != teamWikiURL+"new" || len(history[0].Updates) == 0 ||
+		!strings.HasPrefix(history[0].Updates[0], "重装") || strings.Contains(history[0].Updates[0], "步哨：") {
+		t.Fatalf("latest team-wide meeting should be discovered without editing an index: %+v, %v", history, err)
 	}
 }
 
@@ -197,8 +235,8 @@ func TestTechnicalDashboardReadOnlyAndDoesNotInventTaskProgressWhenUnauthorized(
 			t.Fatalf("unknown task counts must be marked unavailable: %+v", project)
 		}
 	}
-	if len(result.Sources) != 2 || result.Sources[0].Status != "unavailable" ||
-		!strings.Contains(result.Sources[0].SetupURL, "base%3Arecord%3Aread") {
+	if len(result.Sources) != 3 || result.Sources[1].Status != "unavailable" ||
+		!strings.Contains(result.Sources[1].SetupURL, "base%3Arecord%3Aread") {
 		t.Fatalf("permission issues must be actionable: %+v", result.Sources)
 	}
 	for _, call := range methods {
@@ -214,5 +252,58 @@ func TestTechnicalBriefRadarKeepsFuturePlanSeparateFromCompletedProgress(t *test
 	if len(updates) != 2 || !strings.Contains(updates[0], "第一次联调") ||
 		strings.Contains(strings.Join(updates, " "), "购买镜头") || !strings.Contains(next, "购买镜头") {
 		t.Fatalf("must separate reported progress from future plan: updates=%v next=%q", updates, next)
+	}
+}
+
+func TestTechnicalTeamStateAutoDiscoversWeeklyAndRadarFromFolders(t *testing.T) {
+	client := &http.Client{Transport: teamStateMockTransport(func(req *http.Request) (*http.Response, error) {
+		body := `{"code":0,"data":{}}`
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/tenant_access_token/internal"):
+			body = `{"code":0,"tenant_access_token":"test-token"}`
+		case strings.Contains(req.URL.Path, "/tables/"):
+			body = `{"code":0,"data":{"fields":[],"data":[],"record_id_list":[],"has_more":false}}`
+		case strings.HasSuffix(req.URL.Path, "/nodes"):
+			if strings.Contains(req.URL.Path, teamRadarSpace) {
+				body = `{"code":0,"data":{"items":[{"title":"2026.11.22雷达站与自定义终端会议记录","node_token":"radar_new","obj_token":"radar_doc","obj_type":"docx"}]}}`
+			} else {
+				body = `{"code":0,"data":{"items":[{"title":"11.22周会","node_token":"weekly_new","obj_token":"weekly_doc","obj_type":"docx"}]}}`
+			}
+		case strings.HasSuffix(req.URL.Path, "/raw_content"):
+			content := "11.21组会\n造车\n底盘联调已完成\nai\n哨兵定位联调已完成"
+			if strings.Contains(req.URL.Path, "weekly_doc") {
+				content = "11.22周会\n重装 大臂等件中，预计11.30出实物\n飞镖 制导预计11.29完成"
+			} else if strings.Contains(req.URL.Path, "radar_doc") {
+				content = "2026.11.22雷达站与自定义终端会议记录\n已经跑通行为树demo"
+			}
+			quoted, _ := json.Marshal(content)
+			body = `{"code":0,"data":{"content":` + string(quoted) + `}}`
+		default:
+			t.Errorf("unrecognized upstream request: %s", req.URL)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	h := &FeishuHandler{cfg: config.FeishuConfig{AppID: "app", AppSecret: "secret"}, client: client}
+	result := &teamStateResponse{Projects: []teamProject{}, Sources: []teamSource{}}
+	h.teamStateProjects(context.Background(), result)
+	if result.WeeklyMeeting == nil || result.WeeklyMeeting.Date != "2026-11-22" ||
+		result.WeeklyMeeting.URL != teamWikiURL+"weekly_new" {
+		t.Fatalf("latest weekly meeting missing from snapshot: %+v", result.WeeklyMeeting)
+	}
+	if result.Summary == nil || result.Summary.Total != 0 || len(result.Projects) != 6 {
+		t.Fatalf("meeting updates must never fabricate task progress: %+v", result)
+	}
+	foundRadar := false
+	for _, project := range result.Projects {
+		if project.Name == "27赛季雷达" {
+			foundRadar = true
+			if project.LastMeetingDate != "2026-11-22" || project.MeetingURL != teamWikiURL+"radar_new" {
+				t.Fatalf("radar must follow the new folder document: %+v", project)
+			}
+		}
+	}
+	if !foundRadar || len(result.Sources) != 3 || result.Sources[0].Status != "available" ||
+		result.Sources[2].Status != "available" {
+		t.Fatalf("weekly and group sources must be available: %+v", result.Sources)
 	}
 }

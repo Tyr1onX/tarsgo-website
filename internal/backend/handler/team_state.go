@@ -22,6 +22,11 @@ const (
 	teamStateTasksTable    = "tbl3uMJN70j3FedT"
 	teamStateMembersTable  = "tblCbjOqc8v3TjGW"
 	teamStateBaseURL       = "https://t0ekqtnsg8e.feishu.cn/base/" + teamStateBaseToken
+	teamWikiURL            = "https://t0ekqtnsg8e.feishu.cn/wiki/"
+	teamWeeklySpace        = "7674174386240261422"
+	teamWeeklyFolder       = "WGEIwBJuYiAwjSk8E6ZcMRSTnbe"
+	teamRadarSpace         = "7649688251808124101"
+	teamRadarFolder        = "HI55wqFy2iWdrFk5neac3UcFnef"
 )
 
 type teamSource struct {
@@ -85,11 +90,12 @@ type teamSummary struct {
 }
 
 type teamStateResponse struct {
-	GeneratedAt time.Time     `json:"generatedAt"`
-	Sources     []teamSource  `json:"sources"`
-	Summary     *teamSummary  `json:"summary"`
-	Projects    []teamProject `json:"projects"`
-	Refreshing  bool          `json:"refreshing,omitempty"`
+	GeneratedAt   time.Time          `json:"generatedAt"`
+	Sources       []teamSource       `json:"sources"`
+	Summary       *teamSummary       `json:"summary"`
+	Projects      []teamProject      `json:"projects"`
+	WeeklyMeeting *teamMeetingRecord `json:"weeklyMeeting,omitempty"`
+	Refreshing    bool               `json:"refreshing,omitempty"`
 }
 
 const (
@@ -206,9 +212,13 @@ func (h *FeishuHandler) teamStateDoc(ctx context.Context, token, documentID stri
 }
 
 var teamMeetingHeading = regexp.MustCompile(`^\s*(?:#{1,5}\s*)?(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2}).*(?:会议|组会|周会)`)
+var teamMeetingHeadingSuffix = regexp.MustCompile(`^\s*(?:#{1,5}\s*)?.{1,20}?(?:会议|组会|周会)\s*(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2})(?:\D|$)`)
 
 func teamMeetingDate(line string) int {
 	m := teamMeetingHeading.FindStringSubmatch(strings.TrimSpace(line))
+	if m == nil {
+		m = teamMeetingHeadingSuffix.FindStringSubmatch(strings.TrimSpace(line))
+	}
 	if m == nil {
 		return 0
 	}
@@ -293,7 +303,7 @@ func teamBrief(name, excerpt string) (notes []string, blocker, next string) {
 			heading = ""
 			continue
 		}
-		if strings.HasPrefix(line, "上周已完成进度") {
+		if strings.HasPrefix(line, "上周已完成进度") || strings.HasPrefix(line, "本周已完成") {
 			inNextSection = false
 			heading = ""
 			continue
@@ -301,6 +311,12 @@ func teamBrief(name, excerpt string) (notes []string, blocker, next string) {
 		if strings.HasPrefix(line, "议程") {
 			inNextSection = false
 			heading = ""
+			continue
+		}
+		if inNextSection {
+			if next == "" {
+				next = teamClip(line, 145)
+			}
 			continue
 		}
 		if len([]rune(line)) <= 9 && !strings.ContainsAny(line, "。；，:：") &&
@@ -321,16 +337,10 @@ func teamBrief(name, excerpt string) (notes []string, blocker, next string) {
 			strings.Contains(line, "第一次联调") || strings.Contains(line, "可以开始")
 		planning := strings.Contains(line, "计划完成") || strings.Contains(line, "预计完成")
 		text := line
-		if heading != "" && heading != "上周已完成进度✅：" && heading != "上周已完成进度✅" {
+		if name != "全队周会" && heading != "" && heading != "上周已完成进度✅：" && heading != "上周已完成进度✅" {
 			text = heading + "：" + line
 		}
 		text = teamClip(text, 145)
-		if inNextSection {
-			if next == "" {
-				next = text
-			}
-			continue
-		}
 		if len(fallback) < 2 {
 			fallback = append(fallback, text)
 		}
@@ -417,48 +427,56 @@ func teamMeetingHistory(name, content, sourceURL string) []teamMeetingRecord {
 	return unique
 }
 
-// Radar stores each meeting in a separate wiki document. Read only the three
-// newest index entries, each with its own original source link.
-func (h *FeishuHandler) teamRadarMeetings(ctx context.Context, token string) ([]teamMeetingRecord, error) {
-	var blocks struct {
-		Items []struct {
-			Text struct {
-				Elements []struct {
-					MentionDoc *struct {
-						Title string `json:"title"`
-						Token string `json:"token"`
-						URL   string `json:"url"`
-					} `json:"mention_doc"`
-				} `json:"elements"`
-			} `json:"text"`
-		} `json:"items"`
-	}
-	endpoint := "https://open.feishu.cn/open-apis/docx/v1/documents/IisUdYmbMo1ypMxKVTWcSjdcnje/blocks"
-	if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"page_size": {"100"}}, nil, "", token, &blocks); err != nil {
-		return nil, err
-	}
+// Read the meeting folder itself, rather than an index document that must be
+// updated manually. Both the team-wide weekly folder and radar use this path.
+func (h *FeishuHandler) teamFolderMeetings(ctx context.Context, token, spaceID, folderID, name string, max int) ([]teamMeetingRecord, error) {
 	type candidate struct {
 		date        int
-		token, link string
+		docID, link string
 	}
 	candidates := []candidate{}
-	for _, block := range blocks.Items {
-		for _, element := range block.Text.Elements {
-			doc := element.MentionDoc
-			if doc == nil || doc.Token == "" {
+	endpoint := "https://open.feishu.cn/open-apis/wiki/v2/spaces/" + spaceID + "/nodes"
+	pageToken := ""
+	for {
+		var page struct {
+			Items []struct {
+				Title     string `json:"title"`
+				NodeToken string `json:"node_token"`
+				ObjToken  string `json:"obj_token"`
+				ObjType   string `json:"obj_type"`
+			} `json:"items"`
+			HasMore   bool   `json:"has_more"`
+			PageToken string `json:"page_token"`
+		}
+		query := url.Values{"parent_node_token": {folderID}, "page_size": {"50"}}
+		if pageToken != "" {
+			query.Set("page_token", pageToken)
+		}
+		if err := h.bitableRequest(ctx, http.MethodGet, endpoint, query, nil, "", token, &page); err != nil {
+			return nil, err
+		}
+		for _, node := range page.Items {
+			if node.ObjType != "docx" || node.ObjToken == "" || node.NodeToken == "" {
 				continue
 			}
-			if date := teamMeetingDate(doc.Title); date > 0 {
-				candidates = append(candidates, candidate{date, doc.Token, doc.URL})
+			if date := teamMeetingDate(node.Title); date > 0 {
+				candidates = append(candidates, candidate{date, node.ObjToken, teamWikiURL + node.NodeToken})
 			}
 		}
+		if !page.HasMore {
+			break
+		}
+		if page.PageToken == "" || page.PageToken == pageToken {
+			return nil, fmt.Errorf("incomplete meeting folder listing")
+		}
+		pageToken = page.PageToken
 	}
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("radar meeting index has no dated document")
+		return nil, fmt.Errorf("meeting folder has no dated documents")
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].date > candidates[j].date })
-	if len(candidates) > 4 {
-		candidates = candidates[:4]
+	if len(candidates) > max {
+		candidates = candidates[:max]
 	}
 	results := make([]teamMeetingRecord, len(candidates))
 	errs := make([]error, len(candidates))
@@ -467,27 +485,22 @@ func (h *FeishuHandler) teamRadarMeetings(ctx context.Context, token string) ([]
 		wg.Add(1)
 		go func(i int, item candidate) {
 			defer wg.Done()
-			var node struct {
-				Node struct {
-					ObjToken string `json:"obj_token"`
-				} `json:"node"`
-			}
-			endpoint := "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node"
-			if err := h.bitableRequest(ctx, http.MethodGet, endpoint, url.Values{"token": {item.token}, "obj_type": {"wiki"}}, nil, "", token, &node); err != nil {
-				errs[i] = err
-				return
-			}
-			if node.Node.ObjToken == "" {
-				errs[i] = fmt.Errorf("radar meeting missing document token")
-				return
-			}
-			content, err := h.teamStateDoc(ctx, token, node.Node.ObjToken)
+			content, err := h.teamStateDoc(ctx, token, item.docID)
 			if err != nil {
 				errs[i] = err
 				return
 			}
-			parsed := teamMeetingHistory("27赛季雷达", content, item.link)
+			if name == "全队周会" {
+				updates, blocker, next := teamBrief(name, content)
+				results[i] = teamMeetingRecord{
+					Date:    fmt.Sprintf("%04d-%02d-%02d", item.date/10000, item.date/100%100, item.date%100),
+					Updates: updates, Blocker: blocker, NextAction: next, URL: item.link, excerpt: content,
+				}
+				return
+			}
+			parsed := teamMeetingHistory(name, content, item.link)
 			if len(parsed) == 0 {
+				errs[i] = fmt.Errorf("meeting %s has no dated content", item.link)
 				return
 			}
 			results[i] = parsed[0]
@@ -506,7 +519,7 @@ func (h *FeishuHandler) teamRadarMeetings(ctx context.Context, token string) ([]
 		}
 	}
 	if len(history) == 0 && firstErr == nil {
-		firstErr = fmt.Errorf("radar meetings have no usable dated content")
+		firstErr = fmt.Errorf("meeting folder has no usable records")
 	}
 	return history, firstErr
 }
@@ -524,7 +537,7 @@ var teamMeetingDocs = map[string]struct{ ID, URL string }{
 	"27赛季重装":  {"SygqdJVZGoQhGhx8tgNcp0etnC7", "https://t0ekqtnsg8e.feishu.cn/wiki/K0FAwMdRQik3pWkdSZ8cd5nvn9g"},
 	"27赛季飞镖":  {"YtTWd7MtIovj5bxdSfscKDpAnde", "https://t0ekqtnsg8e.feishu.cn/wiki/Cu8fwUbizirOaZkC9whcHwMen1b"},
 	"27赛季无人机": {"Q1H3dnqBFoDbZxxIZ51c80Ohnef", "https://t0ekqtnsg8e.feishu.cn/wiki/PwJpwv3pMiJYhIk5WS5cVUYWngf"},
-	"27赛���雷达":  {"IisUdYmbMo1ypMxKVTWcSjdcnje", "https://t0ekqtnsg8e.feishu.cn/wiki/DZISwXt0eisxN8kDhcYcmaEgncd"},
+	"27赛季雷达":  {"IisUdYmbMo1ypMxKVTWcSjdcnje", "https://t0ekqtnsg8e.feishu.cn/wiki/DZISwXt0eisxN8kDhcYcmaEgncd"},
 }
 
 func buildTeamProjects(result *teamStateResponse, projects, tasks, members teamBaseRows) {
@@ -630,18 +643,24 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 	names := []string{"27赛季步兵", "27赛季重装", "27赛季飞镖", "27赛季无人机", "27赛季雷达"}
 	meetings := make([]meetingResult, len(names))
 	var wg sync.WaitGroup
-	wg.Add(3 + len(names))
+	var weekly []teamMeetingRecord
+	var weeklyErr error
+	wg.Add(4 + len(names))
 	go func() {
 		defer wg.Done()
 		projects, projectsErr = h.teamStateBaseRows(ctx, token, teamStateProjectsTable)
 	}()
 	go func() { defer wg.Done(); tasks, tasksErr = h.teamStateBaseRows(ctx, token, teamStateTasksTable) }()
 	go func() { defer wg.Done(); members, membersErr = h.teamStateBaseRows(ctx, token, teamStateMembersTable) }()
+	go func() {
+		defer wg.Done()
+		weekly, weeklyErr = h.teamFolderMeetings(ctx, token, teamWeeklySpace, teamWeeklyFolder, "全队周会", 1)
+	}()
 	for i, name := range names {
 		go func(i int, name string) {
 			defer wg.Done()
 			if name == "27赛季雷达" {
-				meetings[i].history, meetings[i].err = h.teamRadarMeetings(ctx, token)
+				meetings[i].history, meetings[i].err = h.teamFolderMeetings(ctx, token, teamRadarSpace, teamRadarFolder, name, 4)
 				return
 			}
 			doc := teamMeetingDocs[name]
@@ -653,6 +672,22 @@ func (h *FeishuHandler) teamStateProjects(ctx context.Context, result *teamState
 		}(i, name)
 	}
 	wg.Wait()
+
+	weeklySource := teamSource{Name: "全队周会", Status: "available", URL: teamWikiURL + teamWeeklyFolder}
+	if len(weekly) > 0 {
+		result.WeeklyMeeting = &weekly[0]
+	}
+	if weeklyErr != nil {
+		weeklySource.Status, weeklySource.Detail = "unavailable", "最新全队周会暂不可读取"
+		if result.WeeklyMeeting != nil {
+			weeklySource.Status, weeklySource.Detail = "partial", "部分周会记录暂不可读取"
+		}
+		if strings.Contains(weeklyErr.Error(), "99991672") {
+			weeklySource.SetupURL = teamSourceSetupURL(h.cfg.AppID, "wiki:node:read", "docx:document:readonly")
+		}
+		log.Printf("technical dashboard weekly meeting source: %v", weeklyErr)
+	}
+	result.Sources = append(result.Sources, weeklySource)
 
 	baseErr := projectsErr
 	if baseErr == nil {

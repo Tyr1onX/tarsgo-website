@@ -30,7 +30,7 @@ type Summary = {
   total: number; completed: number; inProgress: number; notStarted: number;
   stalled: number; missingCompletedDate: number; conflictingCompletedDate: number;
 };
-type Snapshot = { generatedAt: string; refreshing?: boolean; sources: Source[]; summary: Summary | null; projects: Project[] };
+type Snapshot = { generatedAt: string; refreshing?: boolean; sources: Source[]; summary: Summary | null; projects: Project[]; weeklyMeeting?: MeetingRecord };
 
 export function meta() {
   return [{ title: "技术研发总览 | TARSGO" }];
@@ -292,6 +292,18 @@ export default function TeamStatePage() {
             {(summary.missingCompletedDate > 0 || summary.conflictingCompletedDate > 0) && <p className="team-state__quality-note"><Icon icon={alertTriangle} aria-hidden="true" />任务数据待核对：{summary.missingCompletedDate} 条已完成缺少日期，{summary.conflictingCompletedDate} 条未完成却填写了完成日期。进入兵种详情查看具体任务。</p>}
           </div>}
         </section>
+
+        {snapshot.weeklyMeeting && <section className="team-state__panel">
+          <div className="team-state__section-head">
+            <h2>最近全队周会 · {snapshot.weeklyMeeting.date}</h2>
+            <SourceLink url={snapshot.weeklyMeeting.url}>查看周会原文</SourceLink>
+          </div>
+          {snapshot.weeklyMeeting.updates.length > 0 && <ul className="team-state__update-list">
+            {snapshot.weeklyMeeting.updates.map((note, i) => <li key={i}>{note}</li>)}
+          </ul>}
+          {snapshot.weeklyMeeting.blocker && <p><strong>问题：</strong>{snapshot.weeklyMeeting.blocker}</p>}
+          {snapshot.weeklyMeeting.nextAction && <p><strong>下一步：</strong>{snapshot.weeklyMeeting.nextAction}</p>}
+        </section>}
 
         <section className="team-state__panel">
           <div className="team-state__section-head">

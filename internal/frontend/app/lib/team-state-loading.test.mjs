@@ -70,3 +70,13 @@ test("technical progress shows source-dated history and actionable task data-qua
   assert.match(styles, /\.team-state__history-entry/);
   assert.match(styles, /\.team-state__quality-note/);
 });
+
+
+test("technical dashboard shows the latest team-wide weekly meeting with its original source", async () => {
+  const page = await readFile(new URL("../routes/admin/team-state.tsx", import.meta.url), "utf8");
+  assert.match(page, /weeklyMeeting\?: MeetingRecord/);
+  assert.match(page, /snapshot\.weeklyMeeting && <section/);
+  assert.match(page, /最近全队周会 · \{snapshot\.weeklyMeeting\.date\}/);
+  assert.match(page, /SourceLink url=\{snapshot\.weeklyMeeting\.url\}>查看周会原文/);
+  assert.match(page, /snapshot\.weeklyMeeting\.updates\.map/);
+});
