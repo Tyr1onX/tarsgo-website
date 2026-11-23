@@ -71,8 +71,12 @@ test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", 
   assert.ok(existsSync(image), "缺少真实生成并抠图的 PNG：不能部署模拟素材");
   const png = readFileSync(image);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  const explorer = readFileSync(new URL("explorer-4dir.png", base));
+  assert.deepEqual([...explorer.subarray(0, 8)], [...png.subarray(0, 8)]);
+  assert.equal(explorer.readUInt32BE(16), 160); // 4 directions × 4 frames, 40 px per frame
+  assert.equal(explorer.readUInt32BE(20), 216); // 54 px per frame
   const { sprites } = JSON.parse(readFileSync(new URL("actual-imagegen-atlas.json", base), "utf8"));
-  for (const id of [...PLACES.map((place) => place.id), "green_tree", "pink_tree", "fountain", "robot", "hero_down", "hero_left", "hero_right", "hero_up", "terrain_grass", "terrain_soil", "terrain_stone"]) {
+  for (const id of [...PLACES.map((place) => place.id), "green_tree", "pink_tree", "fountain", "robot", "terrain_grass", "terrain_soil", "terrain_stone"]) {
     assert.ok(sprites[id]?.[2] > 0 && sprites[id]?.[3] > 0, `${id} 素材缺失`);
   }
 });
