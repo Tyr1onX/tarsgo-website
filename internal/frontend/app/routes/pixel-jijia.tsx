@@ -6,7 +6,7 @@ import {
   PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, closestPlace, movePlayer,
   type Direction, type Place, type Position,
 } from "~/lib/pixel-jijia-world";
-import { renderExplorer, renderTown } from "~/lib/pixel-jijia-scene";
+import { renderExplorer, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import "./pixel-jijia.css";
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
@@ -34,9 +34,11 @@ export default function PixelJijiaPage() {
   const touchRef = useRef(new Set<Direction>());
   const selectedRef = useRef<Place | null>(null);
   const townRef = useRef<HTMLCanvasElement | null>(null);
+  const atlasRef = useRef<HTMLImageElement | null>(null);
+  const spritesRef = useRef<SpriteIndex | null>(null);
   const nearIdRef = useRef<string | null>(null);
-  const zoomRef = useRef(2.25);
-  const [zoom, setZoom] = useState(2.25);
+  const zoomRef = useRef(1.9);
+  const [zoom, setZoom] = useState(1.9);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
   const [nearby, setNearby] = useState<Place | null>(null);
   const [selected, setSelected] = useState<Place | null>(null);
@@ -50,12 +52,35 @@ export default function PixelJijiaPage() {
   }, []);
 
   useEffect(() => {
-    try {
-      townRef.current = renderTown();
-      setAssetState("ready");
-    } catch {
-      setAssetState("error");
-    }
+    let active = true;
+    const atlas = new Image();
+    const source = "/assets/pixel-jijia/actual-imagegen-atlas.png";
+    const imageReady = new Promise<HTMLImageElement>((resolve, reject) => {
+      atlas.onload = () => resolve(atlas);
+      atlas.onerror = () => reject(new Error("像素图片加载失败"));
+      atlas.src = source;
+    });
+    Promise.all([
+      imageReady,
+      fetch("/assets/pixel-jijia/actual-imagegen-atlas.json")
+        .then((response) => {
+          if (!response.ok) throw new Error("像素素材索引加载失败");
+          return response.json() as Promise<{ sprites: SpriteIndex }>;
+        }),
+    ])
+      .then(([image, metadata]) => {
+        if (!active) return;
+        atlasRef.current = image;
+        spritesRef.current = metadata.sprites;
+        townRef.current = renderTown(image, metadata.sprites);
+        setAssetState("ready");
+      })
+      .catch(() => { if (active) setAssetState("error"); });
+    return () => {
+      active = false;
+      atlas.onload = null;
+      atlas.onerror = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -99,7 +124,8 @@ export default function PixelJijiaPage() {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
     const minimap = miniRef.current, town = townRef.current;
-    if (!stage || !canvas || !town) return;
+    const atlas = atlasRef.current, sprites = spritesRef.current;
+    if (!stage || !canvas || !town || !atlas || !sprites) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -140,7 +166,7 @@ export default function PixelJijiaPage() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(town, -Math.round(cameraRef.current.x), -Math.round(cameraRef.current.y));
-      renderExplorer(ctx, playerRef.current, directionRef.current, walking, elapsed, cameraRef.current);
+      renderExplorer(ctx, atlas, sprites, playerRef.current, directionRef.current, walking, elapsed, cameraRef.current);
 
       const nextNearby = closestPlace(playerRef.current);
       if (nearIdRef.current !== (nextNearby?.id ?? null)) {
@@ -181,7 +207,7 @@ export default function PixelJijiaPage() {
     const rect = canvas.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width * canvas.width + cameraRef.current.x) / TILE;
     const y = ((event.clientY - rect.top) / rect.height * canvas.height + cameraRef.current.y) / TILE;
-    const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.height);
+    const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y - 5 && y < p.y + p.height);
     if (place) selectPlace(place);
   };
 

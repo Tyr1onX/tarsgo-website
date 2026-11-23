@@ -65,12 +65,14 @@ test("镜头平滑跟随目标并限制在地图边界", () => {
   }
 });
 
-test("自绘通用美术及导出的可复用图集完整", () => {
-  assert.ok(existsSync(new URL("./pixel-jijia-art.ts", import.meta.url)));
+test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
   const base = new URL("../../../../public/assets/pixel-jijia/", import.meta.url);
-  assert.ok(existsSync(new URL("general-sprites.png", base)));
-  const { sprites } = JSON.parse(readFileSync(new URL("general-sprites.json", base), "utf8"));
-  for (const id of [...PLACES.map((place) => place.id), "oak", "cherry", "autumn", "fence", "bench", "lantern", "grass", "soil", "stone"]) {
-    assert.ok(sprites[id]?.w > 0 && sprites[id]?.h > 0, `${id} 素材缺失`);
+  const image = new URL("actual-imagegen-atlas.png", base);
+  assert.ok(existsSync(image), "缺少真实生成并抠图的 PNG：不能部署模拟素材");
+  const png = readFileSync(image);
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  const { sprites } = JSON.parse(readFileSync(new URL("actual-imagegen-atlas.json", base), "utf8"));
+  for (const id of [...PLACES.map((place) => place.id), "green_tree", "pink_tree", "fountain", "robot", "hero_down", "hero_left", "hero_right", "hero_up", "terrain_grass", "terrain_soil", "terrain_stone"]) {
+    assert.ok(sprites[id]?.[2] > 0 && sprites[id]?.[3] > 0, `${id} 素材缺失`);
   }
 });
