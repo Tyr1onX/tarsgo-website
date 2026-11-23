@@ -32,7 +32,7 @@ export const MECHANICAL_ROOM: RoomScene = {
   walls: [
     // A central doorway connects two genuinely traversable work areas.
     { x: 17, y: 5, width: 1, height: 6 },
-    { x: 17, y: 15, width: 1, height: 5 },
+    { x: 17, y: 15, width: 1, height: 3 },
   ],
   objects: [
     { id: "assembly", kind: "workbench", x: 5, y: 9, width: 7, height: 3, solid: true,
@@ -145,7 +145,7 @@ export const ROOMS: Record<string, RoomScene> = {
   ai: {
     ...COMMON_ROOM, id: "ai", title: "AI 研究所 · 自主决策",
     theme: { floor: "#a0a5bc", rug: "#565e8b", wall: "#414b70", window: "#accdf8" },
-    walls: [{ x: 18, y: 5, width: 1, height: 5 }, { x: 18, y: 14, width: 1, height: 6 }],
+    walls: [{ x: 18, y: 5, width: 1, height: 5 }, { x: 18, y: 14, width: 1, height: 4 }],
     objects: [
       { id: "models", kind: "server", x: 4, y: 7, width: 6, height: 3, solid: true,
         title: "模型计算集群", description: "感知、预测和规划模型在这里进行推理与验证。" },
@@ -349,6 +349,13 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
       ctx.fillStyle = "#e3bd7e";
       ctx.fillRect(x + i * TILE + 6, y - 9, 6, 2);
     }
+  }
+  // A small illuminated marker distinguishes working, navigable terminals.
+  if (object.href) {
+    ctx.fillStyle = "#173d49";
+    ctx.fillRect(x + w - 16, y - 10, 12, 9);
+    ctx.fillStyle = "#b9efca";
+    ctx.fillRect(x + w - 13, y - 7, 6, 3);
   }
 }
 
