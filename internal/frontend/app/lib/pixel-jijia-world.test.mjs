@@ -159,7 +159,7 @@ test("从出生点可实际步行抵达六个场景", () => {
   }
   assert.deepEqual([...reachable].sort(), PLACES.map((p) => p.id).sort());
   assert.deepEqual([...discovered].sort(), SCENERY.filter(p => p.story).map(p => p.story.title).sort());
-  assert.equal(discovered.size, 4, "四处故事点必须能步行抵达");
+  assert.equal(discovered.size, 17, "新增故事点也必须能从出生点步行发现");
 });
 
 test("镜头平滑跟随目标并限制在地图边界", () => {
@@ -184,7 +184,7 @@ test("广场人工设施按同一轴线对齐，环境装饰仍可自由错落",
 
 test("故事点复用可见素材和碰撞配置，不制造不可见标记", () => {
   const stories = SCENERY.filter(p => p.story);
-  assert.equal(stories.length, 4);
+  assert.equal(stories.length, 17);
   assert.equal(new Set(stories.map(p => p.story.title)).size, 4);
   for (const item of stories) {
     assert.ok(item.solid, "故事地标须有可见实体与碰撞");
@@ -194,6 +194,9 @@ test("故事点复用可见素材和碰撞配置，不制造不可见标记", ()
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes("closestFeature(playerRef.current)"));
   assert.ok(route.includes("selected.story?.description"));
+  assert.ok(route.includes("selected.story?.action"));
+  assert.ok(route.includes("selected.story?.result"));
+  assert.ok(stories.filter(p => p.story?.action && p.story?.result).length >= 5);
 });
 
 test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
@@ -232,10 +235,18 @@ test("小地图采用轻量语义导航，常驻界面按需展示", () => {
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../routes/pixel-jijia.css", import.meta.url), "utf8");
   assert.ok(scene.includes("export function renderNavigationMap("));
+  assert.ok(scene.includes("ctx.drawImage(terrain, 0, 0, width, height)"));
+  assert.ok(scene.includes("ctx.fillText(place.title,"));
   assert.ok(scene.includes("for (const place of PLACES)"));
   assert.ok(scene.includes("if (!item.story) continue"));
   assert.ok(!scene.includes("export function renderTown("), "不能保留额外的完整世界小地图缓存");
-  assert.ok(route.includes("renderNavigationMap(miniCtx"));
+  assert.ok(route.includes("renderNavigationMap(miniCtx, terrain"));
+  assert.ok(route.includes("width={432} height={288}"));
+  assert.ok(route.includes("handleNavigationClick"));
+  assert.ok(route.includes("pixel-world-map-destinations"));
+  assert.ok(route.includes("pixel-world-map-discoveries"));
+  assert.ok(!route.includes("pixel-world-brand"), "左上角品牌组件必须彻底移除");
+  assert.ok(!css.includes(".pixel-world-brand"), "不能留下废弃品牌 CSS");
   assert.ok(!route.includes("townRef"));
   assert.ok(route.includes('event.key.toLowerCase() === "m"'));
   assert.ok(route.includes("aria-expanded={mapOpen}"));
