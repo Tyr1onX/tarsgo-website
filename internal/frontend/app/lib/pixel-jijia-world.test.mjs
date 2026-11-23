@@ -256,7 +256,7 @@ test("缩放可精细调节并根据屏幕尺寸避免露出地图外区域", ()
   }
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes('canvas.addEventListener("wheel", onWheel, { passive: false })'));
-  assert.ok(route.includes('}, [assetState, resizeCanvas, setMapZoom, seated])'));
+  assert.ok(route.includes('}, [assetState, resizeCanvas, setMapZoom, seated, mapOpen])'));
   assert.ok(!route.includes('[assetState, zoom]'), "缩放不能反复重建动画循环");
 });
 
