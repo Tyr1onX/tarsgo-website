@@ -181,6 +181,7 @@ export default function PixelJijiaPage() {
       setHomeStatus(error instanceof ApiError && error.status === 401
         ? "请先登录网站账号，才能布置自己的研究室"
         : error instanceof Error ? error.message : "研究室加载失败");
+      setSelectedRoom(ROOMS.ai.objects.find(item => item.id === "home-portal") ?? null);
     }
   }, [openHomeScene]);
 
@@ -377,6 +378,7 @@ export default function PixelJijiaPage() {
           if (object) {
             event.preventDefault();
             if (object.kind === "exit") exitRoom();
+            else if (object.id === "home-portal") void enterHome();
             else setSelectedRoom(object);
           }
           return;
@@ -420,7 +422,7 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, seated, standUp, room, selectedRoom, enterRoom, exitRoom]);
+  }, [selectPlace, seated, standUp, room, selectedRoom, enterRoom, exitRoom, enterHome]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
@@ -693,7 +695,11 @@ export default function PixelJijiaPage() {
       </div>}
       {!selectedRoom && room && nearbyRoom && (
         <button type="button" className="pixel-world-interact"
-          onClick={() => { if (nearbyRoom.kind === "exit") exitRoom(); else setSelectedRoom(nearbyRoom); }}>
+          onClick={() => {
+            if (nearbyRoom.kind === "exit") exitRoom();
+            else if (nearbyRoom.id === "home-portal") void enterHome();
+            else setSelectedRoom(nearbyRoom);
+          }}>
           <kbd>E</kbd> {nearbyRoom.title}
         </button>
       )}
@@ -779,6 +785,17 @@ export default function PixelJijiaPage() {
         <span className="pixel-world-detail-eyebrow">{room?.title ?? "INDOOR SPACE"}</span>
         <h1>{selectedRoom.title}</h1>
         <p>{selectedRoom.description}</p>
+        {selectedRoom.id === "home-portal" && (
+          <button type="button" className="pixel-world-detail-link" onClick={() => void enterHome()}>
+            进入我的研究室
+          </button>
+        )}
+        {selectedRoom.id === "home-portal" && homeStatus && (
+          <p className="pixel-world-home-message" role="status">{homeStatus}</p>
+        )}
+        {selectedRoom.id === "home-portal" && homeStatus.includes("登录") && (
+          <Link to="/login" className="pixel-world-detail-link">前往登录</Link>
+        )}
       </section>}
     </main>
   );
