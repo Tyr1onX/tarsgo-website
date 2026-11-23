@@ -460,12 +460,10 @@ export default function PixelJijiaPage() {
         if (walking) traveled += distance;
         // The door is a spatial threshold: walking into it changes scenes directly.
         // The room entry is placed behind its exit, so holding a direction is safe.
-        if (room ? roomExitAt(room, next, y) : outdoorDoorAt(next, y)) {
+        const door = room ? null : outdoorDoorAt(next, y);
+        if (room ? roomExitAt(room, next, y) : Boolean(door)) {
           if (room) exitRoom();
-          else {
-            const door = outdoorDoorAt(next, y);
-            if (door) enterRoom(door.id);
-          }
+          else if (door) enterRoom(door.id);
           frame = requestAnimationFrame(tick);
           return;
         }
