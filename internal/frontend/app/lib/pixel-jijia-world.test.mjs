@@ -185,7 +185,7 @@ test("广场人工设施按同一轴线对齐，环境装饰仍可自由错落",
 test("故事点复用可见素材和碰撞配置，不制造不可见标记", () => {
   const stories = SCENERY.filter(p => p.story);
   assert.equal(stories.length, 17);
-  assert.equal(new Set(stories.map(p => p.story.title)).size, 4);
+  assert.equal(new Set(stories.map(p => p.story.title)).size, stories.length);
   for (const item of stories) {
     assert.ok(item.solid, "故事地标须有可见实体与碰撞");
     assert.ok(item.story.caption && item.story.description);
