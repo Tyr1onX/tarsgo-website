@@ -7,6 +7,7 @@ import {
   type Direction, type Place, type Position,
 } from "~/lib/pixel-jijia-world";
 import { renderExplorer, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import "./pixel-jijia.css";
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
@@ -64,7 +65,7 @@ export default function PixelJijiaPage() {
     Promise.all([
       loadImage(atlas, "/assets/pixel-jijia/actual-imagegen-atlas.png"),
       loadImage(character, "/assets/pixel-jijia/explorer-4dir.png"),
-      loadImage(groundTiles, "/assets/pixel-jijia/ground-tiles.png"),
+      loadImage(groundTiles, groundTilesUrl),
       fetch("/assets/pixel-jijia/actual-imagegen-atlas.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
@@ -73,6 +74,9 @@ export default function PixelJijiaPage() {
     ])
       .then(([image, explorer, ground, metadata]) => {
         if (!active) return;
+        if (ground.naturalWidth !== 384 || ground.naturalHeight !== 528) {
+          throw new Error("地面图集与场景版本不匹配");
+        }
         characterRef.current = explorer;
         townRef.current = renderTown(image, metadata.sprites, ground);
         setAssetState("ready");
