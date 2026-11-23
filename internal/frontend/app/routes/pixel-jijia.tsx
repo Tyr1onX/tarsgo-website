@@ -332,7 +332,7 @@ export default function PixelJijiaPage() {
         </div>
       </aside>
       {showHelp && <div className="pixel-world-guide" role="note">
-        WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
+        WASD / 方向键移动 · E 探索 · 滚轮缩放 · M 地图
       </div>}
       {!selected && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
