@@ -113,6 +113,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	healthHandler := handler.NewHealthHandler(db)
 	authService := auth.NewService(cfg, db)
 	authHandler := handler.NewAuthHandler(authService)
+	pixelHomeHandler := handler.NewPixelHomeHandler(db)
 	membershipService := usergroup.NewMembershipService(db)
 	authHandler.SetGroupMembershipService(membershipService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
@@ -171,6 +172,15 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/password-reset", requireSameOriginRequest(cfg), authHandler.ResetPassword)
 	api.POST("/logout", requireAccountActionOrigin(cfg), authHandler.Logout)
 	api.GET("/me", authHandler.Me)
+	// Reading a public invite is token-scoped. Only the current authenticated
+	// owner can persist furniture or issue/revoke invitations.
+	api.GET("/pixel-home/visit", pixelHomeHandler.Visit)
+	homeAPI := api.Group("/pixel-home")
+	homeAPI.Use(middleware.RequireAuthenticated(authService))
+	homeAPI.GET("/me", pixelHomeHandler.Mine)
+	homeAPI.PUT("/me", requireSameOriginRequest(cfg), pixelHomeHandler.Save)
+	homeAPI.POST("/invite", requireSameOriginRequest(cfg), pixelHomeHandler.Invite)
+	homeAPI.DELETE("/invite", requireSameOriginRequest(cfg), pixelHomeHandler.Revoke)
 	trainingReadAPI := api.Group("/training-documents")
 	trainingReadAPI.Use(middleware.RequireAuthenticated(authService))
 	trainingReadAPI.GET("/tree", trainingDocumentHandler.ListTree)
