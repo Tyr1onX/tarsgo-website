@@ -6,7 +6,7 @@ import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, movePlayer, snapCamera,
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
-import { renderNavigationMap, renderParticles, renderScene, renderTerrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -54,6 +54,7 @@ export default function PixelJijiaPage() {
   const sprintTouchRef = useRef(false);
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
+  const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
   const artIndexRef = useRef<SpriteIndex | null>(null);
@@ -160,6 +161,7 @@ export default function PixelJijiaPage() {
         artIndexRef.current = metadata.sprites;
         propsRef.current = environment;
         terrainRef.current = renderTerrain(ground);
+        previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -237,10 +239,10 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
-    const minimap = miniRef.current, terrain = terrainRef.current;
+    const minimap = miniRef.current, terrain = terrainRef.current, preview = previewRef.current;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
-    if (!stage || !canvas || !terrain || !character || !atlas || !sprites || !props) return;
+    if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -359,8 +361,8 @@ export default function PixelJijiaPage() {
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
       if (miniCtx && time - lastMini > 100) {
-        renderNavigationMap(miniCtx, terrain, playerRef.current, directionRef.current,
-          cameraRef.current, canvas.width, canvas.height);
+        renderNavigationMap(miniCtx, preview, playerRef.current, directionRef.current,
+          cameraRef.current, canvas.width, canvas.height, mapOpen);
         lastMini = time;
       }
       frame = requestAnimationFrame(tick);
@@ -371,7 +373,7 @@ export default function PixelJijiaPage() {
       observer.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [assetState, resizeCanvas, setMapZoom, seated]);
+  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -389,6 +391,7 @@ export default function PixelJijiaPage() {
   };
 
   const handleNavigationClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!mapOpen) { setMapOpen(true); return; }
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / rect.width * WORLD_WIDTH;
     const y = (event.clientY - rect.top) / rect.height * WORLD_HEIGHT;
@@ -430,10 +433,10 @@ export default function PixelJijiaPage() {
       </header>
 
       <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
-        aria-label="小镇导航地图" aria-hidden={!mapOpen}>
+        aria-label="小镇导航地图">
         <div className="pixel-world-map-caption"><span>吉甲地图</span><span>6 个区域 · {SCENERY.filter(p => p.story).length} 处发现</span></div>
         <canvas ref={miniRef} width={432} height={288} onClick={handleNavigationClick}
-          aria-label="小镇详细地图，点击地标查看介绍。也可使用下方目的地按钮" role="img" />
+          aria-label="小镇真实世界缩略图，点击可展开查看或选择地标" role="img" />
         <div className="pixel-world-map-destinations" aria-label="建筑目的地">
           {PLACES.map(place => (
             <button type="button" key={place.id} onClick={() => { selectPlace(place); setMapOpen(false); }}>
