@@ -8,6 +8,7 @@ export default [
   route("team-history", "routes/team-history.tsx"),
   route("pixel-jijia", "routes/pixel-jijia.tsx"),
   route("pixel-jijia/battle", "routes/pixel-jijia-battle.tsx"),
+  route("pixel-jijia/arena", "routes/pixel-jijia-arena.tsx"),
   route("join", "routes/join.tsx"),
   route("join/interest", "routes/join-interest.tsx"),
   route("base", "routes/base.tsx"),
