@@ -1,5 +1,5 @@
 import {
-  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera,
   type Direction, type Place, type Position, type PropSprite, type Scenery,
 } from "./pixel-jijia-world";
 
@@ -142,16 +142,17 @@ export function renderScene(
   characterSheet: HTMLImageElement, player: Position, direction: Direction,
   walking: boolean, traveled: number, camera: Position,
 ) {
-  ctx.drawImage(terrain, -Math.round(camera.x), -Math.round(camera.y));
+  const screenCamera = snapCamera(camera);
+  ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y);
   let playerDrawn = false;
   for (const node of NODES) {
     if (!playerDrawn && node.y > player.y) {
-      renderExplorer(ctx, characterSheet, player, direction, walking, traveled, camera);
+      renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera);
       playerDrawn = true;
     }
-    drawNode(ctx, node, atlas, sprites, props, camera);
+    drawNode(ctx, node, atlas, sprites, props, screenCamera);
   }
-  if (!playerDrawn) renderExplorer(ctx, characterSheet, player, direction, walking, traveled, camera);
+  if (!playerDrawn) renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera);
 }
 
 const EXPLORER_ROWS: Record<Direction, number> = { down: 0, left: 1, right: 2, up: 3 };
