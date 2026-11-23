@@ -1,6 +1,6 @@
 export const TILE = 16;
-export const WORLD_WIDTH = 96;
-export const WORLD_HEIGHT = 64;
+export const WORLD_WIDTH = 144;
+export const WORLD_HEIGHT = 96;
 export const WALK_SPEED = 5.4; // tiles / second
 
 export type Direction = "up" | "down" | "left" | "right";
@@ -18,12 +18,12 @@ export type Place = Position & {
 };
 
 export const PLACES: Place[] = [
-  { id: "mechanical", title: "机械工坊", caption: "MECHANICAL WORKSHOP", description: "结构设计、建模加工与整机装配。每一颗螺丝背后，都藏着把想法变成现实的功夫。", href: "/about", action: "认识机械组", x: 9, y: 10, width: 18, height: 11, accent: "#d4a552" },
-  { id: "honors", title: "荣誉殿堂", caption: "HALL OF HONOR", description: "从初次出发，到一次次登上赛场。这里收藏吉甲一路走来的奖杯与故事。", href: "/events-and-honors", action: "查看赛事与荣誉", x: 38, y: 5, width: 20, height: 12, accent: "#e1c374" },
-  { id: "electrical", title: "电控实验室", caption: "ELECTRICAL LAB", description: "电路、嵌入式与电机控制。那些看不见的信号，点亮了每一台机器人的生命力。", href: "/about", action: "认识电控组", x: 69, y: 10, width: 18, height: 11, accent: "#b8cce3" },
-  { id: "vision", title: "视觉观测站", caption: "VISION STATION", description: "目标识别、视觉定位与自瞄算法，让机器人学会看见这个世界。", href: "/about", action: "认识视觉组", x: 9, y: 42, width: 18, height: 11, accent: "#98c8bd" },
-  { id: "guild", title: "冒险者公会", caption: "JOIN THE TEAM", description: "寻找你的下一场冒险。机械、电控、视觉、AI 与运营，总有一种热爱能在这里发光。", href: "/join", action: "加入吉甲", x: 38, y: 49, width: 20, height: 11, accent: "#efc28d" },
-  { id: "ai", title: "AI 研究所", caption: "AI RESEARCH", description: "从感知到决策，从规划到自主控制。下一代机器人的想象力，正在这里发生。", href: "/about", action: "认识 AI 组", x: 69, y: 42, width: 18, height: 11, accent: "#c3b6eb" },
+  { id: "mechanical", title: "机械工坊", caption: "MECHANICAL WORKSHOP", description: "结构设计、建模加工与整机装配。每一颗螺丝背后，都藏着把想法变成现实的功夫。", href: "/about", action: "认识机械组", x: 33, y: 26, width: 18, height: 11, accent: "#d4a552" },
+  { id: "honors", title: "荣誉殿堂", caption: "HALL OF HONOR", description: "从初次出发，到一次次登上赛场。这里收藏吉甲一路走来的奖杯与故事。", href: "/events-and-honors", action: "查看赛事与荣誉", x: 62, y: 21, width: 20, height: 12, accent: "#e1c374" },
+  { id: "electrical", title: "电控实验室", caption: "ELECTRICAL LAB", description: "电路、嵌入式与电机控制。那些看不见的信号，点亮了每一台机器人的生命力。", href: "/about", action: "认识电控组", x: 93, y: 26, width: 18, height: 11, accent: "#b8cce3" },
+  { id: "vision", title: "视觉观测站", caption: "VISION STATION", description: "目标识别、视觉定位与自瞄算法，让机器人学会看见这个世界。", href: "/about", action: "认识视觉组", x: 33, y: 58, width: 18, height: 11, accent: "#98c8bd" },
+  { id: "guild", title: "冒险者公会", caption: "JOIN THE TEAM", description: "寻找你的下一场冒险。机械、电控、视觉、AI 与运营，总有一种热爱能在这里发光。", href: "/join", action: "加入吉甲", x: 62, y: 65, width: 20, height: 11, accent: "#efc28d" },
+  { id: "ai", title: "AI 研究所", caption: "AI RESEARCH", description: "从感知到决策，从规划到自主控制。下一代机器人的想象力，正在这里发生。", href: "/about", action: "认识 AI 组", x: 93, y: 58, width: 18, height: 11, accent: "#c3b6eb" },
 ];
 
 // One scene specification controls terrain, illustration, and physical obstacles.
@@ -31,21 +31,40 @@ export const PLACES: Place[] = [
 // warm limestone + sage greens, decorative silhouettes clear of walking routes.
 export type GroundArea = { kind: 0 | 1 | 2 | 3; x: number; y: number; width: number; height: number };
 export const GROUND_AREAS: GroundArea[] = [
-  { kind: 1, x: 0, y: 29, width: 96, height: 7 },
-  { kind: 1, x: 45, y: 17, width: 7, height: 46 },
-  { kind: 1, x: 18, y: 20, width: 7, height: 31 },
-  { kind: 1, x: 72, y: 20, width: 7, height: 31 },
-  { kind: 1, x: 18, y: 47, width: 61, height: 6 },
-  { kind: 1, x: 34, y: 17, width: 29, height: 7 },
-  { kind: 2, x: 32, y: 23, width: 32, height: 23 },
-  { kind: 0, x: 33, y: 24, width: 3, height: 3 },
-  { kind: 0, x: 60, y: 24, width: 3, height: 3 },
-  { kind: 0, x: 33, y: 42, width: 3, height: 3 },
-  { kind: 0, x: 60, y: 42, width: 3, height: 3 },
-  { kind: 2, x: 2, y: 28, width: 11, height: 9 },
-  { kind: 3, x: 3, y: 29, width: 9, height: 7 },
-  { kind: 2, x: 83, y: 28, width: 11, height: 9 },
-  { kind: 3, x: 84, y: 29, width: 9, height: 7 },
+  // Outer walking loop + quieter branches, linked to all six existing buildings.
+  { kind: 1, x: 16, y: 13, width: 112, height: 6 },
+  { kind: 1, x: 16, y: 13, width: 6, height: 73 },
+  { kind: 1, x: 122, y: 13, width: 6, height: 73 },
+  { kind: 1, x: 16, y: 80, width: 112, height: 6 },
+  { kind: 1, x: 52, y: 18, width: 6, height: 25 },
+  { kind: 1, x: 86, y: 18, width: 6, height: 25 },
+  { kind: 1, x: 52, y: 64, width: 6, height: 20 },
+  { kind: 1, x: 86, y: 64, width: 6, height: 20 },
+  { kind: 1, x: 18, y: 46, width: 108, height: 6 },
+  // Small authored clearings make the outer walk worth taking.
+  { kind: 2, x: 17, y: 8, width: 20, height: 11 },
+  { kind: 2, x: 106, y: 8, width: 21, height: 11 },
+  { kind: 2, x: 16, y: 77, width: 24, height: 11 },
+  { kind: 2, x: 109, y: 73, width: 20, height: 14 },
+  { kind: 2, x: 3, y: 54, width: 12, height: 15 },
+  { kind: 3, x: 4, y: 55, width: 10, height: 13 },
+  { kind: 2, x: 130, y: 25, width: 11, height: 14 },
+  { kind: 3, x: 131, y: 26, width: 9, height: 12 },
+  { kind: 1, x: 24, y: 45, width: 96, height: 7 },
+  { kind: 1, x: 69, y: 33, width: 7, height: 46 },
+  { kind: 1, x: 42, y: 36, width: 7, height: 31 },
+  { kind: 1, x: 96, y: 36, width: 7, height: 31 },
+  { kind: 1, x: 42, y: 63, width: 61, height: 6 },
+  { kind: 1, x: 58, y: 33, width: 29, height: 7 },
+  { kind: 2, x: 56, y: 39, width: 32, height: 23 },
+  { kind: 0, x: 57, y: 40, width: 3, height: 3 },
+  { kind: 0, x: 84, y: 40, width: 3, height: 3 },
+  { kind: 0, x: 57, y: 58, width: 3, height: 3 },
+  { kind: 0, x: 84, y: 58, width: 3, height: 3 },
+  { kind: 2, x: 26, y: 44, width: 11, height: 9 },
+  { kind: 3, x: 27, y: 45, width: 9, height: 7 },
+  { kind: 2, x: 107, y: 44, width: 11, height: 9 },
+  { kind: 3, x: 108, y: 45, width: 9, height: 7 },
 ];
 
 export type PropSprite =
@@ -56,48 +75,95 @@ export type Scenery = Position & {
   width: number; // painted width, world pixels
   height: number; // painted height, world pixels
   solid?: number; // feet collision radius in world tiles; absent means passable
+  story?: { title: string; caption: string; description: string }; // exploration text lives with its visible prop
 };
 export const SCENERY: Scenery[] = [
-  // Man-made fixtures align around the fountain at x=48; planting stays deliberately irregular.
-  { sprite: "arch", x: 48, y: 23.8, width: 104, height: 92 },
-  { sprite: "planter", x: 35, y: 26.1, width: 51, height: 40, solid: 0.72 },
-  { sprite: "planter", x: 61, y: 26.1, width: 51, height: 40, solid: 0.72 },
-  { sprite: "planter", x: 35, y: 43.7, width: 51, height: 40, solid: 0.72 },
-  { sprite: "planter", x: 61, y: 43.7, width: 51, height: 40, solid: 0.72 },
-  { sprite: "bench", x: 38, y: 33, width: 57, height: 38, solid: 0.8 },
-  { sprite: "bench", x: 58, y: 33, width: 57, height: 38, solid: 0.8 },
-  { sprite: "lamp", x: 33, y: 32, width: 30, height: 75, solid: 0.4 },
-  { sprite: "lamp", x: 63, y: 32, width: 30, height: 75, solid: 0.4 },
-  { sprite: "lamp", x: 38, y: 45.3, width: 30, height: 75, solid: 0.4 },
-  { sprite: "lamp", x: 58, y: 45.3, width: 30, height: 75, solid: 0.4 },
-  { sprite: "statue", x: 58, y: 39, width: 49, height: 62, solid: 0.9 },
-  { sprite: "sign", x: 44, y: 43, width: 40, height: 59, solid: 0.38 },
-  { sprite: "hydrangea", x: 40, y: 25.2, width: 45, height: 36 },
-  { sprite: "hydrangea", x: 56, y: 25.2, width: 45, height: 36 },
+  // Central plaza fixtures remain aligned around x=72. Natural scenery is intentionally irregular.
+  { sprite: "arch", x: 72, y: 39.8, width: 104, height: 92 },
+  { sprite: "planter", x: 59, y: 42.1, width: 51, height: 40, solid: 0.72 },
+  { sprite: "planter", x: 85, y: 42.1, width: 51, height: 40, solid: 0.72 },
+  { sprite: "planter", x: 59, y: 59.7, width: 51, height: 40, solid: 0.72 },
+  { sprite: "planter", x: 85, y: 59.7, width: 51, height: 40, solid: 0.72 },
+  { sprite: "bench", x: 62, y: 49, width: 57, height: 38, solid: 0.8 },
+  { sprite: "bench", x: 82, y: 49, width: 57, height: 38, solid: 0.8 },
+  { sprite: "lamp", x: 57, y: 48, width: 30, height: 75, solid: 0.4 },
+  { sprite: "lamp", x: 87, y: 48, width: 30, height: 75, solid: 0.4 },
+  { sprite: "lamp", x: 62, y: 61.3, width: 30, height: 75, solid: 0.4 },
+  { sprite: "lamp", x: 82, y: 61.3, width: 30, height: 75, solid: 0.4 },
+  { sprite: "statue", x: 82, y: 55, width: 49, height: 62, solid: 0.9 },
+  { sprite: "sign", x: 68, y: 59, width: 40, height: 59, solid: 0.38 },
+  { sprite: "hydrangea", x: 64, y: 41.2, width: 45, height: 36 },
+  { sprite: "hydrangea", x: 80, y: 41.2, width: 45, height: 36 },
   // Landscape framing extends beyond the hero square, using the same authored kit.
-  { sprite: "oak", x: 29, y: 24, width: 86, height: 101, solid: 0.9 },
-  { sprite: "cherry", x: 67, y: 24, width: 86, height: 102, solid: 0.9 },
-  { sprite: "oak", x: 29, y: 46, width: 86, height: 101, solid: 0.9 },
-  { sprite: "lime_tree", x: 67, y: 46, width: 86, height: 101, solid: 0.9 },
-  { sprite: "rocks", x: 27, y: 38, width: 58, height: 40, solid: 0.7 },
-  { sprite: "rocks", x: 69, y: 38, width: 58, height: 40, solid: 0.7 },
-  { sprite: "hydrangea", x: 28, y: 28, width: 42, height: 33 },
-  { sprite: "hydrangea", x: 68, y: 28, width: 42, height: 33 },
-  { sprite: "lime_tree", x: 5, y: 10, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 30, y: 15, width: 82, height: 96, solid: 0.9 },
-  { sprite: "lime_tree", x: 65, y: 14, width: 82, height: 96, solid: 0.9 },
-  { sprite: "cherry", x: 91, y: 11, width: 82, height: 96, solid: 0.9 },
-  { sprite: "cherry", x: 5, y: 50, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 30, y: 60, width: 82, height: 96, solid: 0.9 },
-  { sprite: "lime_tree", x: 66, y: 60, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 91, y: 52, width: 82, height: 96, solid: 0.9 },
-  { sprite: "planter", x: 18, y: 24, width: 46, height: 36 },
-  { sprite: "planter", x: 78, y: 24, width: 46, height: 36 },
-  { sprite: "fence", x: 13, y: 37, width: 64, height: 34, solid: 0.5 },
-  { sprite: "fence", x: 83, y: 37, width: 64, height: 34, solid: 0.5 },
+  { sprite: "oak", x: 53, y: 40, width: 86, height: 101, solid: 0.9 },
+  { sprite: "cherry", x: 91, y: 40, width: 86, height: 102, solid: 0.9 },
+  { sprite: "oak", x: 53, y: 62, width: 86, height: 101, solid: 0.9 },
+  { sprite: "lime_tree", x: 91, y: 62, width: 86, height: 101, solid: 0.9 },
+  { sprite: "rocks", x: 51, y: 54, width: 58, height: 40, solid: 0.7 },
+  { sprite: "rocks", x: 93, y: 54, width: 58, height: 40, solid: 0.7 },
+  { sprite: "hydrangea", x: 52, y: 44, width: 42, height: 33 },
+  { sprite: "hydrangea", x: 92, y: 44, width: 42, height: 33 },
+  { sprite: "lime_tree", x: 29, y: 26, width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 54, y: 31, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 89, y: 30, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 115, y: 27, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 29, y: 66, width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 54, y: 76, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 90, y: 76, width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 115, y: 68, width: 82, height: 96, solid: 0.9 },
+  { sprite: "planter", x: 42, y: 40, width: 46, height: 36 },
+  { sprite: "planter", x: 102, y: 40, width: 46, height: 36 },
+  { sprite: "fence", x: 37, y: 53, width: 64, height: 34, solid: 0.5 },
+  { sprite: "fence", x: 107, y: 53, width: 64, height: 34, solid: 0.5 },
+  // Four visible, readable discoveries. The same anchor drives art, collision, and interaction.
+  { sprite: "sign", x: 24, y: 17, width: 40, height: 59, solid: 0.38, story: {
+    title: "风铃小径", caption: "A QUIET PATH", description: "一条绕开主路的林荫小径。风吹过树梢时，路边的小牌子仿佛也在提醒：不是每段旅程都必须直奔终点。"
+  } },
+  { sprite: "statue", x: 115, y: 17, width: 49, height: 62, solid: 0.9, story: {
+    title: "机器人试验场", caption: "FIELD NOTES", description: "测试场边留着一座小小的机器人纪念像。它没有写明胜负，只留下一句关于尝试的话：今天再让它往前走一步。"
+  } },
+  { sprite: "sign", x: 119, y: 77, width: 40, height: 59, solid: 0.38, story: {
+    title: "数据树洞", caption: "HIDDEN SIGNAL", description: "这里有一张写给后来者的便条：世界再嘈杂，也总有一个信号值得认真接收。"
+  } },
+  { sprite: "bench", x: 29, y: 83, width: 57, height: 38, solid: 0.8, story: {
+    title: "长椅上的片刻", caption: "REST STOP", description: "坐在这条支路旁，不必赶去下一座建筑。远处是科技园区，身边只有树叶与风，正好留一点时间给自己的想法。"
+  } },
+  // Outer-ring landmarks and natural transitions, using the existing twelve-piece kit.
+  { sprite: "oak", x: 9, y: 15, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 7, y: 35, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 9, y: 75, width: 86, height: 102, solid: 0.9 },
+  { sprite: "oak", x: 38, y: 8, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 56, y: 7, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 87, y: 8, width: 86, height: 102, solid: 0.9 },
+  { sprite: "oak", x: 135, y: 17, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 136, y: 48, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 135, y: 79, width: 86, height: 102, solid: 0.9 },
+  { sprite: "oak", x: 45, y: 91, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 74, y: 92, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 101, y: 91, width: 86, height: 102, solid: 0.9 },
+  { sprite: "hydrangea", x: 28, y: 12, width: 45, height: 36 },
+  { sprite: "planter", x: 34, y: 19, width: 51, height: 40, solid: 0.72 },
+  { sprite: "hydrangea", x: 43, y: 18, width: 45, height: 36 },
+  { sprite: "rocks", x: 13, y: 31, width: 58, height: 40, solid: 0.7 },
+  { sprite: "hydrangea", x: 12, y: 45, width: 45, height: 36 },
+  { sprite: "planter", x: 12, y: 65, width: 51, height: 40 },
+  { sprite: "rocks", x: 29, y: 73, width: 58, height: 40, solid: 0.7 },
+  { sprite: "hydrangea", x: 36, y: 88, width: 45, height: 36 },
+  { sprite: "bench", x: 54, y: 84, width: 57, height: 38, solid: 0.8 },
+  { sprite: "hydrangea", x: 67, y: 88, width: 45, height: 36 },
+  { sprite: "rocks", x: 89, y: 89, width: 58, height: 40, solid: 0.7 },
+  { sprite: "planter", x: 106, y: 82, width: 51, height: 40 },
+  { sprite: "hydrangea", x: 135, y: 69, width: 45, height: 36 },
+  { sprite: "rocks", x: 135, y: 41, width: 58, height: 40, solid: 0.7 },
+  { sprite: "lamp", x: 118, y: 20, width: 30, height: 75, solid: 0.4 },
+  { sprite: "hydrangea", x: 132, y: 12, width: 45, height: 36 },
+  { sprite: "bench", x: 98, y: 17, width: 57, height: 38, solid: 0.8 },
+  { sprite: "hydrangea", x: 79, y: 9, width: 45, height: 36 },
+  { sprite: "fence", x: 108, y: 35, width: 64, height: 34, solid: 0.5 },
+  { sprite: "hydrangea", x: 117, y: 59, width: 45, height: 36 },
 ];
-export const FOUNTAIN = { x: 48, y: 32, radius: 2.5 } as const;
-export const SPAWN: Position = { x: 48, y: 40 };
+export const FOUNTAIN = { x: 72, y: 48, radius: 2.5 } as const;
+export const SPAWN: Position = { x: 72, y: 56 };
 
 export function isWalkable(x: number, y: number): boolean {
   const radius = 0.3;
@@ -136,6 +202,20 @@ export function closestPlace({ x, y }: Position): Place | null {
     if (distance < 3 && distance < best) {
       best = distance;
       nearest = place;
+    }
+  }
+  return nearest;
+}
+
+export function closestStory({ x, y }: Position): Scenery | null {
+  let nearest: Scenery | null = null;
+  let distance = 2.8;
+  for (const scenery of SCENERY) {
+    if (!scenery.story) continue;
+    const next = Math.hypot(x - scenery.x, y - scenery.y);
+    if (next < distance) {
+      nearest = scenery;
+      distance = next;
     }
   }
   return nearest;
