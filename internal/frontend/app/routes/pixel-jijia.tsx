@@ -3,8 +3,8 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, movePlayer, snapCamera,
-  type Direction, type Place, type Position,
+  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
+  type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderScene, renderTerrain, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
@@ -12,6 +12,10 @@ import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
+
+type Feature = Place | Scenery;
+const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? "发现";
+const closestFeature = (position: Position): Feature | null => closestPlace(position) ?? closestStory(position);
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
@@ -36,7 +40,7 @@ export default function PixelJijiaPage() {
   const directionRef = useRef<Direction>("down");
   const keysRef = useRef(new Set<Direction>());
   const touchRef = useRef(new Set<Direction>());
-  const selectedRef = useRef<Place | null>(null);
+  const selectedRef = useRef<Feature | null>(null);
   const townRef = useRef<HTMLCanvasElement | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
@@ -47,11 +51,11 @@ export default function PixelJijiaPage() {
   const zoomRef = useRef(DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
-  const [nearby, setNearby] = useState<Place | null>(null);
-  const [selected, setSelected] = useState<Place | null>(null);
+  const [nearby, setNearby] = useState<Feature | null>(null);
+  const [selected, setSelected] = useState<Feature | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  const selectPlace = useCallback((place: Place | null) => {
+  const selectPlace = useCallback((place: Feature | null) => {
     selectedRef.current = place;
     keysRef.current.clear();
     touchRef.current.clear();
@@ -148,7 +152,7 @@ export default function PixelJijiaPage() {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
       if (event.key === "Escape") { selectPlace(null); return; }
       if (event.key.toLowerCase() === "e") {
-        const place = closestPlace(playerRef.current);
+        const place = closestFeature(playerRef.current);
         if (place) { event.preventDefault(); selectPlace(place); }
         return;
       }
@@ -233,9 +237,10 @@ export default function PixelJijiaPage() {
       renderScene(ctx, terrain, atlas, sprites, props, character,
         playerRef.current, directionRef.current, walking, traveled, cameraRef.current);
 
-      const nextNearby = closestPlace(playerRef.current);
-      if (nearIdRef.current !== (nextNearby?.id ?? null)) {
-        nearIdRef.current = nextNearby?.id ?? null;
+      const nextNearby = closestFeature(playerRef.current);
+      const nearId = nextNearby ? ("href" in nextNearby ? nextNearby.id : nextNearby.story?.title ?? null) : null;
+      if (nearIdRef.current !== nearId) {
+        nearIdRef.current = nearId;
         setNearby(nextNearby);
       }
       canvas.dataset.playerX = playerRef.current.x.toFixed(3);
@@ -275,6 +280,10 @@ export default function PixelJijiaPage() {
     const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
     const place = PLACES.find((p) => x >= p.x && x < p.x + p.width && y >= p.y - 5 && y < p.y + p.height);
     if (place) selectPlace(place);
+    else {
+      const story = closestStory({ x, y });
+      if (story) selectPlace(story);
+    }
   };
 
   return (
@@ -316,11 +325,11 @@ export default function PixelJijiaPage() {
 
       <div className="pixel-world-hud" role="status" aria-live="polite">
         <span className="pixel-world-hud-sun" aria-hidden="true">✦</span>
-        <div><strong>{nearby?.title ?? "吉甲中央广场"}</strong><span>{nearby?.caption ?? "WELCOME TO TARSGO"}</span></div>
+        <div><strong>{nearby ? featureTitle(nearby) : "吉甲中央广场"}</strong><span>{nearby ? ("href" in nearby ? nearby.caption : nearby.story?.caption) : "WELCOME TO TARSGO"}</span></div>
       </div>
       {!selected && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
-          <kbd>E</kbd> 探索{nearby.title} <span aria-hidden="true">↗</span>
+          <kbd>E</kbd> 探索{featureTitle(nearby)} <span aria-hidden="true">↗</span>
         </button>
       )}
       <div className="pixel-world-help">WASD / 方向键移动 · 滚轮缩放 · 靠近建筑按 E 或点击建筑</div>
@@ -352,12 +361,12 @@ export default function PixelJijiaPage() {
       </div>
 
       {selected && (
-        <section className="pixel-world-detail" role="dialog" aria-label={selected.title} aria-modal="false">
+        <section className="pixel-world-detail" role="dialog" aria-label={featureTitle(selected)} aria-modal="false">
           <button ref={closeRef} className="pixel-world-detail-close" type="button" aria-label="关闭介绍" onClick={() => selectPlace(null)}>×</button>
-          <span className="pixel-world-detail-eyebrow">{selected.caption}</span>
-          <h1>{selected.title}</h1>
-          <p>{selected.description}</p>
-          <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>
+          <span className="pixel-world-detail-eyebrow">{"href" in selected ? selected.caption : selected.story?.caption}</span>
+          <h1>{featureTitle(selected)}</h1>
+          <p>{"href" in selected ? selected.description : selected.story?.description}</p>
+          {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
         </section>
       )}
     </main>
