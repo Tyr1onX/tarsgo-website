@@ -102,6 +102,12 @@ export const SPAWN: Position = { x: 48, y: 40 };
 export function isWalkable(x: number, y: number): boolean {
   const radius = 0.3;
   if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
+  // Water is defined by the same ground areas used to paint the scene.
+  if (GROUND_AREAS.some((area) =>
+    area.kind === 3 &&
+    x + radius > area.x && x - radius < area.x + area.width &&
+    y + radius > area.y && y - radius < area.y + area.height
+  )) return false;
   if (PLACES.some((p) => x + radius > p.x && x - radius < p.x + p.width && y + radius > p.y + 0.9 && y - radius < p.y + p.height - 0.7)) return false;
   if (SCENERY.some((p) => p.solid && Math.hypot(x - p.x, y - p.y) < p.solid + radius)) return false;
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.radius + radius) return false;
