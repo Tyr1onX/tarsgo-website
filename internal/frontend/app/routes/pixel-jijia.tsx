@@ -218,7 +218,8 @@ export default function PixelJijiaPage() {
     const down = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
       if (event.key === "Escape") {
-        if (selectedRef.current) selectPlace(null);
+        if (selectedRoom) setSelectedRoom(null);
+        else if (selectedRef.current) selectPlace(null);
         else { setMapOpen(false); setShowHelp(false); }
         return;
       }
@@ -227,18 +228,32 @@ export default function PixelJijiaPage() {
         return;
       }
       if (event.key.toLowerCase() === "m") {
-        event.preventDefault();
-        setMapOpen(open => !open);
+        if (!room) { event.preventDefault(); setMapOpen(open => !open); }
         return;
       }
       if (event.key.toLowerCase() === "e") {
+        if (selectedRoom) return;
+        if (room) {
+          const object = closestRoomObject(room, playerRef.current);
+          if (object) {
+            event.preventDefault();
+            if (object.kind === "exit") exitRoom();
+            else setSelectedRoom(object);
+          }
+          return;
+        }
         if (seated) { event.preventDefault(); standUp(); return; }
         const place = closestFeature(playerRef.current);
-        if (place) { event.preventDefault(); selectPlace(place); }
+        if (place && "href" in place && place.id === MECHANICAL_ROOM.id &&
+            Math.hypot(playerRef.current.x - place.x - place.width / 2,
+              playerRef.current.y - place.y - place.height - 0.8) < 1.8) {
+          event.preventDefault();
+          enterRoom();
+        } else if (place) { event.preventDefault(); selectPlace(place); }
         return;
       }
       const dir = KEY_DIRECTIONS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
-      if (!dir || selectedRef.current) return;
+      if (!dir || selectedRef.current || selectedRoom) return;
       event.preventDefault();
       if (seated) standUp();
       keysRef.current.add(dir);
@@ -266,15 +281,16 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, seated, standUp]);
+  }, [selectPlace, seated, standUp, room, selectedRoom, enterRoom, exitRoom]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
     const minimap = miniRef.current, terrain = terrainRef.current, preview = previewRef.current;
+    const roomTerrain = roomTerrainRef.current;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
-    if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props) return;
+    if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props || (room && !roomTerrain)) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -312,26 +328,33 @@ export default function PixelJijiaPage() {
       let walking = false;
       const sprinting = sprintKeyRef.current || sprintTouchRef.current;
 
-      if ((x !== 0 || y !== 0) && !selectedRef.current && !seated) {
+      if ((x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated) {
         const previous = playerRef.current;
-        const next = movePlayer(previous, x, y, dt, sprinting);
+        const next = movePlayer(previous, x, y, dt, sprinting,
+          room ? (px, py) => isRoomWalkable(room, px, py) : undefined);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = x !== 0 ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
         walking = distance > 0.0001;
         if (walking) traveled += distance;
       }
-      const target = cameraAt(playerRef.current, canvas.width, canvas.height);
+      const target = cameraAt(playerRef.current, canvas.width, canvas.height,
+        (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
       const follow = 1 - Math.exp(-(sprinting ? 8 : 6) * dt);
       cameraRef.current.x += (target.x - cameraRef.current.x) * follow;
       cameraRef.current.y += (target.y - cameraRef.current.y) * follow;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
-      renderScene(ctx, terrain, atlas, sprites, props, character,
-        playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
+      if (room && roomTerrain) {
+        renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
+          directionRef.current, walking, traveled, cameraRef.current);
+      } else {
+        renderScene(ctx, terrain, atlas, sprites, props, character,
+          playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
+      }
 
-      if (reducedMotion.matches) {
+      if (reducedMotion.matches || room) {
         particles.length = 0;
       } else {
         if (walking && sprinting && time - lastDust > 110) {
@@ -377,8 +400,14 @@ export default function PixelJijiaPage() {
         renderParticles(ctx, particles, cameraRef.current);
       }
       canvas.dataset.particles = String(particles.length);
+      canvas.dataset.scene = room?.id ?? "outdoor";
 
-      const nextNearby = seated ? null : closestFeature(playerRef.current);
+      const nextNearby = seated || room ? null : closestFeature(playerRef.current);
+      const nextRoom = room && !selectedRoom ? closestRoomObject(room, playerRef.current) : null;
+      if (nearRoomIdRef.current !== (nextRoom?.id ?? null)) {
+        nearRoomIdRef.current = nextRoom?.id ?? null;
+        setNearbyRoom(nextRoom);
+      }
       const nearId = nextNearby ? ("href" in nextNearby ? nextNearby.id : nextNearby.story?.title ?? `bench-${nextNearby.x}-${nextNearby.y}`) : null;
       if (nearIdRef.current !== nearId) {
         nearIdRef.current = nearId;
@@ -392,7 +421,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.seated = String(Boolean(seated));
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
-      if (miniCtx && time - lastMini > 100) {
+      if (!room && miniCtx && time - lastMini > 100) {
         renderNavigationMap(miniCtx, preview, playerRef.current, directionRef.current,
           cameraRef.current, canvas.width, canvas.height, mapOpen);
         lastMini = time;
@@ -405,7 +434,7 @@ export default function PixelJijiaPage() {
       observer.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen]);
+  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, selectedRoom]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
