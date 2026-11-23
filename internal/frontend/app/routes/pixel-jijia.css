@@ -227,6 +227,7 @@
   text-decoration: none;
 }
 .pixel-world-detail-link:hover { background: #ffe0a0; }
+.pixel-world-detail-secondary-link { display: block; margin-top: 15px; color: #d8e5d9; font-size: 13px; text-align: center; text-decoration: underline; }
 .pixel-world :is(button, a):focus-visible { outline: 3px solid #fff4bf; outline-offset: 3px; }
 
 @media (max-width: 700px) {

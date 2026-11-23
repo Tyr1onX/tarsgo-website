@@ -24,7 +24,7 @@ export const PLACES: Place[] = [
   { id: "electrical", title: "电控实验室", caption: "ELECTRICAL LAB", description: "电路、嵌入式与电机控制。那些看不见的信号，点亮了每一台机器人的生命力。", href: "/about", action: "认识电控组", x: 93, y: 26, width: 18, height: 11, accent: "#b8cce3" },
   { id: "vision", title: "视觉观测站", caption: "VISION STATION", description: "目标识别、视觉定位与自瞄算法，让机器人学会看见这个世界。", href: "/about", action: "认识视觉组", x: 33, y: 58, width: 18, height: 11, accent: "#98c8bd" },
   { id: "guild", title: "冒险者公会", caption: "JOIN THE TEAM", description: "寻找你的下一场冒险。机械、电控、视觉、AI 与运营，总有一种热爱能在这里发光。", href: "/join", action: "加入吉甲", x: 62, y: 65, width: 20, height: 11, accent: "#efc28d" },
-  { id: "ai", title: "AI 研究所", caption: "AI RESEARCH", description: "从感知到决策，从规划到自主控制。下一代机器人的想象力，正在这里发生。", href: "/about", action: "认识 AI 组", x: 93, y: 58, width: 18, height: 11, accent: "#c3b6eb" },
+  { id: "ai", title: "AI 研究所", caption: "AI RESEARCH", description: "从感知到决策，从规划到自主控制。下一代机器人的想象力，正在这里发生。", href: "/pixel-jijia/battle", action: "开始战术演练", x: 93, y: 58, width: 18, height: 11, accent: "#c3b6eb" },
 ];
 
 // One scene specification controls terrain, illustration, and physical obstacles.
