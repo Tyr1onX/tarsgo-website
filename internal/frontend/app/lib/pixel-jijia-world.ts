@@ -1,8 +1,8 @@
 export const TILE = 16;
 export const WORLD_WIDTH = 144;
 export const WORLD_HEIGHT = 96;
-export const WALK_SPEED = 5.4; // tiles / second
-export const RUN_SPEED = 8.6; // tiles / second, no stamina state
+export const WALK_SPEED = 7.0; // tiles / second, ~30% faster
+export const RUN_SPEED = 10.5; // tiles / second, distinct sprint pace
 
 export type Direction = "up" | "down" | "left" | "right";
 export type Position = { x: number; y: number };
@@ -235,6 +235,37 @@ export function closestPlace({ x, y }: Position): Place | null {
     }
   }
   return nearest;
+}
+
+// Benches are physical seats even when they have no story text.
+export function closestBench(position: Position): Scenery | null {
+  let nearest: Scenery | null = null;
+  let distance = 2.5;
+  for (const object of SCENERY) {
+    if (object.sprite !== "bench") continue;
+    const next = Math.hypot(position.x - object.x, position.y - object.y);
+    if (next < distance) {
+      nearest = object;
+      distance = next;
+    }
+  }
+  return nearest;
+}
+
+export function benchExit(bench: Scenery): Position | null {
+  if (bench.sprite !== "bench") return null;
+  const radius = bench.width / (2 * TILE) + 0.9;
+  const candidates = [
+    { x: bench.x, y: bench.y + 1.25 },
+    { x: bench.x - radius, y: bench.y },
+    { x: bench.x + radius, y: bench.y },
+    { x: bench.x, y: bench.y - 1.4 },
+  ];
+  return candidates.find(p => isWalkable(p.x, p.y)) ?? null;
+}
+
+export function benchSeat(bench: Scenery): Position {
+  return { x: bench.x, y: bench.y - 0.6 };
 }
 
 export function closestStory({ x, y }: Position): Scenery | null {
