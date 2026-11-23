@@ -6,7 +6,7 @@ export type RoomObject = Rect & {
   id: string;
   title: string;
   description: string;
-  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit";
+  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit" | "desk" | "chair" | "shelf" | "lamp" | "plant";
   solid?: boolean;
 };
 export type RoomScene = {
@@ -50,7 +50,17 @@ export const MECHANICAL_ROOM: RoomScene = {
 
 const COMMON_ROOM = { width: 36, height: 24, entry: { x: 18, y: 21 } };
 
+export const STUDY_ROOM: RoomScene = {
+ id: "study", title: "个人研究室", width: 36, height: 24,
+ entry: { x: 18, y: 21 },
+ theme: { floor: "#b8ac90", rug: "#617772", wall: "#3e585d", window: "#c1dfd8" },
+ walls: [],
+ objects: [{ id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
+   title: "返回吉甲小镇", description: "回到户外的道路。" }],
+};
+
 export const ROOMS: Record<string, RoomScene> = {
+  study: STUDY_ROOM,
   mechanical: MECHANICAL_ROOM,
   honors: {
     ...COMMON_ROOM, id: "honors", title: "荣誉殿堂 · 赛事记忆",
@@ -221,6 +231,27 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
   if (object.kind === "exit") return;
   ctx.fillStyle = "#334346";
   ctx.fillRect(x + 2, y + 5, w, h);
+  if (["desk", "chair", "shelf", "lamp", "plant"].includes(object.kind)) {
+    const shades: Record<string, [string, string]> = {
+      desk: ["#8b6545", "#ddab78"], chair: ["#667a6b", "#b0c49f"],
+      shelf: ["#735846", "#d2b076"], lamp: ["#556d77", "#ffdf8b"],
+      plant: ["#6b5846", "#8aba75"], terminal: ["#334855", "#79cddd"],
+    };
+    const [base, detail] = shades[object.kind];
+    ctx.fillStyle = base;
+    ctx.fillRect(x, y - 9, w, h + 8);
+    ctx.fillStyle = detail;
+    ctx.fillRect(x + 3, y - 12, w - 6, 7);
+    if (object.kind === "plant") {
+      ctx.fillStyle = "#79a66b";
+      ctx.fillRect(x + 5, y - 20, w - 10, 15);
+    }
+    if (object.kind === "terminal") {
+      ctx.fillStyle = "#78caed";
+      ctx.fillRect(x + 4, y - 23, w - 8, 13);
+    }
+    return;
+  }
   if (object.kind === "cabinet") {
     ctx.fillStyle = "#526f77";
     ctx.fillRect(x, y - 26, w, h + 26);
