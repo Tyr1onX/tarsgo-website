@@ -83,6 +83,7 @@ export const ROOMS: Record<string, RoomScene> = {
   },
   electrical: {
     ...COMMON_ROOM, id: "electrical", title: "电控实验室 · 信号与电路",
+    entry: { x: 18, y: 21.7 },
     theme: { floor: "#a3adb0", rug: "#4a677a", wall: "#354e66", window: "#92dcf5" },
     walls: [],
     objects: [
@@ -90,7 +91,7 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "电路焊接区", description: "焊台、放大镜与电路板整齐排列。每个焊点都需要耐心和精确。" },
       { id: "oscilloscope", kind: "console", x: 14, y: 7, width: 8, height: 6, solid: true,
         title: "示波器与信号台", description: "蓝色屏幕上的波形让原本看不见的电信号有了形状。", href: "/about", action: "了解电控组" },
-      { id: "embedded", kind: "machine", x: 13.5, y: 14.5, width: 10, height: 4, solid: true,
+      { id: "embedded", kind: "machine", x: 13.5, y: 14.5, width: 10, height: 6, solid: true,
         title: "嵌入式测试台", description: "从开发板到电机控制器，每一次调试都会让机器人更可靠一些。" },
       { id: "components", kind: "cabinet", x: 28, y: 6, width: 5, height: 8, solid: true,
         title: "元件收纳柜", description: "电阻、电容和芯片都有自己的编号，方便下一次实验快速找到。" },
@@ -102,6 +103,7 @@ export const ROOMS: Record<string, RoomScene> = {
   },
   vision: {
     ...COMMON_ROOM, id: "vision", title: "视觉观测站 · 感知与识别",
+    entry: { x: 18, y: 22.1 },
     theme: { floor: "#a1aeaa", rug: "#476e6c", wall: "#365762", window: "#a3e6cf" },
     walls: [],
     objects: [
@@ -113,7 +115,7 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "观测窗", description: "这里用于观察机器人在试验区的移动和目标跟踪表现。" },
       { id: "compute", kind: "server", x: 28, y: 8, width: 6, height: 7, solid: true,
         title: "图像处理计算站", description: "计算资源支持实时图像处理与识别算法的测试。" },
-      { id: "lens-calibration", kind: "console", x: 16, y: 15.5, width: 4, height: 3, solid: true,
+      { id: "lens-calibration", kind: "console", x: 15, y: 15, width: 6, height: 6.5, solid: true,
         title: "镜头标定台", description: "棋盘格与镜头参数被一一校准，像素误差最终会反映在赛场的每次瞄准中。" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
         title: "返回吉甲小镇", description: "走出观测站，重新回到自然光线中。" },
@@ -173,7 +175,7 @@ export function roomExitAt(room: RoomScene, position: Position, vertical: number
   const exit = room.objects.find(object => object.kind === "exit");
   return Boolean(exit && position.x >= exit.x + 0.65 &&
     position.x <= exit.x + exit.width - 0.65 &&
-    position.y >= exit.y - 0.55 && position.y <= exit.y + 0.35);
+    position.y >= exit.y - 0.55 && position.y <= exit.y + exit.height - 0.4);
 }
 
 export function closestRoomObject(room: RoomScene, position: Position): RoomObject | null {
