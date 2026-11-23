@@ -166,6 +166,23 @@ export const SCENERY: Scenery[] = [
 export const FOUNTAIN = { x: 72, y: 48, radius: 2.5 } as const;
 export const SPAWN: Position = { x: 72, y: 56 };
 
+// Collision follows visible ground contact: broad furniture has a footprint,
+// small upright props use their existing radius, and arch pillars leave a passage.
+export function sceneryBlocks(object: Scenery, x: number, y: number, radius = 0.3): boolean {
+  if (object.sprite === "arch") {
+    const postOffset = object.width / (2 * TILE) - 0.8;
+    return [-1, 1].some(side =>
+      Math.hypot(x - object.x - side * postOffset, y - object.y) < 0.6 + radius);
+  }
+  if (["bench", "fence", "planter", "rocks", "hydrangea"].includes(object.sprite)) {
+    const halfWidth = object.width / (2 * TILE) * 0.78;
+    const halfDepth = object.sprite === "fence" ? 0.38 : 0.52;
+    return Math.abs(x - object.x) < halfWidth + radius &&
+      Math.abs(y - object.y) < halfDepth + radius;
+  }
+  return Boolean(object.solid && Math.hypot(x - object.x, y - object.y) < object.solid + radius);
+}
+
 export function isWalkable(x: number, y: number): boolean {
   const radius = 0.3;
   if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
@@ -175,8 +192,11 @@ export function isWalkable(x: number, y: number): boolean {
     x + radius > area.x && x - radius < area.x + area.width &&
     y + radius > area.y && y - radius < area.y + area.height
   )) return false;
-  if (PLACES.some((p) => x + radius > p.x && x - radius < p.x + p.width && y + radius > p.y + 0.9 && y - radius < p.y + p.height - 0.7)) return false;
-  if (SCENERY.some((p) => p.solid && Math.hypot(x - p.x, y - p.y) < p.solid + radius)) return false;
+  // Every building has a solid body; its painted roof can overlap a rear path.
+  // The interaction is in front of the body, not in a non-solid wall strip.
+  if (PLACES.some((p) => x + radius > p.x && x - radius < p.x + p.width &&
+    y + radius > p.y && y - radius < p.y + p.height)) return false;
+  if (SCENERY.some((p) => sceneryBlocks(p, x, y, radius))) return false;
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.radius + radius) return false;
   return true;
 }
