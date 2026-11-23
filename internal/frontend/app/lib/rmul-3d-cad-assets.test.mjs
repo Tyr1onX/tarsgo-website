@@ -10,8 +10,10 @@ test("only source-backed 2027 CAD assets are selectable", () => {
   assert.deepEqual(new Set(Object.values(CAD_MODELS).filter((m) => "url" in m).map((m) => m.url)).size, 3);
   assert.deepEqual(
     [CAD_MODELS.rmucField.catalogName, CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],
-    ["full-map", "product-2603236", "product-1354629"],
+    ["full-map", "centre-platform", "centre-platform"],
   );
+  assert.deepEqual(CAD_MODELS.outpost.productIds, ["2603236", "1800898"]);
+  assert.deepEqual(CAD_MODELS.rune.productIds, ["1354629"]);
   assert.match(CAD_MODELS.field.source, /^RMUL2027_3V3_V1\.0\.0/);
   assert.match(CAD_MODELS.base.source, /^RMUC2027_V1\.0\.0/);
 });
@@ -47,7 +49,7 @@ test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies",
   globalThis.fetch = async () => ({
     ok: true,
     json: async () => ({
-      models: ["full-map", "product-2603236", "product-1354629"].map((name) => ({
+      models: ["full-map", "centre-platform"].map((name) => ({
         id: `rmuc2027-${name}`,
         file: `rmuc2027/${name}.glb.gz`,
         sha256: "a".repeat(64),
@@ -56,8 +58,8 @@ test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies",
   });
   try {
     for (const [id, name] of [["rmucField", "full-map"],
-                              ["outpost", "product-2603236"],
-                              ["rune", "product-1354629"]]) {
+                              ["outpost", "centre-platform"],
+                              ["rune", "centre-platform"]]) {
       assert.deepEqual(await resolveCadModel(id), {
         url: `https://hxyulin.github.io/rm-map-tools/models/2027/rmuc2027/${name}.glb.gz`,
         sha256: "a".repeat(64),

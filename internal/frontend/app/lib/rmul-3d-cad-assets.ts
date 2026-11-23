@@ -32,12 +32,14 @@ export const CAD_MODELS = {
   },
   outpost: {
     label: "RMUC 2027 前哨站",
-    catalogName: "product-2603236",
-    source: "RMUC2027_V1.0.0.stp（前哨站产品 #2603236）",
+    catalogName: "centre-platform",
+    productIds: ["2603236", "1800898"],
+    source: "RMUC2027_V1.0.0.stp（前哨站 #2603236、底座 #1800898）",
   },
   rune: {
     label: "RMUC 2027 能量机关（大风车）",
-    catalogName: "product-1354629",
+    catalogName: "centre-platform",
+    productIds: ["1354629"],
     source: "RMUC2027_V1.0.0.stp（能量机关产品 #1354629）",
   },
 } as const;

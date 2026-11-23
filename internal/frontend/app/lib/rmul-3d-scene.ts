@@ -120,6 +120,22 @@ export function mountArena(
       if (actualHash !== asset.sha256) throw new Error("2027 CAD mesh integrity mismatch");
       return loader.parseAsync(bytes, "");
     }).then((gltf) => {
+      const selected = CAD_MODELS[id];
+      if ("productIds" in selected) {
+        // The official 2027 central assembly contains both Outposts and the Rune.
+        // Filter its original product nodes instead of building schematic meshes.
+        const required = new Set<string>(selected.productIds);
+        const found = new Set<string>();
+        const excluded: THREE.Object3D[] = [];
+        gltf.scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const productId = /^source_(\d+)_/.exec(object.name)?.[1];
+          if (productId && required.has(productId)) found.add(productId);
+          else excluded.push(object);
+        });
+        if (found.size !== required.size) throw new Error("CAD source product missing");
+        for (const object of excluded) object.removeFromParent();
+      }
       const root = new THREE.Group();
       root.add(gltf.scene);
       // Release package "full-map" and RMUC "base" use right-handed Z-up.
