@@ -111,7 +111,7 @@ test("连续按住方向键按时间推进小数坐标，而非逐格跳跃", ()
 });
 
 test("碰撞阻止穿墙但允许沿墙滑动，停顿帧不会造成传送", () => {
-  const blocked = {x:39, y:36.7};
+  const blocked = {x:39, y:37.31};
   assert.equal(isWalkable(blocked.x,blocked.y), true);
   assert.equal(movePlayer(blocked, 0, -1, 0.05).y, blocked.y);
   assert.ok(movePlayer(blocked, 1, -1, 0.05).x > blocked.x);
@@ -125,7 +125,7 @@ test("Shift / 按住按钮疾跑更快且仍使用同一条安全碰撞路径", 
   const sprint = Array.from({ length: 60 }).reduce(p => movePlayer(p, 1, 0, 1 / 60, true), SPAWN);
   assert.ok(sprint.x > walk.x + 2);
   assert.ok(sprint.x - SPAWN.x < RUN_SPEED + 0.01);
-  const wall = { x: 39, y: 36.7 };
+  const wall = { x: 39, y: 37.31 };
   assert.equal(movePlayer(wall, 0, -1, 0.05, true).y, wall.y);
   assert.ok(movePlayer(wall, 1, -1, 0.05, true).x > wall.x);
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
