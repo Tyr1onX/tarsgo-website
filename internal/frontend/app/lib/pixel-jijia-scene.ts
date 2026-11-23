@@ -122,62 +122,57 @@ export function renderTerrain(tiles: HTMLImageElement): HTMLCanvasElement {
   return canvas;
 }
 
-// A semantic navigation view: paths and destinations, not a downscaled second world canvas.
-// The existing terrain canvas supplies texture; navigation adds readable landmarks
-// without allocating a second full-world image.
+// One compact picture of the actual rendered world (including buildings and trees).
+// It replaces schematic rectangles and never allocates a second full-size world canvas.
+export function renderWorldPreview(
+  terrain: HTMLCanvasElement, atlas: HTMLImageElement,
+  sprites: SpriteIndex, props: HTMLImageElement,
+): HTMLCanvasElement {
+  const preview = document.createElement("canvas");
+  preview.width = 432;
+  preview.height = 288;
+  const ctx = preview.getContext("2d");
+  if (!ctx) throw new Error("小地图画布不可用");
+  ctx.imageSmoothingEnabled = true;
+  ctx.scale(preview.width / (WORLD_WIDTH * TILE), preview.height / (WORLD_HEIGHT * TILE));
+  ctx.drawImage(terrain, 0, 0);
+  for (const node of NODES) drawNode(ctx, node, atlas, sprites, props, { x: 0, y: 0 });
+  return preview;
+}
+
 export function renderNavigationMap(
-  ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D, preview: HTMLCanvasElement,
   player: Position, direction: Direction,
-  camera: Position, viewWidth: number, viewHeight: number,
+  camera: Position, viewWidth: number, viewHeight: number, expanded = false,
 ) {
   const { width, height } = ctx.canvas;
   const scaleX = width / WORLD_WIDTH, scaleY = height / WORLD_HEIGHT;
   ctx.clearRect(0, 0, width, height);
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(terrain, 0, 0, width, height);
-  ctx.fillStyle = "rgba(16, 43, 38, .13)";
-  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(preview, 0, 0, width, height);
 
-  // Subtle survey grid keeps the expanded map legible without covering paths.
-  ctx.strokeStyle = "rgba(248, 237, 194, .25)";
-  ctx.lineWidth = 1;
-  for (let tile = 16; tile < WORLD_WIDTH; tile += 16) {
-    ctx.beginPath();
-    ctx.moveTo(Math.round(tile * scaleX) + .5, 0);
-    ctx.lineTo(Math.round(tile * scaleX) + .5, height);
-    ctx.stroke();
-  }
-  for (let tile = 16; tile < WORLD_HEIGHT; tile += 16) {
-    ctx.beginPath();
-    ctx.moveTo(0, Math.round(tile * scaleY) + .5);
-    ctx.lineTo(width, Math.round(tile * scaleY) + .5);
-    ctx.stroke();
-  }
-
-  for (const place of PLACES) {
-    const x = Math.round(place.x * scaleX), y = Math.round(place.y * scaleY);
-    const w = Math.round(place.width * scaleX), h = Math.round(place.height * scaleY);
-    ctx.fillStyle = "#1c3836";
-    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-    ctx.fillStyle = place.accent;
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = "#1d3737";
-    ctx.font = "bold 11px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(place.title, x + w / 2, y + h / 2, w - 4);
-  }
-  for (const item of SCENERY) {
-    if (!item.story) continue;
-    const x = Math.round(item.x * scaleX), y = Math.round(item.y * scaleY);
-    ctx.fillStyle = "#223d3c";
-    ctx.fillRect(x - 4, y - 4, 8, 8);
-    ctx.fillStyle = "#fce19a";
-    ctx.fillRect(x - 2, y - 2, 4, 4);
+  if (expanded) {
+    for (const place of PLACES) {
+      const x = (place.x + place.width / 2) * scaleX;
+      const y = (place.y + place.height / 2) * scaleY;
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#153734";
+      ctx.strokeText(place.title, x, y, place.width * scaleX);
+      ctx.fillStyle = "#fff3c8";
+      ctx.fillText(place.title, x, y, place.width * scaleX);
+    }
+    for (const item of SCENERY) {
+      if (!item.story) continue;
+      const x = Math.round(item.x * scaleX), y = Math.round(item.y * scaleY);
+      ctx.fillStyle = "#ffe4a0";
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
   }
 
-  ctx.strokeStyle = "rgba(255, 251, 208, .96)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255, 249, 210, .95)";
+  ctx.lineWidth = expanded ? 2 : 3;
   ctx.strokeRect(camera.x / TILE * scaleX, camera.y / TILE * scaleY,
     viewWidth / TILE * scaleX, viewHeight / TILE * scaleY);
 
@@ -185,12 +180,12 @@ export function renderNavigationMap(
   const heading = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[direction];
   const [dx, dy] = heading;
   ctx.fillStyle = "#fff5c6";
-  ctx.strokeStyle = "#1f3e3b";
+  ctx.strokeStyle = "#193836";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(px + dx * 7, py + dy * 7);
-  ctx.lineTo(px - dx * 4 - dy * 5, py - dy * 4 + dx * 5);
-  ctx.lineTo(px - dx * 4 + dy * 5, py - dy * 4 - dx * 5);
+  ctx.moveTo(px + dx * 6, py + dy * 6);
+  ctx.lineTo(px - dx * 4 - dy * 4, py - dy * 4 + dx * 4);
+  ctx.lineTo(px - dx * 4 + dy * 4, py - dy * 4 - dx * 4);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
