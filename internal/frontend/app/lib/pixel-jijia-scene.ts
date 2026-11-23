@@ -1,64 +1,58 @@
-import { PLACES, TILE, TREES, WORLD_HEIGHT, WORLD_WIDTH, type Direction, type Place, type Position } from "./pixel-jijia-world";
+import {
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH,
+  type Direction, type Place, type Position, type PropSprite, type Scenery,
+} from "./pixel-jijia-world";
 
 export type SpriteBox = [number, number, number, number];
 export type SpriteIndex = Record<string, SpriteBox>;
 
-function sprite(
-  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
-  name: string, x: number, y: number, w: number, h: number,
-) {
-  const box = sprites[name];
-  if (!box) throw new Error(`像素素材缺失：${name}`);
-  ctx.drawImage(atlas, box[0], box[1], box[2], box[3], Math.round(x), Math.round(y), Math.round(w), Math.round(h));
-}
+const PROP_CELLS: Record<PropSprite, number> = {
+  bench: 0, lamp: 1, sign: 2, planter: 3,
+  oak: 4, lime_tree: 5, cherry: 6, rocks: 7,
+  fence: 8, hydrangea: 9, statue: 10, arch: 11,
+};
+const PROP_CELL = 128;
+const GROUND_PATCH = TILE * 8;
+const GROUND_EDGE_Y = GROUND_PATCH * 4;
+const point = (value: number) => Math.round(value * TILE);
 
-const point = (v: number) => Math.round(v * TILE);
 function hash(x: number, y: number) {
   let n = Math.imul(x + 47, 374761393) ^ Math.imul(y + 103, 668265263);
   n = Math.imul(n ^ (n >>> 13), 1274126177);
   return (n ^ (n >>> 16)) >>> 0;
 }
 
-type GroundKind = 0 | 1 | 2 | 3; // grass, path, plaza, water
-const GROUND_PATCH = TILE * 8;
-const GROUND_EDGE_Y = GROUND_PATCH * 4;
+function sprite(
+  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex,
+  name: string, x: number, y: number, width: number, height: number,
+) {
+  const box = sprites[name];
+  if (!box) throw new Error(`像素素材缺失：${name}`);
+  ctx.drawImage(atlas, ...box, Math.round(x), Math.round(y), Math.round(width), Math.round(height));
+}
 
-function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Array {
-  // Each cell has one ground material; transitions are derived from its neighbors.
+function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement) {
   const materials = new Uint8Array(WORLD_WIDTH * WORLD_HEIGHT);
-  const paint = (kind: GroundKind, x: number, y: number, width: number, height: number) => {
-    for (let row = y; row < y + height; row++) {
-      for (let col = x; col < x + width; col++) {
-        materials[row * WORLD_WIDTH + col] = kind;
+  for (const area of GROUND_AREAS) {
+    for (let y = area.y; y < area.y + area.height; y++) {
+      for (let x = area.x; x < area.x + area.width; x++) {
+        materials[y * WORLD_WIDTH + x] = area.kind;
       }
     }
-  };
-
-  for (const [x, y, width, height] of [
-    [0, 28, 96, 7], [44, 17, 8, 40], [18, 19, 7, 28],
-    [73, 19, 7, 28], [18, 47, 61, 7], [34, 16, 29, 6],
-  ]) paint(1, x, y, width, height);
-  paint(2, 32, 23, 32, 23);
-  for (const [x, y, width, height] of [[3, 28, 9, 6], [84, 28, 9, 6]]) {
-    paint(2, x - 1, y - 1, width + 2, height + 2);
-    paint(3, x, y, width, height);
   }
 
   const at = (x: number, y: number) =>
-    x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT
-      ? materials[y * WORLD_WIDTH + x] : 0;
+    x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT ? materials[y * WORLD_WIDTH + x] : 0;
 
   for (let y = 0; y < WORLD_HEIGHT; y++) {
     for (let x = 0; x < WORLD_WIDTH; x++) {
-      const kind = at(x, y) as GroundKind;
-      // Each 8×8-cell patch comes from the original generated terrain artwork.
+      const kind = at(x, y);
       const variant = hash(Math.floor(x / 8), Math.floor(y / 8)) % 3;
-      const sourceX = variant * GROUND_PATCH + (x % 8) * TILE;
-      const sourceY = kind * GROUND_PATCH + (y % 8) * TILE;
       const destX = point(x), destY = point(y);
-      ctx.drawImage(tiles, sourceX, sourceY, TILE, TILE, destX, destY, TILE, TILE);
-
-      // Draw reusable pixel-art edge sprites only on real material boundaries.
+      ctx.drawImage(
+        tiles, variant * GROUND_PATCH + (x % 8) * TILE,
+        kind * GROUND_PATCH + (y % 8) * TILE, TILE, TILE, destX, destY, TILE, TILE,
+      );
       if (kind === 0) continue;
       const borders = (neighbor: number) =>
         neighbor !== kind && (kind !== 1 || neighbor === 0) && !(kind === 2 && neighbor === 3);
@@ -69,63 +63,98 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement): Uint8Ar
       }
     }
   }
-  return materials;
 }
 
-function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, place: Place) {
+function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, place: Place, camera: Position) {
   const box = sprites[place.id];
   if (!box) throw new Error(`建筑素材缺失：${place.id}`);
-  const w = point(place.width);
-  const h = Math.round(w * box[3] / box[2]);
-  const x = point(place.x);
-  const y = point(place.y + place.height) - h;
-  sprite(ctx, atlas, sprites, place.id, x, y, w, h);
-}
-
-function tree(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, where: Position, index: number) {
-  const names = ["green_tree", "green_tree", "pink_tree", "orange_tree", "green_tree", "spruce"];
-  const name = names[index % names.length];
-  const box = sprites[name];
-  const width = name === "spruce" ? 50 : 67;
+  const width = point(place.width);
   const height = Math.round(width * box[3] / box[2]);
-  sprite(ctx, atlas, sprites, name, point(where.x) - width / 2, point(where.y) - height + 5, width, height);
+  sprite(
+    ctx, atlas, sprites, place.id, point(place.x) - camera.x,
+    point(place.y + place.height) - height - camera.y, width, height,
+  );
 }
 
-function props(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, materials: Uint8Array) {
-  TREES.forEach((where, index) => tree(ctx, atlas, sprites, where, index));
-  for (let i = 0; i < 24; i++) {
-    const x = 2 + hash(i, 13) % 92;
-    const y = 3 + hash(i, 97) % 57;
-    // Shrubs belong on grass, not over walkways or in front of building doors.
-    const onGrass = (col: number, row: number) =>
-      col > 0 && col < WORLD_WIDTH && row > 0 && row < WORLD_HEIGHT
-      && materials[row * WORLD_WIDTH + col] === 0;
-    if (![[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => onGrass(x + dx, y + dy))) continue;
-    if (PLACES.some(p => x > p.x - 2 && x < p.x + p.width + 2 && y > p.y - 2 && y < p.y + p.height + 2)) continue;
-    const name = i % 4 === 0 ? "pink_bush" : "green_bush";
-    sprite(ctx, atlas, sprites, name, point(x), point(y), 25, 18);
-  }
-
-  sprite(ctx, atlas, sprites, "fountain", point(48) - 45, point(31.5) - 51, 90, 90);
-
+function decoration(ctx: CanvasRenderingContext2D, props: HTMLImageElement, object: Scenery, camera: Position) {
+  const cell = PROP_CELLS[object.sprite];
+  ctx.drawImage(
+    props, (cell % 4) * PROP_CELL, Math.floor(cell / 4) * PROP_CELL,
+    PROP_CELL, PROP_CELL,
+    Math.round(point(object.x) - object.width / 2 - camera.x),
+    Math.round(point(object.y) - object.height - camera.y),
+    object.width, object.height,
+  );
 }
 
-export function renderTown(atlas: HTMLImageElement, sprites: SpriteIndex, tiles: HTMLImageElement): HTMLCanvasElement {
+function fountain(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, camera: Position) {
+  sprite(ctx, atlas, sprites, "fountain",
+    point(FOUNTAIN.x) - 48 - camera.x, point(FOUNTAIN.y) - 50 - camera.y, 96, 96);
+}
+
+// Sorting by ground contact rather than top-left image coordinates makes scenery
+// and buildings share the same top-down depth rules.
+type SceneNode =
+  | { kind: "building"; y: number; x: number; value: Place }
+  | { kind: "prop"; y: number; x: number; value: Scenery }
+  | { kind: "fountain"; y: number; x: number };
+const NODES: SceneNode[] = [
+  ...PLACES.map(p => ({ kind: "building" as const, y: p.y + p.height, x: p.x + p.width / 2, value: p })),
+  ...SCENERY.map(p => ({ kind: "prop" as const, y: p.y, x: p.x, value: p })),
+  { kind: "fountain" as const, x: FOUNTAIN.x, y: FOUNTAIN.y + 2.4 },
+].sort((a, b) => a.y - b.y);
+
+function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode, atlas: HTMLImageElement,
+  sprites: SpriteIndex, props: HTMLImageElement, camera: Position) {
+  if (node.kind === "building") building(ctx, atlas, sprites, node.value, camera);
+  else if (node.kind === "prop") decoration(ctx, props, node.value, camera);
+  else fountain(ctx, atlas, sprites, camera);
+}
+
+export function renderTerrain(tiles: HTMLImageElement): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = WORLD_WIDTH * TILE;
   canvas.height = WORLD_HEIGHT * TILE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("地图画布不可用");
   ctx.imageSmoothingEnabled = false;
-  const materials = ground(ctx, tiles);
-  PLACES.forEach((place) => building(ctx, atlas, sprites, place));
-  props(ctx, atlas, sprites, materials);
+  ground(ctx, tiles);
   return canvas;
 }
 
-const EXPLORER_ROWS: Record<Direction, number> = {
-  down: 0, left: 1, right: 2, up: 3,
-};
+export function renderTown(
+  terrain: HTMLCanvasElement, atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = terrain.width;
+  canvas.height = terrain.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("地图画布不可用");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(terrain, 0, 0);
+  for (const node of NODES) drawNode(ctx, node, atlas, sprites, props, { x: 0, y: 0 });
+  return canvas;
+}
+
+export function renderScene(
+  ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement,
+  atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
+  characterSheet: HTMLImageElement, player: Position, direction: Direction,
+  walking: boolean, traveled: number, camera: Position,
+) {
+  ctx.drawImage(terrain, -Math.round(camera.x), -Math.round(camera.y));
+  let playerDrawn = false;
+  for (const node of NODES) {
+    if (!playerDrawn && node.y > player.y) {
+      renderExplorer(ctx, characterSheet, player, direction, walking, traveled, camera);
+      playerDrawn = true;
+    }
+    drawNode(ctx, node, atlas, sprites, props, camera);
+  }
+  if (!playerDrawn) renderExplorer(ctx, characterSheet, player, direction, walking, traveled, camera);
+}
+
+const EXPLORER_ROWS: Record<Direction, number> = { down: 0, left: 1, right: 2, up: 3 };
 const EXPLORER_FRAME_WIDTH = 40;
 const EXPLORER_FRAME_HEIGHT = 54;
 

@@ -6,8 +6,9 @@ import {
   PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, closestPlace, movePlayer,
   type Direction, type Place, type Position,
 } from "~/lib/pixel-jijia-world";
-import { renderExplorer, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import { renderScene, renderTerrain, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
+import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
@@ -35,10 +36,14 @@ export default function PixelJijiaPage() {
   const touchRef = useRef(new Set<Direction>());
   const selectedRef = useRef<Place | null>(null);
   const townRef = useRef<HTMLCanvasElement | null>(null);
+  const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
+  const artRef = useRef<HTMLImageElement | null>(null);
+  const artIndexRef = useRef<SpriteIndex | null>(null);
+  const propsRef = useRef<HTMLImageElement | null>(null);
   const nearIdRef = useRef<string | null>(null);
-  const zoomRef = useRef(1.9);
-  const [zoom, setZoom] = useState(1.9);
+  const zoomRef = useRef(1.7);
+  const [zoom, setZoom] = useState(1.7);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
   const [nearby, setNearby] = useState<Place | null>(null);
   const [selected, setSelected] = useState<Place | null>(null);
@@ -56,6 +61,7 @@ export default function PixelJijiaPage() {
     const atlas = new Image();
     const character = new Image();
     const groundTiles = new Image();
+    const props = new Image();
     const loadImage = (image: HTMLImageElement, source: string) =>
       new Promise<HTMLImageElement>((resolve, reject) => {
         image.onload = () => resolve(image);
@@ -66,19 +72,27 @@ export default function PixelJijiaPage() {
       loadImage(atlas, "/assets/pixel-jijia/actual-imagegen-atlas.png"),
       loadImage(character, "/assets/pixel-jijia/explorer-4dir.png"),
       loadImage(groundTiles, groundTilesUrl),
+      loadImage(props, plazaPropsUrl),
       fetch("/assets/pixel-jijia/actual-imagegen-atlas.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, ground, metadata]) => {
+      .then(([image, explorer, ground, environment, metadata]) => {
         if (!active) return;
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 528) {
           throw new Error("地面图集与场景版本不匹配");
         }
+        if (environment.naturalWidth !== 512 || environment.naturalHeight !== 384) {
+          throw new Error("场景美术素材与当前版本不匹配");
+        }
         characterRef.current = explorer;
-        townRef.current = renderTown(image, metadata.sprites, ground);
+        artRef.current = image;
+        artIndexRef.current = metadata.sprites;
+        propsRef.current = environment;
+        terrainRef.current = renderTerrain(ground);
+        townRef.current = renderTown(terrainRef.current, image, metadata.sprites, environment);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -90,6 +104,8 @@ export default function PixelJijiaPage() {
       character.onerror = null;
       groundTiles.onload = null;
       groundTiles.onerror = null;
+      props.onload = null;
+      props.onerror = null;
     };
   }, []);
 
@@ -133,9 +149,10 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
-    const minimap = miniRef.current, town = townRef.current;
+    const minimap = miniRef.current, town = townRef.current, terrain = terrainRef.current;
     const character = characterRef.current;
-    if (!stage || !canvas || !town || !character) return;
+    const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
+    if (!stage || !canvas || !town || !terrain || !character || !atlas || !sprites || !props) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -178,8 +195,8 @@ export default function PixelJijiaPage() {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(town, -Math.round(cameraRef.current.x), -Math.round(cameraRef.current.y));
-      renderExplorer(ctx, character, playerRef.current, directionRef.current, walking, traveled, cameraRef.current);
+      renderScene(ctx, terrain, atlas, sprites, props, character,
+        playerRef.current, directionRef.current, walking, traveled, cameraRef.current);
 
       const nextNearby = closestPlace(playerRef.current);
       if (nearIdRef.current !== (nextNearby?.id ?? null)) {
@@ -211,7 +228,7 @@ export default function PixelJijiaPage() {
   }, [assetState, zoom]);
 
   const setMapZoom = (next: number) => {
-    const value = Math.min(3.2, Math.max(1.65, Math.round(next * 20) / 20));
+    const value = Math.min(3.2, Math.max(1.5, Math.round(next * 20) / 20));
     zoomRef.current = value;
     setZoom(value);
   };

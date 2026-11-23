@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
-  PLACES, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
   cameraAt, closestPlace, isWalkable, movePlayer,
 } from "./pixel-jijia-world.ts";
 
@@ -15,6 +15,45 @@ test("六个场景均有独立地址与可用官网入口", () => {
     assert.equal(isWalkable(place.x + 1, place.y + 2), false);
     assert.ok(closestPlace({x:place.x + place.width/2, y:place.y+place.height+1}));
   }
+});
+
+test("同一场景数据驱动地形、装饰和真实碰撞", () => {
+  assert.equal(GROUND_AREAS.length, 15);
+  for (const area of GROUND_AREAS) {
+    assert.ok(area.x >= 0 && area.y >= 0);
+    assert.ok(area.x + area.width <= WORLD_WIDTH && area.y + area.height <= WORLD_HEIGHT);
+  }
+  const props = ["bench","lamp","sign","planter","oak","lime_tree","cherry",
+    "rocks","fence","hydrangea","statue","arch"];
+  assert.ok(SCENERY.length >= 30);
+  for (const obj of SCENERY) {
+    assert.ok(props.includes(obj.sprite), obj.sprite);
+    assert.ok(obj.x >= 0 && obj.x <= WORLD_WIDTH);
+    assert.ok(obj.y >= 0 && obj.y <= WORLD_HEIGHT);
+    assert.ok(obj.width > 0 && obj.height > 0);
+  }
+  assert.ok(isWalkable(SPAWN.x, SPAWN.y));
+  assert.equal(isWalkable(FOUNTAIN.x, FOUNTAIN.y), false);
+  const obstacle = SCENERY.find(obj => obj.sprite === "statue");
+  assert.ok(obstacle);
+  assert.equal(isWalkable(obstacle.x, obstacle.y), false);
+  const arch = SCENERY.find(obj => obj.sprite === "arch");
+  assert.ok(arch);
+  assert.ok(!arch.solid, "门廊必须可通行");
+});
+
+test("统一场景图集必须包含十二个真实透明环境素材", () => {
+  const path = new URL("../assets/pixel-jijia/plaza-props.png", import.meta.url);
+  const png = readFileSync(path);
+  assert.deepEqual([...png.subarray(0,8)], [137,80,78,71,13,10,26,10]);
+  assert.equal(png.readUInt32BE(16), 512);
+  assert.equal(png.readUInt32BE(20), 384);
+  assert.equal(png[25], 6); // transparent RGBA
+  const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
+  assert.ok(scene.includes("renderScene("));
+  assert.ok(scene.includes("node.y > player.y"), "必须按照脚底深度交错绘制人物和场景");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(route.includes("plaza-props.png?url"), "场景素材必须使用内容指纹避免旧缓存");
 });
 
 test("连续按住方向键按时间推进小数坐标，而非逐格跳跃", () => {
