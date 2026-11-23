@@ -25,6 +25,52 @@ export const CAD_MODELS = {
     sourceSha256: "a5ad3ede3b7674fc98f2e73b71717216383cb2b4b5dcdbe900c2038918bea8e0",
     triangles: 110761,
   },
+  rmucField: {
+    label: "RMUC 2027 完整场地",
+    catalogName: "full-map",
+    source: "RMUC2027_V1.0.0.stp（全场官方 CAD）",
+  },
+  outpost: {
+    label: "RMUC 2027 前哨站",
+    catalogName: "product-2603236",
+    source: "RMUC2027_V1.0.0.stp（前哨站产品 #2603236）",
+  },
+  rune: {
+    label: "RMUC 2027 能量机关（大风车）",
+    catalogName: "product-1354629",
+    source: "RMUC2027_V1.0.0.stp（能量机关产品 #1354629）",
+  },
 } as const;
 
 export type CadModelId = keyof typeof CAD_MODELS;
+
+
+// A 2027 release already publishes the unchanged source-rest-pose meshes.
+// Resolve only these pinned RMUC product IDs; never substitute 2026 or
+// generated proxy facilities when the source model is unavailable.
+export const CAD_VIEWER_CATALOG = "https://hxyulin.github.io/rm-map-tools/models/2027/catalog.json";
+
+export async function resolveCadModel(id: CadModelId): Promise<{ url: string; sha256: string }> {
+  const model = CAD_MODELS[id];
+  if ("url" in model) return { url: model.url, sha256: model.sha256 };
+
+  const response = await fetch(CAD_VIEWER_CATALOG);
+  if (!response.ok) throw new Error("2027 CAD catalog unavailable");
+  const catalog: unknown = await response.json();
+  if (!catalog || typeof catalog !== "object" || !("models" in catalog) ||
+      !Array.isArray(catalog.models)) throw new Error("Invalid 2027 CAD catalog");
+
+  const expectedFile = `rmuc2027/${model.catalogName}.glb.gz`;
+  const expectedId = `rmuc2027-${model.catalogName}`;
+  const entry = catalog.models.find((item: unknown) =>
+    !!item && typeof item === "object" && "id" in item && item.id === expectedId
+  );
+  if (!entry || entry.file !== expectedFile ||
+      typeof entry.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(entry.sha256)) throw new Error("Missing official RMUC 2027 CAD mesh");
+
+  return {
+    url: CAD_VIEWER_CATALOG.replace("catalog.json", expectedFile),
+    sha256: entry.sha256,
+  };
+}
