@@ -2,6 +2,7 @@ import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera,
   type Direction, type Place, type Position, type PropSprite, type Scenery,
 } from "./pixel-jijia-world";
+import type { Season } from "./pixel-jijia-climate";
 
 export type SpriteBox = [number, number, number, number];
 export type SpriteIndex = Record<string, SpriteBox>;
@@ -31,7 +32,7 @@ function sprite(
   ctx.drawImage(atlas, ...box, Math.round(x), Math.round(y), Math.round(width), Math.round(height));
 }
 
-function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement) {
+function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement, season: Season) {
   const materials = new Uint8Array(WORLD_WIDTH * WORLD_HEIGHT);
   for (const area of GROUND_AREAS) {
     for (let y = area.y; y < area.y + area.height; y++) {
@@ -53,7 +54,23 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement) {
         tiles, variant * GROUND_PATCH + (x % 8) * TILE,
         kind * GROUND_PATCH + (y % 8) * TILE, TILE, TILE, destX, destY, TILE, TILE,
       );
-      if (kind === 0) continue;
+      if (kind === 0) {
+        if (season === "winter" && hash(x, y) % 7 < 4) {
+          ctx.fillStyle = hash(x + 4, y) % 2 ? "#d3e3e4" : "#edf2e9";
+          ctx.fillRect(destX + 1, destY + 1, TILE - 2, TILE - 2);
+          ctx.fillStyle = "#a7c9bd";
+          ctx.fillRect(destX + hash(x, y) % 9, destY + 12, 3, 2);
+        } else if (season === "autumn" && hash(x, y) % 9 === 0) {
+          ctx.fillStyle = "#ce9959";
+          ctx.fillRect(destX + hash(x, y) % 11, destY + 7, 4, 3);
+          ctx.fillStyle = "#ae754f";
+          ctx.fillRect(destX + hash(x + 5, y) % 12, destY + 10, 3, 2);
+        } else if (season === "spring" && hash(x, y) % 17 === 0) {
+          ctx.fillStyle = "#f7b9cb";
+          ctx.fillRect(destX + hash(x, y) % 11, destY + 5, 3, 3);
+        }
+        continue;
+      }
       const borders = (neighbor: number) =>
         neighbor !== kind && (kind !== 1 || neighbor === 0) && !(kind === 2 && neighbor === 3);
       for (const [side, nx, ny] of [[0, x, y - 1], [1, x, y + 1], [2, x - 1, y], [3, x + 1, y]]) {
@@ -111,14 +128,14 @@ function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode, atlas: HTMLIma
   else fountain(ctx, atlas, sprites, camera);
 }
 
-export function renderTerrain(tiles: HTMLImageElement): HTMLCanvasElement {
+export function renderTerrain(tiles: HTMLImageElement, season: Season = "summer"): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = WORLD_WIDTH * TILE;
   canvas.height = WORLD_HEIGHT * TILE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("地图画布不可用");
   ctx.imageSmoothingEnabled = false;
-  ground(ctx, tiles);
+  ground(ctx, tiles, season);
   return canvas;
 }
 
