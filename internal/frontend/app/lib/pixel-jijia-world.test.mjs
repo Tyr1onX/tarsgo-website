@@ -178,6 +178,24 @@ test("缩放可精细调节并根据屏幕尺寸避免露出地图外区域", ()
   assert.ok(!route.includes('[assetState, zoom]'), "缩放不能反复重建动画循环");
 });
 
+test("小地图采用轻量语义导航，常驻界面按需展示", () => {
+  const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../routes/pixel-jijia.css", import.meta.url), "utf8");
+  assert.ok(scene.includes("export function renderNavigationMap("));
+  assert.ok(scene.includes("for (const place of PLACES)"));
+  assert.ok(scene.includes("if (!item.story) continue"));
+  assert.ok(!scene.includes("export function renderTown("), "不能保留额外的完整世界小地图缓存");
+  assert.ok(route.includes("renderNavigationMap(miniCtx"));
+  assert.ok(!route.includes("townRef"));
+  assert.ok(route.includes('event.key.toLowerCase() === "m"'));
+  assert.ok(route.includes("aria-expanded={mapOpen}"));
+  assert.ok(route.includes("aria-hidden={!mapOpen}"));
+  assert.ok(css.includes(".pixel-world-map-panel.is-open { display: block; }"));
+  assert.ok(css.includes(".pixel-world-map-panel {\n  display: none;"));
+  assert.ok(!css.includes(".pixel-world-hud"), "移除常驻区域卡片");
+});
+
 test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
   const base = new URL("../../../../public/assets/pixel-jijia/", import.meta.url);
   const image = new URL("actual-imagegen-atlas.png", base);
