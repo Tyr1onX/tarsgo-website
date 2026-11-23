@@ -3,11 +3,11 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, movePlayer, snapCamera,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, movePlayer, outdoorDoorAt, snapCamera,
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
-import { ROOMS, STUDY_ROOM, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOMS, STUDY_ROOM, closestRoomObject, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
@@ -137,14 +137,14 @@ export default function PixelJijiaPage() {
     const canvas = canvasRef.current;
     if (canvas) cameraRef.current = cameraAt(destination.entry, canvas.width, canvas.height,
       destination.width * TILE, destination.height * TILE);
-    keysRef.current.clear();
-    touchRef.current.clear();
     setSeated(null);
     setRoomId(placeId);
     setSelectedRoom(null);
     setMapOpen(false);
-    selectPlace(null);
-  }, [selectPlace]);
+    selectedRef.current = null;
+    setSelected(null);
+    setStoryActivated(false);
+  }, []);
 
   const openStudy = useCallback(async (invitation?: string) => {
     setStudyNotice("");
@@ -237,11 +237,9 @@ export default function PixelJijiaPage() {
     }
     const place = PLACES.find(p => p.id === roomId);
     if (!place) return;
-    playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
+    playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1.2 };
     const canvas = canvasRef.current;
     if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
-    keysRef.current.clear();
-    touchRef.current.clear();
     setSelectedRoom(null);
     setRoomId(null);
   }, [roomId]);
@@ -364,21 +362,15 @@ export default function PixelJijiaPage() {
         if (selectedRoom) return;
         if (room) {
           const object = closestRoomObject(room, playerRef.current);
-          if (object) {
+          if (object && object.kind !== "exit") {
             event.preventDefault();
-            if (object.kind === "exit") exitRoom();
-            else setSelectedRoom(object);
+            setSelectedRoom(object);
           }
           return;
         }
         if (seated) { event.preventDefault(); standUp(); return; }
         const place = closestFeature(playerRef.current);
-        if (place && "href" in place && ROOMS[place.id] &&
-            Math.hypot(playerRef.current.x - place.x - place.width / 2,
-              playerRef.current.y - place.y - place.height - 0.8) < 1.8) {
-          event.preventDefault();
-          enterRoom(place.id);
-        } else if (place) { event.preventDefault(); selectPlace(place); }
+        if (place) { event.preventDefault(); selectPlace(place); }
         return;
       }
       const dir = KEY_DIRECTIONS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
@@ -404,7 +396,7 @@ export default function PixelJijiaPage() {
     const hide = () => { if (document.visibilityState !== "visible") stop(); };
     document.addEventListener("visibilitychange", hide);
     return () => {
-      stop();
+      // Keep held directions across room changes; blur/visibility still release them.
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", stop);
@@ -466,6 +458,17 @@ export default function PixelJijiaPage() {
         directionRef.current = x !== 0 ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
         walking = distance > 0.0001;
         if (walking) traveled += distance;
+        // The door is a spatial threshold: walking into it changes scenes directly.
+        // The room entry is placed behind its exit, so holding a direction is safe.
+        if (room ? roomExitAt(room, next, y) : outdoorDoorAt(next, y)) {
+          if (room) exitRoom();
+          else {
+            const door = outdoorDoorAt(next, y);
+            if (door) enterRoom(door.id);
+          }
+          frame = requestAnimationFrame(tick);
+          return;
+        }
       }
       const target = cameraAt(playerRef.current, canvas.width, canvas.height,
         (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
@@ -545,7 +548,8 @@ export default function PixelJijiaPage() {
       canvas.dataset.scene = room?.id ?? "outdoor";
 
       const nextNearby = seated || room ? null : closestFeature(playerRef.current);
-      const nextRoom = room && !selectedRoom ? closestRoomObject(room, playerRef.current) : null;
+      const object = room && !selectedRoom ? closestRoomObject(room, playerRef.current) : null;
+      const nextRoom = object?.kind === "exit" ? null : object;
       if (nearRoomIdRef.current !== (nextRoom?.id ?? null)) {
         nearRoomIdRef.current = nextRoom?.id ?? null;
         setNearbyRoom(nextRoom);
@@ -577,7 +581,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, selectedRoom,
-    climate?.season, climate?.weather, climate?.night]);
+    climate?.season, climate?.weather, climate?.night, enterRoom, exitRoom]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -732,14 +736,14 @@ export default function PixelJijiaPage() {
       </div>}
       {!selectedRoom && room && nearbyRoom && (
         <button type="button" className="pixel-world-interact"
-          onClick={() => { if (nearbyRoom.kind === "exit") exitRoom(); else setSelectedRoom(nearbyRoom); }}>
+          onClick={() => setSelectedRoom(nearbyRoom)}>
           <kbd>E</kbd> {nearbyRoom.title}
         </button>
       )}
       {!selected && seated && (
         <button type="button" className="pixel-world-interact" onClick={standUp}><kbd>E</kbd> 起身</button>
       )}
-      {!room && !selected && !seated && nearby && (
+      {!room && !selected && !seated && nearby && !("href" in nearby) && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
           <kbd>E</kbd> 探索{featureTitle(nearby)} <span aria-hidden="true">↗</span>
         </button>
@@ -795,11 +799,6 @@ export default function PixelJijiaPage() {
               disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
               onClick={() => sitDown(selected)}>坐下</button>
           )}
-          {"href" in selected && ROOMS[selected.id] && (
-            <button type="button" className="pixel-world-detail-link"
-              disabled={closestPlace(playerRef.current)?.id !== selected.id}
-              onClick={() => enterRoom(selected.id)}>进入{selected.title}</button>
-          )}
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
           {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
@@ -818,6 +817,9 @@ export default function PixelJijiaPage() {
         <span className="pixel-world-detail-eyebrow">{room?.title ?? "INDOOR SPACE"}</span>
         <h1>{selectedRoom.title}</h1>
         <p>{selectedRoom.description}</p>
+        {selectedRoom.href && <Link to={selectedRoom.href} className="pixel-world-detail-link">
+          {selectedRoom.action ?? "查看详情"}<span aria-hidden="true">↗</span>
+        </Link>}
       </section>}
     </main>
   );
