@@ -228,6 +228,47 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
     for (let i = 1; i < object.width; i++) ctx.fillRect(x + i * TILE, y - 25, 2, h + 23);
     ctx.fillStyle = "#b9d5d4";
     ctx.fillRect(x + 6, y - 16, w - 12, 5);
+  } else if (object.kind === "display") {
+    ctx.fillStyle = "#916e4b";
+    ctx.fillRect(x, y - 29, w, h + 29);
+    ctx.fillStyle = "#273f47";
+    ctx.fillRect(x + 5, y - 23, w - 10, 25);
+    for (let i = 0; i < Math.max(1, object.width - 2); i += 2) {
+      ctx.fillStyle = "#e6c37e";
+      ctx.fillRect(x + 11 + i * TILE, y - 17, 9, 12);
+      ctx.fillRect(x + 13 + i * TILE, y - 21, 5, 4);
+    }
+    ctx.fillStyle = "#c8e4dd";
+    ctx.fillRect(x + 5, y - 23, w - 10, 2);
+  } else if (object.kind === "camera") {
+    ctx.fillStyle = "#345566";
+    ctx.fillRect(x + w / 2 - 7, y - 30, 14, 29);
+    ctx.fillStyle = "#aec1b5";
+    ctx.fillRect(x + w / 2 - 18, y - 35, 36, 16);
+    ctx.fillStyle = "#64b4d4";
+    ctx.fillRect(x + w / 2 - 3, y - 32, 12, 10);
+    ctx.fillStyle = "#c5ac73";
+    ctx.fillRect(x + 7, y, w - 14, 5);
+  } else if (object.kind === "server") {
+    ctx.fillStyle = "#33445c";
+    ctx.fillRect(x, y - 37, w, h + 37);
+    for (let i = 0; i < object.width; i += 2) {
+      ctx.fillStyle = "#64778f";
+      ctx.fillRect(x + 5 + i * TILE, y - 32, 24, h + 29);
+      for (let j = 0; j < 3; j++) {
+        ctx.fillStyle = j === 1 ? "#b9e59d" : "#71c6e5";
+        ctx.fillRect(x + 9 + i * TILE, y - 25 + j * 12, 5, 3);
+      }
+    }
+  } else if (object.kind === "reception") {
+    ctx.fillStyle = "#896248";
+    ctx.fillRect(x, y - 18, w, h + 18);
+    ctx.fillStyle = "#d6a16b";
+    ctx.fillRect(x - 3, y - 23, w + 6, 11);
+    ctx.fillStyle = "#f6db9a";
+    ctx.fillRect(x + 12, y - 20, w - 24, 4);
+    ctx.fillStyle = "#547d7d";
+    ctx.fillRect(x + 8, y + 8, w - 16, 10);
   } else if (object.kind === "console") {
     ctx.fillStyle = "#665d53";
     ctx.fillRect(x, y, w, h);
