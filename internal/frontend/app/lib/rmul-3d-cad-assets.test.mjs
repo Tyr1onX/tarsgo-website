@@ -3,10 +3,11 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { CAD_MODELS } from "./rmul-3d-cad-assets.ts";
+import { CAD_MODELS, DEFAULT_CAD_MODEL } from "./rmul-3d-cad-assets.ts";
 
 test("only source-backed 2027 CAD assets are selectable", () => {
-  assert.deepEqual(Object.keys(CAD_MODELS), ["field", "energy", "base", "rmucField", "outpost", "rune"]);
+  assert.deepEqual(Object.keys(CAD_MODELS), ["rmucField", "base", "outpost", "rune", "field", "energy"]);
+  assert.equal(DEFAULT_CAD_MODEL, "rmucField");
   assert.deepEqual(new Set(Object.values(CAD_MODELS).filter((m) => "url" in m).map((m) => m.url)).size, 3);
   assert.deepEqual(
     [CAD_MODELS.rmucField.catalogName, CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],

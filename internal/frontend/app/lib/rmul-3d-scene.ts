@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CAD_MODELS, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
+import { CAD_MODELS, DEFAULT_CAD_MODEL, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
 
 export type FieldView = "all" | "red" | "blue";
 export interface ArenaController {
@@ -208,7 +208,7 @@ export function mountArena(
     frame = requestAnimationFrame(draw);
   };
   draw();
-  show("field");
+  show(DEFAULT_CAD_MODEL);
 
   return {
     show,
