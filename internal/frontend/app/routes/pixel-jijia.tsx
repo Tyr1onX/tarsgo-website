@@ -3,10 +3,10 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  PLACES, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
+  PLACES, SPAWN, TILE, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
-import { renderScene, renderTerrain, renderTown, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import { renderNavigationMap, renderScene, renderTerrain, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -41,7 +41,6 @@ export default function PixelJijiaPage() {
   const keysRef = useRef(new Set<Direction>());
   const touchRef = useRef(new Set<Direction>());
   const selectedRef = useRef<Feature | null>(null);
-  const townRef = useRef<HTMLCanvasElement | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
@@ -50,6 +49,8 @@ export default function PixelJijiaPage() {
   const nearIdRef = useRef<string | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
   const [nearby, setNearby] = useState<Feature | null>(null);
   const [selected, setSelected] = useState<Feature | null>(null);
@@ -126,7 +127,6 @@ export default function PixelJijiaPage() {
         artIndexRef.current = metadata.sprites;
         propsRef.current = environment;
         terrainRef.current = renderTerrain(ground);
-        townRef.current = renderTown(terrainRef.current, image, metadata.sprites, environment);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -150,7 +150,16 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
-      if (event.key === "Escape") { selectPlace(null); return; }
+      if (event.key === "Escape") {
+        if (selectedRef.current) selectPlace(null);
+        else { setMapOpen(false); setShowHelp(false); }
+        return;
+      }
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        setMapOpen(open => !open);
+        return;
+      }
       if (event.key.toLowerCase() === "e") {
         const place = closestFeature(playerRef.current);
         if (place) { event.preventDefault(); selectPlace(place); }
@@ -183,10 +192,10 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
-    const minimap = miniRef.current, town = townRef.current, terrain = terrainRef.current;
+    const minimap = miniRef.current, terrain = terrainRef.current;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
-    if (!stage || !canvas || !town || !terrain || !character || !atlas || !sprites || !props) return;
+    if (!stage || !canvas || !terrain || !character || !atlas || !sprites || !props) return;
     const ctx = canvas.getContext("2d");
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
@@ -249,16 +258,9 @@ export default function PixelJijiaPage() {
       canvas.dataset.facing = directionRef.current;
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
-      if (miniCtx && minimap && time - lastMini > 100) {
-        miniCtx.imageSmoothingEnabled = true;
-        miniCtx.clearRect(0, 0, minimap.width, minimap.height);
-        miniCtx.drawImage(town, 0, 0, minimap.width, minimap.height);
-        miniCtx.fillStyle = "#fff4c6";
-        const tx = playerRef.current.x / WORLD_WIDTH * minimap.width;
-        const ty = playerRef.current.y / WORLD_HEIGHT * minimap.height;
-        miniCtx.fillRect(tx - 3, ty - 3, 7, 7);
-        miniCtx.fillStyle = "#2a5549";
-        miniCtx.fillRect(tx - 1, ty - 1, 3, 3);
+      if (miniCtx && time - lastMini > 100) {
+        renderNavigationMap(miniCtx, playerRef.current, directionRef.current,
+          cameraRef.current, canvas.width, canvas.height);
         lastMini = time;
       }
       frame = requestAnimationFrame(tick);
@@ -305,34 +307,38 @@ export default function PixelJijiaPage() {
       </div>
 
       <header className="pixel-world-header">
-        <Link to="/" className="pixel-world-brand" aria-label="返回吉甲大师官网">
+        <div className="pixel-world-brand">
           <img src="/assets/images/Logo/tarsgo-robot-v5.svg" alt="" aria-hidden="true" />
           <span><strong>像素吉甲</strong><small>TARSGO · PIXEL WORLD</small></span>
-        </Link>
-        <span className="pixel-world-header-location">吉甲小镇 / 探索模式</span>
-        <Link to="/" className="pixel-world-return">返回官网 <span aria-hidden="true">↗</span></Link>
+        </div>
+        <div className="pixel-world-top-actions">
+          <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
+            aria-expanded={mapOpen} onClick={() => setMapOpen(open => !open)}>地图 <kbd>M</kbd></button>
+          <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
+            onClick={() => setShowHelp(open => !open)} aria-label="操作帮助">?</button>
+          <Link to="/" className="pixel-world-return">返回官网</Link>
+        </div>
       </header>
 
-      <aside className="pixel-world-map-panel" aria-label="小镇地图">
-        <div className="pixel-world-map-caption"><span>吉甲地图</span><span>MAP · 01</span></div>
-        <canvas ref={miniRef} width={196} height={130} aria-label="小镇鸟瞰地图，黄色光点表示你的当前位置" role="img" />
+      <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
+        aria-label="小镇导航地图" aria-hidden={!mapOpen}>
+        <div className="pixel-world-map-caption"><span>吉甲地图</span><span>建筑与发现</span></div>
+        <canvas ref={miniRef} width={216} height={144}
+          aria-label="小镇道路、建筑、故事地标、玩家朝向及当前视野" role="img" />
         <div className="pixel-world-zoom">
           <button type="button" aria-label="缩小地图" onClick={() => setMapZoom(zoomRef.current - 0.1)}>−</button>
           <span>{Math.round(zoom * 100)}%</span>
           <button type="button" aria-label="放大地图" onClick={() => setMapZoom(zoomRef.current + 0.1)}>+</button>
         </div>
       </aside>
-
-      <div className="pixel-world-hud" role="status" aria-live="polite">
-        <span className="pixel-world-hud-sun" aria-hidden="true">✦</span>
-        <div><strong>{nearby ? featureTitle(nearby) : "吉甲中央广场"}</strong><span>{nearby ? ("href" in nearby ? nearby.caption : nearby.story?.caption) : "WELCOME TO TARSGO"}</span></div>
-      </div>
+      {showHelp && <div className="pixel-world-guide" role="note">
+        WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
+      </div>}
       {!selected && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
           <kbd>E</kbd> 探索{featureTitle(nearby)} <span aria-hidden="true">↗</span>
         </button>
       )}
-      <div className="pixel-world-help">WASD / 方向键移动 · 滚轮缩放 · 靠近建筑按 E 或点击建筑</div>
 
       <div className="pixel-world-dpad" role="group" aria-label="移动方向">
         {(["up", "left", "down", "right"] as Direction[]).map((direction) => (
