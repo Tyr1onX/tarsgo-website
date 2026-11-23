@@ -8,11 +8,10 @@ import { CAD_MODELS, DEFAULT_CAD_MODEL, retainCadSourceNodes } from "./rmul-3d-c
 test("only source-backed 2027 CAD assets are selectable", () => {
   assert.deepEqual(Object.keys(CAD_MODELS), ["rmucField", "base", "outpost", "rune", "field", "energy"]);
   assert.equal(DEFAULT_CAD_MODEL, "rmucField");
-  assert.deepEqual(new Set(Object.values(CAD_MODELS).filter((m) => "url" in m).map((m) => m.url)).size, 3);
-  assert.deepEqual(
-    [CAD_MODELS.rmucField.catalogName, CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],
-    ["full-map", "centre-platform", "centre-platform"],
-  );
+  assert.equal(new Set(Object.values(CAD_MODELS).filter((m) => "url" in m).map((m) => m.url)).size, 4);
+  assert.match(CAD_MODELS.rmucField.url, /^\/assets\/pixel-jijia\/rmuc-2027-field-[0-9a-f]{8}\.glb\.gz$/);
+  assert.deepEqual([CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],
+    ["centre-platform", "centre-platform"]);
   assert.deepEqual(CAD_MODELS.outpost.sourceNodes, ["source_1800898_10", "source_2603236_11"]);
   assert.deepEqual(CAD_MODELS.rune.sourceNodes, ["source_1354629_1"]);
   assert.match(CAD_MODELS.field.source, /^RMUL2027_3V3_V1\.0\.0/);
@@ -36,6 +35,20 @@ for (const [id, model] of Object.entries(CAD_MODELS)) {
     const triangleCount = document.meshes.flatMap((mesh) => mesh.primitives)
       .reduce((total, primitive) => total + document.accessors[primitive.indices].count / 3, 0);
     assert.equal(triangleCount, model.triangles);
+    if (id === "rmucField") {
+      assert.equal(document.nodes.length, model.nodes);
+      assert.ok(document.extensionsRequired.includes("EXT_meshopt_compression"));
+      assert.ok(!document.extensionsUsed.includes("KHR_mesh_quantization"));
+      const names = new Set(document.nodes.map((node) => node.name));
+      for (const name of [
+        "base_0_source_4774244_0", "base_1_source_4774244_0",
+        "centre-platform_0_source_2603236_11",
+        "centre-platform_0_source_2603236_12",
+        "centre-platform_0_source_1354629_1",
+        "red-ramp-dart-station_0_source_2643652_0",
+        "blue-ramp-dart-station_0_source_3776088_0",
+      ]) assert.ok(names.has(name), `Missing CAD assembly: ${name}`);
+    }
   });
 }
 
@@ -58,8 +71,11 @@ test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies",
     }),
   });
   try {
-    for (const [id, name] of [["rmucField", "full-map"],
-                              ["outpost", "centre-platform"],
+    assert.deepEqual(await resolveCadModel("rmucField"), {
+      url: CAD_MODELS.rmucField.url,
+      sha256: CAD_MODELS.rmucField.sha256,
+    });
+    for (const [id, name] of [["outpost", "centre-platform"],
                               ["rune", "centre-platform"]]) {
       assert.deepEqual(await resolveCadModel(id), {
         url: `https://hxyulin.github.io/rm-map-tools/models/2027/rmuc2027/${name}.glb.gz`,
@@ -70,7 +86,7 @@ test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies",
       ok: true,
       json: async () => ({ models: [{ id: "rmuc2027-full-map", file: "../bad.glb.gz", sha256: "a".repeat(64) }] }),
     });
-    await assert.rejects(resolveCadModel("rmucField"), /Missing official/);
+    await assert.rejects(resolveCadModel("outpost"), /Missing official/);
   } finally {
     globalThis.fetch = savedFetch;
   }

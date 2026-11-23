@@ -130,7 +130,7 @@ export default function PixelJijiaArenaPage() {
           <p className="rmul3d-provenance">
             模型由 2027 官方 STEP 转换，保留 CAD 材质颜色。网格经过近毫米级采样简化，不等同于无误差制造图纸。
             RMUL 3V3 与 RMUC 属于不同场地。RMUC 全场、前哨站及能量机关采用原始 CAD 静态装配模型，尚未验证实际关节运动。
-            RMUC 大型模型按需从公开 CAD 查看器读取，模型加载依赖该来源可用。
+            完整场地采用同站托管的优化网格；单独查看前哨站和能量机关仍按需读取公开 CAD 查看器模型。
             <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noopener noreferrer">
               官方 CAD 图纸 · RoboMaster 高校赛务
             </a>

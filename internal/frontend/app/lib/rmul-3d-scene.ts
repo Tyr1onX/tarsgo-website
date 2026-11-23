@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CAD_MODELS, retainCadSourceNodes, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
 
@@ -60,6 +61,7 @@ export function mountArena(
   let height = .52;
   let frame = 0;
   const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
   const cached = new Map<CadModelId, Promise<THREE.Group>>();
   const loaded = new Set<THREE.Group>();
 
@@ -102,8 +104,8 @@ export function mountArena(
     const local = "url" in CAD_MODELS[id];
     const old = cached.get(id);
     if (old) return old;
-    // The source-derived 2027 whole-field / equipment meshes are loaded
-    // separately on demand. Verify their catalog hash after decompression.
+    // The default RMUC field is a same-origin optimized mesh; remaining
+    // standalone assemblies stay on demand. Verify uncompressed GLB hashes.
     const promise = resolveCadModel(id).then(async (asset) => {
       const response = await fetch(asset.url);
       if (!response.ok) throw new Error("CAD asset unavailable");
