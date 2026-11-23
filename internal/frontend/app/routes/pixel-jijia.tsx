@@ -40,6 +40,8 @@ export default function PixelJijiaPage() {
   const directionRef = useRef<Direction>("down");
   const keysRef = useRef(new Set<Direction>());
   const touchRef = useRef(new Set<Direction>());
+  const sprintKeyRef = useRef(false);
+  const sprintTouchRef = useRef(false);
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
@@ -60,6 +62,8 @@ export default function PixelJijiaPage() {
     selectedRef.current = place;
     keysRef.current.clear();
     touchRef.current.clear();
+    sprintKeyRef.current = false;
+    sprintTouchRef.current = false;
     setSelected(place);
   }, []);
 
@@ -155,6 +159,10 @@ export default function PixelJijiaPage() {
         else { setMapOpen(false); setShowHelp(false); }
         return;
       }
+      if (event.key === "Shift") {
+        if (!selectedRef.current) sprintKeyRef.current = true;
+        return;
+      }
       if (event.key.toLowerCase() === "m") {
         event.preventDefault();
         setMapOpen(open => !open);
@@ -171,10 +179,16 @@ export default function PixelJijiaPage() {
       keysRef.current.add(dir);
     };
     const up = (event: KeyboardEvent) => {
+      if (event.key === "Shift") sprintKeyRef.current = false;
       const dir = KEY_DIRECTIONS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (dir) keysRef.current.delete(dir);
     };
-    const stop = () => { keysRef.current.clear(); touchRef.current.clear(); };
+    const stop = () => {
+      keysRef.current.clear();
+      touchRef.current.clear();
+      sprintKeyRef.current = false;
+      sprintTouchRef.current = false;
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", stop);
@@ -226,10 +240,11 @@ export default function PixelJijiaPage() {
       const x = held("right") - held("left");
       const y = held("down") - held("up");
       let walking = false;
+      const sprinting = sprintKeyRef.current || sprintTouchRef.current;
 
       if ((x !== 0 || y !== 0) && !selectedRef.current) {
         const previous = playerRef.current;
-        const next = movePlayer(previous, x, y, dt);
+        const next = movePlayer(previous, x, y, dt, sprinting);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = x !== 0 ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
@@ -237,7 +252,7 @@ export default function PixelJijiaPage() {
         if (walking) traveled += distance;
       }
       const target = cameraAt(playerRef.current, canvas.width, canvas.height);
-      const follow = 1 - Math.exp(-6 * dt);
+      const follow = 1 - Math.exp(-(sprinting ? 8 : 6) * dt);
       cameraRef.current.x += (target.x - cameraRef.current.x) * follow;
       cameraRef.current.y += (target.y - cameraRef.current.y) * follow;
 
@@ -256,6 +271,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.playerY = playerRef.current.y.toFixed(3);
       canvas.dataset.cameraX = cameraRef.current.x.toFixed(2);
       canvas.dataset.facing = directionRef.current;
+      canvas.dataset.sprinting = String(sprinting && walking);
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
       if (miniCtx && time - lastMini > 100) {
@@ -332,7 +348,7 @@ export default function PixelJijiaPage() {
         </div>
       </aside>
       {showHelp && <div className="pixel-world-guide" role="note">
-        WASD / 方向键移动 · E 探索 · 滚轮缩放 · M 地图
+        WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
       </div>}
       {!selected && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
@@ -360,10 +376,22 @@ export default function PixelJijiaPage() {
               if (event.detail !== 0 || selectedRef.current) return;
               playerRef.current = movePlayer(playerRef.current,
                 Number(direction === "right") - Number(direction === "left"),
-                Number(direction === "down") - Number(direction === "up"), 0.05);
+                Number(direction === "down") - Number(direction === "up"), 0.05,
+                sprintKeyRef.current || sprintTouchRef.current);
             }}
           >{({ up: "▲", left: "◀", down: "▼", right: "▶" } as const)[direction]}</button>
         ))}
+        <button type="button" className="pixel-world-sprint" aria-label="按住疾跑"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            if (selectedRef.current) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            sprintTouchRef.current = true;
+          }}
+          onPointerUp={() => { sprintTouchRef.current = false; }}
+          onPointerCancel={() => { sprintTouchRef.current = false; }}
+          onLostPointerCapture={() => { sprintTouchRef.current = false; }}
+        >跑</button>
       </div>
 
       {selected && (

@@ -269,6 +269,20 @@
     touch-action: none;
     box-shadow: inset 0 1px 0 #b9cbb06b;
   }
+  .pixel-world-sprint {
+    grid-area: 1 / 3;
+    display: grid;
+    place-items: center;
+    border: 2px solid #edcd83;
+    border-radius: 6px;
+    background: #70583bdf;
+    color: #fff1c8;
+    font-size: 16px;
+    font-weight: 850;
+    touch-action: none;
+    user-select: none;
+  }
+  .pixel-world-sprint:active { background: #f1ca76; color: #3d3325; }
   .pixel-world-dir:active { background: #e0b66e; color: #283e3d; }
   .pixel-world-dir--up { grid-area: 1 / 2; }
   .pixel-world-dir--left { grid-area: 2 / 1; }

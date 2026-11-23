@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
-  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
   cameraAt, clampZoom, closestPlace, closestStory, isWalkable, movePlayer, snapCamera,
 } from "./pixel-jijia-world.ts";
 
@@ -84,6 +84,22 @@ test("碰撞阻止穿墙但允许沿墙滑动，停顿帧不会造成传送", ()
   assert.ok(movePlayer(blocked, 1, -1, 0.05).x > blocked.x);
   const noTeleport = movePlayer(SPAWN, 0, 1, 8);
   assert.ok(noTeleport.y - SPAWN.y <= WALK_SPEED * 0.05 + 1e-8);
+});
+
+test("Shift / 按住按钮疾跑更快且仍使用同一条安全碰撞路径", () => {
+  assert.ok(RUN_SPEED > WALK_SPEED && RUN_SPEED < WALK_SPEED * 2);
+  const walk = Array.from({ length: 60 }).reduce(p => movePlayer(p, 1, 0, 1 / 60), SPAWN);
+  const sprint = Array.from({ length: 60 }).reduce(p => movePlayer(p, 1, 0, 1 / 60, true), SPAWN);
+  assert.ok(sprint.x > walk.x + 2);
+  assert.ok(sprint.x - SPAWN.x < RUN_SPEED + 0.01);
+  const wall = { x: 39, y: 36.7 };
+  assert.equal(movePlayer(wall, 0, -1, 0.05, true).y, wall.y);
+  assert.ok(movePlayer(wall, 1, -1, 0.05, true).x > wall.x);
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(route.includes('event.key === "Shift"'));
+  assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting)"));
+  assert.ok(route.includes('aria-label="按住疾跑"'));
+  assert.ok(route.includes("sprintTouchRef.current = false"));
 });
 
 test("从出生点可实际步行抵达六个场景", () => {

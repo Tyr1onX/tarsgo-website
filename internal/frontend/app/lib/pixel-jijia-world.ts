@@ -2,6 +2,7 @@ export const TILE = 16;
 export const WORLD_WIDTH = 144;
 export const WORLD_HEIGHT = 96;
 export const WALK_SPEED = 5.4; // tiles / second
+export const RUN_SPEED = 8.6; // tiles / second, no stamina state
 
 export type Direction = "up" | "down" | "left" | "right";
 export type Position = { x: number; y: number };
@@ -180,16 +181,25 @@ export function isWalkable(x: number, y: number): boolean {
   return true;
 }
 
-export function movePlayer(position: Position, horizontal: number, vertical: number, dt: number): Position {
+export function movePlayer(
+  position: Position, horizontal: number, vertical: number, dt: number, sprinting = false,
+): Position {
   const len = Math.hypot(horizontal, vertical);
   if (!len || dt <= 0) return position;
-  const step = WALK_SPEED * Math.min(dt, 0.05) / len;
-  const x = position.x + horizontal * step;
-  const y = position.y + vertical * step;
-  // Slide along solid building edges rather than teleporting across tile boundaries.
-  const nextX = isWalkable(x, position.y) ? x : position.x;
-  const nextY = isWalkable(nextX, y) ? y : position.y;
-  return { x: nextX, y: nextY };
+  const distance = (sprinting ? RUN_SPEED : WALK_SPEED) * Math.min(dt, 0.05);
+  // Short substeps keep thin obstacles solid at both walk and sprint speeds.
+  const steps = Math.ceil(distance / 0.2);
+  const dx = horizontal / len * distance / steps;
+  const dy = vertical / len * distance / steps;
+  let next = position;
+  for (let i = 0; i < steps; i++) {
+    const x = next.x + dx;
+    const nextX = isWalkable(x, next.y) ? x : next.x;
+    const y = next.y + dy;
+    const nextY = isWalkable(nextX, y) ? y : next.y;
+    next = { x: nextX, y: nextY };
+  }
+  return next;
 }
 
 export function closestPlace({ x, y }: Position): Place | null {
