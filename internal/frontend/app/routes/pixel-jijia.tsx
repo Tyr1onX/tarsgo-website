@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, closestStory, movePlayer, snapCamera,
+  FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, movePlayer, snapCamera,
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
@@ -14,9 +14,9 @@ import "./pixel-jijia.css";
 const DEFAULT_ZOOM = 1.35;
 
 type Feature = Place | Scenery;
-const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? "发现";
+const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
 const closestFeature = (position: Position): Feature | null => {
-  const place = closestPlace(position), story = closestStory(position);
+  const place = closestPlace(position), story = closestStory(position) ?? closestBench(position);
   if (!place || !story) return place ?? story;
   const dx = Math.max(place.x - position.x, 0, position.x - place.x - place.width);
   const dy = Math.max(place.y - position.y, 0, position.y - place.y - place.height);
@@ -64,6 +64,7 @@ export default function PixelJijiaPage() {
   const [nearby, setNearby] = useState<Feature | null>(null);
   const [selected, setSelected] = useState<Feature | null>(null);
   const [storyActivated, setStoryActivated] = useState(false);
+  const [seated, setSeated] = useState<Scenery | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const selectPlace = useCallback((place: Feature | null) => {
@@ -75,6 +76,22 @@ export default function PixelJijiaPage() {
     setStoryActivated(false);
     setSelected(place);
   }, []);
+
+  const standUp = useCallback(() => {
+    if (!seated) return;
+    const exit = benchExit(seated);
+    if (exit) playerRef.current = exit;
+    setSeated(null);
+  }, [seated]);
+
+  const sitDown = (bench: Scenery) => {
+    if (bench.sprite !== "bench" || !benchExit(bench)) return;
+    if (Math.hypot(playerRef.current.x - bench.x, playerRef.current.y - bench.y) >= 2.5) return;
+    playerRef.current = benchSeat(bench);
+    directionRef.current = "down";
+    setSeated(bench);
+    selectPlace(null);
+  };
 
   const resizeCanvas = useCallback(() => {
     const stage = stageRef.current, canvas = canvasRef.current;
@@ -178,6 +195,7 @@ export default function PixelJijiaPage() {
         return;
       }
       if (event.key.toLowerCase() === "e") {
+        if (seated) { event.preventDefault(); standUp(); return; }
         const place = closestFeature(playerRef.current);
         if (place) { event.preventDefault(); selectPlace(place); }
         return;
@@ -185,6 +203,7 @@ export default function PixelJijiaPage() {
       const dir = KEY_DIRECTIONS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (!dir || selectedRef.current) return;
       event.preventDefault();
+      if (seated) standUp();
       keysRef.current.add(dir);
     };
     const up = (event: KeyboardEvent) => {
@@ -210,7 +229,7 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace]);
+  }, [selectPlace, seated, standUp]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
@@ -256,7 +275,7 @@ export default function PixelJijiaPage() {
       let walking = false;
       const sprinting = sprintKeyRef.current || sprintTouchRef.current;
 
-      if ((x !== 0 || y !== 0) && !selectedRef.current) {
+      if ((x !== 0 || y !== 0) && !selectedRef.current && !seated) {
         const previous = playerRef.current;
         const next = movePlayer(previous, x, y, dt, sprinting);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
@@ -273,7 +292,7 @@ export default function PixelJijiaPage() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
       renderScene(ctx, terrain, atlas, sprites, props, character,
-        playerRef.current, directionRef.current, walking, traveled, cameraRef.current);
+        playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
 
       if (reducedMotion.matches) {
         particles.length = 0;
@@ -322,8 +341,8 @@ export default function PixelJijiaPage() {
       }
       canvas.dataset.particles = String(particles.length);
 
-      const nextNearby = closestFeature(playerRef.current);
-      const nearId = nextNearby ? ("href" in nextNearby ? nextNearby.id : nextNearby.story?.title ?? null) : null;
+      const nextNearby = seated ? null : closestFeature(playerRef.current);
+      const nearId = nextNearby ? ("href" in nextNearby ? nextNearby.id : nextNearby.story?.title ?? `bench-${nextNearby.x}-${nextNearby.y}`) : null;
       if (nearIdRef.current !== nearId) {
         nearIdRef.current = nearId;
         setNearby(nextNearby);
@@ -333,6 +352,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.cameraX = cameraRef.current.x.toFixed(2);
       canvas.dataset.facing = directionRef.current;
       canvas.dataset.sprinting = String(sprinting && walking);
+      canvas.dataset.seated = String(Boolean(seated));
       canvas.dataset.walkFrame = walking ? String(Math.floor(traveled / 0.5) % 4) : "0";
 
       if (miniCtx && time - lastMini > 100) {
@@ -348,7 +368,7 @@ export default function PixelJijiaPage() {
       observer.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [assetState, resizeCanvas, setMapZoom]);
+  }, [assetState, resizeCanvas, setMapZoom, seated]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -436,7 +456,10 @@ export default function PixelJijiaPage() {
       {showHelp && <div className="pixel-world-guide" role="note">
         WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图
       </div>}
-      {!selected && nearby && (
+      {!selected && seated && (
+        <button type="button" className="pixel-world-interact" onClick={standUp}><kbd>E</kbd> 起身</button>
+      )}
+      {!selected && !seated && nearby && (
         <button type="button" className="pixel-world-interact" onClick={() => selectPlace(nearby)}>
           <kbd>E</kbd> 探索{featureTitle(nearby)} <span aria-hidden="true">↗</span>
         </button>
@@ -485,10 +508,15 @@ export default function PixelJijiaPage() {
           <button ref={closeRef} className="pixel-world-detail-close" type="button" aria-label="关闭介绍" onClick={() => selectPlace(null)}>×</button>
           <span className="pixel-world-detail-eyebrow">{"href" in selected ? selected.caption : selected.story?.caption}</span>
           <h1>{featureTitle(selected)}</h1>
-          <p>{"href" in selected ? selected.description : selected.story?.description}</p>
+          <p>{"href" in selected ? selected.description : selected.story?.description ?? "坐在这里，看看周围的风景。"}</p>
+          {"sprite" in selected && selected.sprite === "bench" && !seated && (
+            <button type="button" className="pixel-world-detail-link"
+              disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
+              onClick={() => sitDown(selected)}>坐下</button>
+          )
           {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
-          {"story" in selected && selected.story?.action && !storyActivated && (
+          {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
             <button type="button" className="pixel-world-detail-link"
               onClick={() => setStoryActivated(true)}>{selected.story.action}</button>
           )}
