@@ -130,7 +130,7 @@ test("Shift / 按住按钮疾跑更快且仍使用同一条安全碰撞路径", 
   assert.ok(movePlayer(wall, 1, -1, 0.05, true).x > wall.x);
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes('event.key === "Shift"'));
-  assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting)"));
+  assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting,"));
   assert.ok(route.includes('aria-label="按住疾跑"'));
   assert.ok(route.includes("sprintTouchRef.current = false"));
 });
@@ -325,7 +325,7 @@ test("环境粒子使用统一世界坐标与现有动画循环，数量受控",
   assert.ok(route.includes("const particles: PixelParticle[] = []"));
   assert.ok(route.includes("particles.length < 72"));
   assert.ok(route.includes('window.matchMedia("(prefers-reduced-motion: reduce)")'));
-  assert.ok(route.includes("if (reducedMotion.matches)"));
+  assert.ok(route.includes("if (reducedMotion.matches || room)"));
   assert.ok(route.includes("cherryTrees.find("));
   assert.ok(route.includes("FOUNTAIN.x * TILE"));
   assert.ok(route.includes("renderParticles(ctx, particles, cameraRef.current)"));
