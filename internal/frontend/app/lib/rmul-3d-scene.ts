@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CAD_MODELS, type CadModelId } from "./rmul-3d-cad-assets";
+import { CAD_MODELS, resolveCadModel, type CadModelId } from "./rmul-3d-cad-assets";
 
 export type FieldView = "all" | "red" | "blue";
 export interface ArenaController {
@@ -55,6 +55,7 @@ export function mountArena(
   let disposed = false;
   let requested = 0;
   let active: THREE.Group | null = null;
+  let activeId: CadModelId | null = null;
   let span = 12.6;
   let height = .52;
   let frame = 0;
@@ -98,11 +99,13 @@ export function mountArena(
   };
 
   const load = (id: CadModelId): Promise<THREE.Group> => {
+    const local = "url" in CAD_MODELS[id];
     const old = cached.get(id);
     if (old) return old;
-    // HTTP servers may transparently decompress .gz assets. Inspect the actual
-    // response bytes so both predecoded and raw-gzip responses load correctly.
-    const promise = fetch(CAD_MODELS[id].url).then(async (response) => {
+    // The source-derived 2027 whole-field / equipment meshes are loaded
+    // separately on demand. Verify their catalog hash after decompression.
+    const promise = resolveCadModel(id).then(async (asset) => {
+      const response = await fetch(asset.url);
       if (!response.ok) throw new Error("CAD asset unavailable");
       const payload = await response.arrayBuffer();
       const signature = new Uint8Array(payload, 0, 2);
@@ -111,8 +114,28 @@ export function mountArena(
           new Blob([payload]).stream().pipeThrough(new DecompressionStream("gzip")),
         ).arrayBuffer()
         : payload;
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const actualHash = Array.from(new Uint8Array(digest),
+        (byte) => byte.toString(16).padStart(2, "0")).join("");
+      if (actualHash !== asset.sha256) throw new Error("2027 CAD mesh integrity mismatch");
       return loader.parseAsync(bytes, "");
     }).then((gltf) => {
+      const selected = CAD_MODELS[id];
+      if ("productIds" in selected) {
+        // The official 2027 central assembly contains both Outposts and the Rune.
+        // Filter its original product nodes instead of building schematic meshes.
+        const required = new Set<string>(selected.productIds);
+        const found = new Set<string>();
+        const excluded: THREE.Object3D[] = [];
+        gltf.scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const productId = /^source_(\d+)_/.exec(object.name)?.[1];
+          if (productId && required.has(productId)) found.add(productId);
+          else excluded.push(object);
+        });
+        if (found.size !== required.size) throw new Error("CAD source product missing");
+        for (const object of excluded) object.removeFromParent();
+      }
       const root = new THREE.Group();
       root.add(gltf.scene);
       // Release package "full-map" and RMUC "base" use right-handed Z-up.
@@ -127,7 +150,7 @@ export function mountArena(
       if (disposed) disposeTree(root);
       return root;
     });
-    cached.set(id, promise);
+    if (local) cached.set(id, promise);
     return promise;
   };
 
@@ -135,9 +158,22 @@ export function mountArena(
     const request = ++requested;
     onBusy();
     void load(id).then((root) => {
-      if (disposed || request !== requested) return;
-      if (active) scene.remove(active);
+      if (disposed || request !== requested) {
+        if (!("url" in CAD_MODELS[id]) && !disposed) {
+          loaded.delete(root);
+          disposeTree(root);
+        }
+        return;
+      }
+      if (active) {
+        scene.remove(active);
+        if (activeId && !("url" in CAD_MODELS[activeId])) {
+          loaded.delete(active);
+          disposeTree(active);
+        }
+      }
       active = root;
+      activeId = id;
       scene.add(root);
       const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
       span = Math.max(size.x, size.z, size.y * 1.5);
@@ -151,7 +187,7 @@ export function mountArena(
       onReady();
     }).catch(() => {
       if (disposed || request !== requested) return;
-      onError("三维 CAD 模型加载失败，请重新选择模型");
+      onError("三维 CAD 模型加载失败，请重新选择或检查模型来源");
     });
   };
 

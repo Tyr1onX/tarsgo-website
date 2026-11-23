@@ -9,7 +9,7 @@ import "./pixel-jijia-arena.css";
 export function meta({}: Route.MetaArgs) {
   return buildPublicMeta({
     title: "RMU 2027 官方 CAD 三维场地 | TARSGO",
-    description: "查看 RMUL 2027 3V3 场地、2027 能量单元和 RMUC 2027 基地的 CAD 模型。",
+    description: "查看 RMUL 2027 3V3 场地，以及 RMUC 2027 完整场地、基地、前哨站和中央能量机关的官方 CAD 静态模型。",
     path: "/pixel-jijia/arena",
     image: "/assets/images/Social/home.jpg",
   });
@@ -87,7 +87,7 @@ export default function PixelJijiaArenaPage() {
             ))}
           </div>
 
-          {model === "field" && (
+          {(model === "field" || model === "rmucField") && (
             <div className="rmul3d-teamviews" role="group" aria-label="场地观察角度">
               <strong>观察角度</strong>
               <div>
@@ -115,11 +115,15 @@ export default function PixelJijiaArenaPage() {
             {model === "field" && <span>场地尺寸：12.6 × 8.6 m（含围挡）</span>}
             {model === "energy" && <span>单元本体：约 150 × 95 mm，独立模型展示</span>}
             {model === "base" && <span>此基地属于 RMUC，不属于 RMUL 3V3 场地总成</span>}
+            {model === "rmucField" && <span>场地尺寸：28 × 15 m；包含基地、前哨站、能量机关等官方 CAD 静态构件</span>}
+            {model === "outpost" && <span>RMUC 前哨站独立产品网格，保留官方 CAD 静止装配位姿</span>}
+            {model === "rune" && <span>中央能量机关（俗称大风车）官方 CAD，旋转动画尚未进行 2027 机构验证</span>}
           </div>
 
           <p className="rmul3d-provenance">
             模型由 2027 官方 STEP 转换，保留 CAD 材质颜色。网格经过近毫米级采样简化，不等同于无误差制造图纸。
-            RMUL 3V3 场地 STEP 未提供独立前哨站实体，故不再展示旧版猜测的设施模型。
+            RMUL 3V3 与 RMUC 属于不同场地。RMUC 全场、前哨站及能量机关采用原始 CAD 静态装配模型，尚未验证实际关节运动。
+            RMUC 大型模型按需从公开 CAD 查看器读取，模型加载依赖该来源可用。
             <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noopener noreferrer">
               官方 CAD 图纸 · RoboMaster 高校赛务
             </a>

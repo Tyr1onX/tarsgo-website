@@ -6,13 +6,20 @@ import test from "node:test";
 import { CAD_MODELS } from "./rmul-3d-cad-assets.ts";
 
 test("only source-backed 2027 CAD assets are selectable", () => {
-  assert.deepEqual(Object.keys(CAD_MODELS), ["field", "energy", "base"]);
-  assert.deepEqual(new Set(Object.values(CAD_MODELS).map((m) => m.url)).size, 3);
+  assert.deepEqual(Object.keys(CAD_MODELS), ["field", "energy", "base", "rmucField", "outpost", "rune"]);
+  assert.deepEqual(new Set(Object.values(CAD_MODELS).filter((m) => "url" in m).map((m) => m.url)).size, 3);
+  assert.deepEqual(
+    [CAD_MODELS.rmucField.catalogName, CAD_MODELS.outpost.catalogName, CAD_MODELS.rune.catalogName],
+    ["full-map", "centre-platform", "centre-platform"],
+  );
+  assert.deepEqual(CAD_MODELS.outpost.productIds, ["2603236", "1800898"]);
+  assert.deepEqual(CAD_MODELS.rune.productIds, ["1354629"]);
   assert.match(CAD_MODELS.field.source, /^RMUL2027_3V3_V1\.0\.0/);
   assert.match(CAD_MODELS.base.source, /^RMUC2027_V1\.0\.0/);
 });
 
 for (const [id, model] of Object.entries(CAD_MODELS)) {
+  if (!("url" in model)) continue;
   test(`${id}: official CAD-derived GLB hash, format and triangle count`, () => {
     const path = new URL(`../../../../public${model.url}`, import.meta.url);
     const packed = readFileSync(path);
@@ -30,3 +37,40 @@ for (const [id, model] of Object.entries(CAD_MODELS)) {
     assert.equal(triangleCount, model.triangles);
   });
 }
+
+
+test("RMUC 2027 viewer uses exact upstream source components, not 2026 proxies", async () => {
+  const { resolveCadModel, CAD_VIEWER_CATALOG } = await import("./rmul-3d-cad-assets.ts");
+  assert.equal(
+    CAD_VIEWER_CATALOG,
+    "https://hxyulin.github.io/rm-map-tools/models/2027/catalog.json",
+  );
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      models: ["full-map", "centre-platform"].map((name) => ({
+        id: `rmuc2027-${name}`,
+        file: `rmuc2027/${name}.glb.gz`,
+        sha256: "a".repeat(64),
+      })),
+    }),
+  });
+  try {
+    for (const [id, name] of [["rmucField", "full-map"],
+                              ["outpost", "centre-platform"],
+                              ["rune", "centre-platform"]]) {
+      assert.deepEqual(await resolveCadModel(id), {
+        url: `https://hxyulin.github.io/rm-map-tools/models/2027/rmuc2027/${name}.glb.gz`,
+        sha256: "a".repeat(64),
+      });
+    }
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ models: [{ id: "rmuc2027-full-map", file: "../bad.glb.gz", sha256: "a".repeat(64) }] }),
+    });
+    await assert.rejects(resolveCadModel("rmucField"), /Missing official/);
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
