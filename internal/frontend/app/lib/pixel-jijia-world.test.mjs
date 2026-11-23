@@ -4,7 +4,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  cameraAt, clampZoom, closestPlace, isWalkable, movePlayer, snapCamera,
+  cameraAt, clampZoom, closestPlace, closestStory, isWalkable, movePlayer, snapCamera,
 } from "./pixel-jijia-world.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -18,7 +18,7 @@ test("六个场景均有独立地址与可用官网入口", () => {
 });
 
 test("同一场景数据驱动地形、装饰和真实碰撞", () => {
-  assert.equal(GROUND_AREAS.length, 15);
+  assert.equal(GROUND_AREAS.length, 32);
   for (const area of GROUND_AREAS) {
     assert.ok(area.x >= 0 && area.y >= 0);
     assert.ok(area.x + area.width <= WORLD_WIDTH && area.y + area.height <= WORLD_HEIGHT);
@@ -44,7 +44,7 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
 
 test("池塘水面不可穿行，岸边道路仍可通行", () => {
   const ponds = GROUND_AREAS.filter((area) => area.kind === 3);
-  assert.equal(ponds.length, 2);
+  assert.equal(ponds.length, 4);
   for (const pond of ponds) {
     const y = pond.y + pond.height / 2;
     assert.equal(isWalkable(pond.x + pond.width / 2, y), false);
@@ -78,7 +78,7 @@ test("连续按住方向键按时间推进小数坐标，而非逐格跳跃", ()
 });
 
 test("碰撞阻止穿墙但允许沿墙滑动，停顿帧不会造成传送", () => {
-  const blocked = {x:15, y:20.7};
+  const blocked = {x:39, y:36.7};
   assert.equal(isWalkable(blocked.x,blocked.y), true);
   assert.equal(movePlayer(blocked, 0, -1, 0.05).y, blocked.y);
   assert.ok(movePlayer(blocked, 1, -1, 0.05).x > blocked.x);
@@ -91,11 +91,14 @@ test("从出生点可实际步行抵达六个场景", () => {
   const queue = [initial];
   const seen = new Set([`${initial.x},${initial.y}`]);
   const reachable = new Set();
+  const discovered = new Set();
 
   for (let index = 0; index < queue.length; index++) {
     const point = queue[index];
     const near = closestPlace(point);
     if (near) reachable.add(near.id);
+    const story = closestStory(point);
+    if (story?.story) discovered.add(story.story.title);
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const next = { x: point.x + dx, y: point.y + dy };
       const key = `${next.x},${next.y}`;
@@ -106,6 +109,8 @@ test("从出生点可实际步行抵达六个场景", () => {
     }
   }
   assert.deepEqual([...reachable].sort(), PLACES.map((p) => p.id).sort());
+  assert.deepEqual([...discovered].sort(), SCENERY.filter(p => p.story).map(p => p.story.title).sort());
+  assert.equal(discovered.size, 4, "四处故事点必须能步行抵达");
 });
 
 test("镜头平滑跟随目标并限制在地图边界", () => {
@@ -118,12 +123,28 @@ test("镜头平滑跟随目标并限制在地图边界", () => {
 
 test("广场人工设施按同一轴线对齐，环境装饰仍可自由错落", () => {
   const at = (name, y) => SCENERY.filter(p => p.sprite === name && p.y === y).map(p => p.x);
-  assert.deepEqual(at("bench", 33), [38, 58]);
-  assert.deepEqual(at("lamp", 45.3), [38, 58]);
-  assert.deepEqual(at("planter", 26.1), [35, 61]);
-  assert.deepEqual(at("planter", 43.7), [35, 61]);
+  assert.deepEqual(at("bench", 49), [62, 82]);
+  assert.deepEqual(at("lamp", 61.3), [62, 82]);
+  assert.deepEqual(at("planter", 42.1), [59, 85]);
+  assert.deepEqual(at("planter", 59.7), [59, 85]);
   assert.equal(SCENERY.find(p => p.sprite === "arch")?.x, FOUNTAIN.x);
-  assert.equal(SCENERY.find(p => p.sprite === "statue")?.x, 58);
+  assert.equal(SCENERY.find(p => p.sprite === "statue")?.x, 82);
+  assert.equal(FOUNTAIN.x, 72);
+  assert.equal(SPAWN.y, 56);
+});
+
+test("故事点复用可见素材和碰撞配置，不制造不可见标记", () => {
+  const stories = SCENERY.filter(p => p.story);
+  assert.equal(stories.length, 4);
+  assert.equal(new Set(stories.map(p => p.story.title)).size, 4);
+  for (const item of stories) {
+    assert.ok(item.solid, "故事地标须有可见实体与碰撞");
+    assert.ok(item.story.caption && item.story.description);
+    assert.equal(closestStory({ x: item.x + 1.5, y: item.y })?.story?.title, item.story.title);
+  }
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  assert.ok(route.includes("closestFeature(playerRef.current)"));
+  assert.ok(route.includes("selected.story?.description"));
 });
 
 test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
@@ -135,15 +156,15 @@ test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
   for (const x of [10.1, 10.49, 10.51, 10.9, 11.4]) {
     const camera = snapCamera({ x, y: 20.6 });
     const ground = 100 - camera.x;
-    const statue = Math.round(58 * TILE - 49 / 2) - camera.x;
-    assert.equal(statue - ground, Math.round(58 * TILE - 49 / 2) - 100);
+    const statue = Math.round(82 * TILE - 49 / 2) - camera.x;
+    assert.equal(statue - ground, Math.round(82 * TILE - 49 / 2) - 100);
   }
 });
 
 test("缩放可精细调节并根据屏幕尺寸避免露出地图外区域", () => {
   assert.equal(clampZoom(1.35, 1440, 900), 1.35);
   assert.equal(clampZoom(0.5, 1440, 900), 1);
-  assert.equal(clampZoom(1, 1920, 1080), 1.25);
+  assert.equal(clampZoom(1, 1920, 1080), 1);
   assert.equal(clampZoom(1.256, 1440, 900), 1.26);
   assert.equal(clampZoom(9, 1440, 900), 3.2);
   for (const [w, h] of [[390, 844], [1440, 900], [1920, 1080], [2560, 1440]]) {
