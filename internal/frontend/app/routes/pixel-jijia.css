@@ -364,3 +364,29 @@
 @media (prefers-reduced-motion: reduce) {
   .pixel-world * { scroll-behavior: auto; transition: none; }
 }
+
+/* Study controls are only shown inside the owner's room, never over the public map. */
+.pixel-world-study-tools, .pixel-world-study-guest, .pixel-world-study-notice {
+  position: absolute; z-index: 5; left: 16px; bottom: 18px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 9px; max-width: min(640px, calc(100vw - 32px));
+  background: #203b3bdc; border: 1px solid #d6c391;
+  color: #fff0ca; font-size: 12px;
+}
+.pixel-world-study-tools button, .pixel-world-study-tools select {
+  border: 1px solid #bca977; border-radius: 3px; padding: 7px;
+  color: #f8eacb; background: #355854; font-size: 12px;
+}
+.pixel-world-study-tools button:disabled { opacity: .6; cursor: default; }
+.pixel-world-study-tools input {
+  width: min(300px, 100%); padding: 7px; color: #22423d;
+  background: #f8eacb; border: 0;
+}
+.pixel-world-study-guest { bottom: 18px; }
+.pixel-world-study-notice { bottom: 88px; }
+.pixel-world-study-notice a { color: #ffe0a0; }
+@media (max-width: 700px) {
+  .pixel-world-study-tools { left: 10px; right: 10px; bottom: 195px; max-width: none; }
+  .pixel-world-study-guest { left: 10px; bottom: 195px; }
+  .pixel-world-study-notice { left: 10px; bottom: 275px; }
+}
