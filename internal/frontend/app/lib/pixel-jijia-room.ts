@@ -8,6 +8,8 @@ export type RoomObject = Rect & {
   description: string;
   kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit" | "desk" | "chair" | "shelf" | "lamp" | "plant";
   solid?: boolean;
+  href?: string;
+  action?: string;
 };
 export type RoomScene = {
   id: string;
@@ -25,7 +27,7 @@ export const MECHANICAL_ROOM: RoomScene = {
   title: "机械工坊 · 装配车间",
   width: 36,
   height: 24,
-  entry: { x: 18, y: 21 },
+  entry: { x: 18, y: 19.4 },
   theme: { floor: "#999b90", rug: "#5a695e", wall: "#334d53", window: "#6faabb" },
   walls: [
     // A central doorway connects two genuinely traversable work areas.
@@ -40,7 +42,7 @@ export const MECHANICAL_ROOM: RoomScene = {
     { id: "machine", kind: "machine", x: 11, y: 16, width: 5, height: 3, solid: true,
       title: "加工设备", description: "试制零件在这里完成加工。机器上的安全标识提醒每一个进入工坊的人保持专注。" },
     { id: "cad", kind: "console", x: 25, y: 8, width: 6, height: 3, solid: true,
-      title: "设计工作站", description: "屏幕上是机械结构的三维装配模型。每一个尺寸，都需要与实际材料相吻合。" },
+      title: "设计工作站", description: "屏幕上是机械结构的三维装配模型。每一个尺寸，都需要与实际材料相吻合。", href: "/about", action: "了解机械组" },
     { id: "review", kind: "workbench", x: 25, y: 16, width: 6, height: 2, solid: true,
       title: "评审台", description: "从草图到样机，方案在这里被反复讨论、修改、重新验证。" },
     { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
@@ -48,11 +50,11 @@ export const MECHANICAL_ROOM: RoomScene = {
   ],
 };
 
-const COMMON_ROOM = { width: 36, height: 24, entry: { x: 18, y: 21 } };
+const COMMON_ROOM = { width: 36, height: 24, entry: { x: 18, y: 19.4 } };
 
 export const STUDY_ROOM: RoomScene = {
  id: "study", title: "个人研究室", width: 36, height: 24,
- entry: { x: 18, y: 21 },
+ entry: { x: 18, y: 19.4 },
  theme: { floor: "#b8ac90", rug: "#617772", wall: "#3e585d", window: "#c1dfd8" },
  walls: [],
  objects: [{ id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
@@ -70,7 +72,7 @@ export const ROOMS: Record<string, RoomScene> = {
       { id: "trophies", kind: "display", x: 3, y: 7, width: 6, height: 2, solid: true,
         title: "荣誉展柜", description: "每一个奖杯都属于曾经在训练场上反复试验的队员。荣誉有日期，但成长不会停止。" },
       { id: "history", kind: "display", x: 25, y: 7, width: 7, height: 2, solid: true,
-        title: "吉甲历史长廊", description: "墙上排列着战队从创立到赛季出征的片段，记录技术和团队一起前进的轨迹。" },
+        title: "吉甲历史长廊", description: "墙上排列着战队从创立到赛季出征的片段，记录技术和团队一起前进的轨迹。", href: "/events-and-honors", action: "查看赛事与荣誉" },
       { id: "screen", kind: "console", x: 5, y: 17, width: 6, height: 3, solid: true,
         title: "赛事影像台", description: "在这里可以回顾那些决定胜负的瞬间，以及镜头没有拍下的训练日常。" },
       { id: "archive", kind: "cabinet", x: 25, y: 17, width: 6, height: 2, solid: true,
@@ -87,7 +89,7 @@ export const ROOMS: Record<string, RoomScene> = {
       { id: "solder", kind: "workbench", x: 4, y: 8, width: 6, height: 3, solid: true,
         title: "电路焊接区", description: "焊台、放大镜与电路板整齐排列。每个焊点都需要耐心和精确。" },
       { id: "oscilloscope", kind: "console", x: 21, y: 7, width: 8, height: 3, solid: true,
-        title: "示波器与信号台", description: "蓝色屏幕上的波形让原本看不见的电信号有了形状。" },
+        title: "示波器与信号台", description: "蓝色屏幕上的波形让原本看不见的电信号有了形状。", href: "/about", action: "了解电控组" },
       { id: "embedded", kind: "machine", x: 23, y: 16, width: 6, height: 3, solid: true,
         title: "嵌入式测试台", description: "从开发板到电机控制器，每一次调试都会让机器人更可靠一些。" },
       { id: "components", kind: "cabinet", x: 4, y: 17, width: 6, height: 2, solid: true,
@@ -104,7 +106,7 @@ export const ROOMS: Record<string, RoomScene> = {
       { id: "camera", kind: "camera", x: 5, y: 8, width: 4, height: 3, solid: true,
         title: "视觉采集设备", description: "标定板和相机共同决定目标位置。细微的像素误差也会影响识别结果。" },
       { id: "dataset", kind: "console", x: 11, y: 8, width: 7, height: 3, solid: true,
-        title: "图像数据工作站", description: "画面中的物体被逐帧分析，算法在真实环境中不断修正判断。" },
+        title: "图像数据工作站", description: "画面中的物体被逐帧分析，算法在真实环境中不断修正判断。", href: "/about", action: "了解视觉组" },
       { id: "observe", kind: "display", x: 26, y: 8, width: 6, height: 2, solid: true,
         title: "观测窗", description: "这里用于观察机器人在试验区的移动和目标跟踪表现。" },
       { id: "compute", kind: "server", x: 26, y: 16, width: 6, height: 3, solid: true,
@@ -119,7 +121,7 @@ export const ROOMS: Record<string, RoomScene> = {
     walls: [{ x: 2, y: 14, width: 12, height: 1 }, { x: 23, y: 14, width: 11, height: 1 }],
     objects: [
       { id: "welcome", kind: "reception", x: 13, y: 8, width: 9, height: 3, solid: true,
-        title: "招新接待台", description: "每个来到吉甲的人，都可以从这里了解不同组别的工作和训练生活。" },
+        title: "招新接待台", description: "每个来到吉甲的人，都可以从这里了解不同组别的工作和训练生活。", href: "/join", action: "加入吉甲大师" },
       { id: "board", kind: "display", x: 3, y: 7, width: 7, height: 2, solid: true,
         title: "活动公告栏", description: "展示近期活动、开放实践日和团队见面安排。" },
       { id: "events", kind: "workbench", x: 5, y: 17, width: 7, height: 2, solid: true,
@@ -142,7 +144,7 @@ export const ROOMS: Record<string, RoomScene> = {
       { id: "strategy", kind: "workbench", x: 5, y: 16, width: 7, height: 2, solid: true,
         title: "战术讨论台", description: "策略从假设开始，经仿真、推演与实际对抗不断优化。" },
       { id: "simulation", kind: "console", x: 25, y: 16, width: 7, height: 3, solid: true,
-        title: "战术演练终端", description: "当前像素世界的战术演练入口也属于 AI 研究所的一部分。" },
+        title: "战术演练终端", description: "当前像素世界的战术演练入口也属于 AI 研究所的一部分。", href: "/pixel-jijia/battle", action: "进入战术演练" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
         title: "返回吉甲小镇", description: "从研究所走回小镇。" },
     ],
@@ -155,6 +157,15 @@ export function isRoomWalkable(room: RoomScene, x: number, y: number): boolean {
       y - radius < 5 || y + radius > room.height - 1) return false;
   if (room.walls.some(w => overlapsRect(x, y, radius, w))) return false;
   return !room.objects.some(o => o.solid && overlapsRect(x, y, radius, o));
+}
+
+// Use the exit object's real footprint to trigger a seamless return outdoors.
+export function roomExitAt(room: RoomScene, position: Position, vertical: number): boolean {
+  if (vertical <= 0) return false;
+  const exit = room.objects.find(object => object.kind === "exit");
+  return Boolean(exit && position.x >= exit.x + 0.65 &&
+    position.x <= exit.x + exit.width - 0.65 &&
+    position.y >= exit.y - 0.55 && position.y <= exit.y + 0.35);
 }
 
 export function closestRoomObject(room: RoomScene, position: Position): RoomObject | null {
@@ -216,11 +227,15 @@ export function renderRoomTerrain(room: RoomScene): HTMLCanvasElement {
     ctx.fillStyle = "#597c7c";
     ctx.fillRect(x + 5, y, w - 7, h);
   }
-  // Clear doorway and exit threshold communicate where the player may walk.
-  ctx.fillStyle = "#ca9c65";
-  ctx.fillRect(16 * TILE, 22 * TILE, 4 * TILE, 5);
-  ctx.fillStyle = "#edce94";
-  ctx.fillRect(17 * TILE, 22 * TILE, 2 * TILE, 3);
+  // Visual doorway and crossing logic share the same exit footprint.
+  const exit = room.objects.find(object => object.kind === "exit");
+  if (exit) {
+    const x = exit.x * TILE, y = (exit.y - 0.55) * TILE;
+    ctx.fillStyle = "#ca9c65";
+    ctx.fillRect(x, y, exit.width * TILE, 7);
+    ctx.fillStyle = "#edce94";
+    ctx.fillRect(x + TILE, y, (exit.width - 2) * TILE, 4);
+  }
   return canvas;
 }
 
