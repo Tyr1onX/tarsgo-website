@@ -7,6 +7,7 @@ import {
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
+import { MECHANICAL_ROOM, closestRoomObject, isRoomWalkable, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -54,12 +55,14 @@ export default function PixelJijiaPage() {
   const sprintTouchRef = useRef(false);
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
+  const roomTerrainRef = useRef<HTMLCanvasElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
   const artIndexRef = useRef<SpriteIndex | null>(null);
   const propsRef = useRef<HTMLImageElement | null>(null);
   const nearIdRef = useRef<string | null>(null);
+  const nearRoomIdRef = useRef<string | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [mapOpen, setMapOpen] = useState(false);
@@ -69,6 +72,10 @@ export default function PixelJijiaPage() {
   const [selected, setSelected] = useState<Feature | null>(null);
   const [storyActivated, setStoryActivated] = useState(false);
   const [seated, setSeated] = useState<Scenery | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const room = roomId === MECHANICAL_ROOM.id ? MECHANICAL_ROOM : null;
+  const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const selectPlace = useCallback((place: Feature | null) => {
@@ -97,6 +104,29 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   };
 
+  const enterRoom = useCallback(() => {
+    const place = closestPlace(playerRef.current);
+    if (place?.id !== MECHANICAL_ROOM.id) return;
+    playerRef.current = { ...MECHANICAL_ROOM.entry };
+    keysRef.current.clear();
+    touchRef.current.clear();
+    setSeated(null);
+    setRoomId(MECHANICAL_ROOM.id);
+    setSelectedRoom(null);
+    setMapOpen(false);
+    selectPlace(null);
+  }, [selectPlace]);
+
+  const exitRoom = useCallback(() => {
+    const place = PLACES.find(p => p.id === MECHANICAL_ROOM.id);
+    if (!place) return;
+    playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1 };
+    keysRef.current.clear();
+    touchRef.current.clear();
+    setSelectedRoom(null);
+    setRoomId(null);
+  }, []);
+
   const resizeCanvas = useCallback(() => {
     const stage = stageRef.current, canvas = canvasRef.current;
     if (!stage || !canvas) return;
@@ -112,8 +142,9 @@ export default function PixelJijiaPage() {
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.imageSmoothingEnabled = false;
-    cameraRef.current = cameraAt(playerRef.current, width, height);
-  }, []);
+    cameraRef.current = cameraAt(playerRef.current, width, height,
+      (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
+  }, [room]);
 
   const setMapZoom = useCallback((next: number) => {
     const stage = stageRef.current;
@@ -162,6 +193,7 @@ export default function PixelJijiaPage() {
         propsRef.current = environment;
         terrainRef.current = renderTerrain(ground);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
+        roomTerrainRef.current = renderRoomTerrain(MECHANICAL_ROOM);
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
