@@ -1,6 +1,7 @@
 import { FIELD_HEIGHT, FIELD_WIDTH, MATCH_SECONDS, OBSTACLES,
   type Battle, type Robot } from "./pixel-jijia-battle";
 import { FIELD_INSET, HIGH_WALLS } from "./pixel-jijia-field";
+import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 
 const COLORS = {
   red: "#efbd6d", redDark: "#765a40", blue: "#cd7d75", blueDark: "#6f4548",
@@ -147,14 +148,14 @@ export function renderBattle(ctx: CanvasRenderingContext2D, battle: Battle) {
   }
   for (const robot of battle.robots) drawRobot(ctx, robot, battle.selected.includes(robot.id), battle.seconds);
   for (const shot of battle.shots) {
-    const alpha = Math.max(0, Math.min(1, shot.life / 0.14));
-    ctx.strokeStyle = shot.team === "red" ? `rgba(255,247,188,${alpha})` : `rgba(255,168,148,${alpha})`;
+    const alpha = Math.max(0, Math.min(1, shot.life / SHOT_LIFE));
+    ctx.strokeStyle = SHOT_STYLE[shot.team].trail + Math.round(alpha*255).toString(16).padStart(2,"0");
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(shot.from.x, shot.from.y);
     ctx.lineTo(shot.to.x, shot.to.y);
     ctx.stroke();
-    square(ctx, shot.to.x - 4, shot.to.y - 4, 8, 8, shot.team === "red" ? "#fff5bf" : "#ffb3a4");
+    square(ctx, shot.to.x - 4, shot.to.y - 4, 8, 8, SHOT_STYLE[shot.team].impact);
   }
   ctx.textAlign = "center";
   ctx.font = "bold 14px ui-monospace, monospace";
