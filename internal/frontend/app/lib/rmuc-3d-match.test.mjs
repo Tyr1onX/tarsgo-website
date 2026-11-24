@@ -49,7 +49,7 @@ test("outpost stop, protected base, ten second siege, time and tie breaks",()=>{
  for(let i=0;i<50;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
  assert.equal(m.sides.blue.outpost,0);
  const angle=m.pose.outpostAngle.blue;updateMatch(m,175);
- assert.equal(m.pose.outpostAngle.blue,angle);assert.equal(m.sides.blue.cover,false);
+ assert.notEqual(angle,0);assert.equal(m.pose.outpostAngle.blue,0);assert.equal(m.sides.blue.cover,false);
  updateMatch(m,9,{red:false,blue:true});assert.equal(m.sides.blue.cover,false);
  updateMatch(m,1,{red:false,blue:true});assert.equal(m.sides.blue.cover,true);
  assert.equal(damageTarget(m,r,{type:"base",team:"blue"}),20);
@@ -104,4 +104,20 @@ test("remote health waits six seconds, respects logistics and forfeits coins on 
  assert.equal(purchaseHealth(m,"r"),true);const coins=m.sides.red.coins;
  for(let i=0;i<7;i++)damageTarget(m,b,{type:"robot",id:"r"});
  assert.equal(r.hp,0);updateMatch(m,6);assert.equal(r.hp,0);assert.equal(m.sides.red.coins,coins);
+});
+
+test("outposts ramp consistently, return to rest at stop and never restart",()=>{
+ for(const direction of [-1,1]){
+  const a=createMatch(roster,1,direction),b=createMatch(roster,1,direction);startMatch(a);startMatch(b);
+  updateMatch(a,7.25);for(let i=0;i<725;i++)updateMatch(b,.01);
+  assert.ok(Math.abs(a.pose.outpostAngle.red-b.pose.outpostAngle.red)<1e-8);
+  assert.equal(a.pose.outpostAngle.red,a.pose.outpostAngle.blue);
+  for(let i=0;i<50;i++)damageTarget(a,a.robots[0],{type:"outpost",team:"blue"});
+  const angle=a.pose.outpostAngle.blue;updateMatch(a,.1);
+  assert.ok(Math.abs(a.pose.outpostAngle.blue-angle)<.3);
+  updateMatch(a,3);assert.equal(a.pose.outpostAngle.blue,0);assert.equal(a.sides.blue.stopped,true);
+  a.sides.blue.outpost=500;updateMatch(a,1);assert.equal(a.pose.outpostAngle.blue,0);
+  updateMatch(a,170);assert.equal(a.sides.red.stopped,true);assert.equal(a.pose.outpostAngle.red,0);
+  assert.equal(createMatch(roster).pose.outpostAngle.red,0);
+ }
 });
