@@ -3,11 +3,11 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { frameArena, clampFollowCamera } from "./rmuc-3d-camera";
+import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { addRobotPreviews } from "./rmuc-3d-robots";
-import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, FIELD_HALF_X, FIELD_HALF_Z, type ArenaTerrain } from "./rmuc-3d-terrain";
-import { createStadium } from "./rmuc-3d-stadium";
+import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
+import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
@@ -16,26 +16,12 @@ export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
   input: (key: string, pressed: boolean) => void;
+  pauseInput: (paused: boolean) => void;
   dispose: () => void;
 }
 
 type Robot = { object: THREE.Group; position: THREE.Vector3; radius: number; driveable: boolean; name: string; eyeHeight: number; wheelRadius: number };
-const isPlaying = (view: ArenaView) => view === "first" || view === "third";
-
-function createPlayer() {
-  const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({ color: 0x283a4b, roughness: .82 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x171d25, roughness: .8 });
-  function part(geometry: THREE.BufferGeometry, y: number, x = 0, mat = material) {
-    const mesh = new THREE.Mesh(geometry, mat);
-    mesh.position.set(x, y, 0);
-    group.add(mesh);
-  }
-  part(new THREE.CapsuleGeometry(.13, .32, 4, 8), .92);
-  part(new THREE.SphereGeometry(.135, 12, 8), 1.47, 0, dark);
-  for (const x of [-.09, .09]) part(new THREE.CapsuleGeometry(.065, .48, 4, 6), .36, x, dark);
-  return group;
-}
+const isPlaying = (view: ArenaView) => view === "first";
 
 export function mountArena(
   host: HTMLDivElement,
@@ -46,8 +32,8 @@ export function mountArena(
 ): ArenaController {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111922);
-  scene.fog = new THREE.Fog(0x111922, 29, 83);
-  const camera = new THREE.PerspectiveCamera(64, 1, .025, 130);
+  scene.fog = new THREE.Fog(0x111922, 65, 180);
+  const camera = new THREE.PerspectiveCamera(72, 1, .025, 220);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -76,14 +62,12 @@ export function mountArena(
   const sun = new THREE.DirectionalLight(0xfff4e7, 2.6);
   sun.position.set(-6, 13, 9);
   scene.add(sun);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(47, 36),
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(STADIUM_WIDTH + 8, STADIUM_DEPTH + 8),
     new THREE.MeshStandardMaterial({ color: 0x202b35, roughness: .85 }));
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -.06;
   scene.add(ground);
-  const player = createPlayer();
-  player.visible = false;
-  scene.add(player);
+  const explorer = new THREE.Vector3();
   const stadium = createStadium();
   scene.add(stadium);
 
@@ -95,15 +79,15 @@ export function mountArena(
   let robots: Robot[] = [];
   let driving: Robot | null = null;
   let mode: ArenaView = "first";
-  let lastPerspective: "first" | "third" = "first";
-  let yaw = -.7, pitch = -.08;
+  let look = { yaw: -.7, pitch: -.08 };
+  let paused = false;
   let lastTime: number | null = null;
   let lastStatus = "";
   const keys = new Set<string>();
-  const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3(), desired = new THREE.Vector3();
+  const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
-  const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(player.position, robots) : null;
+  const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   function publish() {
     const status = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null };
     const signature = JSON.stringify(status);
@@ -115,35 +99,23 @@ export function mountArena(
   }
 
   function updateVisibility() {
-    player.visible = ready && !driving && mode !== "first";
     for (const robot of robots) robot.object.visible = mode !== "first" || driving !== robot;
   }
 
   function syncCamera() {
     if (!ready || !terrain || !isPlaying(mode)) return;
-    const target = driving?.position ?? player.position;
-    const h = driving?.eyeHeight ?? 1.6;
-    forward.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-    eye.copy(target).y += h;
+    const target = driving?.position ?? explorer;
+    const { yaw } = look;
+    lookDirection(look, forward);
+    eye.copy(target).y += driving?.eyeHeight ?? 1.6;
     camera.up.set(0, 1, 0);
     if (driving) {
       const gimbal = driving.object.getObjectByName("gimbal");
       if (gimbal) gimbal.rotation.y = yaw - driving.object.rotation.y;
-      if (mode === "first") driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
-    } else player.rotation.y = yaw;
-    if (mode === "first") {
-      camera.position.copy(eye);
-      camera.lookAt(clock.copy(eye).add(forward));
-    } else {
-      const distance = driving ? Math.max(2.6, driving.radius * 4.3) : 3.1;
-      desired.copy(eye).addScaledVector(forward, -distance);
-      desired.y = Math.max(eye.y + .35, desired.y + .8);
-      clampFollowCamera(eye, desired, FIELD_HALF_X - .12, FIELD_HALF_Z - .12);
-      const safe = terrain.cameraDistance(eye, desired);
-      const delta = desired.sub(eye);
-      camera.position.copy(eye).add(delta.setLength(Math.min(safe,delta.length())));
-      camera.lookAt(clock.copy(eye).addScaledVector(forward, 1.2));
+      driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
     }
+    camera.position.copy(eye);
+    camera.lookAt(clock.copy(eye).add(forward));
     updateVisibility();
   }
 
@@ -152,10 +124,14 @@ export function mountArena(
     if (disposed) return;
     if (ready && terrain && isPlaying(mode)) {
       const dt = lastTime === null ? 0 : Math.min(.05, (time - lastTime) / 1000);
-      const f = Number(keys.has("KeyW") || keys.has("ArrowUp")) - Number(keys.has("KeyS") || keys.has("ArrowDown"));
-      const r = Number(keys.has("KeyD") || keys.has("ArrowRight")) - Number(keys.has("KeyA") || keys.has("ArrowLeft"));
+      const f = Number(keys.has("KeyW")) - Number(keys.has("KeyS"));
+      const r = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
+      const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
+      const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
+      if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
+      const { yaw } = look;
       if (f || r) {
-        const target = driving?.position ?? player.position;
+        const target = driving?.position ?? explorer;
         const radius = driving?.radius ?? PLAYER_RADIUS;
         const speed = driving ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 3.6 : 2.2;
         const norm = Math.hypot(f, r);
@@ -173,6 +149,8 @@ export function mountArena(
             if (object.name.startsWith("wheel-")) object.rotation.x += direction * traveled / driving!.wheelRadius;
           });
         }
+      }
+      if (f || r || horizontal || vertical) {
         lastTime = time;
         invalidate();
       } else lastTime = null;
@@ -186,18 +164,20 @@ export function mountArena(
     if (!ready) return;
     keys.clear();
     lastTime = null;
+    const previous = mode;
     mode = next;
     if (isPlaying(next)) {
-      lastPerspective = next as "first" | "third";
       controls.enabled = false;
-      camera.fov = 64;
+      camera.fov = 72;
       syncCamera();
       canvas.focus({ preventScroll: true });
     } else {
       if (document.pointerLockElement === canvas) document.exitPointerLock();
-      controls.enabled = true;
+      controls.enabled = !paused;
       camera.fov = 48;
-      if (fieldBounds) controls.target.copy(frameArena(camera, next as FieldView, fieldBounds));
+      if (fieldBounds && (next !== "third" || previous === "first")) {
+        controls.target.copy(frameArena(camera, next === "third" ? "all" : next, fieldBounds));
+      }
       controls.minDistance = 2.5;
       controls.maxDistance = 160;
       controls.update();
@@ -209,17 +189,17 @@ export function mountArena(
   }
 
   function interact() {
-    if (!ready || !terrain || !isPlaying(mode)) return;
+    if (!ready || paused || !terrain || !isPlaying(mode)) return;
     if (driving) {
       const robot = driving;
       for (let i = 0; i < 12; i++) {
-        const angle = yaw + i * Math.PI / 6;
+        const angle = look.yaw + i * Math.PI / 6;
         const distance = robot.radius + PLAYER_RADIUS + .16;
         const x = robot.position.x + Math.cos(angle) * distance, z = robot.position.z + Math.sin(angle) * distance;
         const y = supportedHeight(terrain, x, z, PLAYER_RADIUS, robot.position.y, .48);
         if (y === null || robots.some(other => other !== robot && Math.abs(other.position.y - y) < 1.15
           && Math.hypot(x - other.position.x, z - other.position.z) < PLAYER_RADIUS + other.radius)) continue;
-        player.position.set(x, y, z);
+        explorer.set(x, y, z);
         driving = null;
         break;
       }
@@ -227,8 +207,7 @@ export function mountArena(
       const robot = nearby();
       if (robot) {
         driving = robot;
-        yaw = robot.object.rotation.y;
-        pitch = -.05;
+        look = { yaw: robot.object.rotation.y, pitch: -.05 };
       }
     }
     syncCamera();
@@ -240,44 +219,54 @@ export function mountArena(
   function input(key: string, pressed: boolean) {
     if (!movement.has(key)) return;
     if (!pressed) keys.delete(key);
-    else if (ready && isPlaying(mode)) keys.add(key);
+    else if (ready && !paused && isPlaying(mode)) keys.add(key);
     invalidate();
   }
 
   function keydown(event: KeyboardEvent) {
-    if (!ready || event.metaKey || event.ctrlKey || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if (!ready || paused || event.metaKey || event.ctrlKey || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     if (movement.has(event.code) && isPlaying(mode)) {
       event.preventDefault();
       input(event.code, true);
     } else if (!event.repeat && event.code === "KeyE") interact();
-    else if (!event.repeat && event.code === "KeyV") setView(isPlaying(mode) && mode === "first" ? "third" : "first");
-    else if (!event.repeat && event.code === "KeyM") setView(isPlaying(mode) ? "all" : lastPerspective);
+    else if (!event.repeat && event.code === "KeyV") setView(mode === "first" ? "third" : "first");
+    else if (!event.repeat && event.code === "KeyM") setView(mode === "all" ? "first" : "all");
   }
   function keyup(event: KeyboardEvent) { input(event.code, false); }
   function clearInput() { keys.clear(); lastTime = null; }
   function turn(dx: number, dy: number) {
-    if (!ready || !isPlaying(mode)) return;
-    yaw -= dx * .0035;
-    pitch = THREE.MathUtils.clamp(pitch - dy * .0035, -1.16, 1.16);
+    if (!ready || paused || !isPlaying(mode)) return;
+    look = turnView(look, dx, dy);
     invalidate();
   }
-  let drag: { id: number; x: number; y: number } | null = null;
+  let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
   function pointerdown(event: PointerEvent) {
-    if (!ready || !isPlaying(mode) || event.button !== 0) return;
+    if (!ready || paused || !isPlaying(mode) || event.button !== 0 || document.pointerLockElement === canvas) return;
     canvas.focus({ preventScroll: true });
-    drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
     canvas.setPointerCapture(event.pointerId);
   }
   function pointermove(event: PointerEvent) {
     if (document.pointerLockElement === canvas || drag?.id !== event.pointerId) return;
-    turn(event.clientX - drag.x, event.clientY - drag.y);
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (dx || dy) drag.moved = true;
+    turn(dx,dy);
     drag.x = event.clientX; drag.y = event.clientY;
   }
-  function pointerup(event: PointerEvent) { if (drag?.id === event.pointerId) drag = null; }
-  function lock() {
-    if (ready && isPlaying(mode) && canvas.requestPointerLock) {
-      try { const result = canvas.requestPointerLock(); if (result) void result.catch(() => {}); } catch { /* drag remains available */ }
+  function pointerup(event: PointerEvent) {
+    if (drag?.id !== event.pointerId) return;
+    const click = !drag.moved && event.type === "pointerup" && event.pointerType === "mouse";
+    drag = null;
+    if (click && !paused && canvas.requestPointerLock) {
+      try { const result = canvas.requestPointerLock(); if (result) void result.catch(() => {}); } catch { /* drag stays available */ }
     }
+  }
+  function pauseInput(value: boolean) {
+    paused = value;
+    clearInput();
+    drag = null;
+    controls.enabled = !value && !isPlaying(mode);
+    if (value && document.pointerLockElement === canvas) document.exitPointerLock();
   }
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
@@ -289,8 +278,8 @@ export function mountArena(
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
     renderer.setSize(w, h);
     camera.aspect = w / h;
-    if (ready && !isPlaying(mode) && fieldBounds) {
-      controls.target.copy(frameArena(camera, mode as FieldView, fieldBounds));
+    if (ready && mode !== "first" && mode !== "third" && fieldBounds) {
+      controls.target.copy(frameArena(camera, mode, fieldBounds));
       controls.update();
     }
     camera.updateProjectionMatrix();
@@ -304,7 +293,6 @@ export function mountArena(
   canvas.addEventListener("pointerup", pointerup);
   canvas.addEventListener("pointercancel", pointerup);
   canvas.addEventListener("lostpointercapture", pointerup);
-  canvas.addEventListener("dblclick", lock);
   document.addEventListener("mousemove", mousemove);
   document.addEventListener("pointerlockchange", lockchange);
   window.addEventListener("keydown", keydown);
@@ -346,7 +334,7 @@ export function mountArena(
         driveable: group.userData.driveable === true, name: group.userData.name,
         eyeHeight: group.userData.eyeHeight ?? 1, wheelRadius: group.userData.wheelRadius ?? .12 };
     });
-    player.position.set(-10, terrain.heightAt(-10, -1.25), -1.25);
+    explorer.set(-10, terrain.heightAt(-10, -1.25), -1.25);
     ready = true;
     setView("first");
     onReady();
@@ -355,7 +343,7 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input,
+    view: setView, interact, input, pauseInput,
     dispose() {
       disposed = true;
       abort.abort();
@@ -368,7 +356,6 @@ export function mountArena(
       canvas.removeEventListener("pointerup", pointerup);
       canvas.removeEventListener("pointercancel", pointerup);
       canvas.removeEventListener("lostpointercapture", pointerup);
-      canvas.removeEventListener("dblclick", lock);
       document.removeEventListener("mousemove", mousemove);
       document.removeEventListener("pointerlockchange", lockchange);
       window.removeEventListener("keydown", keydown);
