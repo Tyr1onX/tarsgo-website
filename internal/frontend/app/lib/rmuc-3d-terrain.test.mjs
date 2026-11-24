@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import { test, before } from "node:test";
+import { readFile } from "node:fs/promises";
+import { gunzipSync } from "node:zlib";
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { createArenaTerrain, insideField, moveOnArena, nearestDriveable, supportedHeight } from "./rmuc-3d-terrain.ts";
+import { ROBOT_PREVIEWS, createRobotPreview } from "./rmuc-3d-robots.ts";
+
+let terrain;
+before(async () => {
+  const data = gunzipSync(await readFile(new URL("../../../../public/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz", import.meta.url)));
+  const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), "");
+  const root = new THREE.Group();
+  root.add(gltf.scene);
+  root.rotation.x = -Math.PI / 2;
+  root.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(root);
+  const center = bounds.getCenter(new THREE.Vector3());
+  root.position.set(-center.x, -bounds.min.y, -center.z);
+  terrain = createArenaTerrain(root);
+});
+
+test("movement respects physical boundary, raised obstacles, support and other robots", () => {
+  const flat = { heightAt: () => .2 };
+  const edge = new THREE.Vector3(13.4, .2, 0);
+  moveOnArena(flat, edge, 4, 0, .25, .34, []);
+  assert.ok(insideField(edge.x, edge.z, .25));
+  assert.ok(edge.x > 13.4 && edge.x <= 13.75);
+  const wall = { heightAt: x => x >= 0 && x <= .25 ? 1.5 : .2 };
+  const p = new THREE.Vector3(-1, .2, 0);
+  moveOnArena(wall, p, 3, 0, .25, .34, []);
+  assert.ok(p.x <= -.25, "must not tunnel through raised geometry");
+  const other = { position: new THREE.Vector3(1, .2, 0), radius: .5 };
+  p.set(0, .2, 0);
+  moveOnArena(flat, p, 2, 0, .5, .23, [other]);
+  assert.ok(p.x <= .0001);
+  moveOnArena(flat, p, -.5, 0, .5, .23, [other]);
+  assert.ok(p.x < -.45);
+});
+
+test("actual official field allows every driveable preview to move from its placement", () => {
+  const robots = ROBOT_PREVIEWS.map(entry => {
+    const model = createRobotPreview(entry.kind);
+    const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+    return { id: entry.id, position: new THREE.Vector3(entry.x, terrain.heightAt(entry.x, entry.z) + (entry.kind === "air" ? 1.5 : 0), entry.z), radius: Math.hypot(size.x,size.z)/2, driveable: model.userData.driveable === true };
+  });
+  assert.equal(robots.filter(r => r.driveable).length, 7);
+  for (const robot of robots.filter(r => r.driveable)) {
+    const p = robot.position;
+    assert.notEqual(supportedHeight(terrain, p.x, p.z, robot.radius, p.y, .23), null, robot.id + " has stable ground");
+    const others = robots.filter(r => r !== robot && Math.abs(r.position.y - p.y) < 1.15);
+    assert.ok(others.every(r => r.position.distanceTo(p) > r.radius + robot.radius), robot.id + " does not overlap another robot");
+    const moved = [[0,.6],[0,-.6],[.6,0],[-.6,0]].some(([dx,dz]) => {
+      const next = moveOnArena(terrain, p.clone(), dx,dz, robot.radius,.23,others);
+      return next.distanceTo(p) > .25;
+    });
+    assert.ok(moved, robot.id + " can leave its initial position");
+  }
+  const player = new THREE.Vector3(-10, terrain.heightAt(-10,-1.25), -1.25);
+  assert.notEqual(supportedHeight(terrain, player.x, player.z, .25, player.y, .34), null);
+  assert.equal(nearestDriveable(player, robots)?.id, "2026-infantry-04");
+  const original = player.clone();
+  moveOnArena(terrain, player, 0,-.5,.25,.34,robots);
+  assert.ok(player.distanceTo(original) > .2);
+  assert.equal(nearestDriveable(new THREE.Vector3(13, .2, 0), robots), null);
+});
+
+test("takeover chooses a nearby ground vehicle, not a static or airborne asset", () => {
+  const player = new THREE.Vector3(0,.2,0);
+  const staticAsset = { position: new THREE.Vector3(.3,.2,0), radius: .2, driveable: false };
+  const ground = { position: new THREE.Vector3(1,.2,0), radius: .5, driveable: true };
+  const above = { position: new THREE.Vector3(.4,2,0), radius: .3, driveable: true };
+  assert.equal(nearestDriveable(player,[staticAsset,above,ground]),ground);
+  assert.equal(nearestDriveable(player,[staticAsset,above]),null);
+});
