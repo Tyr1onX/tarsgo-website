@@ -73,3 +73,15 @@ test("same-tick referee report beats a data-loss deadline and coordinates come f
  updateMatch(m,.5,positions,()=>[{team:"red",id:"b",point:{x:2,z:0}}]);
  assert.equal(m.radar.red.tracks.b.progress,2.2);
 });
+
+test("interference suppresses vulnerability and opportunity, not the authorized location",()=>{
+ const radar=createRadar(robots);
+ for(let i=1;i<=15;i++)submitRadarPosition(radar,"red","b",p,p,i*.2);
+ const truth={x:3,z:4};
+ assert.equal(radarVulnerability(radar,"red",robots[1],3),.2);
+ assert.ok(verifiedRadarDecode(radar,"blue"));
+ assert.equal(radarVulnerability(radar,"red",robots[1],3),0);
+ assert.deepEqual(radarPosition(radar,"red",robots[1],truth).point,truth);
+ advanceRadar(radar,robots,3,4);
+ assert.equal(radar.red.vulnerableSeconds,0);
+});

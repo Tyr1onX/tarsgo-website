@@ -11,7 +11,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { installMechanisms, installCoreGeometry, CORE_ASSET, DART_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
 import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose, armorStatus, fortifyArmor } from "./rmuc-3d-match.ts";
-import { traceArenaShot, bindArmorFrame, armorHit } from "./rmuc-3d-shot.ts";
+import { traceArenaShot, createArenaShotPreparer, bindArmorFrame, armorHit } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight, moveOnArena } from "./rmuc-3d-terrain.ts";
 import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt, addRobotPreviews } from "./rmuc-3d-robots.ts";
 
@@ -545,14 +545,15 @@ test("nearest rigid CAD bounds pruning preserves exact ray intersections",async(
   const original=new THREE.Raycaster(),optimized=new THREE.Raycaster();
   const targets=[...robots.map(r=>r.position.clone().add(new THREE.Vector3(0,.4,0))),...TEAMS.flatMap(t=>[0,1,2].map(i=>new THREE.Box3().setFromObject(parts.getObjectByName(t+"-outpost-armor-"+i)).getCenter(new THREE.Vector3()))),new THREE.Vector3(0,20,0)];
   const originalTimes=[],optimizedTimes=[];
+  const roots=[root,...robots],prepare=createArenaShotPreparer(roots,new Set([parts,...robots]));
   for(const shooter of robots)for(const point of targets){
     const aim=aimWeaponAt(shooter,point);
     if(!aim)continue;
     scene.updateMatrixWorld(true);
-    const roots=[root,...robots.filter(r=>r!==shooter)];
+    const nativeRoots=roots.filter(r=>r!==shooter);
     original.set(aim.origin,aim.direction);original.near=0;original.far=35;
-    let start=performance.now();const expected=original.intersectObjects(roots,true)[0];originalTimes.push(performance.now()-start);
-    start=performance.now();const actual=traceArenaShot(optimized,roots,aim.origin,aim.direction);optimizedTimes.push(performance.now()-start);
+    let start=performance.now();const expected=original.intersectObjects(nativeRoots,true)[0];originalTimes.push(performance.now()-start);
+    start=performance.now();const actual=traceArenaShot(optimized,roots,aim.origin,aim.direction,35,prepare(),shooter);optimizedTimes.push(performance.now()-start);
     assert.equal(actual?.object,expected?.object);
     if(expected){assert.ok(Math.abs(actual.distance-expected.distance)<1e-8);assert.ok(actual.point.distanceTo(expected.point)<1e-8);}
   }

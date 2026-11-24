@@ -38,13 +38,12 @@ function TeamScore({team,side}:{team:"red"|"blue";side:NonNullable<ArenaStatus["
     <HealthBar value={side.outpost} max={1000} damage={side.outpostDamage} label={teamName(team)+"方前哨血量"}/>
     <div className="rmul3d-team-metrics"><span>金币 <b>{side.coins??"—"}</b></span><span>科技 <b>{side.technology??"—"}</b></span><span>控制 <b>{side.control}</b></span></div>
     <div className="rmul3d-roster">{side.robots.map(r=>{
-      const labels=r.hp===0?[r.powerOff?"战亡":"撤离"]:[r.powerOff?"断电":"",r.launcherLocked?"枪锁":"",r.weak?"虚弱":"",r.immune?"无敌":""].filter(Boolean);
-      const label=labels.join(" ");
-      return <div className={"rmul3d-robot-status"+(r.hp===0?" dead":"")} key={r.id} aria-label={teamName(team)+r.number+"号 "+r.hp+"/"+r.maxHp+" 级别"+r.level+" "+label}>
+      const d=r.detail,labels=d?(r.hp===0?[d.powerOff?"战亡":"撤离"]:[d.powerOff?"断电":"",d.launcherLocked?"枪锁":"",d.weak?"虚弱":"",d.immune?"无敌":""].filter(Boolean)):[],label=labels.join(" ");
+      return <div className={"rmul3d-robot-status"+(r.hp===0?" dead":"")} key={r.id} aria-label={teamName(team)+r.number+"号 "+r.hp+"/"+r.maxHp+(d?" 级别"+d.level+" "+label:"")}>
         <div className="rmul3d-robot-id"><RobotIcon kind={r.kind}/><b>{r.number}</b></div>
-        <div className="rmul3d-robot-hp"><b>{r.hp}</b><span>Lv{r.level}</span></div>
-        <HealthBar value={r.hp} max={r.maxHp} damage={r.damage} label={teamName(team)+r.number+"号血量"}/>
-        <div className="rmul3d-robot-state">{r.revival!==null?<><span>{label}</span><span>{r.revival}%</span></>:(labels.length?labels.map(text=><span key={text}>{text}</span>):<span> </span>)}</div>
+        <div className="rmul3d-robot-hp"><b>{r.hp}</b>{d&&<span>Lv{d.level}</span>}</div>
+        <HealthBar value={r.hp} max={r.maxHp} damage={d?.damage} label={teamName(team)+r.number+"号血量"}/>
+        {d&&<div className="rmul3d-robot-state">{d.revival!==null?<><span>{label}</span><span>{d.revival}%</span></>:(labels.length?labels.map(text=><span key={text}>{text}</span>):<span> </span>)}</div>}
       </div>;
     })}</div>
     <div className="rmul3d-territory" title={"前哨阵地 "+areaText(side.outpostArea)+" · 基地阵地 "+areaText(side.baseArea)}><span>前哨 {areaText(side.outpostArea)}</span><span>基地 {areaText(side.baseArea)}</span></div>
@@ -118,12 +117,12 @@ export default function PixelJijiaArenaPage() {
         </div>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           <div className="rmul3d-map-head"><select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={!!status.robot} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>
-          {status.radarMap.perspective!=="all"&&<span>雷达 {status.radarMap[status.radarMap.perspective].doubleUntil>0?"易伤×2 "+status.radarMap[status.radarMap.perspective].doubleUntil+"s":"机会 "+status.radarMap[status.radarMap.perspective].opportunities}</span>}</div>
+          {Object.entries(status.radarMap.summary).map(([team,r])=><span key={team} title={"干扰难度 "+r.encryptionLevel}>{team==="red"?"红":"蓝"}雷达 {r.doubleUntil>0?"×2 "+r.doubleUntil+"s":r.opportunities+"次"}</span>)}</div>
           <svg viewBox="0 0 280 150" role="img" aria-label="CAD战场地图"><image href={status.radarMap.image} width="280" height="150"/>
             {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={s.outpostOwner==="red"?"#fb7777":"#7bbdff"} opacity={s.outpost?1:.25}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
             {status.radarMap.tracks.map(r=><g key={r.id} transform={`translate(${(14-r.x)*10} ${(7.5-r.z)*10})`} opacity={r.stale?.4:1} aria-label={r.team+" "+r.id+" P="+r.progress}><circle r="4.5" fill={r.team==="red"?"#d94b4b":"#287de0"} stroke={r.localized?"white":"#222"} strokeDasharray={r.stale?"2 2":undefined}/><text textAnchor="middle" y="2.2" fontSize="6" fill="white">{r.id.slice(-2)}</text></g>)}
           </svg>
-          {status.robot&&status.radarMap.perspective!=="all"&&!status.match.dart?.blind&&status.radarMap[status.radarMap.perspective].opportunities>0&&<button disabled={status.radarMap[status.radarMap.perspective].doubleUntil>0} onClick={()=>controller.current?.radarDouble()}>双倍易伤</button>}
+          {status.robot&&status.radarMap.perspective!=="all"&&!status.match.dart?.blind&&status.radarMap.summary[status.radarMap.perspective]!.opportunities>0&&<button disabled={status.radarMap.summary[status.radarMap.perspective]!.doubleUntil>0} onClick={()=>controller.current?.radarDouble()}>双倍易伤</button>}
         </aside>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.performance && <div className="rmul3d-combat">
           <label>底盘 <select value={status.match.performance.chassis} onChange={e=>controller.current?.performance({...status.match!.performance!,chassis:e.target.value as "hp"|"power"})}><option value="hp">血量优先</option><option value="power">功率优先</option></select></label>
