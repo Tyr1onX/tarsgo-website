@@ -12,12 +12,13 @@ export function traceArenaShot(ray: THREE.Raycaster, roots: THREE.Object3D[], fr
 }
 
 export function resolveArenaShot(match: Match, id: string, ray: THREE.Raycaster, roots: THREE.Object3D[], from: THREE.Vector3, direction: THREE.Vector3) {
+  const calibration=match.robots.find(r=>r.id===id)?.launcher==="test";
   const shooter=fireRound(match,id);
   if(!shooter)return null;
   const hit=traceArenaShot(ray,roots,from,direction);
   let node: THREE.Object3D|null=hit?.object??null;
   while(node&&!node.userData.target)node=node.parent;
   const target=node?.userData.target as Target|undefined;
-  const damage=target?damageTarget(match,shooter,target):0;
+  const damage=target&&!calibration?damageTarget(match,shooter,target):0;
   return {shooter,hit,target,damage,to:hit?.point??from.clone().addScaledVector(direction,RANGE)};
 }

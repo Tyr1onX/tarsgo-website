@@ -8,14 +8,14 @@
 |---|---|---|---|
 | §3.1 阵容及表3-1 | rmuc-3d-robots.ts、rmul-3d-scene.ts roster | 近似 | robots.test：每方4地面机器人；2026照片外观，不是2027实车CAD；空中/雷达/飞镖未参与 |
 | §4.2.2 / §4.3.2.4 基地、前哨 | rmuc-3d-mechanisms.ts | 近似 | mechanisms.test：前哨真实检测面射线，基地仍粗粒度；基地护甲运动待核实 |
-| §5.1.1 表5-2 伤害 | rmuc-3d-match.ts damageTarget、rmuc-3d-shot.ts | 近似 | mechanisms.test：真实场景17mm命中与遮挡；尚无42mm及飞镖、速度与法向冲量判定 |
+| §5.1.1 表5-2 伤害 | rmuc-3d-match.ts damageTarget、rmuc-3d-shot.ts | 近似 | mechanisms.test：真实场景17mm命中与遮挡；42mm实际射线伤害200及安装首发免伤已验证；飞镖、速度与法向冲量判定待补 |
 | §5.1.2 射击初速度超限 | — | 未实现 | 瞬时射线不模拟实测弹速 |
 | §5.1.3、表5-18 17mm热量 | rmuc-3d-match.ts fireRound/updateMatch | 正式（一级冷却优先步兵和半自动哨兵子集） | match.test：+10、10Hz冷却、超热锁定至零；永久锁定和等级/冷却增益待补 |
 | §5.1.4 底盘功率 | — | 未实现 | 位移控制并非电机功率模型 |
 | §5.2 经验、科技、装甲加固 | — | 未实现 | 待补 |
 | §5.3.1、表5-7/5-19 远程回血 | rmuc-3d-match.ts purchaseHealth/updateMatch | 正式 | match.test：脱战6s、费用、6s到账、60%×后勤系数、阵亡取消 |
 | §5.3.1 补给区/前哨回血、§5.3.2 复活 | rmuc-3d-match.ts advanceTerritories/reviveRobot | 正式（规则子集） | match.test：10%/25%补给回血、完全控制前哨半速、后勤系数、读条10%血量、虚弱/无敌、立即复活扣币和3s恢复、基地低血量4倍读条；费用等级暂为1，功率加成待补，区域为近似；答疑#308 |
-| §5.4.1/5.4.2 金币及允许发弹量 | rmuc-3d-match.ts purchaseAmmo/updateMatch | 近似 | match.test：17mm远程150币/100发、6s延迟、现场10币/10发、队伍上限、哨兵补给区累计免费弹量；42mm、制高点待补 |
+| §5.4.1/5.4.2 金币及允许发弹量 | rmuc-3d-match.ts purchaseAmmo/updateMatch | 近似 | match.test：17mm远程150币/100发、6s延迟、现场10币/10发、队伍上限、哨兵补给区累计免费弹量；42mm远程150币/10发、现场10币/1发、100发队伍上限；制高点待补 |
 | §5.4.3 科技核心能量单元 | — | 未实现 | 装配流程、能量单元检测、收益待补 |
 | §5.6.1 前哨旋转 | rmuc-3d-match.ts outpostTravel/returnToRest | 正式 | match.test、mechanisms.test：起转、同向、停止锁存与复位；具体轨迹为仿真选择；答疑#206 |
 | §5.6.1/5.6.2 表5-20/21 阵地控制与前哨重建 | rmuc-3d-match.ts advanceTerritories/damageTarget | 正式（状态语义） | match.test：5s临时控制、回退、争夺暂停、5s失去临时控制、两条500HP重建路径、反复重建、控制度；答疑#67/85/88/121/192/253/416/443/454（镜像） |
@@ -24,7 +24,7 @@
 | §5.6.4.2/4.4/4.9 阵地防御及易伤 | rmuc-3d-match.ts robotDefense | 近似 | 基地50%、中央25%、堡垒50%/100%易伤；堡垒己方仅首台收益、其他叠加机制待补 |
 | §5.6.3 能量机关 | rmuc-3d-match.ts damageTarget | 近似 | match.test：旧五臂训练增益；尚未实现正式状态、顺序、检测环数、灯光与增益 |
 | §5.6.4.3/4.5/4.6/4.7/4.8 其他增益区 | rmuc-3d-match.ts ammoOffer/advanceTerritories | 近似 | 前哨及补给区维修、弹量兑换已接入；制高点、跨越、装配待补 |
-| §5.7.1 重装装配/42mm | rmuc-3d-match.ts canFire | 未实现 | 未装配禁止射击；不能视作完整重装 |
+| §5.7.1 重装装配/42mm、表5-16 | rmuc-3d-match.ts launcherStatus/installLauncher/fireRound、rmuc-3d-shot.ts | 近似 | 300-M/50-2N/3时间解锁及历史最大差值、试射免热免伤、安装后600HP/300热量/100每秒冷却、前3分钟未安装50%防御；供给区代替精确工作台交互，射击间隔为仿真选择；科技核心三级装配、实际拾取/拆装、速度和丢包检测尚未实现 |
 | §5.7.2 哨兵 | rmuc-3d-match.ts createMatch | 近似 | 半自动初始300弹量及热量参数；补给区每分钟累计免费弹量；其他状态/限制待补 |
 | §5.7.3 飞镖 | — | 未实现 | 开闸、次数、目标、收益待补 |
 | §5.8 单局胜负 | rmuc-3d-match.ts updateMatch | 近似 | match.test：基地击毁、时间/控制度/攻击伤害/机器人血量顺序；总剩余血量定义、正式各伤害来源待核查 |
