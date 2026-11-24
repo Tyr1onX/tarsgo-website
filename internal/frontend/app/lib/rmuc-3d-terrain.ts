@@ -93,7 +93,14 @@ export function supportedHeight(terrain: Pick<ArenaTerrain, "heightAt">, x: numb
   if (!insideField(x, z, radius)) return null;
   const heights = SAMPLES.map(([dx, dz]) => terrain.heightAt(x + radius * dx, z + radius * dz));
   const low = Math.min(...heights), high = Math.max(...heights);
-  if (!Number.isFinite(low) || high - low > step || high - previousY > step || previousY - low > step) return null;
+  // Three measured ~0.2m stair risers at the highpoint approach.
+  // A rigid single-plane footprint cannot straddle two of these risers.
+  // Only the stair strip permits articulated support; center motion still
+  // obeys the existing step limit and the surrounding walls remain blocked.
+  const stair=Math.abs(x)>=10.35&&Math.abs(x)<=12.05&&Math.abs(z-Math.sign(x)*4.65)<=.5;
+  if (!Number.isFinite(low)) return null;
+  if(stair&&step>=.20&&high-low<=.75&&Math.abs(heights[0]-previousY)<=step)return heights[0];
+  if (high - low > step || high - previousY > step || previousY - low > step) return null;
   return heights[0];
 }
 

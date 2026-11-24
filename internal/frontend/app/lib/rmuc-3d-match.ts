@@ -1,5 +1,5 @@
 import type { Team, MechanismPose } from "./rmuc-3d-mechanisms.ts";
-import { ARENA_ZONES, zonesAtPosition, type ArenaPosition, type ZoneId } from "./rmuc-3d-zones.ts";
+import { ARENA_ZONES, zonesAtPosition, crossingContacts, type CrossingContact, type ArenaPosition, type ZoneId } from "./rmuc-3d-zones.ts";
 export type { Team };
 export const MATCH_DURATION = 420;
 const teams = ["red", "blue"] as const;
@@ -22,7 +22,11 @@ type SentryStance = {mode:SentryMode; enhanced:boolean; switchedAt:number; ticks
 const stanceTicks=():Record<SentryMode,number>=>({attack:0,defense:0,move:0});
 export type InfantryPerformance={chassis:"hp"|"power";launcher:"cooling"|"burst"};
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:false|"cooling"|"permanent"; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
+type TerrainKind="road"|"highland"|"over"|"through";
+type TerrainBuff={until:number;disabledUntil:number};
+type TerrainState={seen:string[];attempt:(CrossingContact&{tick:number;inside:boolean})|null;first:("road"|"highland"|"tunnel"|"highpoint")[];roadAt:number;effects:Partial<Record<TerrainKind,TerrainBuff>>;combinedUntil:number};
+const terrainState=():TerrainState=>({seen:[],attempt:null,first:[],roadAt:-150,effects:{},combinedUntil:0});
+export type MatchRobot = RobotSpec & { terrain:TerrainState; hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:false|"cooling"|"permanent"; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
 export type EnergySpawn = {id:string; team:Team; position:ArenaPosition};
 export type EnergyUnit = {id:string; team:Team; location:
   | {kind:"rack"|"ground";position:ArenaPosition}
@@ -57,7 +61,7 @@ export type Match = { coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; en
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({armor:armor(),dart:dart(),blindUntil:0,runeDisabledUntil:0,baseZoneUntil:0,outpostZoneUntil:0,tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,terrain:terrainState(),hp:r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -178,12 +182,12 @@ export function startMatch(match: Match) {
 }
 // RMUC 2027 V1.0.0: §3.1, §5.1.3, §5.4.2, table 5-7 and table 5-18.
 // Infantry: level 1 cooling-priority; controllable sentry: semi-automatic.
-// Heavy timed fallback per §5.7.1; physical technology-core assembly is not yet bound.
+// Heavy timed fallback per §5.7.1 complements the technology-core assembly.
 const weak=(r:MatchRobot)=>r.revival?.state==="revived"&&r.revival.weak;
 const logistics=(match:Match,team:Team)=>1-(10000-match.sides[team].base)/20000;
 const inSupply=(match:Match,r:MatchRobot)=>activeZone(match,r,`${r.team}-supply`);
 const ownOutpost=(match:Match,r:MatchRobot)=>teams.some(t=>controlsOutpost(match,t,r.team,true)&&activeZone(match,r,`${t}-outpost`));
-const canUseLocalSupply=(match:Match,r:MatchRobot)=>inSupply(match,r)||ownOutpost(match,r)||activeZone(match,r,`${r.team}-base`);
+const canUseLocalSupply=(match:Match,r:MatchRobot)=>inSupply(match,r)||ownOutpost(match,r)||activeZone(match,r,`${r.team}-base`)||activeZone(match,r,`${r.team}-highpoint`);
 export function ammoOffer(match:Match,robot:MatchRobot){
   const side=match.sides[robot.team],local=canUseLocalSupply(match,robot);
   const count=robot.heavy?(local?1:10):(local?10:100),cost=local?10:150;
@@ -456,11 +460,59 @@ export function reserveAmmo(match:Match,r:MatchRobot){
   const side=match.sides[r.team];
   return fortressActive(match,r)?Math.floor(Math.max(0,Math.min(500,100+Math.floor(fortressLoss(side)/15))-side.fortressSpent)/(r.heavy?10:1)):0;
 }
-function coolingRate(match:Match,r:MatchRobot){
+// §5.6.4.3–5, Table 5-14. Entry sequence, not destination arrival.
+function terrainXp(m:Match,r:MatchRobot,kind:TerrainState["first"][number]){
+  if(r.terrain.first.includes(kind))return;
+  r.terrain.first.push(kind);gainXp(m,r,300);
+}
+function grantTerrain(m:Match,r:MatchRobot,kind:TerrainKind,tick:number){
+  const t=r.terrain;
+  if(kind==="road"&&tick<t.roadAt+150)return;
+  if(kind==="road")t.roadAt=tick;
+  const duration=kind==="road"?50:kind==="through"?1200:300;
+  const others=Object.entries(t.effects).filter(([k,v])=>k!==kind&&v.until>tick&&v.disabledUntil<=tick);
+  const priorDefense=Math.max(0,...Object.entries(t.effects).filter(([k,v])=>k!=="through"&&v.until>tick&&v.disabledUntil<=tick).map(([,v])=>v.until));
+  t.effects[kind]={until:tick+duration,disabledUntil:0};
+  if(others.length)t.combinedUntil=Math.max(t.combinedUntil,priorDefense,kind==="through"?0:tick+duration);
+  terrainXp(m,r,kind==="over"||kind==="through"?"tunnel":kind);
+}
+export function terrainStatus(m:Match,r:MatchRobot,tick=Math.floor((m.elapsed+1e-8)*10)){
+  const t=r.terrain;
+  const active=Object.entries(t.effects).filter(([,v])=>v.until>tick&&v.disabledUntil<=tick);
+  const defense=active.some(([k])=>k!=="through")?(t.combinedUntil>tick?.5:.25):0;
+  return {defense,cooling:active.some(([k])=>k==="through")?1.5:1,first:[...t.first],highpoint:activeZone(m,r,`${r.team}-highpoint`),active:active.map(([k])=>k)};
+}
+function advanceCrossing(m:Match,r:MatchRobot,tick:number,zones:readonly ZoneId[],contacts:readonly CrossingContact[]){
+  const t=r.terrain;
+  if(r.hp<=0||weak(r)){t.attempt=null;t.seen=[];return;}
+  const keys=contacts.map(c=>c.course+":"+c.part);
+  const entered=contacts.filter(c=>!t.seen.includes(c.course+":"+c.part));
+  t.seen=keys;
+  if(t.attempt&&tick-t.attempt.tick>(t.attempt.kind==="highland"?50:30))t.attempt=null;
+  // An unrelated detected card interrupts the current sequence.
+  if(zones.some(z=>!contacts.some(c=>c.kind==="highland"&&c.part==="high"&&z===c.course.replace("-highland","-central")))){
+    t.attempt=null;return;
+  }
+  if(contacts.length>1){t.attempt=null;return;}
+  for(const c of entered){
+    const a=t.attempt;
+    if(a&&a.course===c.course){
+      if(a.kind==="tunnel"&&c.part==="inside"){a.inside=true;continue;}
+      if(a.kind==="tunnel"&&((a.part==="a"&&c.part==="b")||(a.part==="b"&&c.part==="a"))){
+        grantTerrain(m,r,a.inside?"through":"over",tick);t.attempt=null;continue;
+      }
+      if(a.kind!=="tunnel"&&a.part==="low"&&c.part==="high"){
+        grantTerrain(m,r,a.kind,tick);t.attempt=null;continue;
+      }
+    }
+    t.attempt=c.part==="low"||c.part==="a"||c.part==="b"?{...c,tick,inside:false}:null;
+  }
+}
+function coolingRate(match:Match,r:MatchRobot,tick:number){
   const side=match.sides[r.team];
   const s=r.stance;
   const stanceCooling=s?.mode==="attack"?s.ticks.attack>1800?2:3:1;
-  const boosted=Math.max(r.cooling*(side.runeDisabledUntil>match.elapsed?1:side.rune.cooling),r.cooling*stanceCooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
+  const boosted=Math.max(r.cooling*(r.terrain.effects.through&&r.terrain.effects.through.until>tick&&r.terrain.effects.through.disabledUntil<=tick?1.5:1),r.cooling*(side.runeDisabledUntil>match.elapsed?1:side.rune.cooling),r.cooling*stanceCooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
   return s&&s.mode!=="attack"?Math.round(boosted/3):boosted;
 }
 export function canFire(match:Match,robot:MatchRobot) {
@@ -536,7 +588,8 @@ function robotDefense(match:Match,robot:MatchRobot) {
   if(stance?.mode==="defense")defense=Math.max(defense,stance.enhanced?.99:stance.ticks.defense>1800?.25:.5);
   const stanceVulnerability=stance&&stance.mode!=="defense"?.25:0;
   if(weak(robot))return 1-defense+stanceVulnerability;
-  if(activeZone(match,robot,`${robot.team}-base`))defense=Math.max(defense,.5);
+  defense=Math.max(defense,terrainStatus(match,robot).defense);
+  if(activeZone(match,robot,`${robot.team}-base`)||activeZone(match,robot,`${robot.team}-highpoint`))defense=Math.max(defense,.5);
   if(teams.some(t=>activeZone(match,robot,`${t}-central`)))defense=Math.max(defense,.25);
   if(fortressActive(match,robot))defense=Math.max(defense,.5);
   const vulnerable=activeZone(match,robot,`${opponent(robot.team)}-fortress`)&&!match.sides[opponent(robot.team)].cover;
@@ -551,6 +604,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   for(const zone of ARENA_ZONES){
     if(!zoneEnabled(match,zone.id,tick/10))continue;
     const candidates=match.robots.filter(r=>r.hp>0&&raw.get(r.id)?.includes(zone.id)&&
+      (zone.kind!=="highpoint"||r.team===zone.team)&&
       (zone.kind!=="assembly"||r.heavy&&r.team===zone.team)&&
       (zone.kind!=="fortress"||r.team===zone.team||(tick>=1800&&controlsOutpost(match,zone.team,r.team))));
     if(zone.kind==="central"){
@@ -578,6 +632,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
       if(!revival.weak&&tick>=revival.immuneUntil)r.revival=null;
     }
     if(weak(r))continue;
+    if(active(r,`${r.team}-highpoint`))terrainXp(match,r,"highpoint");
     if(r.sentry&&supply){
       const available=Math.floor(tick/600)-r.sentrySupplyMinutes;
       if(available>0){r.ammo+=available*100;r.sentrySupplyMinutes+=available;}
@@ -602,7 +657,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   // steps cannot cool an entire interval using a stale fortress owner.
   for(const r of match.robots){
     advancePower(match,r,tick);
-    r.heat=r.stance?.mode==="attack"&&r.stance.enhanced?0:Math.max(0,r.heat-coolingRate(match,r)/10);
+    r.heat=r.stance?.mode==="attack"&&r.stance.enhanced?0:Math.max(0,r.heat-coolingRate(match,r,tick)/10);
     if(r.heat<1e-8){r.heat=0;if(r.thermalLock!=="permanent")r.thermalLock=false;}
     advanceStance(r);
   }
@@ -715,7 +770,7 @@ function hitRune(m:Match,shooter:MatchRobot,target:Extract<Target,{type:"rune"}>
 }
 
 function killRobot(match:Match,enemy:MatchRobot){
-  markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
+  enemy.terrain.effects={};enemy.terrain.combinedUntil=0;enemy.terrain.attempt=null;enemy.terrain.seen=[];markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
 }
 function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|"base",amount:number){
   const enemy=match.sides[location],side=match.sides[attacker],owner=type==="outpost"?enemy.outpostOwner:location;
@@ -786,9 +841,13 @@ function settleDart(m:Match,team:Team,mode:DartMode){
   damageStructure(m,team,other,"base",({fixed:200,randomFixed:300,randomMoving:800,terminalMoving:1250})[mode]);
   shareXp(m,team,mode==="fixed"?200:mode==="randomFixed"?600:2500);
   if(mode==="randomFixed"&&enemy.rune.activatedUntil>t)enemy.runeDisabledUntil=Math.min(enemy.rune.activatedUntil,Math.max(t,enemy.runeDisabledUntil)+blind);
+  if(mode==="randomFixed"){
+    for(const r of m.robots)if(r.team===other)for(const effect of Object.values(r.terrain.effects))if(effect.until>t*10)effect.disabledUntil=Math.min(effect.until,Math.max(t*10,effect.disabledUntil)+blind*10);
+  }
   if(mobileDart(mode)){
     enemy.rune.activatedUntil=0;enemy.rune.attack=1;enemy.rune.defense=0;enemy.rune.cooling=1;enemy.rune.xpBonusRemaining=0;
     for(const r of m.robots)if(r.team===other&&r.hp>0){
+      r.terrain.effects={};r.terrain.combinedUntil=0;
       const amount=Math.min(r.hp,Math.round(r.maxHp*(mode==="terminalMoving"?.5:.2)));
       r.hp-=amount;side.damage+=amount;r.lastCombat=t;if(r.hp===0)killRobot(m,r);
     }
@@ -932,8 +991,9 @@ function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPo
   const coverOpened:Partial<Record<Team,number>>={};
   if(coolingTicks>0){
     const raw=new Map([...positions].map(([id,p])=>[id,zonesAtPosition(p)]));
+    const crossings=new Map([...positions].map(([id,p])=>[id,crossingContacts(p,raw.get(id)??[])]));
     const first=Math.floor((before+1e-8)*10)+1;
-    for(let tick=first;tick<first+coolingTicks;tick++){advanceTerritories(match,tick,raw,coverOpened);advanceTechnology(match,tick/10,positions);}
+    for(let tick=first;tick<first+coolingTicks;tick++){for(const r of match.robots)advanceCrossing(match,r,tick,raw.get(r.id)??[],crossings.get(r.id)??[]);advanceTerritories(match,tick,raw,coverOpened);advanceTechnology(match,tick/10,positions);}
   }
   advanceDarts(match);
   for(const team of teams){
