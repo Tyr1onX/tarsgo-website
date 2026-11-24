@@ -456,3 +456,20 @@ test("sentry enhanced budgets are separate, cumulative and automatically expire"
  assert.equal(sentryStatus(m,r).enhanced,false);assert.equal(sentryStatus(m,r).remaining.attack,0);
  assert.ok(fireRound(m,"s"));assert.equal(r.heat,10);updateMatch(m,1);assert.equal(r.heat,0);
 });
+
+test("sentry death pauses stance budget, revival preserves it, new round resets it",()=>{
+ const specs=[...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}];
+ const m=createMatch(specs,1,1),r=m.robots[2],b=m.robots[1];startMatch(m);
+ assert.ok(switchSentry(m,"s","attack",true));updateMatch(m,5);
+ for(let i=0;i<10&&r.hp>0;i++)damageTarget(m,b,{type:"robot",id:"s"});
+ assert.equal(r.hp,0);assert.equal(sentryStatus(m,r).remaining.attack,10);
+ assert.equal(switchSentry(m,"s","move"),false);
+ updateMatch(m,20);assert.equal(sentryStatus(m,r).remaining.attack,10);
+ assert.ok(reviveRobot(m,"s",true));updateMatch(m,3);
+ assert.equal(sentryStatus(m,r).remaining.attack,7);
+ assert.ok(fireRound(m,"s"));assert.equal(r.heat,0);
+ updateMatch(m,7);assert.equal(sentryStatus(m,r).enhanced,false);
+ const reset=createMatch(specs),fresh=reset.robots[2];
+ assert.equal(sentryStatus(reset,fresh).mode,"move");assert.equal(powerLimit(reset,fresh),90);
+ assert.deepEqual(sentryStatus(reset,fresh).remaining,{attack:15,defense:15,move:15});
+});
