@@ -1,8 +1,8 @@
 import * as THREE from "three";
 
 export const MECHANISM_ASSET = {
-  url: "/assets/pixel-jijia/rmuc-mechanisms-f3f225cb.glb.gz",
-  sha256: "f3f225cbc095a28cb4b1d160aa61b74424f542a7e4e64a8cbc9fcbdc270bdc0f",
+  url: "/assets/pixel-jijia/rmuc-mechanisms-eb1f219d.glb.gz",
+  sha256: "eb1f219d0d1d694ceef3087ff98d8d5440003cee68c59088330a5beb6414f3f7",
 } as const;
 export type Team = "red" | "blue";
 export const TEAMS = ["red", "blue"] as const;
@@ -56,7 +56,8 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
   });
   const runeAxis = new THREE.Vector3(.9355854080889134, -.35310047319580506, 0);
   const rotorAxis = new THREE.Vector3(0, 1, 0);
-  for (const [i, rotor] of rotors.entries()) rotor.userData.target = { type: "outpost", team: TEAMS[i] };
+  for (const team of TEAMS) for (let i = 0; i < 3; i++)
+    find(team + "-outpost-module-" + i).userData.target = { type: "outpost", team };
   for (const [bankIndex, bank] of ["a","b"].entries()) for(let i=0;i<5;i++)
     find("rune-arm-"+bank+"-"+i).userData.target={type:"rune",arm:bankIndex*5+i};
   for(const team of TEAMS) find(team+"-base-assembly").userData.target={type:"base",team};
