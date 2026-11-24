@@ -30,13 +30,13 @@ export function frameArena(camera: THREE.PerspectiveCamera, view: TacticalView, 
   return target;
 }
 
-// Keep the follow camera on the inner side of the visible arena barrier.
-export function clampFollowCamera(from: THREE.Vector3, desired: THREE.Vector3, halfX: number, halfZ: number) {
-  const delta = desired.clone().sub(from);
-  let t = 1;
-  for (const [axis, limit] of [["x",halfX],["z",halfZ]] as const) {
-    if (delta[axis] > 0) t = Math.min(t,(limit-from[axis])/delta[axis]);
-    else if (delta[axis] < 0) t = Math.min(t,(-limit-from[axis])/delta[axis]);
-  }
-  return desired.copy(from).addScaledVector(delta,THREE.MathUtils.clamp(t,0,1));
+export type LookAngles = { yaw: number; pitch: number };
+
+export function turnView(look: LookAngles, dx: number, dy: number): LookAngles {
+  return { yaw: look.yaw - dx * .0035, pitch: THREE.MathUtils.clamp(look.pitch - dy * .0035, -1.4, 1.4) };
+}
+
+export function lookDirection(look: LookAngles, target = new THREE.Vector3()) {
+  const { yaw, pitch } = look;
+  return target.set(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
 }

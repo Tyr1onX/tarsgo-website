@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as THREE from "three";
-import { frameArena, clampFollowCamera } from "./rmuc-3d-camera.ts";
+import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera.ts";
 import { ROBOT_PREVIEWS, createRobotPreview } from "./rmuc-3d-robots.ts";
+import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium.ts";
 
 test("all four tactical presets frame the requested field on desktop and portrait screens", () => {
   const box = new THREE.Box3(new THREE.Vector3(-14,0,-8),new THREE.Vector3(14,3.8,8));
@@ -20,12 +21,14 @@ test("all four tactical presets frame the requested field on desktop and portrai
   }
 });
 
-test("follow camera cannot leave the inner physical field", () => {
-  const start=new THREE.Vector3(13,.9,7);
-  const result=clampFollowCamera(start,new THREE.Vector3(17,2,11),13.88,7.38);
-  assert.ok(result.x<=13.88 && result.z<=7.38+1e-8);
-  assert.ok(result.distanceTo(start)>0);
-  assert.deepEqual(clampFollowCamera(start,new THREE.Vector3(10,2,6),13.88,7.38).toArray(),[10,2,6]);
+test("look turns horizontally and vertically without moving the observer", () => {
+  const initial = { yaw: 0, pitch: 0 };
+  assert.deepEqual(lookDirection(initial).toArray(), [-0,0,-1]);
+  const right = turnView(initial, Math.PI / .007, 0);
+  assert.ok(lookDirection(right).distanceTo(new THREE.Vector3(1,0,0)) < 1e-9);
+  assert.ok(lookDirection(turnView(initial, 0, -180)).y > .5);
+  assert.equal(turnView(initial, 0, 1e5).pitch, -1.4);
+  assert.deepEqual(initial, { yaw: 0, pitch: 0 });
 });
 
 test("every driveable model has a camera mount attached to its rotating gimbal", () => {
@@ -41,4 +44,16 @@ test("every driveable model has a camera mount attached to its rotating gimbal",
     assert.ok(before.distanceTo(after)>.05,entry.id);
     assert.ok(Math.abs(before.y-after.y)<1e-6,entry.id);
   }
+});
+
+test("stadium adds high and spacious red-blue stands with bounded instance draw calls", () => {
+  const stadium = createStadium();
+  stadium.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(stadium);
+  const size = bounds.getSize(new THREE.Vector3());
+  assert.ok(size.x >= STADIUM_WIDTH && size.z >= STADIUM_DEPTH && size.y >= 15);
+  const instances = stadium.children.filter(child => child.isInstancedMesh);
+  assert.ok(instances.length <= 10);
+  assert.ok(instances.some(mesh => mesh.material.color.getHex() === 0x63323b));
+  assert.ok(instances.some(mesh => mesh.material.color.getHex() === 0x304a73));
 });
