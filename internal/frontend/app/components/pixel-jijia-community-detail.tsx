@@ -91,13 +91,25 @@ function Drive({ returnTo }: { returnTo: string }) {
   </div>;
 }
 
+function ArchiveImage({ src, alt }: { src: string; alt: string }) {
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  return <div className="pixel-community-archive-image">
+    {status !== "error" && <img src={src} alt={alt} loading="eager"
+      style={{ visibility: status === "ready" ? "visible" : "hidden" }}
+      onLoad={event => { void event.currentTarget.decode().then(() => setStatus("ready"), () => setStatus("error")); }}
+      onError={() => setStatus("error")} />}
+    {status === "loading" && <span role="status">档案加载中…</span>}
+    {status === "error" && <span role="status">档案图片暂不可用</span>}
+  </div>;
+}
+
 const historyPages = [...robotSeasons].reverse();
 function Memoir() {
   const [page, setPage] = useState(0);
   const season = historyPages[page], robot = season.robots[0];
   return <div className="pixel-community-interaction pixel-community-history">
     <strong>{season.title}</strong>
-    <img src={robot.image.thumbnail} alt={`${season.season} 赛季 · ${robot.name}`} loading="lazy" />
+    <ArchiveImage key={robot.image.thumbnail} src={robot.image.thumbnail} alt={`${season.season} 赛季 · ${robot.name}`} />
     <p>{robot.name} · 官网公开定妆照</p>
     <div className="pixel-community-controls" role="group" aria-label="回忆录翻页">
       <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>上一页</button>
@@ -111,8 +123,10 @@ function Memoir() {
 }
 function Memory() {
   return <div className="pixel-community-interaction pixel-community-history">
-    <img src="/assets/images/Milestone/2024-national-competition.webp" alt="RoboMaster 2024 全国赛现场合影" loading="lazy" />
+    <ArchiveImage src="/assets/images/Milestone/2024-national-competition.webp" alt="RoboMaster 2024 全国赛现场合影" />
     <p>2024 · RoboMaster 全国赛现场<br />来自官网公开赛事档案</p>
+    <p>2018 年底 · 战队成立。<br /><a href="https://news.jlu.edu.cn/info/1306/52000.htm" target="_blank" rel="noreferrer">吉林大学新闻网</a></p>
+    <p>2023 · 校内机甲大师赛。<br /><a href="https://cxcyjyxy.jlu.edu.cn/info/1060/1961.htm" target="_blank" rel="noreferrer">吉林大学创新创业教育学院</a></p>
     <Link to="/events-and-honors" className="pixel-world-detail-link">翻阅真实赛事记录 <span aria-hidden="true">↗</span></Link>
   </div>;
 }
@@ -149,15 +163,17 @@ export function CommunityObjectDetail({ object, onSit, sitting, returnTo }: { ob
   const community = object.community!;
   const action = community.interaction;
   const [activated, setActivated] = useState(false);
-  const effects = action === "smoke" || action === "burst" || action === "glow" ? action : undefined;
+  const [laughCount, setLaughCount] = useState(0);
+  const effects = action === "smoke" || action === "burst" || action === "glow" ? action : action === "laugh" && laughCount ? "laugh" : undefined;
   return <>
-    <div className="pixel-community-art"><CommunitySprite id={object.id} label={object.title} effect={effects} /></div>
+    <div className="pixel-community-art"><CommunitySprite key={laughCount} id={object.id} label={object.title} effect={effects} /></div>
     <p>{object.description}</p>
     {action === "cable" && <div className="pixel-community-interaction">
       {!activated ? <button type="button" className="pixel-community-action" onClick={() => setActivated(true)}>连接数据线</button> : <div className="pixel-community-terminal" role="status">供电正常。<br />未识别到数据设备。</div>}
     </div>}
     {action === "terminal" && <div className="pixel-community-terminal" role="status"><span className="pixel-community-typewriter">!!Hello World!!</span></div>}
-    {action === "silverwolf" && <div className="pixel-community-terminal" role="status">隐藏账户<br /><strong>银狼 Lv.999</strong></div>}
+    {action === "silverwolf" && <div className="pixel-community-terminal pixel-community-terminal--wolf" role="status">PLAYER // 银狼 LV.999<br /><strong>GAME NOT OVER</strong><br /><a href="https://sr.mihoyo.com/news/163575?type=news" target="_blank" rel="noreferrer">官方角色 PV</a></div>}
+    {action === "laugh" && <div className="pixel-community-interaction"><button type="button" className="pixel-community-action" onClick={() => setLaughCount(n => n+1)}>捧腹大笑</button>{laughCount>0 && <p role="status">hohohohohohohohohoh</p>}</div>}
     {action === "tools" && <Tools />}
     {action === "assembly" && <Assembly />}
     {action === "drive" && <Drive returnTo={returnTo} />}
