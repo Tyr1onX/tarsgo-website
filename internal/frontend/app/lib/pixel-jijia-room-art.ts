@@ -265,6 +265,45 @@ const LIGHT_POINTS:Record<string,number[][]>={
   models:[[.23,.34,1.5],[.74,.68,2]],planning:[[.5,.20,3],[.50,.65,2]],
   strategy:[[.3,.22,2]],simulation:[[.31,.22,2],[.77,.22,2]],"decor-server":[[.58,.37,1.5]],
 };
+// Registered against the visible interiors of room-props-v3, not object hitboxes.
+const SCREENS:Record<string,readonly number[][]>={
+  cad:[[.10,.09,.80,.35]],screen:[[.10,.09,.80,.35]],
+  oscilloscope:[[.18,.36,.58,.14]],"signal-wall":[[.07,.11,.86,.75]],
+  dataset:[[.15,.09,.10,.21],[.34,.10,.12,.23],[.68,.10,.13,.23]],
+  strategy:[[.15,.17,.24,.20],[.60,.17,.24,.20]],
+  simulation:[[.18,.14,.25,.23]],
+};
+function drawEquipmentDisplay(ctx:CanvasRenderingContext2D,key:string,x:number,y:number,w:number,h:number,time:number){
+  const screens=SCREENS[key];
+  if(!screens)return;
+  const step=Math.floor(time/180),p=painter(ctx);
+  ctx.save();
+  for(const [u,v,a,b] of screens){
+    const left=x+u*w,top=y+v*h,sw=a*w,sh=b*h;
+    ctx.save();ctx.beginPath();ctx.rect(left,top,sw,sh);ctx.clip();
+    if(key==="oscilloscope"||key==="signal-wall"){
+      // Moving waveform on the existing display, retaining its original art.
+      ctx.globalAlpha=.67;
+      const count=Math.min(24,Math.floor(sw/2));
+      for(let i=0;i<count;i++){
+        const yy=top+sh*(.5+.23*Math.sin(i*.72-step*.55));
+        p(left+i*sw/count,yy,Math.max(1,sw/count),1,"#a8e9d7");
+      }
+    }else if(key==="dataset"){
+      const bx=left+sw*(.13+.12*Math.sin(step*.21+u*9)),by=top+sh*.23,bw=sw*.52,bh=sh*.51;
+      ctx.globalAlpha=.58;
+      p(bx,by,bw,1,"#8ce3cd");p(bx,by+bh,bw,1,"#8ce3cd");
+      p(bx,by,1,bh,"#8ce3cd");p(bx+bw,by,1,bh,"#8ce3cd");
+    }else{
+      ctx.globalAlpha=.35;
+      const row=(step+Math.round(u*19))%5;
+      p(left+sw*.15,top+sh*(.16+row*.14),sw*.55,1,"#a4d9f4");
+      p(left+sw*.15,top+sh*.84,sw*(.25+row*.10),1,"#80b5d7");
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
 export function roomObjectVisualBounds(object:RoomObject):Position {
   const b=sprite(object).bounds;
   return {x:(b.x+b.w/2)/TILE,y:b.y/TILE};
@@ -272,7 +311,7 @@ export function roomObjectVisualBounds(object:RoomObject):Position {
 export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt?:number){
   const prepared=sprite(o),b=prepared.bounds;
   const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
-  const phase = motion ? Math.floor(elapsed / 650 + o.x) % prepared.frames.length : 0;
+  const phase = motion ? Math.floor(elapsed / (520+(Math.round(o.x*17+o.y*23)%240)) + o.x+o.y*.7) % prepared.frames.length : 0;
   const age=triggeredAt===undefined ? Infinity : elapsed-triggeredAt;
   const active=age>=0&&age<1500;
   const action=o.community?.interaction;
@@ -300,7 +339,9 @@ export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,c
     }
   }
   if (!motion) return;
-  const points=LIGHT_POINTS[spriteKey(o)];
+  const key=spriteKey(o);
+  drawEquipmentDisplay(ctx,key,x,y,b.w,b.h,elapsed);
+  const points=LIGHT_POINTS[key];
   if(!points)return;
   const p=painter(ctx),t=elapsed/1000;
   ctx.save();

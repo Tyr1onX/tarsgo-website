@@ -1,3 +1,5 @@
+import type { SurfaceWeather } from "./pixel-jijia-climate.ts";
+
 export const TILE = 16;
 export const WORLD_WIDTH = 144;
 export const WORLD_HEIGHT = 96;
@@ -438,29 +440,44 @@ export function clampZoom(zoom: number, viewportWidth: number, viewportHeight: n
   return Math.max(fit, Math.min(3.2, Math.round(zoom * 100) / 100));
 }
 
+// Share the terrain seed between rendering and contact effects.
+export function worldHash(x:number,y:number):number {
+  let n=Math.imul(x+47,374761393)^Math.imul(y+103,668265263);
+  n=Math.imul(n^(n>>>13),1274126177);
+  return (n^(n>>>16))>>>0;
+}
+export function puddleCell(x:number,y:number):boolean {
+  const ground=groundAt(x,y);
+  return (ground===1||ground===2)&&worldHash(x,y)%49===0&&!shelteredAt(x+.5,y+9/TILE);
+}
+export function puddleAt(x:number,y:number):boolean {
+  const cx=Math.floor(x),cy=Math.floor(y),dx=Math.abs((x-cx)*TILE-8),dy=Math.abs((y-cy)*TILE-9);
+  return ((dx<=5&&dy<=2)||(dx<=3&&dy<=3))&&puddleCell(cx,cy);
+}
+
 // A single terrain trail follows actual movement, never the held key.
 export type SurfaceMark = Position & {
-  kind: "water" | "snow"; angle: number; age: number; ttl: number; depth: 0 | 1 | 2;
+  kind: "water" | "snow" | "puddle"; angle: number; age: number; ttl: number; depth: 0 | 1 | 2;
 };
 export function advanceSurfaceTrail(marks: SurfaceMark[], previous: Position, current: Position,
-  dt: number, snow: number, motion: boolean): void {
+  dt: number, surface: SurfaceWeather, motion: boolean): void {
   for (let i = marks.length - 1; i >= 0; i--) {
     const mark = marks[i];
     mark.age += dt;
-    if (!motion || mark.age >= mark.ttl || (mark.kind === "snow" && snow < .12)) marks.splice(i, 1);
+    if (!motion || mark.age >= mark.ttl || (mark.kind === "snow" && surface.snow < .12) || (mark.kind === "puddle" && surface.wet < .12)) marks.splice(i, 1);
   }
   const dx = current.x - previous.x, dy = current.y - previous.y;
   if (!motion || Math.hypot(dx, dy) < .001) return;
   const depth = waterDepthAt(current.x, current.y);
-  const kind = depth ? "water" : snow >= .25 ? "snow" : null;
+  const kind = depth ? "water" : surface.snow >= .25 ? "snow" : surface.wet >= .22 && puddleAt(current.x,current.y) ? "puddle" : null;
   if (!kind) return;
   let last: SurfaceMark | undefined;
   for (let i = marks.length - 1; i >= 0; i--) {
     if (marks[i].kind === kind) { last = marks[i]; break; }
   }
-  if (last && Math.hypot(last.x - current.x, last.y - current.y) < (depth ? .32 : .65)) return;
+  if (last && Math.hypot(last.x - current.x, last.y - current.y) < (kind === "snow" ? .65 : .32)) return;
   if (marks.length >= 96) marks.shift();
-  marks.push({ ...current, kind, angle: Math.atan2(dy, dx), age: 0, ttl: depth ? 1.25 : 16, depth });
+  marks.push({ ...current, kind, angle: Math.atan2(dy, dx), age: 0, ttl: kind === "snow" ? 16 : kind === "water" ? 1.25 : .65, depth });
 }
 
 // All scene layers must use the same whole-pixel camera offset per frame.

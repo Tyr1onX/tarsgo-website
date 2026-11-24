@@ -265,6 +265,10 @@ def authored(direction,action,frame):
         p=blank();swim_body(p,direction,frame,action=="swim-turn");return p
     if action=="idle":
         p=[r[:] for r in original(direction,0)]
+        # One-pixel breathing in the head and upper torso; feet stay anchored.
+        if frame in (1,2):
+            for y in range(0,34):
+                p[y]=p[y+1][:]
         # Brief eyelid closure on the original face; leave hair and clothing intact.
         if frame==5 and direction!="up":
             xs=range(13,16) if direction=="left" else range(24,27) if direction=="right" else list(range(14,17))+list(range(23,26))

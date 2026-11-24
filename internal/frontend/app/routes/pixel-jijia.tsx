@@ -17,7 +17,7 @@ import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jiji
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
-import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
+import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, advanceWind, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import roomPropsUrl from "../assets/pixel-jijia/room-props-v3.png?url";
@@ -78,6 +78,7 @@ export default function PixelJijiaPage() {
   const terrainRef = useRef<Terrain | null>(null);
   const wildlifeRef = useRef<Animal[]>([]);
   const surfaceRef=useRef<SurfaceWeather>({wet:0,snow:0});
+  const windRef=useRef(0);
   const trailRef = useRef<SurfaceMark[]>([]);
   const castRef = useRef<FishingCast | null>(null);
   const poseRef=useRef<ExplorerAnimation>(initialExplorerAnimation);
@@ -732,7 +733,7 @@ export default function PixelJijiaPage() {
     let frame = 0, lastTime = 0, traveled = 0, lastMini = 0;
     let lastDust = 0, lastFountain = 0, lastPetal = 0, lastWeather = 0;
     const particles: PixelParticle[] = [];
-    const cherryTrees = SCENERY.filter((item) => item.sprite === "cherry");
+    const leafTrees = SCENERY.filter(item => item.sprite === "cherry" || item.sprite === "oak" || item.sprite === "lime_tree");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const emit = (particle: PixelParticle) => { if (particles.length < 72) particles.push(particle); };
 
@@ -764,6 +765,7 @@ export default function PixelJijiaPage() {
     const tick = (time: number) => {
       const climate = climateRef.current;
       const dt = lastTime ? Math.min((time - lastTime) / 1000, 0.05) : 0;
+      const wind = windRef.current = reducedMotion.matches ? 0 : advanceWind(windRef.current,climate?.weather??null,time,dt);
       lastTime = time;
       surfaceRef.current=advanceSurface(surfaceRef.current,climate?.weather??null,climate?.temperature??null,dt);
       const held = (dir: Direction) => Number(keysRef.current.has(dir));
@@ -822,11 +824,11 @@ export default function PixelJijiaPage() {
           pose, cameraRef.current,
           time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current);
       } else {
-        advanceSurfaceTrail(trailRef.current, previous, playerRef.current, dt, surfaceRef.current.snow, !reducedMotion.matches);
+        advanceSurfaceTrail(trailRef.current, previous, playerRef.current, dt, surfaceRef.current, !reducedMotion.matches);
         updateWildlife(wildlifeRef.current,playerRef.current,dt,climate?.hour??12,climate?.weather??null,!reducedMotion.matches,castRef.current);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
-          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current);
+          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind);
       }
 
       if (reducedMotion.matches || room) {
@@ -847,29 +849,34 @@ export default function PixelJijiaPage() {
             vy: -14, age: 0, ttl: 0.58, color: "#a8effa", size: 2 });
           lastFountain = time;
         }
-        if (climate?.season === "spring" && climate.weather !== "rain" && climate.weather !== "storm" && time - lastPetal > 560) {
+        if ((climate?.season === "spring" || climate?.season === "autumn") &&
+            climate.weather !== "rain" && climate.weather !== "storm" && climate.weather !== "snow" &&
+            time - lastPetal > (climate.season==="spring"?560:840)/(1+Math.abs(wind)*.035)) {
           lastPetal = time;
-          const tree = cherryTrees.find((item) =>
-            Math.hypot(playerRef.current.x - item.x, playerRef.current.y - item.y) < 16);
+          const autumn=climate.season==="autumn";
+          const trees=leafTrees.filter(item=>(autumn||item.sprite==="cherry")&&
+            item.x*TILE>=cameraRef.current.x-32&&item.x*TILE<=cameraRef.current.x+viewWidth+32&&
+            item.y*TILE-item.height>=cameraRef.current.y-32&&item.y*TILE-item.height<=cameraRef.current.y+viewHeight);
+          const tree=trees[Math.floor(Math.random()*trees.length)];
           if (tree) {
-            emit({ x: tree.x * TILE + (Math.random() - 0.5) * 48,
-              y: tree.y * TILE - 68, vx: 9, vy: 12,
-              age: 0, ttl: 2.1, color: "#f7b6ce", size: 3 });
+            emit({ x: tree.x*TILE+(Math.random()-.5)*tree.width*.6,
+              y: tree.y*TILE-tree.height*(.55+Math.random()*.35), vx:(Math.random()-.5)*7, vy:8+Math.random()*8,
+              age:0, ttl:2+Math.random()*2, color:autumn?(Math.random()<.5?"#c28c46":"#dfb761"):"#f7b6ce",size:2,wind:1 });
           }
         }
         if (climate && (climate.weather === "rain" || climate.weather === "storm" || climate.weather === "snow") &&
             time - lastWeather > (climate.weather === "snow" ? 150 : climate.weather === "storm" ? 38 : 65)) {
           const snow = climate.weather === "snow";
           emit({ x: cameraRef.current.x + Math.random() * viewWidth,
-            y: cameraRef.current.y + Math.random() * viewHeight - 24, vx: snow ? 4 : -20,
-            vy: snow ? 24 : 140, age: 0, ttl: snow ? 4 : 1.4,
-            color: snow ? "#f4f7ed" : "#a3d3e0", size: snow ? 2 : 1, height: snow ? 2 : 8,rain:!snow });
+            y: cameraRef.current.y + Math.random() * viewHeight - 24, vx: (Math.random()-.5)*(snow?12:7),
+            vy: snow ? 16+Math.random()*20 : 120+Math.random()*55, age: 0, ttl: snow ? 3+Math.random()*2 : 1.4,
+            color: snow ? "#f4f7ed" : "#a3d3e0", size: snow ? (Math.random()<.35?1:2) : 1, height: snow ? undefined : 6+Math.floor(Math.random()*5),rain:!snow,wind:snow?1.1:.9 });
           lastWeather = time;
         }
         for (let index = particles.length - 1; index >= 0; index--) {
           const particle = particles[index];
           particle.age += dt;
-          particle.x += particle.vx * dt;
+          particle.x += (particle.vx+wind*(particle.wind??0))*dt;
           particle.y += particle.vy * dt;
           if (particle.age >= particle.ttl) particles.splice(index, 1);
         }
