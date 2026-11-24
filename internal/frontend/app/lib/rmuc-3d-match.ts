@@ -415,8 +415,8 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   const enemy=match.sides[target.team];
   const owner=target.type==="outpost"?enemy.outpostOwner:target.team;
   if(owner===shooter.team)return 0;
-  // The remaining whole-base hit tag is a training approximation; do not
-  // allow shots through closed housing until the source detectors are bound.
+  // Base damage is available to the referee only after the protection
+  // conditions are satisfied. Physical base detector binding is pending.
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
   const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*side.rune.attack*(1-match.sides[owner].rune.defense)));
   enemy[target.type]-=amount;side.damage+=amount;
