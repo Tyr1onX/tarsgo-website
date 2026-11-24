@@ -1262,6 +1262,7 @@ html[data-theme-transition] :is(
 .home-visual-card--arena { background: #26394c; }
 .home-visual-card--community { background: #192823; }
 .home-visual-card--salon { background: #1a201d; }
+.home-visual-card--design-lab { grid-column: 1 / -1; grid-row: auto; min-height: 12rem; }
 
 .home-visual-card-preview {
   position: absolute;

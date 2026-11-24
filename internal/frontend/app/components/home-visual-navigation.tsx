@@ -116,6 +116,14 @@ const homeNavigationModules: HomeNavigationModule[] = [
     placement: "home-visual-card--events",
   },
   {
+    title: "设计实验室",
+    description: "从共同的结构出发，生长出不同的可能。",
+    href: "/design-lab",
+    image: "/assets/images/ContestMoment/contest-moment-04.webp",
+    alt: "吉甲大师团队的真实比赛现场",
+    placement: "home-visual-card--design-lab",
+  },
+  {
     title: "团队历程",
     description: "沿着 2018—2026 年真实资料，回看战队与平台的接力。",
     href: "/team-history",
