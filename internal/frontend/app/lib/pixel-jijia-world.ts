@@ -30,7 +30,7 @@ export const PLACES: Place[] = [
 // One scene specification controls terrain, illustration, and physical obstacles.
 // Art direction: 16px terrain units, 3/4 overhead sprites, upper-left daylight,
 // warm limestone + sage greens, decorative silhouettes clear of walking routes.
-export type GroundArea = { kind: 0 | 1 | 2 | 3; x: number; y: number; width: number; height: number; recreation?: true };
+export type GroundArea = { kind: 0 | 1 | 2 | 3; x: number; y: number; width: number; height: number; shore?: "natural" };
 export const GROUND_AREAS: GroundArea[] = [
   // Outer walking loop + quieter branches, linked to all six existing buildings.
   { kind: 1, x: 16, y: 13, width: 112, height: 6 },
@@ -43,14 +43,14 @@ export const GROUND_AREAS: GroundArea[] = [
   { kind: 1, x: 86, y: 64, width: 6, height: 20 },
   { kind: 1, x: 18, y: 46, width: 108, height: 6 },
   // Small authored clearings make the outer walk worth taking.
-  { kind: 2, x: 17, y: 8, width: 20, height: 11 },
-  { kind: 2, x: 106, y: 8, width: 21, height: 11 },
-  { kind: 2, x: 16, y: 77, width: 24, height: 11 },
-  { kind: 2, x: 109, y: 73, width: 20, height: 14 },
-  { kind: 2, x: 3, y: 54, width: 12, height: 15 },
-  { kind: 3, x: 4, y: 55, width: 10, height: 13, recreation: true },
-  { kind: 2, x: 130, y: 25, width: 11, height: 14 },
-  { kind: 3, x: 131, y: 26, width: 9, height: 12, recreation: true },
+  { kind: 2, x: 20, y: 8, width: 13, height: 6 },
+  { kind: 2, x: 109, y: 8, width: 13, height: 6 },
+  { kind: 2, x: 23, y: 80, width: 13, height: 8 },
+  { kind: 2, x: 114, y: 73, width: 10, height: 8 },
+  { kind: 1, x: 14, y: 59, width: 4, height: 4 },
+  { kind: 3, x: 4, y: 55, width: 10, height: 13, shore: "natural" },
+  { kind: 1, x: 127, y: 30, width: 4, height: 4 },
+  { kind: 3, x: 131, y: 26, width: 9, height: 12, shore: "natural" },
   { kind: 1, x: 24, y: 45, width: 96, height: 7 },
   { kind: 1, x: 69, y: 33, width: 7, height: 46 },
   { kind: 1, x: 42, y: 36, width: 7, height: 31 },
@@ -64,26 +64,33 @@ export const GROUND_AREAS: GroundArea[] = [
   { kind: 3, x: 108, y: 45, width: 9, height: 7 },
 ];
 
-// Material is resolved once, in paint order. All users query the same cells.
+// The authored area is the only source of terrain. The natural pond's
+// stepped corners are cells of grass, not a visual mask over invisible water.
+export const PONDS = GROUND_AREAS.filter(area => area.kind === 3);
 const materials = new Uint8Array(WORLD_WIDTH * WORLD_HEIGHT);
 for (const area of GROUND_AREAS) {
-  for (let y = area.y; y < area.y + area.height; y++)
-    for (let x = area.x; x < area.x + area.width; x++)
-      materials[y * WORLD_WIDTH + x] = area.recreation ? 4 : area.kind;
-}
-function cellAt(x: number, y: number): number {
-  const cx = Math.floor(x), cy = Math.floor(y);
-  return cx >= 0 && cx < WORLD_WIDTH && cy >= 0 && cy < WORLD_HEIGHT
-    ? materials[cy * WORLD_WIDTH + cx] : 0;
+  for (let y = area.y; y < area.y + area.height; y++) {
+    for (let x = area.x; x < area.x + area.width; x++) {
+      if (area.shore === "natural") {
+        const edgeX = Math.min(x - area.x, area.x + area.width - 1 - x);
+        const edgeY = Math.min(y - area.y, area.y + area.height - 1 - y);
+        if (edgeX + edgeY < 2) continue;
+      }
+      materials[y * WORLD_WIDTH + x] = area.kind;
+    }
+  }
 }
 export function groundAt(x: number, y: number): GroundArea["kind"] {
-  return Math.min(cellAt(x,y),3) as GroundArea["kind"];
+  const cx = Math.floor(x), cy = Math.floor(y);
+  return (cx >= 0 && cx < WORLD_WIDTH && cy >= 0 && cy < WORLD_HEIGHT
+    ? materials[cy * WORLD_WIDTH + cx] : 0) as GroundArea["kind"];
 }
 
-// Only authored recreational ponds permit entry; ornamental basins stay bounded.
+// All four visible water bodies share depth and traversal semantics.
+// The separate fountain is a physical fixture, not a terrain exception.
 export function waterDepthAt(x: number, y: number): 0 | 1 | 2 {
-  if (cellAt(x,y) !== 4) return 0;
-  return cellAt(x-1,y)!==4 || cellAt(x+1,y)!==4 || cellAt(x,y-1)!==4 || cellAt(x,y+1)!==4 ? 1 : 2;
+  if (groundAt(x, y) !== 3) return 0;
+  return groundAt(x-1,y)!==3 || groundAt(x+1,y)!==3 || groundAt(x,y-1)!==3 || groundAt(x,y+1)!==3 ? 1 : 2;
 }
 
 export type PropSprite =
@@ -94,6 +101,7 @@ export type Scenery = Position & {
   width: number; // painted width, world pixels
   height: number; // painted height, world pixels
   solid?: number; // feet collision radius in world tiles; absent means passable
+  habitat?: "sparrow" | "squirrel"; // wildlife belongs to a visible shelter
   story?: { title: string; caption: string; description: string; action?: string; result?: string }; // exploration text lives with its visible prop
 };
 export const SCENERY: Scenery[] = [
@@ -114,26 +122,26 @@ export const SCENERY: Scenery[] = [
   { sprite: "hydrangea", x: 60.5, y: 32, width: 45, height: 36 },
   { sprite: "hydrangea", x: 83.5, y: 32, width: 45, height: 36 },
   // Landscape framing extends beyond the hero square, using the same authored kit.
-  { sprite: "oak", x: 50.5, y: 39.5, width: 86, height: 101, solid: 0.9 },
-  { sprite: "cherry", x: 93.5, y: 39.5, width: 86, height: 102, solid: 0.9, story: { title: "樱树下的约定", caption: "BLOSSOM PROMISE", description: "每年花开时，总有人重新走过这里。机器会更换零件，但一些约定会慢慢长成树。", action: "接住一片花瓣", result: "花瓣停在掌心一瞬，又被风带走。你记住了它落下的方向。" } },
+  { sprite: "oak", x: 50.5, y: 39.5, habitat: "sparrow", width: 86, height: 101, solid: 0.9 },
+  { sprite: "cherry", x: 93.5, y: 39.5, habitat: "squirrel", width: 86, height: 102, solid: 0.9, story: { title: "樱树下的约定", caption: "BLOSSOM PROMISE", description: "每年花开时，总有人重新走过这里。机器会更换零件，但一些约定会慢慢长成树。", action: "接住一片花瓣", result: "花瓣停在掌心一瞬，又被风带走。你记住了它落下的方向。" } },
   { sprite: "oak", x: 53, y: 62, width: 86, height: 101, solid: 0.9 },
   { sprite: "lime_tree", x: 91, y: 62, width: 86, height: 101, solid: 0.9 },
   { sprite: "rocks", x: 51, y: 54, width: 58, height: 40, solid: 0.7, story: { title: "试验后的石头", caption: "FIELD TEST", description: "石头上的划痕来自一次定位实验。机器人读不懂风，却能一点点学会看清这里的边界。" } },
   { sprite: "rocks", x: 93, y: 54, width: 58, height: 40, solid: 0.7 },
   { sprite: "hydrangea", x: 52, y: 44, width: 42, height: 33 },
   { sprite: "hydrangea", x: 92, y: 44, width: 42, height: 33 },
-  { sprite: "lime_tree", x: 29, y: 26, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 59, y: 30, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 29, y: 26, habitat: "sparrow", width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 59, y: 30, habitat: "squirrel", width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 84, y: 28, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 115, y: 27, width: 82, height: 96, solid: 0.9 },
-  { sprite: "cherry", x: 29, y: 66, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 49, y: 76, width: 82, height: 96, solid: 0.9 },
+  { sprite: "cherry", x: 29, y: 66, habitat: "sparrow", width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 49, y: 76, habitat: "squirrel", width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 95, y: 76, width: 82, height: 96, solid: 0.9 },
   { sprite: "oak", x: 115, y: 68, width: 82, height: 96, solid: 0.9 },
   { sprite: "planter", x: 39, y: 40, width: 46, height: 36 },
   { sprite: "planter", x: 105, y: 40, width: 46, height: 36 },
-  { sprite: "fence", x: 31, y: 53, width: 64, height: 34, solid: 0.5 },
-  { sprite: "fence", x: 113, y: 53, width: 64, height: 34, solid: 0.5 },
+  { sprite: "fence", x: 31, y: 53, width: 64, height: 34, solid: 0.5, story: { title: "西庭亲水台", caption: "WATER GARDEN", description: "这里的石阶延伸进水中。实验结束后，可以沿着浅水边缘慢慢走，或在岸边抛下一根钓线。" } },
+  { sprite: "fence", x: 113, y: 53, width: 64, height: 34, solid: 0.5, story: { title: "东庭水光", caption: "WATER REFLECTIONS", description: "观测站附近的池水映着天空。日光、云层和雨滴都在这里留下短暂的轨迹。" } },
   // Four visible, readable discoveries. The same anchor drives art, collision, and interaction.
   { sprite: "sign", x: 24, y: 11, width: 40, height: 59, solid: 0.38, story: {
     title: "风铃小径", caption: "A QUIET PATH", description: "一条绕开主路的林荫小径。风吹过树梢时，路边的小牌子仿佛也在提醒：不是每段旅程都必须直奔终点。"
@@ -150,18 +158,18 @@ export const SCENERY: Scenery[] = [
   // Outer-ring landmarks and natural transitions, using the existing twelve-piece kit.
   { sprite: "oak", x: 9, y: 15, width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 7, y: 35, width: 82, height: 96, solid: 0.9 },
-  { sprite: "cherry", x: 9, y: 75, width: 86, height: 102, solid: 0.9 },
+  { sprite: "cherry", x: 9, y: 75, habitat: "squirrel", width: 86, height: 102, solid: 0.9 },
   { sprite: "oak", x: 38, y: 8, width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 56, y: 7, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 87, y: 8, width: 86, height: 102, solid: 0.9 },
-  { sprite: "oak", x: 135, y: 17, width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 135, y: 17, habitat: "sparrow", width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 136, y: 48, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 135, y: 79, width: 86, height: 102, solid: 0.9 },
   { sprite: "oak", x: 45, y: 91, width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 74, y: 92, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 101, y: 91, width: 86, height: 102, solid: 0.9 },
   { sprite: "hydrangea", x: 27.5, y: 7, width: 45, height: 36 },
-  { sprite: "planter", x: 34, y: 10, width: 51, height: 40, solid: 0.72 },
+  { sprite: "planter", x: 30, y: 10, width: 51, height: 40, solid: 0.72 },
   { sprite: "hydrangea", x: 43, y: 10, width: 45, height: 36 },
   { sprite: "rocks", x: 13, y: 31, width: 58, height: 40, solid: 0.7 },
   { sprite: "hydrangea", x: 12, y: 45, width: 45, height: 36 },
@@ -224,15 +232,21 @@ export function overlapsRect(x: number, y: number, radius: number,
 export function isWalkable(x: number, y: number): boolean {
   const radius = 0.3;
   if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
-  // A decorative basin is not a swimming pond. Check the full player footprint.
-  for (const dx of [-radius, radius]) for (const dy of [-radius, radius]) {
-    if (groundAt(x + dx, y + dy) === 3 && !waterDepthAt(x + dx, y + dy)) return false;
-  }
   // Every building has a solid body; its painted roof can overlap a rear path.
   // The interaction is in front of the body, not in a non-solid wall strip.
   if (PLACES.some(place => overlapsRect(x, y, radius, place))) return false;
   if (SCENERY.some((p) => sceneryBlocks(p, x, y, radius))) return false;
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.radius + radius) return false;
+  return true;
+}
+
+// Small local movements and fishing casts use the same world collision rules.
+export function pathIsWalkable(from:Position,to:Position,dry=false):boolean {
+  const distance=Math.hypot(to.x-from.x,to.y-from.y),steps=Math.max(1,Math.ceil(distance/.25));
+  for(let i=0;i<=steps;i++){
+    const x=from.x+(to.x-from.x)*i/steps,y=from.y+(to.y-from.y)*i/steps;
+    if(!isWalkable(x,y)||(dry&&groundAt(x,y)===3))return false;
+  }
   return true;
 }
 

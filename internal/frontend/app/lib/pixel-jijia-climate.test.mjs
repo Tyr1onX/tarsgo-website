@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { changchunClimate, parseCurrentWeather, WEATHER_REFRESH_MS } from "./pixel-jijia-climate.ts";
+import { changchunClimate, parseCurrentWeather, WEATHER_REFRESH_MS, advanceSurface } from "./pixel-jijia-climate.ts";
 
 test("长春时钟不取访客本地时区，按照 UTC+8 确定季节", () => {
   const autumn = changchunClimate(new Date("2026-11-23T10:22:00.000Z"));
@@ -25,7 +25,7 @@ test("季节天气按四小时块确定，刷新不随机跳变，也不冒充�
     assert.equal(a.dateKey, b.dateKey);
     assert.equal(a.temperature, b.temperature);
     assert.ok(Number.isFinite(a.temperature));
-    assert.ok(["clear", "cloudy", "rain", "snow"].includes(a.weather));
+    assert.ok(["clear", "cloudy", "rain", "snow","storm","fog"].includes(a.weather));
     assert.equal(a.weather === "snow" && a.temperature > 0, false);
     assert.equal(a.weather === "rain" && a.temperature <= 0, false);
   }
@@ -76,4 +76,16 @@ test("游戏时钟每秒推进一分钟且24分钟循环，太阳方向连续变
   const morning=changchunClimate(new Date("2026-06-21T00:00:00Z")), afternoon=changchunClimate(new Date("2026-06-21T08:00:00Z"));
   assert.ok(morning.sunX>0&&afternoon.sunX<0);
   assert.ok(morning.sunHeight>0&&afternoon.sunHeight>0);
+});
+
+test("湿地与积雪随天气累积，雨停不瞬间消失，升温逐渐融化",()=>{
+  const initial={wet:0,snow:0};
+  const rain=advanceSurface(initial,"rain",12,5);
+  assert.ok(rain.wet>.5&&rain.wet<1);
+  assert.ok(advanceSurface(rain,"clear",12,1).wet>0);
+  const snow=advanceSurface(initial,"snow",-5,8);
+  assert.ok(snow.snow>.5);
+  assert.equal(advanceSurface(snow,"clear",-5,20).snow,snow.snow);
+  assert.ok(advanceSurface(snow,"clear",8,5).snow<snow.snow);
+  assert.equal(advanceSurface(rain,null,null,1),rain);
 });

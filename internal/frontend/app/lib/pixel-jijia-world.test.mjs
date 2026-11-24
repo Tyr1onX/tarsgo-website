@@ -4,7 +4,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  groundAt, waterDepthAt, sceneryGroundValid, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
+  groundAt, waterDepthAt, sceneryGroundValid, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 import { createWildlife, updateWildlife, fishingTarget, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
 import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt } from "./pixel-jijia-room.ts";
@@ -78,22 +78,30 @@ test("桌椅、栅栏、花坛和花丛使用真实宽度脚底碰撞，门廊�
   assert.equal(sceneryBlocks(arch, arch.x + offset, arch.y), true);
 });
 
-test("地形决定休闲池塘涉水与游泳，观赏水池仍阻挡", () => {
-  for (const pond of GROUND_AREAS.filter(a=>a.kind===3)) {
+test("四处真实水面都能涉水、游泳、上岸，只有喷泉实体保持阻挡", () => {
+  const ponds = GROUND_AREAS.filter(a=>a.kind===3);
+  assert.equal(ponds.length,4);
+  for(const pond of ponds) {
     const y=pond.y+pond.height/2, x=pond.x+pond.width/2;
-    assert.equal(isWalkable(x,y), Boolean(pond.recreation));
-    assert.equal(waterDepthAt(x,y), pond.recreation ? 2 : 0);
-    assert.equal(waterDepthAt(pond.x+.5,y), pond.recreation ? 1 : 0);
+    assert.ok(isWalkable(x,y));
+    assert.equal(waterDepthAt(x,y),2);
+    assert.equal(waterDepthAt(pond.x+.5,y),1);
     assert.equal(groundAt(x,y),3);
-    if (pond.recreation) {
-      const start={x:pond.x-.5,y};
-      let pos=start;
-      for(let i=0;i<300;i++) pos=movePlayer(pos,1,0,1/60);
-      assert.ok(pos.x>pond.x+pond.width, "池塘可从对岸上岸");
-      assert.equal(waterDepthAt(pos.x,pos.y),0);
-      assert.ok(movePlayer({x,y},1,0,.05,true).x-x < WALK_SPEED*.05);
+    if(pond.shore==="natural")assert.equal(groundAt(pond.x+.5,pond.y+.5),0);
+    let pos={x:pond.x-.5,y};
+    const depths=new Set();
+    for(let i=0;i<330;i++){pos=movePlayer(pos,1,0,1/60);depths.add(waterDepthAt(pos.x,pos.y));}
+    assert.ok(pos.x>pond.x+pond.width, "每座池塘均可从对岸上岸");
+    assert.deepEqual([...depths].sort(),[0,1,2]);
+    assert.ok(movePlayer({x,y},1,0,.05,true).x-x < WALK_SPEED*.05);
+  }
+  for(let y=0;y<WORLD_HEIGHT;y++)for(let x=0;x<WORLD_WIDTH;x++){
+    if(groundAt(x+.5,y+.5)===3) {
+      assert.ok(waterDepthAt(x+.5,y+.5)>0);
+      assert.ok(isWalkable(x+.5,y+.5), `水域存在隐藏阻挡 ${x},${y}`);
     }
   }
+  assert.equal(isWalkable(FOUNTAIN.x,FOUNTAIN.y),false);
   for(const o of SCENERY.filter(o=>o.sprite==="planter"&&[59,85].includes(o.x))) assert.equal(groundAt(o.x,o.y),2);
 });
 
@@ -199,7 +207,7 @@ test("从出生点可实际步行抵达六个场景", () => {
   }
   assert.deepEqual([...reachable].sort(), PLACES.map((p) => p.id).sort());
   assert.deepEqual([...discovered].sort(), SCENERY.filter(p => p.story).map(p => p.story.title).sort());
-  assert.equal(discovered.size, 17, "新增故事点也必须能从出生点步行发现");
+  assert.equal(discovered.size, 19, "新增故事点也必须能从出生点步行发现");
 });
 
 test("镜头平滑跟随目标并限制在地图边界", () => {
@@ -224,7 +232,7 @@ test("广场人工设施按同一轴线对齐，环境装饰仍可自由错落",
 
 test("故事点复用可见素材和碰撞配置，不制造不可见标记", () => {
   const stories = SCENERY.filter(p => p.story);
-  assert.equal(stories.length, 17);
+  assert.equal(stories.length, 19);
   assert.equal(new Set(stories.map(p => p.story.title)).size, stories.length);
   for (const item of stories) {
     const checkX = item.sprite === "arch" ? item.x + item.width / (2 * TILE) - 0.8 : item.x;
@@ -244,7 +252,7 @@ test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   assert.match(scene, /const screenCamera = snapCamera\(camera\)/);
   assert.match(scene, /drawTerrain\(ctx,terrain,screenCamera,w,h\)/);
-  assert.match(scene, /drawNode\(ctx, node, atlas, sprites, props, screenCamera\)/);
+  assert.match(scene, /drawNode\(ctx, node, atlas, sprites, seasonal, screenCamera\)/);
   assert.match(scene, /renderExplorer\(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated, waterDepthAt\(/);
   for (const x of [10.1, 10.49, 10.51, 10.9, 11.4]) {
     const camera = snapCamera({ x, y: 20.6 });
@@ -277,12 +285,12 @@ test("小地图缩小真实世界场景，默认紧凑且展开后仍可导航",
   const css = readFileSync(new URL("../routes/pixel-jijia.css", import.meta.url), "utf8");
   assert.ok(scene.includes("export function renderWorldPreview("));
   assert.ok(scene.includes("export function renderNavigationMap("));
-  assert.ok(scene.includes("for (const node of NODES) drawNode(ctx, node, atlas, sprites, props, { x: 0, y: 0 })"));
+  assert.ok(scene.includes("for (const node of NODES) drawNode(ctx, node, atlas, sprites, seasonal, { x: 0, y: 0 })"));
   assert.ok(scene.includes("drawTerrain(ctx,terrain,{x:0,y:0},WORLD_WIDTH*TILE,WORLD_HEIGHT*TILE)"));
   assert.ok(scene.includes("ctx.drawImage(preview, 0, 0, width, height)"));
   assert.ok(scene.includes("ctx.fillText(place.title,"));
   assert.ok(scene.includes("for (const place of PLACES)"));
-  assert.ok(scene.includes("if (!item.story) continue"));
+  assert.ok(scene.includes("if (!item.story || !discoveries.includes(item.story.title)) continue"));
   assert.ok(!scene.includes("export function renderTown("), "不能保留额外的完整世界小地图缓存");
   assert.ok(route.includes("renderNavigationMap(miniCtx, preview"));
   assert.ok(route.includes("previewRef.current = renderWorldPreview("));
@@ -622,10 +630,10 @@ test("技术空间复用校园石材纹理，接待与展陈保留木质材料",
 
 test("野生动物使用可通行栖息地，降水时返回庇护处，鱼留在水域", () => {
   const animals = createWildlife();
-  assert.equal(animals.length,12);
+  assert.equal(animals.length,18);
   for (const a of animals) assert.ok(isWalkable(a.x,a.y));
   for(let i=0;i<1800;i++)updateWildlife(animals,SPAWN,1/60,12,"clear",true);
-  for (const a of animals) assert.ok(a.species==="fish"?waterDepthAt(a.x,a.y)>0:isWalkable(a.x,a.y));
+  for (const a of animals) assert.ok(a.species==="fish"?waterDepthAt(a.x,a.y)>0:pathIsWalkable(a.home,a,true));
   for(let i=0;i<1800;i++)updateWildlife(animals,SPAWN,1/60,12,"rain",true);
   for(const a of animals.filter(a=>a.species!=="fish")){
     assert.equal(a.behavior,"shelter");
@@ -638,7 +646,7 @@ test("野生动物使用可通行栖息地，降水时返回庇护处，鱼留�
 });
 
 test("钓鱼仅从可达的休闲水岸抛竿，鱼种属于图鉴", () => {
-  for (const pos of [{x:14.5,y:60},{x:130.5,y:32}]) {
+  for (const pos of [{x:14.5,y:60},{x:130.5,y:32},{x:36.5,y:48.5},{x:107.5,y:48.5}]) {
     assert.ok(isWalkable(pos.x,pos.y));
     const target=fishingTarget(pos);
     assert.ok(target && waterDepthAt(target.x,target.y)>0);

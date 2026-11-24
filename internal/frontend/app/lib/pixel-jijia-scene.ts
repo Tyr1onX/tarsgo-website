@@ -1,8 +1,8 @@
 import {
-  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera,
+  FOUNTAIN, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera,
   type Direction, type Place, type Position, type PropSprite, type Scenery,
 } from "./pixel-jijia-world.ts";
-import type { Season, ChangchunClimate, WeatherKind } from "./pixel-jijia-climate";
+import type { Season, ChangchunClimate, WeatherKind, SurfaceWeather } from "./pixel-jijia-climate";
 import { drawAnimal, drawFishing, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
 
 export type SpriteBox = [number, number, number, number];
@@ -33,6 +33,61 @@ function sprite(
   ctx.drawImage(atlas, ...box, Math.round(x), Math.round(y), Math.round(width), Math.round(height));
 }
 
+const SIDES = [[0,-1],[0,1],[-1,0],[1,0]] as const;
+const waterCells = PONDS.flatMap(pond => {
+  const cells:{x:number;y:number;natural:boolean;depth:1|2;seed:number;edges:number[]}[]=[];
+  for(let y=pond.y;y<pond.y+pond.height;y++)for(let x=pond.x;x<pond.x+pond.width;x++){
+    const depth=waterDepthAt(x+.5,y+.5);
+    if(!depth)continue;
+    cells.push({x,y,natural:pond.shore==="natural",depth,seed:hash(x,y),
+      edges:SIDES.flatMap(([dx,dy],i)=>groundAt(x+dx,y+dy)!==3?[i]:[])});
+  }
+  return cells;
+});
+const waterTiles=new Map(waterCells.map(cell=>[cell.y*WORLD_WIDTH+cell.x,cell]));
+
+// Independent shore components follow real exposed edges. No texture is used
+// to imply an obstacle that isn't present in the world grid.
+function waterTile(ctx:CanvasRenderingContext2D,x:number,y:number,px:number,py:number){
+  const cell=waterTiles.get(y*WORLD_WIDTH+x);
+  if(!cell)return;
+  ctx.fillStyle=cell.depth===1?"rgba(182,216,182,.30)":"rgba(19,65,103,.29)";
+  ctx.fillRect(px,py,TILE,TILE);
+  for(const side of cell.edges){
+    const horizontal=side<2,reverse=side===1||side===3;
+    const band=(offset:number,width:number,color:string)=>{
+      ctx.fillStyle=color;
+      const d=reverse?TILE-offset-width:offset;
+      if(horizontal)ctx.fillRect(px,py+d,TILE,width);
+      else ctx.fillRect(px+d,py,width,TILE);
+    };
+    if(cell.natural){
+      band(0,1.5,"#839e75");
+      band(1.5,1.5,"#a5b895");
+      band(3,1,"rgba(207,222,188,.45)");
+      for(let k=0;k<5;k++){
+        const u=(cell.seed>>>((k*5)%24))%30*.5;
+        ctx.fillStyle=k%2?"#b4c1a0":"#687f6c";
+        const v=reverse?TILE-2.5:1.5;
+        if(horizontal)ctx.fillRect(px+u,py+v,1,.5);
+        else ctx.fillRect(px+v,py+u,.5,1);
+      }
+    }else{
+      // A submerged stone step instead of the old abrupt dark wall.
+      band(0,1.5,"#899f9e");band(1.5,.5,"#cfdfd1");
+      band(2,2,"rgba(169,195,181,.53)");
+      band(4,.5,"rgba(210,236,214,.47)");
+    }
+  }
+  if(cell.natural&&cell.depth===1&&cell.seed%13===0){
+    const xx=px+6,yy=py+9;
+    ctx.fillStyle="#3e785f";ctx.fillRect(xx,yy-1,6,3);ctx.fillRect(xx+1,yy-2,4,5);
+    ctx.fillStyle="#709d70";ctx.fillRect(xx+1,yy-1,4,1);ctx.fillRect(xx+1,yy,2,1);
+    ctx.fillStyle="#bfd0a3";ctx.fillRect(xx+2,yy-2,1,.5);
+    if(cell.seed%3===0){ctx.fillStyle="#f4d6c2";ctx.fillRect(xx+2,yy-2,2,2);}
+  }
+}
+
 function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement, season: Season, startX:number,startY:number,endX:number,endY:number) {
   for (let y = startY; y < endY; y++) {
     for (let x = startX; x < endX; x++) {
@@ -56,18 +111,18 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement, season: 
         ctx.fillStyle="rgba(225,246,232,.25)";ctx.fillRect(px,py,2.5,.5);ctx.fillRect(px+3,py,.5,.5);
       }
       if (kind === 3) {
-        const depth = waterDepthAt(x+.5,y+.5);
-        if (depth) {
-          ctx.fillStyle = depth === 1 ? "rgba(189,221,188,.23)" : "rgba(25,73,112,.27)";
-          ctx.fillRect(destX,destY,TILE,TILE);
-        }
+        waterTile(ctx,x,y,destX,destY);
+        continue;
       }
       if (kind === 0) {
         if (season === "winter" && hash(x, y) % 7 < 4) {
-          ctx.fillStyle = hash(x + 4, y) % 2 ? "#d3e3e4" : "#edf2e9";
-          ctx.fillRect(destX + 1, destY + 1, TILE - 2, TILE - 2);
-          ctx.fillStyle = "#a7c9bd";
-          ctx.fillRect(destX + hash(x, y) % 9, destY + 12, 3, 2);
+          // Fine frost is irregular and follows grass texture instead of square
+          // white floor patches. Active snowfall is rendered separately.
+          for(let k=0;k<7;k++){
+            const sx=destX+(hash(x+k*7,y)%29)*.5,sy=destY+(hash(x,y+k*11)%29)*.5;
+            ctx.fillStyle=k%3===0?"rgba(224,238,227,.58)":"rgba(183,208,197,.39)";
+            ctx.fillRect(sx,sy,1+(k%3)*.5,.5+(k%2)*.5);
+          }
         } else if (season === "autumn" && hash(x, y) % 9 === 0) {
           ctx.fillStyle = "#ce9959";
           ctx.fillRect(destX + hash(x, y) % 11, destY + 7, 4, 3);
@@ -80,7 +135,7 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement, season: 
         continue;
       }
       const borders = (neighbor: number) =>
-        neighbor !== kind && (kind !== 1 || neighbor === 0) && !(kind === 2 && neighbor === 3);
+        neighbor !== kind && (kind !== 1 || neighbor === 0) && neighbor !== 3;
       for (const [side, nx, ny] of [[0, x, y - 1], [1, x, y + 1], [2, x - 1, y], [3, x + 1, y]]) {
         if (borders(groundAt(nx, ny))) {
           ctx.drawImage(tiles, ((kind - 1) * 4 + side) * TILE, GROUND_EDGE_Y, TILE, TILE, destX, destY, TILE, TILE);
@@ -101,7 +156,39 @@ function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprite
   );
 }
 
-function decoration(ctx: CanvasRenderingContext2D, props: HTMLImageElement, object: Scenery, camera: Position) {
+type PropAtlas=HTMLImageElement|HTMLCanvasElement;
+const seasonalCache=new WeakMap<HTMLImageElement,Map<Season,PropAtlas>>();
+function seasonalProps(props:HTMLImageElement,season:Season):PropAtlas{
+  if(season==="spring")return props;
+  let variants=seasonalCache.get(props);
+  if(!variants){variants=new Map();seasonalCache.set(props,variants);}
+  const cached=variants.get(season);if(cached)return cached;
+  const canvas=document.createElement("canvas");canvas.width=props.naturalWidth;canvas.height=props.naturalHeight;
+  const ctx=canvas.getContext("2d")!;
+  ctx.drawImage(props,0,0);
+  for(const name of ["oak","lime_tree","cherry","hydrangea","planter"] as const){
+    if(season==="summer"&&name!=="cherry")continue;
+    const cell=PROP_CELLS[name],x=(cell%4)*PROP_CELL,y=Math.floor(cell/4)*PROP_CELL;
+    const data=ctx.getImageData(x,y,PROP_CELL,PROP_CELL);
+    for(let py=0;py<PROP_CELL;py++)for(let px=0;px<PROP_CELL;px++){
+      const i=(py*PROP_CELL+px)*4,[r,g,b,a]=data.data.subarray(i,i+4);
+      if(a<32)continue;
+      const foliage=g>r*1.04&&g>b*1.06;
+      const blossom=name==="cherry"&&r>g*1.04&&b>g*.92&&py<96;
+      if(!foliage&&!blossom)continue;
+      const l=(r+g+b)/3;
+      const target=season==="winter"?[l*.86+42,l*.94+43,l+46]:
+        season==="autumn"?[l*1.32+16,l*.94+2,l*.55]:
+        [l*.61,l*.95+12,l*.59];
+      const amount=season==="winter"?.75:season==="autumn"?.76:.8;
+      for(let k=0;k<3;k++)data.data[i+k]=data.data[i+k]*(1-amount)+target[k]*amount;
+    }
+    ctx.putImageData(data,x,y);
+  }
+  variants.set(season,canvas);return canvas;
+}
+
+function decoration(ctx: CanvasRenderingContext2D, props: PropAtlas, object: Scenery, camera: Position) {
   const cell = PROP_CELLS[object.sprite];
   ctx.drawImage(
     props, (cell % 4) * PROP_CELL, Math.floor(cell / 4) * PROP_CELL,
@@ -130,7 +217,7 @@ const NODES: SceneNode[] = [
 ].sort((a, b) => a.y - b.y);
 
 function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode, atlas: HTMLImageElement,
-  sprites: SpriteIndex, props: HTMLImageElement, camera: Position) {
+  sprites: SpriteIndex, props: PropAtlas, camera: Position) {
   if (node.kind === "building") building(ctx, atlas, sprites, node.value, camera);
   else if (node.kind === "prop") decoration(ctx, props, node.value, camera);
   else fountain(ctx, atlas, sprites, camera);
@@ -167,7 +254,7 @@ function drawTerrain(ctx:CanvasRenderingContext2D,terrain:Terrain,camera:Positio
 // The minimap is rendered from the same terrain and authored scenery.
 export function renderWorldPreview(
   terrain: Terrain, atlas: HTMLImageElement,
-  sprites: SpriteIndex, props: HTMLImageElement,
+  sprites: SpriteIndex, props: HTMLImageElement, season:Season="summer",
 ): HTMLCanvasElement {
   const preview = document.createElement("canvas");
   preview.width = 432;
@@ -177,14 +264,15 @@ export function renderWorldPreview(
   ctx.imageSmoothingEnabled = true;
   ctx.scale(preview.width / (WORLD_WIDTH * TILE), preview.height / (WORLD_HEIGHT * TILE));
   drawTerrain(ctx,terrain,{x:0,y:0},WORLD_WIDTH*TILE,WORLD_HEIGHT*TILE);
-  for (const node of NODES) drawNode(ctx, node, atlas, sprites, props, { x: 0, y: 0 });
+  const seasonal = seasonalProps(props,season);
+  for (const node of NODES) drawNode(ctx, node, atlas, sprites, seasonal, { x: 0, y: 0 });
   return preview;
 }
 
 export function renderNavigationMap(
   ctx: CanvasRenderingContext2D, preview: HTMLCanvasElement,
   player: Position, direction: Direction,
-  camera: Position, viewWidth: number, viewHeight: number, expanded = false,
+  camera: Position, viewWidth: number, viewHeight: number, expanded = false, discoveries:readonly string[]=[],
 ) {
   const { width, height } = ctx.canvas;
   const scaleX = width / WORLD_WIDTH, scaleY = height / WORLD_HEIGHT;
@@ -205,7 +293,7 @@ export function renderNavigationMap(
       ctx.fillText(place.title, x, y, place.width * scaleX);
     }
     for (const item of SCENERY) {
-      if (!item.story) continue;
+      if (!item.story || !discoveries.includes(item.story.title)) continue;
       const x = Math.round(item.x * scaleX), y = Math.round(item.y * scaleY);
       ctx.fillStyle = "#ffe4a0";
       ctx.fillRect(x - 2, y - 2, 4, 4);
@@ -263,20 +351,75 @@ function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:Spr
   }
   ctx.restore();
 }
-const puddles=Array.from({length:WORLD_HEIGHT},(_,y)=>y).flatMap(y=>Array.from({length:WORLD_WIDTH},(_,x)=>({x,y})))
-  .filter(({x,y})=> (groundAt(x,y)===1||groundAt(x,y)===2)&&hash(x,y)%49===0);
-function drawWetGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,c:OutdoorClimate,time:number,motion:boolean){
-  if(c.weather!=="rain"&&c.weather!=="storm")return;
-  ctx.save();
-  for(const p of puddles){
-    const x=p.x*TILE+8-camera.x,y=p.y*TILE+9-camera.y;
-    if(x<0||x>w||y<0||y>h)continue;
-    ctx.fillStyle="rgba(40,70,80,.16)";ctx.fillRect(x-5,y-2,10,4);ctx.fillRect(x-3,y-3,6,6);
-    ctx.fillStyle="rgba(201,227,227,.34)";ctx.fillRect(x-4,y-2,5,.5);
-    if(motion){const radius=1+((time/300+hash(p.x,p.y)%9)%4);ctx.strokeStyle="rgba(208,230,230,.35)";ctx.beginPath();ctx.ellipse(x,y,radius,radius*.4,0,0,Math.PI*2);ctx.stroke();}
+function drawWater(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,player:Position,
+  walking:boolean,time:number,motion:boolean,weather:WeatherKind|null){
+  const visible=waterCells.filter(c=>c.x*TILE+TILE>=camera.x&&c.y*TILE+TILE>=camera.y&&
+    c.x*TILE<camera.x+w&&c.y*TILE<camera.y+h);
+  if(!visible.length)return;
+  ctx.save();ctx.beginPath();
+  for(const c of visible)ctx.rect(c.x*TILE-camera.x,c.y*TILE-camera.y,TILE,TILE);
+  ctx.clip();
+  const t=motion?time/1000:0,rain=weather==="rain"||weather==="storm";
+  for(const c of visible){
+    if(c.seed%3!==0)continue;
+    const x=c.x*TILE-camera.x,y=c.y*TILE-camera.y;
+    const phase=(t*.32+c.seed%100/100)%1;
+    const dx=Math.floor((phase*13)*2)/2;
+    ctx.globalAlpha=.09+.12*Math.sin(phase*Math.PI);
+    ctx.fillStyle=c.depth===1?"#cde8cf":"#a4dcd9";
+    const yy=y+2+(c.seed%9);
+    ctx.fillRect(x+dx-2,yy,3,.5);
+    ctx.fillRect(x+dx,yy-.5,3.5,.5);
+    if(rain&&motion&&c.seed%4===0){
+      const k=(t*1.2+c.seed%37/37)%1;
+      ctx.globalAlpha=.32*(1-k);ctx.strokeStyle="#d3ece3";ctx.lineWidth=.5;
+      ctx.beginPath();ctx.ellipse(x+8,y+9,1+5*k,.5+2.3*k,0,0,Math.PI*2);ctx.stroke();
+    }
+  }
+  if(waterDepthAt(player.x,player.y)){
+    const x=player.x*TILE-camera.x,y=player.y*TILE-camera.y;
+    for(let i=0;i<2;i++){
+      const phase=motion?(t*(walking?1.65:.7)+i*.5)%1:i*.5;
+      ctx.globalAlpha=(1-phase)*.56;ctx.strokeStyle="#d9f3de";ctx.lineWidth=.8;
+      ctx.beginPath();ctx.ellipse(x,y+1,8+phase*13,2+phase*5,0,0,Math.PI*2);ctx.stroke();
+    }
   }
   ctx.restore();
 }
+const puddles=Array.from({length:WORLD_HEIGHT},(_,y)=>y).flatMap(y=>Array.from({length:WORLD_WIDTH},(_,x)=>({x,y})))
+  .filter(({x,y})=> (groundAt(x,y)===1||groundAt(x,y)===2)&&hash(x,y)%49===0);
+function drawWetGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,c:OutdoorClimate,time:number,motion:boolean,surface:SurfaceWeather){
+  if(surface.wet<.01&&surface.snow<.01)return;
+  ctx.save();
+  const rain=c.weather==="rain"||c.weather==="storm";
+  for(const p of puddles){
+    const x=p.x*TILE+8-camera.x,y=p.y*TILE+9-camera.y;
+    if(x<0||x>w||y<0||y>h)continue;
+    ctx.globalAlpha=surface.wet;
+    ctx.fillStyle="rgba(40,70,80,.25)";ctx.fillRect(x-5,y-2,10,4);ctx.fillRect(x-3,y-3,6,6);
+    ctx.fillStyle="rgba(201,227,227,.42)";ctx.fillRect(x-4,y-2,5,.5);
+    if(rain&&motion){const radius=1+((time/300+hash(p.x,p.y)%9)%4);ctx.strokeStyle="rgba(208,230,230,.40)";ctx.beginPath();ctx.ellipse(x,y,radius,radius*.4,0,0,Math.PI*2);ctx.stroke();}
+  }
+  if(surface.snow>.01){
+    ctx.globalAlpha=Math.min(.86,surface.snow*.86);
+    const startX=Math.max(0,Math.floor(camera.x/TILE)),startY=Math.max(0,Math.floor(camera.y/TILE));
+    const endX=Math.min(WORLD_WIDTH,Math.ceil((camera.x+w)/TILE)),endY=Math.min(WORLD_HEIGHT,Math.ceil((camera.y+h)/TILE));
+    for(let y=startY;y<endY;y++)for(let x=startX;x<endX;x++){
+      const kind=groundAt(x,y),seed=hash(x,y);
+      if(kind===3||seed%9>surface.snow*(kind===0?8:3))continue;
+      const px=x*TILE-camera.x,py=y*TILE-camera.y;
+      // Pixel clusters accumulate in grass and along paving seams, leaving routes legible.
+      ctx.fillStyle=kind===0?"#dce9df":"#d1dedb";
+      for(let i=0;i<3;i++){
+        const dx=(seed>>>((i*6)%24))%11,dy=kind===0?(seed>>>((i*4+6)%24))%11:0;
+        ctx.fillRect(px+dx,py+dy,kind===0?3+i:4+i,1+(i%2));
+        ctx.fillRect(px+dx+1,py+dy+1,2+i,1);
+      }
+    }
+  }
+  ctx.restore();
+}
+
 // Window panes are registered against the actual building atlas crop,
 // so the light sits on glass rather than floating in front of a building.
 const WINDOWS:Record<string,number[][]>={
@@ -294,6 +437,7 @@ function glow(ctx:CanvasRenderingContext2D,x:number,y:number,r:number,color:stri
 function drawAtmosphere(ctx:CanvasRenderingContext2D,camera:Position,sprites:SpriteIndex,c:OutdoorClimate,w:number,h:number){
   const shade=c.weather==="fog"?"rgba(192,207,208,.22)":c.weather==="storm"?"rgba(46,58,83,.20)":c.weather==="snow"?"rgba(214,230,235,.10)":c.weather&&c.weather!=="clear"?"rgba(76,96,108,.11)":null;
   if(shade){ctx.fillStyle=shade;ctx.fillRect(0,0,w,h);}
+  if(c.weather==="clear"&&c.sunHeight>0&&c.sunHeight<.30){ctx.fillStyle=`rgba(242,174,100,${(.30-c.sunHeight)*.35})`;ctx.fillRect(0,0,w,h);}
   if(c.night){ctx.fillStyle=`rgba(13,29,55,${c.night})`;ctx.fillRect(0,0,w,h);}
   if(c.night>.035){
     const brightness=Math.min(.9,c.night*2.4);
@@ -301,6 +445,7 @@ function drawAtmosphere(ctx:CanvasRenderingContext2D,camera:Position,sprites:Spr
       const x=p.x*TILE-camera.x,y=p.y*TILE-p.height*.72-camera.y;
       if(x<-60||x>w+60||y<-60||y>h+60)continue;
       glow(ctx,x,y,35,"rgba(255,211,126,.7)",brightness);
+      glow(ctx,x,p.y*TILE-camera.y,27,"rgba(255,205,123,.28)",brightness);
       ctx.fillStyle=`rgba(255,231,165,${brightness})`;ctx.fillRect(Math.round(x-2),Math.round(y-2),4,5);
     }
     for(const p of PLACES){
@@ -334,14 +479,16 @@ export function renderScene(
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, direction: Direction,
   walking: boolean, traveled: number, camera: Position, seated = false,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
   drawTerrain(ctx,terrain,screenCamera,w,h);
-  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h);}
+  drawWater(ctx,screenCamera,w,h,player,walking,time,motion,climate?.weather??null);
+  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land=animals.filter(a=>a.species!=="fish").sort((a,b)=>a.y-b.y);
+  const seasonal=seasonalProps(props,climate?.season??"summer");
   let playerDrawn = false,index=0;
   const drawPlayer=()=>renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated, waterDepthAt(player.x,player.y));
   for (const node of NODES) {
@@ -349,7 +496,7 @@ export function renderScene(
       const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
     }
     if (!playerDrawn && node.y > player.y) {drawPlayer();playerDrawn = true;}
-    drawNode(ctx, node, atlas, sprites, props, screenCamera);
+    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera);
   }
   while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();
@@ -376,17 +523,19 @@ export function renderExplorer(
     return;
   }
   if (water) {
-    const visible = water === 2 ? 26 : 43;
+    // Keep the face and shoulders above water; the lower body is visible
+    // through the surface rather than disappearing into a floating head.
+    const visible = water === 2 ? 34 : 43;
     const bob = walking ? Math.floor(traveled * 3) % 2 : 0;
-    ctx.drawImage(characterSheet, frame * EXPLORER_FRAME_WIDTH, EXPLORER_ROWS[direction] * EXPLORER_FRAME_HEIGHT,
-      EXPLORER_FRAME_WIDTH, visible, footX - 20, footY - visible + bob, 40, visible);
+    const sourceX=frame*EXPLORER_FRAME_WIDTH,sourceY=EXPLORER_ROWS[direction]*EXPLORER_FRAME_HEIGHT;
+    const top=footY-visible+bob;
+    const submerged=EXPLORER_FRAME_HEIGHT-visible;
     ctx.save();
-    ctx.strokeStyle = "rgba(211,239,230,.72)";
-    ctx.lineWidth = 1;
-    for (let i=0;i<2;i++) {
-      ctx.beginPath(); ctx.ellipse(footX,footY+1,11+i*6+bob,3+i*2,0,0,Math.PI*2); ctx.stroke();
-    }
+    ctx.globalAlpha=water===2?.27:.42;
+    ctx.drawImage(characterSheet,sourceX,sourceY+visible,EXPLORER_FRAME_WIDTH,submerged,
+      footX-20,top+visible,40,water===2?Math.round(submerged*.52):submerged);
     ctx.restore();
+    ctx.drawImage(characterSheet,sourceX,sourceY,EXPLORER_FRAME_WIDTH,visible,footX-20,top,40,visible);
     return;
   }
   ctx.fillStyle = "rgba(44, 66, 48, 0.20)";
