@@ -18,7 +18,7 @@ function returnToRest(angle:number,direction:number,dt:number){
 type Revival = {state:"dead"; progressTicks:number; required:number} | {state:"revived"; mode:"read"|"paid"; at:number; weak:boolean; immuneUntil:number};
 type Launcher = "locked"|"unlocked"|"test"|"ready";
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; xp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; launcher:Launcher };
+export type MatchRobot = RobotSpec & { hp:number; xp:number; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; launcher:Launcher };
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
 type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
@@ -26,7 +26,7 @@ export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; 
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -35,6 +35,31 @@ const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
 // The timed 42mm fallback does not grant assembly rewards.
 const levelFromXp=(xp:number)=>Math.min(5,XP_LEVELS.filter(x=>xp>=x).length);
 export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
+// §5.1.4 / tables 5-16, 5-17; the current kinematic preview does not
+// measure motor current. Its movement command supplies an estimated demand.
+export function powerLimit(match:Match,r:MatchRobot,time=match.elapsed){
+  const base=r.heavy?50:r.sentry?60:45+5*(robotLevel(r)-1);
+  const paid=time<r.powerBoostUntil;
+  return Math.min(200,base*(paid?2:1));
+}
+export function chassisStatus(match:Match,r:MatchRobot){
+  return {limit:powerLimit(match,r),buffer:r.powerBuffer,locked:Math.max(0,r.powerLockUntil-match.elapsed)};
+}
+export function driveSpeed(match:Match,r:MatchRobot,command:0|1|2){
+  // Explicit training approximation: normal motion commands the limit,
+  // sprint commands twice that demand; speed scales with sqrt(power).
+  r.powerDemand=match.phase==="running"&&r.hp>0&&match.elapsed>=r.powerLockUntil?command:0;
+  return r.hp>0&&match.elapsed>=r.powerLockUntil?2.6*Math.sqrt(powerLimit(match,r)*command/45):0;
+}
+function advancePower(match:Match,r:MatchRobot,tick:number){
+  if(r.hp<=0)return;
+  const time=tick/10;
+  // Paid-revive power expires by this tick, not by the end of a large step.
+  const limit=powerLimit(match,r,time);
+  const demand=time<r.powerLockUntil?0:limit*r.powerDemand;
+  r.powerBuffer=Math.min(60,Math.max(0,r.powerBuffer-(demand-limit)*.1));
+  if(r.powerBuffer===0&&demand>limit){r.powerLockUntil=time+5;r.powerDemand=0;}
+}
 const roundedXp=(value:number)=>Math.round(value*10)/10;
 function gainXp(match:Match,r:MatchRobot,amount:number){
   if(!infantry(r)||r.hp<=0||amount<=0)return;
@@ -185,7 +210,7 @@ export function reviveRobot(match:Match,id:string,paid=false) {
   const status=revivalStatus(match,robot);
   if(paid?!status.canPay:!status.canConfirm)return false;
   const at=Math.floor((match.elapsed+1e-8)*10);
-  if(paid){match.sides[robot.team].coins-=status.cost;robot.paidRevives++;}
+  if(paid){match.sides[robot.team].coins-=status.cost;robot.paidRevives++;robot.powerBoostUntil=at/10+4;}
   robot.hp=paid?robot.maxHp:Math.round(robot.maxHp*.1);
   robot.revival={state:"revived",mode:paid?"paid":"read",at,weak:true,immuneUntil:at+(paid?30:300)};
   robot.repairCarry=0;
@@ -262,6 +287,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   // Cooling at the same referee tick as zone activation, so replay time
   // steps cannot cool an entire interval using a stale fortress owner.
   for(const r of match.robots){
+    advancePower(match,r,tick);
     r.heat=Math.max(0,r.heat-coolingRate(match,r)/10);
     if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
   }
@@ -382,7 +408,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0||immune(match,enemy))return 0;
     const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*side.rune.attack*robotDefense(match,enemy))));
     enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0){enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
+    if(enemy.hp===0){enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
     attackXp(match,shooter,amount*4,enemy);
     return amount;
   }

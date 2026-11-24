@@ -404,3 +404,28 @@ test("defending fortress grants exclusive reserve, priority consumption and dama
  updateMatch(m,.1,positions);
  assert.equal(m.sides.red.fortressHolder,null);
 });
+
+test("10Hz chassis buffer, five-second cutoff and level-dependent limits",async()=>{
+ const {driveSpeed,chassisStatus,powerLimit}=await import("./rmuc-3d-match.ts");
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0];
+ assert.equal(powerLimit(m,r),45);
+ assert.equal(driveSpeed(m,r,1),2.6);
+ updateMatch(m,2);assert.equal(r.powerBuffer,60);
+ assert.ok(driveSpeed(m,r,2)>2.6);
+ updateMatch(m,1.3);assert.ok(Math.abs(r.powerBuffer-1.5)<1e-8);
+ updateMatch(m,.1);assert.equal(r.powerBuffer,0);
+ assert.equal(chassisStatus(m,r).locked,5);
+ assert.equal(driveSpeed(m,r,2),0);
+ updateMatch(m,4.9);assert.ok(chassisStatus(m,r).locked>0);
+ updateMatch(m,.1);assert.equal(chassisStatus(m,r).locked,0);
+ assert.equal(r.powerBuffer,60);
+ assert.equal(driveSpeed(m,r,1),2.6);
+ r.xp=2200;assert.equal(powerLimit(m,r),65);
+ r.hp=0;r.revival={state:"dead",progressTicks:0,required:10};
+ assert.ok(reviveRobot(m,r.id,true));
+ assert.equal(powerLimit(m,r),130);
+ updateMatch(m,3);assert.equal(powerLimit(m,r),130);
+ updateMatch(m,1);assert.equal(powerLimit(m,r),65);
+ assert.equal(createMatch(roster).robots[0].powerBuffer,60);
+});
