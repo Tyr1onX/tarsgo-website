@@ -8,6 +8,7 @@ import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, prepareArenaShots, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
+import { createArmorGlow } from "./rmuc-3d-lighting";
 import { createDartVisual } from "./rmuc-3d-dart-visual";
 import { createProjectileSystem, projectileSpeed } from "./rmuc-3d-projectiles";
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
@@ -68,14 +69,14 @@ export function mountArena(
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.25;
+  renderer.toneMappingExposure = 1.05;
   // A small generated environment makes metal surfaces readable without any
   // downloaded textures. Direct lights still determine arena illumination.
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
   const environment = pmrem.fromScene(room, .04, .1, 100, { size: 128 });
   scene.environment = environment.texture;
-  scene.environmentIntensity = .60;
+  scene.environmentIntensity = .48;
   room.dispose();
   pmrem.dispose();
   const canvas = renderer.domElement;
@@ -88,8 +89,8 @@ export function mountArena(
   controls.dampingFactor = .12;
   controls.enablePan = true;
   controls.enabled = false;
-  scene.add(new THREE.HemisphereLight(0xdceaff, 0x50515b, 1.3));
-  const sun = new THREE.DirectionalLight(0xfff4e7, 2.6);
+  const hemisphere=new THREE.HemisphereLight(0xdceaff, 0x50515b, 1.0);scene.add(hemisphere);
+  const sun = new THREE.DirectionalLight(0xfff4e7, 2.3);
   sun.position.set(-6, 13, 9);
   scene.add(sun);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(STADIUM_WIDTH + 8, STADIUM_DEPTH + 8),
@@ -110,6 +111,7 @@ export function mountArena(
   let driving: Robot | null = null;
   let mechanism: ReturnType<typeof installMechanisms> | null = null;
   let dartVisual:ReturnType<typeof createDartVisual>|null=null;
+  let armorGlow:ReturnType<typeof createArmorGlow>|null=null;
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   let matchTime: number | null = null;
@@ -289,6 +291,7 @@ export function mountArena(
       publish();
     } else if (controls.enabled) controls.update();
     publish();
+    armorGlow?.update();
     if(match)dartVisual?.update(match);
     projectiles.visual(camera,viewportHeight,isPlaying(mode));
     renderer.render(scene, camera);
@@ -896,6 +899,7 @@ export function mountArena(
       for(let i=0;i<3;i++)bindArmorFrame(mechanism.parts.getObjectByName(team+"-outpost-armor-"+i)!,rotor);
     }
     fieldRobots=robots.filter(r=>r.object.userData.area==="field");
+    armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
@@ -922,7 +926,7 @@ export function mountArena(
       const r=match.robots.find(r=>r.id===robot.object.name);
       if(r?.heavy)launcherModels.set(r.id,bindLauncherModule(robot.object,benchModules,launcherBench(r.team).pad));
     }
-    syncLaunchers();mechanism.applyDart(match);
+    syncLaunchers();mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));
     ready = true;
     setView("first");
     onReady();
@@ -960,7 +964,7 @@ export function mountArena(
       window.removeEventListener("pointercancel", pointerup);
       controls.removeEventListener("change", invalidate);
       controls.dispose();
-      projectiles.dispose();dartVisual?.dispose();
+      projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);

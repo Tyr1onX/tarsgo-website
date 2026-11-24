@@ -589,6 +589,18 @@ test("actual dart parts replace original assemblies and move both doors and dete
  assert.ok(installed.dartBindings.every(b=>b.carriage.position.equals(b.carriageRest)));
  installed.applyDart(createMatch([]));
  assert.ok(installed.dartBindings.every((b,i)=>b.door.getWorldPosition(new THREE.Vector3()).distanceTo(closed[i])<1e-7));
+ // Existing green source surfaces convey health only; no new hit geometry.
+ const indicators=TEAMS.map(team=>[field.getObjectByName(team+"-outpost-fixed-upper"),installed.dartBindings.find(b=>b.team===team).carriage].map(node=>meshes(node).filter(o=>o.material instanceof THREE.MeshStandardMaterial&&o.material.emissiveIntensity===1.6)));
+ assert.ok(indicators.every(side=>side.every(list=>list.length>0)));
+ const dark=createMatch([]);dark.sides.red.outpost=0;dark.sides.red.base=0;installed.applyDart(dark);
+ assert.ok(indicators[0].flat().every(o=>o.material.emissiveIntensity===0));
+ assert.ok(indicators[1].flat().every(o=>o.material.emissiveIntensity===1.6));
+ installed.setRuneLights([0],[1]);
+ for(const [bank,index] of [["a",0],["b",1]]){
+   assert.ok(meshes(field.getObjectByName("rune-arm-"+bank+"-"+index)).some(o=>o.material.emissiveIntensity===2));
+ }
+ installed.setRuneLights([],[]);
+ assert.ok(["a","b"].every(bank=>[0,1,2,3,4].every(i=>meshes(field.getObjectByName("rune-arm-"+bank+"-"+i)).every(o=>o.material.emissiveIntensity!==2))));
 });
 
 test("both virtual dart models use real CAD guides and the single referee flight result",async()=>{
