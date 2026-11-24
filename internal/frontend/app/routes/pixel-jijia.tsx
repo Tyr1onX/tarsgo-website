@@ -17,7 +17,7 @@ import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jiji
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
-import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, visualWind, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
+import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, advanceWind, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import roomPropsUrl from "../assets/pixel-jijia/room-props-v3.png?url";
@@ -78,6 +78,7 @@ export default function PixelJijiaPage() {
   const terrainRef = useRef<Terrain | null>(null);
   const wildlifeRef = useRef<Animal[]>([]);
   const surfaceRef=useRef<SurfaceWeather>({wet:0,snow:0});
+  const windRef=useRef(0);
   const trailRef = useRef<SurfaceMark[]>([]);
   const castRef = useRef<FishingCast | null>(null);
   const poseRef=useRef<ExplorerAnimation>(initialExplorerAnimation);
@@ -763,8 +764,8 @@ export default function PixelJijiaPage() {
 
     const tick = (time: number) => {
       const climate = climateRef.current;
-      const wind = reducedMotion.matches ? 0 : visualWind(climate?.weather??null,time);
       const dt = lastTime ? Math.min((time - lastTime) / 1000, 0.05) : 0;
+      const wind = windRef.current = reducedMotion.matches ? 0 : advanceWind(windRef.current,climate?.weather??null,time,dt);
       lastTime = time;
       surfaceRef.current=advanceSurface(surfaceRef.current,climate?.weather??null,climate?.temperature??null,dt);
       const held = (dir: Direction) => Number(keysRef.current.has(dir));

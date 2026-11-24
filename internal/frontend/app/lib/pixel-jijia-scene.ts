@@ -270,26 +270,43 @@ function snowCap(image:PropAtlas,box:SpriteBox,key:string){
   }
   ctx.putImageData(data,0,0);cache.set(key,canvas);return canvas;
 }
+function drawBentProp(ctx:CanvasRenderingContext2D,image:CanvasImageSource,sx:number,sy:number,
+  x:number,y:number,w:number,h:number,shift:number){
+  if(!shift){ctx.drawImage(image,sx,sy,PROP_CELL,PROP_CELL,x,y,w,h);return;}
+  // At most one world pixel of displacement between adjacent strips.
+  const bands=Math.abs(shift)+1;
+  for(let i=0;i<bands;i++){
+    const top=Math.round(i*86/bands),bottom=i===bands-1?PROP_CELL:Math.round((i+1)*86/bands);
+    const dy=Math.round(h*top/PROP_CELL),end=Math.round(h*bottom/PROP_CELL);
+    ctx.drawImage(image,sx,sy+top,PROP_CELL,bottom-top,x+Math.sign(shift)*(bands-1-i),y+dy,w,end-dy);
+  }
+}
 function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageElement,
-  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity,wind=0){
+  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity,wind=0,night=0){
   const b=node.kind==="building"?buildingBounds(node.value,sprites):
     node.kind==="prop"?{x:point(node.x)-node.value.width/2,y:point(node.y)-node.value.height,width:node.value.width,height:node.value.height}:
     fountainBounds();
   if(viewport&&(b.x+b.width<camera.x||b.y+b.height<camera.y||b.x>camera.x+viewport.width||b.y>camera.y+viewport.height))return;
   let shift=0;
-  if(node.kind==="building")building(ctx,atlas,sprites,node.value,camera);
+  if(node.kind==="building"){
+    building(ctx,atlas,sprites,node.value,camera);
+    drawWindowLight(ctx,node.value,b,camera,night);
+  }
   else if(node.kind==="prop"){
     const tree=isTree(node.value);
     // Only the canopy's upper rows sway. Trunk and physical footprint stay fixed.
     if(time&&(tree||node.value.sprite==="hydrangea"||node.value.sprite==="planter")){
       const cell=PROP_CELLS[node.value.sprite],sx=cell%4*PROP_CELL,sy=Math.floor(cell/4)*PROP_CELL;
-      const top=86,cut=Math.round(node.value.height*top/PROP_CELL);
       const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
       shift=Math.round(wind*(tree?.13:.07)*(.65+.35*Math.sin(time/(1000+hash(node.x,node.y)%650)+node.x+node.y)));
-      ctx.drawImage(props,sx,sy+top,PROP_CELL,PROP_CELL-top,x,y+cut,b.width,b.height-cut);
-      ctx.drawImage(props,sx,sy,PROP_CELL,top,x+shift,y,b.width,cut);
+      drawBentProp(ctx,props,sx,sy,x,y,b.width,b.height,shift);
     }else decoration(ctx,props,node.value,camera);
     const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
+    if(node.value.sprite==="lamp"&&night>.035){
+      const brightness=nightLight(night,(hash(node.x,node.y)%100)/100);
+      const xx=point(node.x)-camera.x,yy=point(node.y)-node.value.height*.72-camera.y;
+      ctx.fillStyle=`rgba(255,231,165,${brightness})`;ctx.fillRect(Math.round(xx-2),Math.round(yy-2),4,5);
+    }
     const active=age>=0&&age<1500;
     if(node.value.sprite==="arch"){
       // The little brass chime hangs inside the existing arch, not in a new collision layer.
@@ -317,11 +334,8 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
     ctx.save();ctx.globalAlpha=snow*.88;
     const cap=snowCap(node.kind==="building"?atlas:props,box,key);
     const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
-    if(shift&&node.kind==="prop"){
-      const cut=Math.round(b.height*86/PROP_CELL);
-      ctx.drawImage(cap,0,86,PROP_CELL,PROP_CELL-86,x,y+cut,b.width,b.height-cut);
-      ctx.drawImage(cap,0,0,PROP_CELL,86,x+shift,y,b.width,cut);
-    }else ctx.drawImage(cap,x,y,b.width,b.height);
+    if(shift&&node.kind==="prop")drawBentProp(ctx,cap,0,0,x,y,b.width,b.height,shift);
+    else ctx.drawImage(cap,x,y,b.width,b.height);
     ctx.restore();
   }
 }
@@ -589,39 +603,37 @@ function drawCloudShadows(ctx:CanvasRenderingContext2D,camera:Position,c:Outdoor
     ctx.fillStyle=g;ctx.fillRect(-235,-235,470,470);ctx.restore();
   }
 }
-function drawAtmosphere(ctx:CanvasRenderingContext2D,camera:Position,sprites:SpriteIndex,c:OutdoorClimate,w:number,h:number,wet:number){
+function drawWindowLight(ctx:CanvasRenderingContext2D,p:Place,b:{x:number;y:number;width:number;height:number},camera:Position,night:number){
+  if(night<=.035)return;
+  for(const [u,v,a,h] of WINDOWS[p.id]??[]){
+    const brightness=nightLight(night,(hash(p.x+Math.round(u*100),p.y+Math.round(v*100))%100)/100);
+    if(!brightness)continue;
+    const x=b.x-camera.x+u*b.width,y=b.y-camera.y+v*b.height;
+    ctx.fillStyle=`rgba(255,224,155,${brightness*.65})`;
+    ctx.fillRect(Math.round(x),Math.round(y),Math.round(a*b.width),Math.round(h*b.height));
+  }
+}
+function drawGroundLights(ctx:CanvasRenderingContext2D,camera:Position,night:number,w:number,h:number,wet:number){
+  if(night<=.035)return;
+  for(const p of SCENERY){
+    if(p.sprite!=="lamp")continue;
+    const x=p.x*TILE-camera.x,y=p.y*TILE-camera.y;
+    if(x<-60||x>w+60||y<-60||y>h+60)continue;
+    const brightness=nightLight(night,(hash(p.x,p.y)%100)/100);
+    if(!brightness)continue;
+    glow(ctx,x,y,35,"rgba(255,205,123,.38)",brightness);
+    if(wet>.02){
+      ctx.fillStyle=`rgba(255,217,145,${wet*brightness*.22})`;
+      ctx.fillRect(Math.round(x-7),Math.round(y+4),14,1);
+      ctx.fillRect(Math.round(x-4),Math.round(y+8),8,1);
+    }
+  }
+}
+function drawAtmosphere(ctx:CanvasRenderingContext2D,camera:Position,c:OutdoorClimate,w:number,h:number){
   const shade=c.weather==="fog"?"rgba(192,207,208,.22)":c.weather==="storm"?"rgba(46,58,83,.20)":c.weather==="snow"?"rgba(214,230,235,.10)":c.weather&&c.weather!=="clear"?"rgba(76,96,108,.11)":null;
   if(shade){ctx.fillStyle=shade;ctx.fillRect(0,0,w,h);}
   if(c.weather==="clear"&&c.sunHeight>0&&c.sunHeight<.30){ctx.fillStyle=`rgba(242,174,100,${(.30-c.sunHeight)*.35})`;ctx.fillRect(0,0,w,h);}
   if(c.night){ctx.fillStyle=`rgba(13,29,55,${c.night})`;ctx.fillRect(0,0,w,h);}
-  if(c.night>.035){
-    for(const p of SCENERY.filter(p=>p.sprite==="lamp")){
-      const x=p.x*TILE-camera.x,y=p.y*TILE-p.height*.72-camera.y;
-      if(x<-60||x>w+60||y<-60||y>h+60)continue;
-      const brightness=nightLight(c.night,(hash(p.x,p.y)%100)/100);
-      if(!brightness)continue;
-      glow(ctx,x,y,35,"rgba(255,211,126,.7)",brightness);
-      glow(ctx,x,p.y*TILE-camera.y,27,"rgba(255,205,123,.28)",brightness);
-      if(wet>.02){
-        const foot=p.y*TILE-camera.y;
-        ctx.fillStyle=`rgba(255,217,145,${wet*brightness*.14})`;
-        ctx.fillRect(Math.round(x-7),Math.round(foot+4),14,1);
-        ctx.fillRect(Math.round(x-4),Math.round(foot+8),8,1);
-      }
-      ctx.fillStyle=`rgba(255,231,165,${brightness})`;ctx.fillRect(Math.round(x-2),Math.round(y-2),4,5);
-    }
-    for(const p of PLACES){
-      const x=p.x*TILE-camera.x,ww=p.width*TILE,hh=ww*sprites[p.id][3]/sprites[p.id][2],y=(p.y+p.height)*TILE-hh-camera.y;
-      if(x+ww<0||x>w||y+hh<0||y>h)continue;
-      for(const [u,v,a,b] of WINDOWS[p.id]??[]){
-        const brightness=nightLight(c.night,(hash(p.x+Math.round(u*100),p.y+Math.round(v*100))%100)/100);
-        if(!brightness)continue;
-        const xx=x+u*ww,yy=y+v*hh;
-        glow(ctx,xx+a*ww/2,yy+b*hh/2,Math.max(15,a*ww),"rgba(255,211,137,.36)",brightness);
-        ctx.fillStyle=`rgba(255,220,146,${brightness*.35})`;ctx.fillRect(Math.round(xx),Math.round(yy),Math.round(a*ww),Math.round(b*hh));
-      }
-    }
-  }
   if(c.weather==="clear"&&c.sunHeight>.08&&c.sunHeight<.82){
     // Canopy-filtered shafts projected along the current light direction.
     const dx=-c.sunX*125,dy=-c.sunY*125;
@@ -648,7 +660,7 @@ export function renderScene(
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
   drawTerrain(ctx,terrain,screenCamera,w,h);
   drawWater(ctx,screenCamera,w,h,marks,time,motion,climate);
-  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);}
+  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land=animals.filter(a=>a.species!=="fish").sort((a,b)=>a.y-b.y);
   const seasonal=seasonalProps(props,climate?.season??"summer");
@@ -671,11 +683,11 @@ export function renderScene(
       const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
     }
     if (!playerDrawn && node.y > seatDepth) {drawPlayer();playerDrawn = true;}
-    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity,wind);
+    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity,wind,climate?.night??0);
   }
   while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();
-  if(climate)drawAtmosphere(ctx,screenCamera,sprites,climate,w,h,surface.wet);
+  if(climate)drawAtmosphere(ctx,screenCamera,climate,w,h);
   if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
 }
 

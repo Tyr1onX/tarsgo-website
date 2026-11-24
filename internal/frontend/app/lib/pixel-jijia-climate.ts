@@ -88,6 +88,11 @@ export function visualWind(weather: WeatherKind|null, elapsed: number): number {
   return strength*(.72+.18*Math.sin(t*.47)+.10*Math.sin(t*1.13))*Math.sin(t*.019+1.3);
 }
 
+// Approach the new visual wind smoothly when a weather block changes.
+export function advanceWind(previous:number,weather:WeatherKind|null,elapsed:number,dt:number):number {
+  return previous+(visualWind(weather,elapsed)-previous)*(1-Math.exp(-dt*1.6));
+}
+
 // Each fixture has a stable dusk threshold. Smooth activation avoids flashing.
 export function nightLight(night:number, phase:number):number {
   const t=unit((night-(.035+phase*.12))/.14);
