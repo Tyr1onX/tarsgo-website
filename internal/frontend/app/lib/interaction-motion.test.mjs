@@ -20,13 +20,11 @@ test("dashboard menu icon follows the real expanded state", async () => {
   assert.match(styles, /sidebar-toggle\[aria-expanded="true"\] svg path:last-child/);
 });
 
-test("home ripple starts at the local pointer position on non-image cards", async () => {
+test("home image cards do not retain the text-only ripple", async () => {
   const card = await source("../components/home-visual-navigation.tsx");
   const styles = await source("../app.css");
-  assert.match(card, /if \(module\.image \|\| event\.button !== 0/);
-  assert.match(card, /event\.clientX - rect\.left/);
-  assert.match(card, /event\.clientY - rect\.top/);
-  assert.match(styles, /home-card-ripple/);
+  assert.doesNotMatch(card, /home-visual-card--ripple|home-ripple-x/);
+  assert.doesNotMatch(styles, /home-card-ripple/);
 });
 
 test("community feedback only starts after confirmed activation", async () => {

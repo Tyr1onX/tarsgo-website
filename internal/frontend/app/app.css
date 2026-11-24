@@ -1257,71 +1257,11 @@ html[data-theme-transition] :is(
   background: var(--admin-surface-subtle);
 }
 
-/* Text entries share the photo cards' geometry, typography and arrow interaction. */
-.home-visual-card--cocreation {
-  display: flex;
-  min-height: calc(var(--home-photo-height) * 0.7);
-  align-items: flex-end;
-  padding: 1.5rem 4rem 1.5rem 1.25rem;
-}
-
-.home-visual-card--cocreation .home-visual-card-copy {
-  position: relative;
-  inset: auto;
-}
-
-.home-visual-card--cocreation::after {
-  content: "";
-  position: absolute;
-  left: var(--home-ripple-x, 50%);
-  top: var(--home-ripple-y, 50%);
-  width: 340px;
-  height: 340px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgb(255 255 255 / 18%), transparent 70%);
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.2);
-  pointer-events: none;
-}
-.home-visual-card--cocreation.home-visual-card--ripple::after {
-  animation: home-card-ripple 360ms ease-out both;
-}
-@keyframes home-card-ripple {
-  0% { opacity: .75; transform: translate(-50%, -50%) scale(.2); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-}
-
-.home-visual-card--pixel {
-  color: #f5f1e7;
-  background: #263d32;
-}
-
-.home-visual-card--arena {
-  color: #f5f1e7;
-  background: #26394c;
-}
-
-.home-visual-card--community {
-  color: #f5f1e7;
-  background: #192823 url("/assets/images/Home/community-concept.svg") center / cover no-repeat;
-}
-
-.home-visual-card--community .home-visual-card-arrow {
-  color: #d7b56d;
-}
-
-.home-visual-card--salon {
-  color: #f5f1e7;
-  background: #1a201d url("/assets/images/Home/salon-concept.svg") center / cover no-repeat;
-}
-
-.home-visual-card--salon .home-visual-card-copy > p {
-  color: rgb(255 255 255 / 0.82);
-}
-
-.home-visual-card--salon .home-visual-card-arrow {
-  color: #d7b56d;
-}
+/* The experience covers use the same image, text and arrow treatment as the other links. */
+.home-visual-card--pixel { background: #263d32; }
+.home-visual-card--arena { background: #26394c; }
+.home-visual-card--community { background: #192823; }
+.home-visual-card--salon { background: #1a201d; }
 
 .home-visual-card-preview {
   position: absolute;
@@ -1694,10 +1634,6 @@ html[data-theme-transition] :is(
     --home-photo-height: 16rem;
   }
 
-  .home-visual-card--cocreation {
-    padding: 1.15rem 3.5rem 1.15rem 1rem;
-  }
-
   .home-visual-card-copy {
     right: 3.5rem;
     bottom: 1.15rem;
@@ -1711,7 +1647,7 @@ html[data-theme-transition] :is(
 }
 
 
-/* Homepage-only mobile navigation: a featured robot, two active destinations and three short links. */
+/* Homepage mobile navigation: featured robot, four experience covers and compact links. */
 @media (max-width: 639px) {
   .home-mobile-navigation {
     padding-block: 1.75rem 2rem;
@@ -1756,12 +1692,6 @@ html[data-theme-transition] :is(
     font-weight: 650;
   }
 
-  .home-mobile-link__copy > span {
-    color: var(--theme-muted);
-    font-size: 0.75rem;
-    line-height: 1.5;
-  }
-
   .home-mobile-link__arrow {
     position: relative;
     z-index: 1;
@@ -1785,7 +1715,8 @@ html[data-theme-transition] :is(
     color: #fff;
   }
 
-  .home-mobile-link--featured::after {
+  .home-mobile-link--featured::after,
+  .home-mobile-link--experience::after {
     position: absolute;
     inset: 0;
     z-index: 0;
@@ -1793,7 +1724,8 @@ html[data-theme-transition] :is(
     content: "";
   }
 
-  .home-mobile-link--featured img {
+  .home-mobile-link--featured img,
+  .home-mobile-link--experience img {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -1806,18 +1738,18 @@ html[data-theme-transition] :is(
     font-size: 1.25rem;
   }
 
-  .home-mobile-link--featured .home-mobile-link__arrow {
+  .home-mobile-link--featured .home-mobile-link__arrow,
+  .home-mobile-link--experience .home-mobile-link__arrow {
     color: var(--hero-accent);
   }
 
-  .home-mobile-link--action {
-    min-height: 7.5rem;
+  .home-mobile-link--experience {
+    min-height: 8.5rem;
     align-items: flex-end;
-    padding: 0.875rem;
-  }
-
-  .home-mobile-link--action .home-mobile-link__arrow {
-    align-self: flex-start;
+    padding: 0.75rem;
+    border: 0;
+    background: #101717;
+    color: #fff;
   }
 
   .home-mobile-link--compact {
@@ -1930,10 +1862,6 @@ html[data-theme-transition] :is(
   .home-visual-card--community { grid-column: 1 / span 3; grid-row: 3; }
   .home-visual-card--salon { grid-column: 4 / span 3; grid-row: 3; }
 
-  .home-visual-card--cocreation {
-    padding: 1.25rem 3.25rem 1.25rem 1rem;
-  }
-
   .home-visual-card-copy {
     right: 3.25rem;
     bottom: 1.25rem;
@@ -1963,7 +1891,7 @@ html[data-theme-transition] :is(
   .home-visual-grid {
     --home-photo-height: clamp(17.5rem, 21vw, 20rem);
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: var(--home-photo-height) repeat(2, calc(var(--home-photo-height) * 0.7)) var(--home-photo-height);
+    grid-template-rows: var(--home-photo-height) calc(var(--home-photo-height) * 0.85) var(--home-photo-height);
   }
 
   .home-visual-card {
@@ -1973,18 +1901,14 @@ html[data-theme-transition] :is(
   .home-visual-card--about { grid-column: 1; grid-row: 1; }
   .home-visual-card--robots { grid-column: 2; grid-row: 1; }
   .home-visual-card--join { grid-column: 3 / span 2; grid-row: 1; }
-  .home-visual-card--events { grid-column: 1 / span 2; grid-row: 4; }
-  .home-visual-card--history { grid-column: 3; grid-row: 4; }
-  .home-visual-card--micro { grid-column: 4; grid-row: 4; }
+  .home-visual-card--events { grid-column: 1 / span 2; grid-row: 3; }
+  .home-visual-card--history { grid-column: 3; grid-row: 3; }
+  .home-visual-card--micro { grid-column: 4; grid-row: 3; }
 
-  .home-visual-card--pixel { grid-column: 1 / span 2; grid-row: 2; }
-  .home-visual-card--arena { grid-column: 3 / span 2; grid-row: 2; }
-  .home-visual-card--community { grid-column: 1 / span 2; grid-row: 3; }
-  .home-visual-card--salon { grid-column: 3 / span 2; grid-row: 3; }
-
-  .home-visual-card--cocreation {
-    padding: 1.35rem 3.25rem 1.35rem 1rem;
-  }
+  .home-visual-card--pixel { grid-column: 1; grid-row: 2; }
+  .home-visual-card--arena { grid-column: 2; grid-row: 2; }
+  .home-visual-card--community { grid-column: 3; grid-row: 2; }
+  .home-visual-card--salon { grid-column: 4; grid-row: 2; }
 
   .home-visual-card-copy {
     right: 3.25rem;
