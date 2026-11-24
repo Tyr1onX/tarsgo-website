@@ -47,7 +47,7 @@ test("四季地形、天气粒子与显示必须复用原 Canvas 及减少动态
   assert.ok(scene.includes('season === "winter"'));
   assert.ok(scene.includes('season === "autumn"'));
   assert.ok(scene.includes('season === "spring"'));
-  assert.ok(route.includes("window.setInterval(refresh, 60_000)"));
+  assert.ok(route.includes('window.setInterval(refresh, timeMode === "game" ? 1000 : 60_000)'));
   assert.ok(route.includes('time - lastWeather > (climate.weather === "snow" ? 150 : climate.weather === "storm" ? 38 : 65)'));
   assert.ok(route.includes("if (reducedMotion.matches || room)"));
   assert.ok(route.includes('aria-label="长春时间与天气"'));
@@ -65,4 +65,15 @@ test("WMO 实况天气和温度来自同一时间点，未知及过期数据拒�
   assert.equal(parseCurrentWeather(payload(0), now + WEATHER_REFRESH_MS * 4), null);
   assert.equal(parseCurrentWeather({current:{time:now / 1000, temperature_2m:null,weather_code:0}}, now), null);
   assert.equal(parseCurrentWeather(null, now), null);
+});
+
+test("游戏时钟每秒推进一分钟且24分钟循环，太阳方向连续变化", () => {
+  const t = Date.parse("2026-11-24T04:00:00Z");
+  const a=changchunClimate(new Date(t),"game"), b=changchunClimate(new Date(t+1000),"game");
+  assert.equal((b.hour*60+b.minute-a.hour*60-a.minute+1440)%1440,1);
+  const cycle=changchunClimate(new Date(t+1440000),"game");
+  assert.deepEqual([a.hour,a.minute],[cycle.hour,cycle.minute]);
+  const morning=changchunClimate(new Date("2026-06-21T00:00:00Z")), afternoon=changchunClimate(new Date("2026-06-21T08:00:00Z"));
+  assert.ok(morning.sunX>0&&afternoon.sunX<0);
+  assert.ok(morning.sunHeight>0&&afternoon.sunHeight>0);
 });

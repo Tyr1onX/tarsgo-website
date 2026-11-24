@@ -30,7 +30,7 @@ export const PLACES: Place[] = [
 // One scene specification controls terrain, illustration, and physical obstacles.
 // Art direction: 16px terrain units, 3/4 overhead sprites, upper-left daylight,
 // warm limestone + sage greens, decorative silhouettes clear of walking routes.
-export type GroundArea = { kind: 0 | 1 | 2 | 3; x: number; y: number; width: number; height: number };
+export type GroundArea = { kind: 0 | 1 | 2 | 3; x: number; y: number; width: number; height: number; recreation?: true };
 export const GROUND_AREAS: GroundArea[] = [
   // Outer walking loop + quieter branches, linked to all six existing buildings.
   { kind: 1, x: 16, y: 13, width: 112, height: 6 },
@@ -48,9 +48,9 @@ export const GROUND_AREAS: GroundArea[] = [
   { kind: 2, x: 16, y: 77, width: 24, height: 11 },
   { kind: 2, x: 109, y: 73, width: 20, height: 14 },
   { kind: 2, x: 3, y: 54, width: 12, height: 15 },
-  { kind: 3, x: 4, y: 55, width: 10, height: 13 },
+  { kind: 3, x: 4, y: 55, width: 10, height: 13, recreation: true },
   { kind: 2, x: 130, y: 25, width: 11, height: 14 },
-  { kind: 3, x: 131, y: 26, width: 9, height: 12 },
+  { kind: 3, x: 131, y: 26, width: 9, height: 12, recreation: true },
   { kind: 1, x: 24, y: 45, width: 96, height: 7 },
   { kind: 1, x: 69, y: 33, width: 7, height: 46 },
   { kind: 1, x: 42, y: 36, width: 7, height: 31 },
@@ -58,15 +58,33 @@ export const GROUND_AREAS: GroundArea[] = [
   { kind: 1, x: 42, y: 63, width: 61, height: 6 },
   { kind: 1, x: 58, y: 33, width: 29, height: 7 },
   { kind: 2, x: 56, y: 39, width: 32, height: 23 },
-  { kind: 0, x: 57, y: 40, width: 3, height: 3 },
-  { kind: 0, x: 84, y: 40, width: 3, height: 3 },
-  { kind: 0, x: 57, y: 58, width: 3, height: 3 },
-  { kind: 0, x: 84, y: 58, width: 3, height: 3 },
   { kind: 2, x: 26, y: 44, width: 11, height: 9 },
   { kind: 3, x: 27, y: 45, width: 9, height: 7 },
   { kind: 2, x: 107, y: 44, width: 11, height: 9 },
   { kind: 3, x: 108, y: 45, width: 9, height: 7 },
 ];
+
+// Material is resolved once, in paint order. All users query the same cells.
+const materials = new Uint8Array(WORLD_WIDTH * WORLD_HEIGHT);
+for (const area of GROUND_AREAS) {
+  for (let y = area.y; y < area.y + area.height; y++)
+    for (let x = area.x; x < area.x + area.width; x++)
+      materials[y * WORLD_WIDTH + x] = area.recreation ? 4 : area.kind;
+}
+function cellAt(x: number, y: number): number {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  return cx >= 0 && cx < WORLD_WIDTH && cy >= 0 && cy < WORLD_HEIGHT
+    ? materials[cy * WORLD_WIDTH + cx] : 0;
+}
+export function groundAt(x: number, y: number): GroundArea["kind"] {
+  return Math.min(cellAt(x,y),3) as GroundArea["kind"];
+}
+
+// Only authored recreational ponds permit entry; ornamental basins stay bounded.
+export function waterDepthAt(x: number, y: number): 0 | 1 | 2 {
+  if (cellAt(x,y) !== 4) return 0;
+  return cellAt(x-1,y)!==4 || cellAt(x+1,y)!==4 || cellAt(x,y-1)!==4 || cellAt(x,y+1)!==4 ? 1 : 2;
+}
 
 export type PropSprite =
   | "bench" | "lamp" | "sign" | "planter" | "oak" | "lime_tree"
@@ -93,11 +111,11 @@ export const SCENERY: Scenery[] = [
   { sprite: "lamp", x: 82, y: 61.3, width: 30, height: 75, solid: 0.4 },
   { sprite: "statue", x: 82, y: 55, width: 49, height: 62, solid: 0.9, story: { title: "吉甲机械纪念碑", caption: "ROBOT MEMORIAL", description: "台座上的小机器人没有举起奖杯，它只是伸着手，像是在说：继续尝试。", action: "启动自检", result: "蓝色目镜亮了一下：电源正常、传感器正常、好奇心依旧在线。" } },
   { sprite: "sign", x: 68, y: 59, width: 40, height: 59, solid: 0.38, story: { title: "广场路标", caption: "WAYFINDER", description: "向北是荣誉殿堂，向东通往实验园区，向西是机械工坊。无论选择哪条路，都能回到喷泉。", action: "翻看路标背面", result: "背面有人用极小的字写着：别害怕走错方向，做机器人的人，总是在试错。" } },
-  { sprite: "hydrangea", x: 64, y: 41.2, width: 45, height: 36 },
-  { sprite: "hydrangea", x: 80, y: 41.2, width: 45, height: 36 },
+  { sprite: "hydrangea", x: 60.5, y: 32, width: 45, height: 36 },
+  { sprite: "hydrangea", x: 83.5, y: 32, width: 45, height: 36 },
   // Landscape framing extends beyond the hero square, using the same authored kit.
-  { sprite: "oak", x: 53, y: 40, width: 86, height: 101, solid: 0.9 },
-  { sprite: "cherry", x: 91, y: 40, width: 86, height: 102, solid: 0.9, story: { title: "樱树下的约定", caption: "BLOSSOM PROMISE", description: "每年花开时，总有人重新走过这里。机器会更换零件，但一些约定会慢慢长成树。", action: "接住一片花瓣", result: "花瓣停在掌心一瞬，又被风带走。你记住了它落下的方向。" } },
+  { sprite: "oak", x: 50.5, y: 39.5, width: 86, height: 101, solid: 0.9 },
+  { sprite: "cherry", x: 93.5, y: 39.5, width: 86, height: 102, solid: 0.9, story: { title: "樱树下的约定", caption: "BLOSSOM PROMISE", description: "每年花开时，总有人重新走过这里。机器会更换零件，但一些约定会慢慢长成树。", action: "接住一片花瓣", result: "花瓣停在掌心一瞬，又被风带走。你记住了它落下的方向。" } },
   { sprite: "oak", x: 53, y: 62, width: 86, height: 101, solid: 0.9 },
   { sprite: "lime_tree", x: 91, y: 62, width: 86, height: 101, solid: 0.9 },
   { sprite: "rocks", x: 51, y: 54, width: 58, height: 40, solid: 0.7, story: { title: "试验后的石头", caption: "FIELD TEST", description: "石头上的划痕来自一次定位实验。机器人读不懂风，却能一点点学会看清这里的边界。" } },
@@ -142,14 +160,14 @@ export const SCENERY: Scenery[] = [
   { sprite: "oak", x: 45, y: 91, width: 82, height: 96, solid: 0.9 },
   { sprite: "lime_tree", x: 74, y: 92, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 101, y: 91, width: 86, height: 102, solid: 0.9 },
-  { sprite: "hydrangea", x: 28, y: 12, width: 45, height: 36 },
+  { sprite: "hydrangea", x: 27.5, y: 7, width: 45, height: 36 },
   { sprite: "planter", x: 34, y: 10, width: 51, height: 40, solid: 0.72 },
   { sprite: "hydrangea", x: 43, y: 10, width: 45, height: 36 },
   { sprite: "rocks", x: 13, y: 31, width: 58, height: 40, solid: 0.7 },
   { sprite: "hydrangea", x: 12, y: 45, width: 45, height: 36 },
-  { sprite: "planter", x: 12, y: 65, width: 51, height: 40 },
+  { sprite: "planter", x: 12.5, y: 69.5, width: 51, height: 40 },
   { sprite: "rocks", x: 29, y: 73, width: 58, height: 40, solid: 0.7, story: { title: "旧试验标记", caption: "OLD MARK", description: "这里曾用石块标记最早的自动巡航路线。草重新长了出来，路线却被记在了队员的笔记里。" } },
-  { sprite: "hydrangea", x: 36, y: 88, width: 45, height: 36 },
+  { sprite: "hydrangea", x: 36.5, y: 89, width: 45, height: 36 },
   { sprite: "bench", x: 54, y: 88, width: 57, height: 38, solid: 0.8, story: { title: "南侧观景座", caption: "GARDEN VIEW", description: "沿环线走累了，就在这里坐一会儿。风把远处工坊的声音吹得很轻。" } },
   { sprite: "hydrangea", x: 67, y: 88, width: 45, height: 36 },
   { sprite: "rocks", x: 89, y: 89, width: 58, height: 40, solid: 0.7 },
@@ -163,6 +181,20 @@ export const SCENERY: Scenery[] = [
   { sprite: "fence", x: 114, y: 35, width: 64, height: 34, solid: 0.5 },
   { sprite: "hydrangea", x: 117, y: 59, width: 45, height: 36 },
 ];
+export function sceneryGroundValid(object: Scenery): boolean {
+  const natural = ["oak", "lime_tree", "cherry", "hydrangea", "rocks"].includes(object.sprite);
+  const broad = ["bench", "fence", "planter", "rocks", "hydrangea"].includes(object.sprite);
+  const half = broad ? object.width / (2 * TILE) * .78 : natural ? .65 : object.solid ?? .35;
+  for (let x = Math.floor(object.x-half); x <= Math.floor(object.x+half); x++) {
+    for (let y = Math.floor(object.y-.52); y <= Math.floor(object.y+.52); y++) {
+      const material = groundAt(x,y);
+      if (natural ? material !== 0 : material === 3) return false;
+      if (PLACES.some(p => x >= p.x && x < p.x+p.width && y >= p.y && y < p.y+p.height)) return false;
+    }
+  }
+  return true;
+}
+
 export const FOUNTAIN = { x: 72, y: 48, radius: 2.5 } as const;
 export const SPAWN: Position = { x: 72, y: 56 };
 
@@ -192,8 +224,10 @@ export function overlapsRect(x: number, y: number, radius: number,
 export function isWalkable(x: number, y: number): boolean {
   const radius = 0.3;
   if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
-  // Water is defined by the same ground areas used to paint the scene.
-  if (GROUND_AREAS.some(area => area.kind === 3 && overlapsRect(x, y, radius, area))) return false;
+  // A decorative basin is not a swimming pond. Check the full player footprint.
+  for (const dx of [-radius, radius]) for (const dy of [-radius, radius]) {
+    if (groundAt(x + dx, y + dy) === 3 && !waterDepthAt(x + dx, y + dy)) return false;
+  }
   // Every building has a solid body; its painted roof can overlap a rear path.
   // The interaction is in front of the body, not in a non-solid wall strip.
   if (PLACES.some(place => overlapsRect(x, y, radius, place))) return false;
@@ -208,7 +242,9 @@ export function movePlayer(
 ): Position {
   const len = Math.hypot(horizontal, vertical);
   if (!len || dt <= 0) return position;
-  const distance = (sprinting ? RUN_SPEED : WALK_SPEED) * Math.min(dt, 0.05);
+  const depth = walkable === isWalkable ? waterDepthAt(position.x, position.y) : 0;
+  const speed = depth === 2 ? WALK_SPEED * .46 : depth === 1 ? WALK_SPEED * .65 : sprinting ? RUN_SPEED : WALK_SPEED;
+  const distance = speed * Math.min(dt, 0.05);
   // Short substeps keep thin obstacles solid at both walk and sprint speeds.
   const steps = Math.ceil(distance / 0.2);
   const dx = horizontal / len * distance / steps;

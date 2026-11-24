@@ -395,3 +395,9 @@
   .pixel-world-study-guest { left: 10px; bottom: 195px; }
   .pixel-world-study-notice { left: 10px; bottom: 275px; }
 }
+
+.pixel-world-nature-log { padding: 6px 0; line-height: 1.5; color: #eadfc7; }
+.pixel-world-nature-notice { position: absolute; bottom: 86px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border: 1px solid #c4ac76; background: #203d36ed; color: #f9e6bf; z-index: 6; font-size: 13px; pointer-events: none; }
+.pixel-world-interact:disabled { opacity: .7; cursor: default; }
+.pixel-world-weather-controls { flex-wrap: wrap; }
+@media(max-width:700px){.pixel-world-weather-controls{max-width: 144px}.pixel-world-nature-notice{bottom: 192px;}}

@@ -2,6 +2,7 @@
 export type Season = "spring" | "summer" | "autumn" | "winter";
 export type WeatherKind = "clear" | "cloudy" | "fog" | "rain" | "snow" | "storm";
 export type WeatherMode = "actual" | "random";
+export type TimeMode = "actual" | "game";
 export type CurrentWeather = { weather: WeatherKind; label: string; temperature: number; time: number };
 export const WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=43.85&longitude=125.32&current=temperature_2m,weather_code&timeformat=unixtime";
 export const WEATHER_REFRESH_MS = 15 * 60_000;
@@ -15,6 +16,7 @@ export type ChangchunClimate = {
   weather: WeatherKind;
   temperature: number;
   night: number;
+  sunX: number; sunY: number; sunHeight: number;
   dateKey: string;
 };
 
@@ -23,10 +25,15 @@ const formatter = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit", minute: "2-digit", hourCycle: "h23",
 });
 
-export function changchunClimate(now: Date): ChangchunClimate {
+export function changchunClimate(now: Date, mode: TimeMode = "actual"): ChangchunClimate {
   const fields = Object.fromEntries(formatter.formatToParts(now)
     .filter(part => part.type !== "literal").map(part => [part.type, Number(part.value)]));
-  const { year, month, day, hour, minute } = fields as Record<"year" | "month" | "day" | "hour" | "minute", number>;
+  let { year, month, day, hour, minute } = fields as Record<"year" | "month" | "day" | "hour" | "minute", number>;
+  // One game minute per real second, while the real calendar controls seasons.
+  if (mode === "game") {
+    const minutes = Math.floor(now.getTime() / 1000) % 1440;
+    hour = Math.floor(minutes / 60); minute = minutes % 60;
+  }
   const season: Season = month >= 3 && month <= 5 ? "spring"
     : month >= 6 && month <= 8 ? "summer" : month >= 9 && month <= 11 ? "autumn" : "winter";
   const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -38,16 +45,21 @@ export function changchunClimate(now: Date): ChangchunClimate {
     : season === "summer"
       ? (random < 0.36 ? "rain" : random < 0.61 ? "cloudy" : "clear")
       : random < 0.2 ? "rain" : random < 0.53 ? "cloudy" : "clear";
-  // Keep evenings readable and respect Changchun's varying seasonal daylight.
-  const sunrise = season === "summer" ? 5 : season === "winter" ? 7 : 6;
-  const sunset = season === "summer" ? 19 : season === "winter" ? 17 : 18;
-  const night = hour < sunrise ? Math.min(0.42, (sunrise - hour) * 0.12)
-    : hour >= sunset ? Math.min(0.42, (hour - sunset + 1) * 0.12) : 0;
+  // Approximate solar direction using latitude, seasonal declination and hour
+  // angle. East is +x, north is -y; the artwork uses an overhead projection.
+  const dayOfYear = (Date.UTC(year,month-1,day)-Date.UTC(year,0,0))/86400000;
+  const rad = Math.PI/180, latitude = 43.85*rad;
+  const declination = 23.44*rad*Math.sin(2*Math.PI*(284+dayOfYear)/365);
+  const angle = ((hour+minute/60)-12+5.32/15)*15*rad;
+  const sunX = -Math.cos(declination)*Math.sin(angle);
+  const sunY = Math.sin(latitude)*Math.cos(declination)*Math.cos(angle)-Math.cos(latitude)*Math.sin(declination);
+  const sunHeight = Math.sin(latitude)*Math.sin(declination)+Math.cos(latitude)*Math.cos(declination)*Math.cos(angle);
+  const night = Math.max(0,Math.min(.42,(.015-sunHeight)*1.8));
   // Simulated temperature follows seasonal conditions and daytime warming.
   const monthly = [-16, -12, -3, 8, 16, 21, 24, 22, 16, 7, -3, -13][month - 1];
   const temperature = Math.round(monthly + Math.cos((Math.floor(hour / 4) * 4 + 2 - 14) * Math.PI / 12) * 5 + (random - .5) * 8 - (candidate === "snow" ? 3 : 0));
   const weather: WeatherKind = candidate === "rain" && temperature <= 0 ? "snow" : candidate === "snow" && temperature > 0 ? "rain" : candidate;
-  return { year, month, day, hour, minute, season, weather, temperature, night, dateKey };
+  return { year, month, day, hour, minute, season, weather, temperature, night, sunX, sunY, sunHeight, dateKey };
 }
 
 export const SEASON_LABEL: Record<Season, string> = {
