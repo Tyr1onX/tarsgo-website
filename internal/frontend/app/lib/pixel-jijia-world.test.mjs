@@ -6,6 +6,7 @@ import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
   benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
+import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt } from "./pixel-jijia-room.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
   assert.equal(PLACES.length, 6);
@@ -328,9 +329,9 @@ test("六栋建筑都有不同的可进入室内与独立设备，不复制人�
   for (const kind of ["display", "camera", "server", "reception"]) {
     assert.ok(source.includes(`kind: "${kind}"`), `缺少 ${kind} 类型设施`);
   }
-  assert.ok(route.includes("roomArtRef.current = Object.fromEntries(interiors)"),
-    "六栋室内应加载独立原创素材而非旧几何铺装");
-  assert.ok(route.includes("renderRoomTerrain(STUDY_ROOM)"),
+  assert.ok(route.includes("Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene)])"),
+    "各室内复用独立地形及组件绘制");
+  assert.ok(source.includes('if (room.id === "study") drawRoomObject(ctx, object, screenCamera)'),
     "个人研究室应继续使用可编辑家具层");
   assert.ok(route.includes("const destination = ROOMS[placeId]"));
   assert.ok(route.includes("const place = PLACES.find(p => p.id === roomId)"));
@@ -339,39 +340,78 @@ test("六栋建筑都有不同的可进入室内与独立设备，不复制人�
     "所有室内必须复用同一个渲染入口");
 });
 
-test("六栋室内使用六张各自独立的原创图片，比例与世界一致", () => {
-  const ids = PLACES.map(p => p.id);
-  const seen = new Set();
+test("六栋公共室内采用双倍原生分辨率的独立透明组件", () => {
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
-  for (const id of ids) {
-    const data = readFileSync(new URL(`../assets/pixel-jijia/interior-${id}-v6.webp`, import.meta.url));
-    assert.equal(data.toString("ascii", 0, 4), "RIFF", id);
-    assert.equal(data.toString("ascii", 8, 12), "WEBP", id);
-    assert.equal(data.toString("ascii", 12, 16), "VP8 ", id);
-    const w = data.readUInt16LE(26) & 0x3fff, h = data.readUInt16LE(28) & 0x3fff;
-    assert.ok(w >= 36 * TILE && h >= 24 * TILE, `${id} 室内图片不得低于场景实际渲染尺寸`);
-    assert.ok(Math.abs(w / h - 1.5) < 0.02, `${id} 素材比例会导致拉伸`);
-    seen.add(data.toString("base64"));
-    assert.ok(route.includes(`interior-${id}-v6.webp?url`), `${id} 尚未加载室内图片`);
-  }
-  assert.equal(seen.size, ids.length, "六张室内图片不能重复复用");
-  assert.ok(scene.includes('room.id !== "study"'), "公开建筑使用图片、研究室保留可编辑家具");
-  assert.ok(scene.includes("drawRoomObject(ctx, object, screenCamera)"), "不能破坏研究室家具绘制");
-  assert.ok(route.includes('const roomTerrain = room?.id === "study"'));
+  const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
+  assert.ok(art.includes("ROOM_ART_SCALE = 2"));
+  assert.ok(art.includes("new WeakMap<RoomObject, HTMLCanvasElement>()"));
+  assert.ok(art.includes("getImageData("), "点击检测以透明组件像素为准");
+  assert.ok(scene.includes("drawPublicRoomObject(ctx, object, screenCamera"));
+  assert.ok(!route.includes("INTERIOR_ART"));
+  assert.ok(!scene.includes("ctx.clip()"), "不再通过裁剪整图模拟遮挡");
+  assert.ok(route.includes("canvas.width = width * roomScale"));
+  assert.ok(route.includes("canvas.width / roomScale"));
+  for (const {id} of PLACES) assert.ok(!existsSync(new URL(`../assets/pixel-jijia/interior-${id}-v6.webp`, import.meta.url)));
 });
 
-test("六栋室内的微动效与房间共用一条动画循环，减少动态时停用", () => {
+test("公开室内微动效和场景淡入淡出共用一条动画循环", () => {
   const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
+  const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
-  assert.ok(scene.includes("function renderRoomAmbient("));
-  for (const { id } of PLACES) {
-    assert.ok(scene.includes(`case "${id}":`), `${id} 缺少专属微动效`);
-  }
-  assert.ok(scene.includes('if (motionAllowed && room.id !== "study") renderRoomAmbient('));
+  assert.ok(scene.includes("if (motionAllowed) drawRoomLight("));
+  assert.ok(art.includes("if (!motion) return;"));
   assert.ok(route.includes("time, !reducedMotion.matches)"));
-  assert.ok(!scene.includes("requestAnimationFrame("), "室内动效不得另开动画循环");
+  assert.ok(!art.includes("requestAnimationFrame("));
+  assert.ok(route.includes('transition.phase = "in"'));
+  assert.ok(route.includes('transition.target === (room?.id ?? null)'));
+  assert.ok(route.includes('if (!transitionRef.current && (x !== 0 || y !== 0)'));
+  assert.ok(route.includes('alpha * alpha * (3 - 2 * alpha)'));
   assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3);
+});
+
+test("实体脚底阻挡、装饰无操作、每栋入口及出口可通行", () => {
+  for (const {id} of PLACES) {
+    const room = ROOMS[id];
+    assert.ok(isRoomWalkable(room, room.entry.x, room.entry.y), id);
+    for (const o of room.objects.filter(o => o.solid)) {
+      const x = o.x + o.width / 2, y = o.y + o.height / 2;
+      assert.equal(isRoomWalkable(room, x, y), false, id + ":" + o.id);
+      if (o.decorative) assert.notEqual(closestRoomObject(room, {x, y})?.id, o.id);
+    }
+    const door = room.objects.find(o => o.kind === "exit");
+    const x = door.x + door.width / 2, y = door.y + .1;
+    assert.ok(isRoomWalkable(room, x, y), id + " exit walkable");
+    assert.ok(roomExitAt(room, {x, y}, 1), id + " exit trigger");
+  }
+});
+
+test("六栋室内所有实体不重叠且所有交互点均可从入口走到", () => {
+  for (const {id} of PLACES) {
+    const room = ROOMS[id];
+    const solid = room.objects.filter(o => o.solid);
+    for (const [i, a] of solid.entries()) for (const b of solid.slice(i + 1)) {
+      assert.ok(!(a.x < b.x + b.width && b.x < a.x + a.width &&
+        a.y < b.y + b.height && b.y < a.y + a.height), `${id}: ${a.id}/${b.id}`);
+    }
+    const start = [Math.round(room.entry.x * 2), Math.round(room.entry.y * 2)];
+    const queue = [start], seen = new Set([start.join(",")]), reachable = new Set();
+    let exit = false;
+    for (let i = 0; i < queue.length; i++) {
+      const [x, y] = queue[i], pos = { x: x / 2, y: y / 2 };
+      const object = closestRoomObject(room, pos);
+      if (object) reachable.add(object.id);
+      if (roomExitAt(room, pos, 1)) exit = true;
+      for (const [a, b] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]) {
+        const key = a + "," + b;
+        if (seen.has(key) || !isRoomWalkable(room, a / 2, b / 2)) continue;
+        seen.add(key); queue.push([a,b]);
+      }
+    }
+    assert.ok(exit, id + " 出口不可达");
+    for (const object of room.objects.filter(o => !o.decorative))
+      assert.ok(reachable.has(object.id), id + " 交互不可达: " + object.id);
+  }
 });
 
 test("生成场景的家具碰撞与可见物件位置对应且入口可通行", () => {
@@ -444,7 +484,7 @@ test("六栋室内均增加不同工作站，并在室内保留真实功能链�
     assert.ok(source.includes(`href: "${href}"`), `缺少已存在功能入口: ${href}`);
   }
   assert.ok(route.includes("selectedRoom.href && <Link to={selectedRoom.href}"));
-  assert.ok(source.includes("if (object.href)"), "可用终端应有可辨认的视觉标识");
+  assert.ok(readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8").includes("if (o.href)"), "可用终端应有可辨认的视觉标识");
 });
 
 test("环境粒子使用统一世界坐标与现有动画循环，数量受控", () => {
@@ -549,17 +589,4 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
     assert.ok(alphas.some(a => a === 0) && alphas.some(a => a > 0),
       "过渡贴图必须既有透明区域也有真实边缘像素");
   }
-});
-
-test("进出建筑与研究室共用当前帧循环执行淡入淡出，减少动态时直接切换", () => {
-  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
-  for (const target of ["placeId", '"study"', "null"]) assert.ok(route.includes(`transitionTo(${target}, () => {`));
-  assert.ok(route.includes('window.matchMedia("(prefers-reduced-motion: reduce)").matches'));
-  assert.ok(route.includes('transition.phase = "in"'));
-  assert.ok(route.includes('transition.target === (room?.id ?? null)'));
-  assert.ok(route.includes('if (!transitionRef.current && (x !== 0 || y !== 0)'));
-  assert.ok(route.includes("alpha * alpha * (3 - 2 * alpha)"));
-  assert.ok(route.includes("if (!canvas || transitionRef.current) return;"));
-  assert.ok(route.includes("if (transitionRef.current || event.detail !== 0"));
-  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3);
 });

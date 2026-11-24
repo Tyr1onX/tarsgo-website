@@ -1,7 +1,7 @@
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera,
   type Direction, type Place, type Position, type PropSprite, type Scenery,
-} from "./pixel-jijia-world";
+} from "./pixel-jijia-world.ts";
 import type { Season } from "./pixel-jijia-climate";
 
 export type SpriteBox = [number, number, number, number];
