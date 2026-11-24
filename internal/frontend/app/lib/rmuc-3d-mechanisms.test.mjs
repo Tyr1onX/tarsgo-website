@@ -590,3 +590,33 @@ test("actual dart parts replace original assemblies and move both doors and dete
  installed.applyDart(createMatch([]));
  assert.ok(installed.dartBindings.every((b,i)=>b.door.getWorldPosition(new THREE.Vector3()).distanceTo(closed[i])<1e-7));
 });
+
+test("both virtual dart models use real CAD guides and the single referee flight result",async()=>{
+ const {createDartVisual}=await import("./rmuc-3d-dart-visual.ts");
+ const [field,parts,darts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),load(DART_ASSET.url,DART_ASSET.sha256)]);
+ const scene=new THREE.Scene(),root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;scene.add(root);root.updateMatrixWorld(true);
+ const mechanism=installMechanisms(field,parts,darts),visual=createDartVisual(scene,mechanism);
+ const m=createMatch([],1,1);startMatch(m);updateMatch(m,30);
+ for(const team of TEAMS){assert.ok(selectDart(m,team,"fixed"));assert.ok(openDart(m,team));}
+ updateMatch(m,7);mechanism.applyDart(m);
+ assert.ok(launchDart(m,"red"));assert.ok(launchDart(m,"blue",false));visual.update(m);
+ for(const b of mechanism.dartBindings){
+   const model=visual.group.getObjectByName(b.team+"-dart-model");
+   assert.equal(model.visible,true);
+   const guideBox=new THREE.Box3().setFromObject(b.guides,true);
+   assert.ok(Math.abs(model.position.y-guideBox.max.y-.08)<1e-7);
+   assert.ok(guideBox.clone().expandByScalar(.09).containsPoint(model.position));
+ }
+ const red=visual.group.getObjectByName("red-dart-model"),start=red.position.clone();
+ updateMatch(m,1);mechanism.applyDart(m);visual.update(m);
+ assert.ok(red.position.distanceTo(start)>1);
+ assert.equal(m.sides.blue.base,10000);assert.equal(m.sides.red.base,10000);
+ updateMatch(m,1.5);mechanism.applyDart(m);visual.update(m);
+ assert.equal(red.visible,false);assert.equal(m.sides.blue.base,9800);assert.equal(m.sides.red.base,10000);
+ assert.equal(m.sides.red.dart.hits,1);assert.equal(m.sides.blue.dart.hits,0);
+ assert.equal(visual.group.children.filter(o=>o.isSprite&&o.visible).length,2);
+ visual.update(m);assert.equal(m.sides.blue.base,9800);
+ updateMatch(m,.3);visual.update(m);assert.ok(visual.group.children.every(o=>!o.visible));
+ visual.update(createMatch([]));assert.ok(visual.group.children.every(o=>!o.visible));
+ visual.dispose();assert.equal(visual.group.parent,null);
+});

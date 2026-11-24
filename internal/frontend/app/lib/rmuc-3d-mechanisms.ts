@@ -221,7 +221,7 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
   // The housing and covers are blockers, not damage targets.
   // Preserve fixed original collision envelope for locomotion; only new
   // source meshes participate in visible scene and projectile queries.
-  const dartBindings: {team:Team;door:THREE.Object3D;carriage:THREE.Object3D;doorRest:THREE.Vector3;carriageRest:THREE.Vector3}[]=[];
+  const dartBindings: {team:Team;door:THREE.Object3D;guides:THREE.Object3D;carriage:THREE.Object3D;doorRest:THREE.Vector3;carriageRest:THREE.Vector3}[]=[];
   if(dartParts){
     const clone=(name:string)=>{const node=dartParts.getObjectByName(name);if(!node)throw new Error("Missing dart part "+name);return node.clone(true);};
     const replacement=(original:THREE.Object3D,names:string[])=>{
@@ -237,7 +237,7 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
       const parent=find(team+"-cover-0").parent!;
       for(const child of [...parent.children])if(!child.name.startsWith(team+"-cover-")){child.removeFromParent();old.push(child);}
       const door=gate.getObjectByName("dart-door")!,carriage=base.getObjectByName("base-carriage")!;
-      dartBindings.push({team,door,carriage,doorRest:door.position.clone(),carriageRest:carriage.position.clone()});
+      dartBindings.push({team,door,guides:gate.getObjectByName("dart-guides")!,carriage,doorRest:door.position.clone(),carriageRest:carriage.position.clone()});
     }
   }
   function applyDart(match:Match){

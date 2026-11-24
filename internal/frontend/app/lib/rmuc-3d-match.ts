@@ -811,6 +811,7 @@ function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|
 }
 // §5.7.3. Virtual detection: a launched training dart reports a qualified
 // hit/miss after a representative delay; no physical trajectory or armor proxy.
+export const DART_FLIGHT_SECONDS=2.5;
 const mobileDart=(mode:DartMode)=>mode==="randomMoving"||mode==="terminalMoving";
 const dartModes:DartMode[]=["outpost","fixed","randomFixed","randomMoving","terminalMoving"];
 export function dartStatus(m:Match,team:Team){
@@ -846,7 +847,7 @@ export function openDart(m:Match,team:Team){
 export function launchDart(m:Match,team:Team,hit=true){
   if(!dartStatus(m,team).canFire)return false;
   const d=m.sides[team].dart,t=m.elapsed;
-  d.shots++;d.flight={mode:d.mode,at:t+2.5,hit};
+  d.shots++;d.flight={mode:d.mode,at:t+DART_FLIGHT_SECONDS,hit};
   if(mobileDart(d.mode))moveDartTarget(d,t,d.mode==="terminalMoving"?1.2:0);
   return true;
 }
