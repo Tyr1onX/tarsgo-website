@@ -1,12 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COMMUNITY_ROOM_OBJECTS, COMMUNITY_POSES, communityDiscoveryId, communitySourceHref } from "./pixel-jijia-community.ts";
+import { COMMUNITY_ROOM_OBJECTS, COMMUNITY_POSES, communityDiscoveryId, communitySourceHref, communityCreditRole } from "./pixel-jijia-community.ts";
 import { ROOMS, closestRoomObject, isRoomWalkable } from "./pixel-jijia-room.ts";
 
 const entries = Object.values(COMMUNITY_ROOM_OBJECTS).flat();
 test("20 件共建实体使用稳定发现标识，覆盖已确认的 24 条原始回复", () => {
   assert.equal(entries.length, 20);
+  assert.equal(entries.flatMap(o=>o.community.sources).length,25);
+  assert.equal(new Set(entries.flatMap(o=>o.community.sources.map(s=>s.authorName))).size,21);
+  const names = new Map();
+  for (const source of entries.flatMap(o=>o.community.sources)) {
+    if (names.has(source.comment)) assert.equal(source.authorName,names.get(source.comment));
+    names.set(source.comment,source.authorName);
+  }
   assert.equal(new Set(entries.map(communityDiscoveryId)).size, entries.length);
   const ids = new Set(entries.flatMap(object => object.community.sources.map(s => s.comment)));
   assert.deepEqual([...ids].sort((a,b)=>a-b), [38,41,42,43,44,45,48,49,50,51,53,56,57,58,59,61,62,63,64,66,67,69,70,71]);
@@ -16,8 +23,15 @@ test("20 件共建实体使用稳定发现标识，覆盖已确认的 24 条原�
   for (const source of entries.flatMap(o=>o.community.sources)) {
     assert.match(source.date, /^2026\.11\.0[2-8]$/);
     assert.equal(communitySourceHref(source), "/dashboard/community/28#community-comment-"+source.comment);
-    assert.deepEqual(Object.keys(source).sort(), ["comment","date","role"]);
+    assert.ok(source.authorName?.trim(),"已授权贡献者必须保留实名");
+    assert.deepEqual(Object.keys(source).sort(), ["authorName","comment","date","role"]);
   }
+});
+test("贡献角色保留共同提出、支持及跟帖关系",()=>{
+  const roles=id=>{const sources=entries.find(o=>o.id===id).community.sources;return sources.map((_,i)=>communityCreditRole(sources,i));};
+  assert.deepEqual(roles("test-robot"),["提出者","共同提出者"]);
+  assert.deepEqual(roles("burger"),["提出者","支持者","支持者"]);
+  assert.deepEqual(roles("burnt-stm32"),["提出者","跟帖者","跟帖者"]);
 });
 test("每件共建物件有稳定可达交互范围，桌面小物件只复用宿主碰撞",()=>{
   for(const [roomId,objects] of Object.entries(COMMUNITY_ROOM_OBJECTS)){
