@@ -2,6 +2,7 @@
 // The referee alone compares a reported coordinate with ground truth.
 export type RadarTeam = "red"|"blue";
 export type RadarPoint = {x:number;z:number};
+export type RadarReport = {team:RadarTeam;id:string;point:RadarPoint};
 export type RadarRobot = {id:string;team:RadarTeam;hp:number};
 export type RadarTrack = {progress:number;delta:number;correct:boolean;nextLoss:number;report:RadarPoint|null;reportedAt:number|null};
 export type RadarSide = {tracks:Record<string,RadarTrack>;encryptionLevel:1|2|3;vulnerableSeconds:number;used:number;doubleUntil:number};
@@ -51,17 +52,19 @@ export function activateRadarDouble(radar:Radar,team:RadarTeam,time:number){
 }
 // Count the union of vulnerable time, not the number of simultaneously
 // marked targets. Process loss boundaries on the match clock.
-export function advanceRadar(radar:Radar,robots:readonly RadarRobot[],before:number,end:number){
+export function advanceRadar(radar:Radar,robots:readonly RadarRobot[],before:number,end:number,reports:readonly RadarReport[]=[],positions:ReadonlyMap<string,RadarPoint>=new Map()){
   if(end<=before)return;
   for(const team of teams){
-    const side=radar[team],tracks=Object.values(side.tracks);
+    const side=radar[team],tracks=Object.entries(side.tracks);
+    const received=new Map(reports.filter(r=>r.team===team&&positions.has(r.id)&&Number.isFinite(r.point.x)&&Number.isFinite(r.point.z)).map(r=>[r.id,r]));
     let now=before;
     while(now<end-EPS){
-      const next=Math.min(end,...tracks.map(t=>Math.max(now,t.nextLoss)));
+      const next=Math.min(end,...tracks.map(([,t])=>Math.max(now,t.nextLoss)));
       if(robots.some(r=>radarVulnerability(radar,team,r,now)>0))side.vulnerableSeconds=Math.min(120,side.vulnerableSeconds+next-now);
       now=next;
-      for(const t of tracks)if(t.nextLoss<=now+EPS){apply(t,Infinity);t.nextLoss+=.5;}
+      for(const [id,t] of tracks)if(t.nextLoss<=now+EPS&&!(now>=end-EPS&&received.has(id))){apply(t,Infinity);t.nextLoss+=.5;}
     }
+    for(const [id,report] of received)submitRadarPosition(radar,team,id,report.point,positions.get(id)!,end);
   }
 }
 export function resetRadarDelta(radar:Radar,id:string){

@@ -1,4 +1,4 @@
-import {createRadar,advanceRadar,resetRadarDelta,radarVulnerability,type Radar} from "./rmuc-3d-radar.ts";
+import {createRadar,advanceRadar,resetRadarDelta,radarVulnerability,type Radar,type RadarReport} from "./rmuc-3d-radar.ts";
 import type { Team, MechanismPose } from "./rmuc-3d-mechanisms.ts";
 import { ARENA_ZONES, zonesAtPosition, withinLauncherBench, crossingContacts, type CrossingContact, type ArenaPosition, type ZoneId } from "./rmuc-3d-zones.ts";
 export type { Team };
@@ -995,7 +995,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
   attackXp(match,shooter,target.type==="outpost"?dealt*2:Math.ceil(dealt/2));
   return dealt;
 }
-export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
+export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map(),sense?:()=>readonly RadarReport[]) {
   if(match.phase!=="running")return;
   const end=Math.min(MATCH_DURATION,match.elapsed+Math.max(0,dt));
   // Stop at rune state boundaries: cooling and shared-axis speed must not
@@ -1008,13 +1008,14 @@ export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string
         if(at!==undefined&&at>match.elapsed&&at<next)next=at;
       }
     }
-    advanceMatch(match,next-match.elapsed,positions);
+    const before=match.elapsed;
+    advanceMatch(match,next-before,positions);
+    advanceRadar(match.radar,match.robots,before,match.elapsed,next===end?sense?.():undefined,positions);
   }while(match.phase==="running"&&match.elapsed<end);
 }
 function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPosition>){
 
   const before=match.elapsed;match.elapsed+=dt;
-  advanceRadar(match.radar,match.robots,before,match.elapsed);
   advanceEnergy(match,positions);
   for(const second of [61,121,181,241,301,361]) if(before<second&&match.elapsed>=second)
     for(const team of teams)match.sides[team].coins+=second===361?300:100;

@@ -1,4 +1,4 @@
-import {submitRadarPosition,radarPosition,radarOpportunities,activateRadarDouble,radarVulnerability} from "./rmuc-3d-radar";
+import {type RadarReport,radarPosition,radarOpportunities,activateRadarDouble,radarVulnerability} from "./rmuc-3d-radar";
 import { ArenaClock, SIM_STEP_MS, PATH_CHECKS_PER_STEP } from "./rmuc-3d-clock";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -206,7 +206,7 @@ export function mountArena(
     const power=match&&vehicle?chassisStatus(match,vehicle):null;
     const stance=match&&vehicle?sentryStatus(match,vehicle):null;
     const radarSide=(team:Team)=>({opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
-    const status: ArenaStatus = { radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,!!vehicle),red:radarSide("red"),blue:radarSide("blue")}:undefined,view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    const status: ArenaStatus = { radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),red:radarSide("red"),blue:radarSide("blue")}:undefined,view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -255,9 +255,8 @@ export function mountArena(
       if(h||v)look=turnView(look,h*dt*520,v*dt*520);
     }
     advanceMotion(dt);
-    updateMatch(match,dt,positions);
-    syncMechanisms();
-    if(tick%8===0)sampleRadar();
+    updateMatch(match,dt,positions,tick%8===0?()=>{syncMechanisms();return sampleRadar();}:undefined);
+    if(tick%8!==0)syncMechanisms();
     projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[]);
     if(match.phase!=="running"){shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
     for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
@@ -466,13 +465,15 @@ export function mountArena(
     }
     return false;
   }
-  function sampleRadar(){
-    if(!match)return;
+  function sampleRadar():RadarReport[]{
+    if(!match||match.phase!=="running")return [];
+    const reports:RadarReport[]=[];
     const roots=shotRoots(),index=prepareArenaShots(roots);
     for(const team of ["red","blue"] as const)for(const robot of fieldRobots){
       if(visibleRobot(radarOrigins[team],robot,roots,index))
-        submitRadarPosition(match.radar,team,robot.object.name,robot.position,robot.position,match.elapsed);
+        reports.push({team,id:robot.object.name,point:{x:robot.position.x,z:robot.position.z}});
     }
+    return reports;
   }
   function updateBots() {
     if(!match||!terrain||!mechanism)return;

@@ -62,3 +62,14 @@ test("radar vulnerability enters the existing damage referee; revival resets del
  assert.equal(m.radar.red.tracks.b.delta,0);
  assert.equal(createMatch(robots.map(r=>({...r,maxHp:r.hp,heavy:false}))).radar.red.tracks.b.progress,0);
 });
+
+test("same-tick referee report beats a data-loss deadline and coordinates come from authoritative positions",()=>{
+ const m=createMatch(robots.map(r=>({...r,maxHp:r.hp,heavy:false})),1,1);startMatch(m);
+ const positions=new Map([["b",{x:0,y:0,z:0}]]);
+ updateMatch(m,.5,positions,()=>[{team:"red",id:"b",point:p}]);
+ assert.equal(m.radar.red.tracks.b.progress,1);
+ updateMatch(m,.5,positions,()=>[{team:"red",id:"b",point:p}]);
+ assert.equal(m.radar.red.tracks.b.progress,3);
+ updateMatch(m,.5,positions,()=>[{team:"red",id:"b",point:{x:2,z:0}}]);
+ assert.equal(m.radar.red.tracks.b.progress,2.2);
+});
