@@ -27,8 +27,8 @@ test("admin theme no longer overrides ordinary utility colors by class substring
   assert.doesNotMatch(adminCss, /\[class\*=/);
 });
 
-test("shared button hover shadow follows the selected theme accent", () => {
-  assert.match(appCss, /\.motion-button:hover:not\(:disabled\)\s*\{[^}]*box-shadow:[^;]*var\(--theme-accent-contrast\)/s);
+test("shared button hover does not introduce decorative movement or shadows", () => {
+  assert.doesNotMatch(appCss, /\.motion-button:hover:not\(:disabled\)\s*\{[^}]*(?:transform|box-shadow):/s);
 });
 
 test("workbench status colors use semantic tokens without a duplicate light palette", () => {

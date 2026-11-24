@@ -97,7 +97,8 @@ html {
   --theme-border-subtle: #27312E;
   --theme-color-scheme: dark;
   --hero-accent: #E0C790;
-  --motion-duration-fast: 220ms;
+  --motion-duration-press: 90ms;
+  --motion-duration-fast: 160ms;
   --motion-duration-base: 360ms;
   --motion-duration-slow: 720ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
@@ -193,44 +194,10 @@ html[data-theme-transition] :is(
     both;
 }
 
-.motion-button::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  background:
-    linear-gradient(
-      120deg,
-      transparent 18%,
-      rgba(255, 255, 255, 0.04) 28%,
-      rgba(255, 255, 255, 0.16) 34%,
-      transparent 42%
-    ),
-    linear-gradient(
-      36deg,
-      transparent 48%,
-      color-mix(in srgb, var(--theme-accent) 18%, transparent) 53%,
-      transparent 58%
-    ),
-    linear-gradient(
-      145deg,
-      transparent 58%,
-      rgba(255, 255, 255, 0.08) 63%,
-      transparent 69%
-    );
-  opacity: 0;
-  transform: translate3d(-12%, 10%, 0) scale(1.02);
-  transition:
-    opacity var(--motion-duration-base) var(--motion-ease-soft),
-    transform 560ms var(--motion-ease-standard);
-  pointer-events: none;
-  mix-blend-mode: screen;
-}
-
-
 .motion-overlay {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 320ms var(--motion-ease-standard);
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .motion-overlay[data-state="open"] {
@@ -240,12 +207,11 @@ html[data-theme-transition] :is(
 
 .motion-dialog {
   opacity: 0;
-  transform: translate3d(0, 20px, 0) scale(0.98);
+  transform: translate3d(0, 6px, 0) scale(0.99);
   transform-origin: center top;
-  will-change: transform, opacity;
   transition:
-    transform 260ms var(--motion-ease-standard),
-    opacity 220ms ease;
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) ease;
 }
 
 .motion-dialog[data-state="open"] {
@@ -311,137 +277,64 @@ html[data-theme-transition] :is(
   pointer-events: none;
 }
 
-.motion-button {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  transition:
-    transform 260ms cubic-bezier(0.2, 1.45, 0.35, 1),
-    border-color var(--motion-duration-fast) ease,
-    background-color var(--motion-duration-fast) ease,
-    color var(--motion-duration-fast) ease,
-    box-shadow var(--motion-duration-base) var(--motion-ease-standard);
+/* The same state drives both registration drawers; reversal starts at the current visual position. */
+.registration-drawer__backdrop,
+.registration-drawer__panel {
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
-.motion-button:hover:not(:disabled) {
-  transform: translate3d(0, -2px, 0);
-  box-shadow: 0 18px 40px -24px color-mix(in srgb, var(--theme-accent-contrast) 55%, transparent);
+.registration-drawer[data-state="closed"] {
+  pointer-events: none;
+}
+
+.registration-drawer[data-state="closed"] .registration-drawer__backdrop,
+.registration-drawer[data-state="closed"] .registration-drawer__panel {
+  opacity: 0;
+}
+
+.registration-drawer[data-state="closed"] .registration-drawer__panel {
+  transform: translateX(12px);
+}
+
+@starting-style {
+  .registration-drawer[data-state="open"] .registration-drawer__backdrop,
+  .registration-drawer[data-state="open"] .registration-drawer__panel {
+    opacity: 0;
+  }
+
+  .registration-drawer[data-state="open"] .registration-drawer__panel {
+    transform: translateX(12px);
+  }
+}
+
+.motion-button {
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
 }
 
 .motion-button:active:not(:disabled) {
-  transform: translate3d(0, 0, 0) scale(0.97);
-  transition-duration: 120ms;
-}
-
-.motion-button:hover::before {
-  opacity: 0.88;
-  transform: translate3d(8%, -10%, 0) scale(1);
-}
-
-.motion-field {
-  border-color: var(--theme-border);
-  background-color: var(--theme-deep-surface);
-  color: var(--theme-text);
-  transition:
-    border-color var(--motion-duration-fast) ease,
-    background-color var(--motion-duration-fast) ease,
-    box-shadow var(--motion-duration-fast) ease,
-    color var(--motion-duration-fast) ease;
-}
-
-.motion-field::placeholder {
-  color: var(--theme-dim);
-}
-
-.motion-field:focus-visible {
-  border-color: var(--theme-accent-contrast);
-  outline: 2px solid color-mix(in srgb, var(--theme-accent-contrast) 28%, transparent);
-  outline-offset: 1px;
-}
-
-.motion-field:hover:not(:disabled):not(:focus-visible) {
-  border-color: color-mix(in srgb, var(--theme-accent-contrast) 42%, var(--theme-border));
-  background-color: var(--theme-surface);
-}
-
-.motion-select-shell {
-  position: relative;
-}
-
-.motion-select-trigger {
-  transition:
-    transform var(--motion-duration-fast) var(--motion-ease-standard),
-    border-color var(--motion-duration-fast) ease,
-    background-color var(--motion-duration-fast) ease,
-    box-shadow var(--motion-duration-base) var(--motion-ease-soft);
-}
-
-.motion-select-trigger:hover:not(:disabled) {
-  transform: translate3d(0, -1px, 0);
-  border-color: color-mix(in srgb, var(--theme-accent-contrast) 42%, var(--theme-border));
-  background-color: var(--theme-surface);
-  box-shadow: 0 16px 32px -28px color-mix(in srgb, var(--theme-accent-contrast) 40%, transparent);
-}
-
-.motion-select-trigger[data-open="true"] {
-  transform: translate3d(0, -1px, 0);
-  border-color: var(--theme-accent-contrast);
-  background-color: var(--theme-surface);
-  box-shadow: 0 22px 44px -30px color-mix(in srgb, var(--theme-accent-contrast) 48%, transparent);
-}
-
-.motion-select-chevron {
-  color: var(--theme-muted);
-  transition:
-    transform var(--motion-duration-base) var(--motion-ease-standard),
-    color var(--motion-duration-fast) ease;
-}
-
-.motion-select-trigger[data-open="true"] .motion-select-chevron {
-  transform: rotate(180deg);
-  color: var(--theme-accent-text);
-}
-
-.motion-select-panel {
-  position: fixed;
-  z-index: 80;
-  transform-origin: top center;
-  opacity: 0;
-  transform: translate3d(0, -6px, 0) scale(0.98);
-  transition:
-    opacity 180ms ease,
-    transform 220ms var(--motion-ease-standard);
-}
-
-.motion-select-panel[data-state="open"] {
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-}
-
-.motion-select-option {
-  transition:
-    transform var(--motion-duration-fast) var(--motion-ease-standard),
-    background-color var(--motion-duration-fast) ease,
-    color var(--motion-duration-fast) ease,
-    box-shadow var(--motion-duration-fast) ease;
-}
-
-.motion-select-option:hover:not(:disabled),
-.motion-select-option:focus-visible {
-  transform: translate3d(0, -1px, 0);
-  background-color: color-mix(in srgb, var(--theme-accent-contrast) 12%, var(--theme-card));
-  color: var(--theme-text);
-  outline: none;
-}
-
-.motion-select-option[data-selected="true"] {
-  background-color: color-mix(in srgb, var(--theme-accent-contrast) 16%, var(--theme-card));
-  color: var(--theme-text);
+  transform: scale(0.98);
+  transition-duration: var(--motion-duration-press);
 }
 
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .route-feedback {
+    animation: none !important;
+    transform: none;
+    opacity: 1;
+  }
+
+  .motion-button:active:not(:disabled),
+  .admin-design .admin-button:active:not(:disabled) {
+    transform: none;
   }
 
   *,
@@ -549,18 +442,16 @@ html[data-theme-transition] :is(
 @keyframes user-menu-in {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.97);
-    filter: blur(2px);
+    transform: translateY(-4px) scale(0.99);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
   }
 }
 
 .animate-user-menu-in {
-  animation: user-menu-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: user-menu-in var(--motion-duration-fast) var(--motion-ease-standard) both;
   transform-origin: top right;
 }
 
@@ -1966,10 +1857,6 @@ html[data-theme-transition] :is(
 
 .public-home :is(section, footer) {
   border-color: var(--admin-border-subtle);
-}
-
-.public-home .motion-button::before {
-  display: none !important;
 }
 
 .public-home .group:hover img {

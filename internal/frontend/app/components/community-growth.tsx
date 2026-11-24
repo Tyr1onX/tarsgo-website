@@ -6,31 +6,45 @@ import { communityClient, type CommunityGrowthProfile } from "~/lib/community-cl
 import { getCommunityGrowthSnapshot, requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
 import "./community-growth.css";
 
-function useAnimatedXp(targetXp: number | undefined) {
-  const [displayed, setDisplayed] = useState<number>(targetXp ?? 0);
-  const prevRef = useRef<number | undefined>(targetXp);
+function CommunityXpNumber({ targetXp }: { targetXp: number }) {
+  const [displayed, setDisplayed] = useState(targetXp);
+  const displayedRef = useRef(targetXp);
 
   useEffect(() => {
-    if (targetXp === undefined) return;
-    const from = prevRef.current;
-    prevRef.current = targetXp;
-    if (from === undefined || from === targetXp || typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const from = displayedRef.current;
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let frame = 0;
+    function finish() {
+      window.cancelAnimationFrame(frame);
+      displayedRef.current = targetXp;
       setDisplayed(targetXp);
+    }
+    if (from === targetXp || preference.matches) {
+      finish();
       return;
     }
     const start = performance.now();
-    let frame = 0;
-    const step = (now: number) => {
-      const progress = Math.min(1, (now - start) / 620);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayed(Math.round(from + (targetXp - from) * eased));
+    function step(now: number) {
+      const progress = Math.min(1, (now - start) / 240);
+      displayedRef.current = Math.round(from + (targetXp - from) * (1 - Math.pow(1 - progress, 3)));
+      setDisplayed(displayedRef.current);
       if (progress < 1) frame = window.requestAnimationFrame(step);
-    };
+    }
+    function onPreferenceChange(event: MediaQueryListEvent) {
+      if (event.matches) finish();
+    }
+    preference.addEventListener("change", onPreferenceChange);
     frame = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      preference.removeEventListener("change", onPreferenceChange);
+    };
   }, [targetXp]);
 
-  return displayed;
+  return <span className="community-growth__xp-num">
+    <span aria-hidden="true">{displayed.toLocaleString("zh-CN")} XP</span>
+    <span className="sr-only">{targetXp.toLocaleString("zh-CN")} XP</span>
+  </span>;
 }
 
 export function CommunityLevelBadge({ level }: { level: number }) {
@@ -90,7 +104,6 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
   const subscribe = useCallback((notify: () => void) => subscribeCommunityGrowthProfile(userID, notify), [userID]);
   const getSnapshot = useCallback(() => getCommunityGrowthSnapshot(userID), [userID]);
   const profile = useSyncExternalStore(subscribe, getSnapshot, () => null);
-  const animatedXp = useAnimatedXp(profile?.totalXp);
   const [checkingIn, setCheckingIn] = useState(false);
   const [burstXp, setBurstXp] = useState<number | null>(null);
   useEffect(() => {
@@ -144,7 +157,7 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
         {profile ? (
           <>
             <CommunityLevelBadge level={profile.level} />
-            <span className="community-growth__xp-num">{animatedXp.toLocaleString("zh-CN")} XP</span>
+            <CommunityXpNumber targetXp={profile.totalXp} />
             <span className={`community-growth__streak${profile.streakDays >= 3 ? " is-hot" : ""}`}>
               <CommunityIcon name="flame" /> 连续 {profile.streakDays} 天
             </span>

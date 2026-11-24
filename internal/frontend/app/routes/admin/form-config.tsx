@@ -23,7 +23,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router";
-import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell, useModalAccessibility } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import { ApiError } from "~/lib/api-client";
@@ -85,7 +84,7 @@ type CreateFormState = {
 /*  Constants                                                         */
 /* ------------------------------------------------------------------ */
 
-const DRAWER_ANIMATION_MS = 220;
+const DRAWER_ANIMATION_MS = 160;
 const NOTIFY_ANIMATION_MS = 300;
 
 const defaultCreateState: CreateFormState = {
@@ -233,7 +232,6 @@ export default function FormConfigPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editor, setEditor] = useState<FormEditorState | null>(null);
   const [saving, setSaving] = useState(false);
-  const drawerOverlayRef = useRef<HTMLDivElement | null>(null);
   const drawerPanelRef = useRef<HTMLElement | null>(null);
   const drawerCloseTimerRef = useRef<number | null>(null);
 
@@ -253,12 +251,11 @@ export default function FormConfigPage() {
   const [previewFormId, setPreviewFormId] = useState<number | null>(null);
   const [previewEditor, setPreviewEditor] = useState<FormEditorState | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const previewOverlayRef = useRef<HTMLDivElement | null>(null);
   const previewPanelRef = useRef<HTMLElement | null>(null);
   const previewCloseTimerRef = useRef<number | null>(null);
 
-  useModalAccessibility(drawerOpen, drawerPanelRef, () => closeDrawer());
-  useModalAccessibility(previewOpen, previewPanelRef, () => closePreview());
+  useModalAccessibility(drawerOpen && !drawerClosing, drawerPanelRef, () => closeDrawer());
+  useModalAccessibility(previewOpen && !previewClosing, previewPanelRef, () => closePreview());
 
   const canCreateOrSave = currentUser.role.name !== "user";
 
@@ -366,52 +363,6 @@ export default function FormConfigPage() {
     };
   }, [previewClosing, previewOpen, navigate, previewFormId]);
 
-  /* Drawer open animation */
-  useEffect(() => {
-    if (!drawerOpen || drawerClosing) {
-      return;
-    }
-    drawerOverlayRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: 180,
-      easing: "ease-out",
-      fill: "forwards",
-    });
-    drawerPanelRef.current?.animate(
-      [
-        { opacity: 0, transform: "translateX(32px)" },
-        { opacity: 1, transform: "translateX(0)" },
-      ],
-      {
-        duration: DRAWER_ANIMATION_MS,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-        fill: "forwards",
-      },
-    );
-  }, [drawerClosing, drawerOpen, selectedFormId]);
-
-  /* Preview open animation */
-  useEffect(() => {
-    if (!previewOpen || previewClosing) {
-      return;
-    }
-    previewOverlayRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: 180,
-      easing: "ease-out",
-      fill: "forwards",
-    });
-    previewPanelRef.current?.animate(
-      [
-        { opacity: 0, transform: "translateX(32px)" },
-        { opacity: 1, transform: "translateX(0)" },
-      ],
-      {
-        duration: DRAWER_ANIMATION_MS,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-        fill: "forwards",
-      },
-    );
-  }, [previewClosing, previewOpen, previewFormId]);
-
   /* Flash → Notify lifecycle */
   useEffect(() => {
     if (!flash) {
@@ -464,7 +415,7 @@ export default function FormConfigPage() {
   }
 
   function closeDrawer(immediate = false) {
-    if (immediate) {
+    if (immediate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       finishCloseDrawer();
       return;
     }
@@ -473,18 +424,6 @@ export default function FormConfigPage() {
     }
     clearDrawerCloseTimer();
     setDrawerClosing(true);
-    drawerOverlayRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: 160,
-      easing: "ease-in",
-      fill: "forwards",
-    });
-    drawerPanelRef.current?.animate(
-      [
-        { opacity: 1, transform: "translateX(0)" },
-        { opacity: 0, transform: "translateX(32px)" },
-      ],
-      { duration: DRAWER_ANIMATION_MS, easing: "ease-in", fill: "forwards" },
-    );
     drawerCloseTimerRef.current = window.setTimeout(() => {
       finishCloseDrawer();
     }, DRAWER_ANIMATION_MS);
@@ -515,7 +454,7 @@ export default function FormConfigPage() {
   }
 
   function closePreview(immediate = false) {
-    if (immediate) {
+    if (immediate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       finishClosePreview();
       return;
     }
@@ -524,18 +463,6 @@ export default function FormConfigPage() {
     }
     clearPreviewCloseTimer();
     setPreviewClosing(true);
-    previewOverlayRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: 160,
-      easing: "ease-in",
-      fill: "forwards",
-    });
-    previewPanelRef.current?.animate(
-      [
-        { opacity: 1, transform: "translateX(0)" },
-        { opacity: 0, transform: "translateX(32px)" },
-      ],
-      { duration: DRAWER_ANIMATION_MS, easing: "ease-in", fill: "forwards" },
-    );
     previewCloseTimerRef.current = window.setTimeout(() => {
       finishClosePreview();
     }, DRAWER_ANIMATION_MS);
@@ -747,20 +674,13 @@ export default function FormConfigPage() {
           </div>
           <div>
             <FieldLabel label="状态" />
-            <AnimatedSelect
-              ariaLabel="状态筛选"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { value: "", label: "全部状态" },
-                ...REGISTRATION_FORM_STATUS_OPTIONS
-                  .filter((option) => listView === "history" ? option.value === 2 : option.value !== 2)
-                  .map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  })),
-              ]}
-            />
+            <select className="admin-field" aria-label="状态筛选" value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="">全部状态</option>
+              {REGISTRATION_FORM_STATUS_OPTIONS
+                .filter((option) => listView === "history" ? option.value === 2 : option.value !== 2)
+                .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
           </div>
           <div className="flex items-end gap-3">
             <button
@@ -1071,10 +991,9 @@ export default function FormConfigPage() {
       {/* ---- Edit drawer ---- */}
       {drawerOpen ? (
         <OverlayPortal>
-          <div className="fixed inset-0 z-40">
+          <div className="registration-drawer fixed inset-0 z-40" data-state={drawerClosing ? "closed" : "open"} inert={drawerClosing} aria-hidden={drawerClosing}>
             <div
-              ref={drawerOverlayRef}
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              className="registration-drawer__backdrop absolute inset-0 bg-black/70 backdrop-blur-sm"
               onClick={() => closeDrawer()}
             />
             <aside
@@ -1083,7 +1002,7 @@ export default function FormConfigPage() {
               aria-modal="true"
               aria-labelledby="form-editor-drawer-title"
               tabIndex={-1}
-              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl min-h-0 flex-col shadow-2xl"
+              className="registration-drawer__panel glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl min-h-0 flex-col shadow-2xl"
             >
               {/* Drawer header */}
               <div className="shrink-0 border-b border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] backdrop-blur">
@@ -1206,20 +1125,14 @@ export default function FormConfigPage() {
 
                         <div>
                           <FieldLabel label="报名状态" />
-                          <AnimatedSelect
-                            ariaLabel="报名状态"
-                            value={editor.status}
-                            onChange={(value) =>
-                              updateEditor((c) => ({
-                                ...c,
-                                status: value,
-                              }))
-                            }
-                            options={REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
-                              value: option.value,
-                              label: option.label,
-                            }))}
-                          />
+                          <select className="admin-field" aria-label="报名状态" value={editor.status}
+                            onChange={(event) =>
+                              updateEditor((c) => ({ ...c, status: event.target.value }))
+                            }>
+                            {REGISTRATION_FORM_STATUS_OPTIONS.map((option) =>
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            )}
+                          </select>
                         </div>
 
                         <div>
@@ -1312,10 +1225,9 @@ export default function FormConfigPage() {
       {/* ---- Preview drawer ---- */}
       {previewOpen ? (
         <OverlayPortal>
-          <div className="fixed inset-0 z-40">
+          <div className="registration-drawer fixed inset-0 z-40" data-state={previewClosing ? "closed" : "open"} inert={previewClosing} aria-hidden={previewClosing}>
             <div
-              ref={previewOverlayRef}
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              className="registration-drawer__backdrop absolute inset-0 bg-black/70 backdrop-blur-sm"
               onClick={() => closePreview()}
             />
             <aside
@@ -1324,7 +1236,7 @@ export default function FormConfigPage() {
               aria-modal="true"
               aria-labelledby="form-preview-drawer-title"
               tabIndex={-1}
-              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-2xl min-h-0 flex-col shadow-2xl"
+              className="registration-drawer__panel glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-2xl min-h-0 flex-col shadow-2xl"
             >
               <div className="shrink-0 border-b border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-6 py-4 backdrop-blur">
                 <div className="flex items-center justify-between">

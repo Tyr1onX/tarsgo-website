@@ -364,7 +364,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                         items?.[event.key === "ArrowDown" ? 0 : items.length - 1]?.focus();
                       });
                     }}
-                    className={`navbar-profile-button group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
+                    className={`navbar-profile-button group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-[background-color,border-color,box-shadow] duration-150 ${
                       userMenuOpen
                         ? "border-accent-primary/60 bg-surface-light shadow-lg shadow-accent-primary/10"
                         : "border-border-subtle bg-surface-light/60 hover:border-accent-primary/40 hover:bg-surface-light hover:shadow-md hover:shadow-black/20"
@@ -379,7 +379,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                       <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} compact />
                     </span>
                     <svg
-                      className={`h-4 w-4 transition-all duration-200 ${
+                      className={`h-4 w-4 transition-[transform,color] duration-150 ${
                         userMenuOpen
                           ? "rotate-180 text-accent-primary"
                           : "text-fg-muted group-hover:text-fg-primary"

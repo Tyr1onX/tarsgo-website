@@ -77,8 +77,16 @@ export function Notify({
         role={tone === "error" ? "alert" : "status"}
         aria-live={tone === "error" ? "assertive" : "polite"}
         onMouseEnter={() => { if (tone === "success") setPaused(true); }}
-        onMouseLeave={() => { if (tone === "success") setPaused(false); }}
-        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} relative overflow-hidden rounded-md transition-[opacity,transform] duration-150 ${toneClass} ${motionClass}`}
+        aria-hidden={!open}
+        inert={!open}
+        onMouseLeave={(event) => {
+          if (tone === "success" && !event.currentTarget.contains(document.activeElement)) setPaused(false);
+        }}
+        onFocus={() => { if (tone === "success") setPaused(true); }}
+        onBlur={(event) => {
+          if (tone === "success" && !event.currentTarget.contains(event.relatedTarget) && !event.currentTarget.matches(":hover")) setPaused(false);
+        }}
+        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} relative overflow-hidden rounded-md transition-[opacity,translate] duration-150 ${toneClass} ${motionClass}`}
       >
         {placement === "center" ? (
           <div className="relative px-5 py-4 text-center">

@@ -226,7 +226,7 @@ export default function SetupSuperAdmin() {
                     {[1, 2, 3].map((level) => (
                       <div
                         key={level}
-                        className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                        className={`h-1 flex-1 rounded-full transition-colors duration-150 ${
                           passwordStrength.score >= level ? passwordStrength.barColor : "bg-[var(--admin-border)]"
                         }`}
                       />

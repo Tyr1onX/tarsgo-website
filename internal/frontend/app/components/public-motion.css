@@ -2,10 +2,10 @@
 
 .public-reveal {
   opacity: 0;
-  transform: translate3d(0, 18px, 0);
+  transform: translate3d(0, 6px, 0);
   transition:
-    opacity 540ms var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) var(--reveal-delay, 0ms),
-    transform 580ms var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) var(--reveal-delay, 0ms);
+    opacity var(--motion-duration-fast, 160ms) var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) var(--reveal-delay, 0ms),
+    transform var(--motion-duration-fast, 160ms) var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) var(--reveal-delay, 0ms);
 }
 
 .public-reveal.is-revealed {
