@@ -71,6 +71,9 @@ export default function PixelJijiaPage() {
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const groundTilesRef = useRef<HTMLImageElement | null>(null);
   const roomTerrainRef = useRef<HTMLCanvasElement | null>(null);
+  const transitionRef = useRef<{
+    target: string | null; phase: "out" | "in"; started: number | null; swap: () => void;
+  } | null>(null);
   const roomArtRef = useRef<Record<string, HTMLImageElement>>({});
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
@@ -141,21 +144,38 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   };
 
+  // Both fade halves use the existing animation frame. Swap only while
+  // fully covered and begin revealing after the destination has rendered.
+  const transitionTo = useCallback((target: string | null, swap: () => void) => {
+    if (transitionRef.current) return;
+    if (!canvasRef.current?.dataset.scene || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      swap();
+      return;
+    }
+    keysRef.current.clear();
+    touchRef.current.clear();
+    sprintKeyRef.current = false;
+    sprintTouchRef.current = false;
+    transitionRef.current = { target, phase: "out", started: null, swap };
+  }, []);
+
   const enterRoom = useCallback((placeId: string) => {
     const destination = ROOMS[placeId];
     if (!destination || closestPlace(playerRef.current)?.id !== placeId) return;
-    playerRef.current = { ...destination.entry };
-    const canvas = canvasRef.current;
-    if (canvas) cameraRef.current = cameraAt(destination.entry, canvas.width, canvas.height,
-      destination.width * TILE, destination.height * TILE);
-    setSeated(null);
-    setRoomId(placeId);
-    setSelectedRoom(null);
-    setMapOpen(false);
-    selectedRef.current = null;
-    setSelected(null);
-    setStoryActivated(false);
-  }, []);
+    transitionTo(placeId, () => {
+      playerRef.current = { ...destination.entry };
+      const canvas = canvasRef.current;
+      if (canvas) cameraRef.current = cameraAt(destination.entry, canvas.width, canvas.height,
+        destination.width * TILE, destination.height * TILE);
+      setSeated(null);
+      setRoomId(placeId);
+      setSelectedRoom(null);
+      setMapOpen(false);
+      selectedRef.current = null;
+      setSelected(null);
+      setStoryActivated(false);
+    });
+  }, [transitionTo]);
 
   const openStudy = useCallback(async (invitation?: string) => {
     setStudyNotice("");
@@ -165,24 +185,26 @@ export default function PixelJijiaPage() {
         furniture: StudyFurniture[]; inviteActive?: boolean;
       }>(invitation ? `/api/pixel-home/visit?token=${encodeURIComponent(invitation)}`
         : "/api/pixel-home/me", { cache: "no-store" });
-      setStudyItems(data.furniture);
-      setStudyHasInvite(Boolean(data.inviteActive));
-      setStudyGuest(Boolean(invitation));
-      setStudyInvite("");
-      playerRef.current = { ...STUDY_ROOM.entry };
-      const canvas = canvasRef.current;
-      if (canvas) cameraRef.current = cameraAt(STUDY_ROOM.entry, canvas.width, canvas.height,
-        STUDY_ROOM.width * TILE, STUDY_ROOM.height * TILE);
-      keysRef.current.clear();
-      touchRef.current.clear();
-      setRoomId("study");
-      setSelectedRoom(null);
-      setMapOpen(false);
-      selectPlace(null);
+      transitionTo("study", () => {
+        setStudyItems(data.furniture);
+        setStudyHasInvite(Boolean(data.inviteActive));
+        setStudyGuest(Boolean(invitation));
+        setStudyInvite("");
+        playerRef.current = { ...STUDY_ROOM.entry };
+        const canvas = canvasRef.current;
+        if (canvas) cameraRef.current = cameraAt(STUDY_ROOM.entry, canvas.width, canvas.height,
+          STUDY_ROOM.width * TILE, STUDY_ROOM.height * TILE);
+        keysRef.current.clear();
+        touchRef.current.clear();
+        setRoomId("study");
+        setSelectedRoom(null);
+        setMapOpen(false);
+        selectPlace(null);
+      });
     } catch (error) {
       setStudyNotice(error instanceof Error ? error.message : "研究室无法打开");
     }
-  }, [selectPlace]);
+  }, [selectPlace, transitionTo]);
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("visit");
@@ -236,24 +258,27 @@ export default function PixelJijiaPage() {
   };
 
   const exitRoom = useCallback(() => {
-    if (roomId === "study") {
-      playerRef.current = { ...SPAWN };
+    if (!roomId) return;
+    transitionTo(null, () => {
+      if (roomId === "study") {
+        playerRef.current = { ...SPAWN };
+        const canvas = canvasRef.current;
+        if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.width, canvas.height);
+        setRoomId(null);
+        setSelectedRoom(null);
+        setStudyGuest(false);
+        if (window.location.search.includes("visit=")) window.history.replaceState(null, "", "/pixel-jijia");
+        return;
+      }
+      const place = PLACES.find(p => p.id === roomId);
+      if (!place) return;
+      playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1.2 };
       const canvas = canvasRef.current;
-      if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.width, canvas.height);
-      setRoomId(null);
+      if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
       setSelectedRoom(null);
-      setStudyGuest(false);
-      if (window.location.search.includes("visit=")) window.history.replaceState(null, "", "/pixel-jijia");
-      return;
-    }
-    const place = PLACES.find(p => p.id === roomId);
-    if (!place) return;
-    playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1.2 };
-    const canvas = canvasRef.current;
-    if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
-    setSelectedRoom(null);
-    setRoomId(null);
-  }, [roomId]);
+      setRoomId(null);
+    });
+  }, [roomId, transitionTo]);
 
   const resizeCanvas = useCallback(() => {
     const stage = stageRef.current, canvas = canvasRef.current;
@@ -357,6 +382,7 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
+      if (transitionRef.current) return;
       if (event.key === "Escape") {
         if (selectedRoom) setSelectedRoom(null);
         else if (selectedRef.current) selectPlace(null);
@@ -463,7 +489,7 @@ export default function PixelJijiaPage() {
       let walking = false;
       const sprinting = sprintKeyRef.current || sprintTouchRef.current;
 
-      if ((x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated) {
+      if (!transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated) {
         const previous = playerRef.current;
         const next = movePlayer(previous, x, y, dt, sprinting,
           room ? (px, py) => isRoomWalkable(room, px, py) : undefined);
@@ -478,8 +504,11 @@ export default function PixelJijiaPage() {
         if (room ? roomExitAt(room, next, y) : Boolean(door)) {
           if (room) exitRoom();
           else if (door) enterRoom(door.id);
-          frame = requestAnimationFrame(tick);
-          return;
+          // Reduced motion swaps directly; the next effect renders the destination.
+          if (!transitionRef.current) {
+            frame = requestAnimationFrame(tick);
+            return;
+          }
         }
       }
       const target = cameraAt(playerRef.current, canvas.width, canvas.height,
@@ -585,6 +614,29 @@ export default function PixelJijiaPage() {
           cameraRef.current, canvas.width, canvas.height, mapOpen);
         lastMini = time;
       }
+      const transition = transitionRef.current;
+      if (transition) {
+        let alpha = 1;
+        if (transition.phase === "out") {
+          transition.started ??= time;
+          alpha = reducedMotion.matches ? 1 : Math.min(1, (time - transition.started) / 180);
+          if (alpha >= 1) {
+            transition.phase = "in";
+            transition.started = null;
+            transition.swap();
+          }
+        } else if (transition.target === (room?.id ?? null)) {
+          transition.started ??= time;
+          alpha = reducedMotion.matches ? 0 : 1 - Math.min(1, (time - transition.started) / 240);
+          if (alpha <= 0) transitionRef.current = null;
+        }
+        ctx.save();
+        ctx.globalAlpha = alpha * alpha * (3 - 2 * alpha);
+        ctx.fillStyle = "#101c24";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        canvas.dataset.transition = transitionRef.current ? transition.phase : "idle";
+      } else canvas.dataset.transition = "idle";
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -598,7 +650,7 @@ export default function PixelJijiaPage() {
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || transitionRef.current) return;
     const rect = canvas.getBoundingClientRect();
     const camera = snapCamera(cameraRef.current);
     const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
@@ -639,6 +691,7 @@ export default function PixelJijiaPage() {
   };
 
   const handleNavigationClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (transitionRef.current) return;
     if (!mapOpen) { setMapOpen(true); return; }
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / rect.width * WORLD_WIDTH;
@@ -771,7 +824,7 @@ export default function PixelJijiaPage() {
             className={`pixel-world-dir pixel-world-dir--${direction}`}
             onPointerDown={(event) => {
               event.preventDefault();
-              if (selectedRef.current || selectedRoom) return;
+              if (transitionRef.current || selectedRef.current || selectedRoom) return;
               event.currentTarget.setPointerCapture(event.pointerId);
               touchRef.current.add(direction);
             }}
@@ -779,7 +832,7 @@ export default function PixelJijiaPage() {
             onPointerCancel={() => touchRef.current.delete(direction)}
             onLostPointerCapture={() => touchRef.current.delete(direction)}
             onClick={(event) => {
-              if (event.detail !== 0 || selectedRef.current || selectedRoom) return;
+              if (transitionRef.current || event.detail !== 0 || selectedRef.current || selectedRoom) return;
               playerRef.current = movePlayer(playerRef.current,
                 Number(direction === "right") - Number(direction === "left"),
                 Number(direction === "down") - Number(direction === "up"), 0.05,
@@ -791,7 +844,7 @@ export default function PixelJijiaPage() {
         <button type="button" className="pixel-world-sprint" aria-label="按住疾跑"
           onPointerDown={(event) => {
             event.preventDefault();
-            if (selectedRef.current) return;
+            if (transitionRef.current || selectedRef.current || selectedRoom) return;
             event.currentTarget.setPointerCapture(event.pointerId);
             sprintTouchRef.current = true;
           }}

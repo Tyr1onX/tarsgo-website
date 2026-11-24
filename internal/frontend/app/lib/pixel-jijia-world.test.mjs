@@ -550,3 +550,16 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
       "过渡贴图必须既有透明区域也有真实边缘像素");
   }
 });
+
+test("进出建筑与研究室共用当前帧循环执行淡入淡出，减少动态时直接切换", () => {
+  const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
+  for (const target of ["placeId", '"study"', "null"]) assert.ok(route.includes(`transitionTo(${target}, () => {`));
+  assert.ok(route.includes('window.matchMedia("(prefers-reduced-motion: reduce)").matches'));
+  assert.ok(route.includes('transition.phase = "in"'));
+  assert.ok(route.includes('transition.target === (room?.id ?? null)'));
+  assert.ok(route.includes('if (!transitionRef.current && (x !== 0 || y !== 0)'));
+  assert.ok(route.includes("alpha * alpha * (3 - 2 * alpha)"));
+  assert.ok(route.includes("if (!canvas || transitionRef.current) return;"));
+  assert.ok(route.includes("if (transitionRef.current || event.detail !== 0"));
+  assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3);
+});
