@@ -21,11 +21,11 @@ type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:bo
 export type MatchRobot = RobotSpec & { hp:number; xp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; launcher:Launcher };
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
-type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
+type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
 export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
-  const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
+  const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
   return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
@@ -122,13 +122,27 @@ export function installLauncher(match:Match,id:string){
   // Supply polygon is a provisional proxy for the workbench interaction.
   robot.launcher="test";return true;
 }
+// §5.6.4.9: a single defending robot receives the shared reserve and cooling.
+function fortressActive(match:Match,r:MatchRobot){
+  const side=match.sides[r.team];
+  return side.fortressHolder===r.id&&r.hp>0&&!weak(r)&&!controlsOutpost(match,r.team,r.team);
+}
+function fortressLoss(side:Side){return 10000-Math.min(side.baseLow,side.base);}
+export function reserveAmmo(match:Match,r:MatchRobot){
+  const side=match.sides[r.team];
+  return fortressActive(match,r)?Math.floor(Math.max(0,Math.min(500,100+Math.floor(fortressLoss(side)/15))-side.fortressSpent)/(r.heavy?10:1)):0;
+}
+function coolingRate(match:Match,r:MatchRobot){
+  const side=match.sides[r.team];
+  return Math.max(r.cooling*side.rune.cooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
+}
 export function canFire(match:Match,robot:MatchRobot) {
-  return match.phase==="running"&&(!robot.heavy||robot.launcher==="test"||robot.launcher==="ready")&&robot.hp>0&&!weak(robot)&&robot.ammo>0&&robot.cooldown<=0&&!robot.thermalLock;
+  return match.phase==="running"&&(!robot.heavy||robot.launcher==="test"||robot.launcher==="ready")&&robot.hp>0&&!weak(robot)&&(robot.ammo>0||reserveAmmo(match,robot)>0)&&robot.cooldown<=0&&!robot.thermalLock;
 }
 export function fireRound(match:Match,id:string) {
   const robot=match.robots.find(r=>r.id===id);
   if(!robot||!canFire(match,robot)) return null;
-  robot.ammo--;robot.cooldown=robot.heavy?.3:.18;robot.lastCombat=match.elapsed;
+  if(reserveAmmo(match,robot)>0)match.sides[robot.team].fortressSpent+=robot.heavy?10:1;else robot.ammo--;robot.cooldown=robot.heavy?.3:.18;robot.lastCombat=match.elapsed;
   if(robot.heavy&&robot.launcher==="test"){
     robot.launcher="ready";robot.hp+=600-robot.maxHp;robot.maxHp=600;robot.heatLimit=300;robot.cooling=100;
     return robot;
@@ -187,7 +201,7 @@ function robotDefense(match:Match,robot:MatchRobot) {
   if(weak(robot))return 1-defense;
   if(activeZone(match,robot,`${robot.team}-base`))defense=Math.max(defense,.5);
   if(teams.some(t=>activeZone(match,robot,`${t}-central`)))defense=Math.max(defense,.25);
-  if(activeZone(match,robot,`${robot.team}-fortress`)&&!controlsOutpost(match,robot.team,robot.team))defense=Math.max(defense,.5);
+  if(fortressActive(match,robot))defense=Math.max(defense,.5);
   const vulnerable=activeZone(match,robot,`${opponent(robot.team)}-fortress`)&&!match.sides[opponent(robot.team)].cover;
   return 1-defense+(vulnerable?1:0);
 }
@@ -238,6 +252,19 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
     }
     if(r.hp===r.maxHp)r.repairCarry=0;
   }
+  for(const team of teams){
+    const side=match.sides[team],zone=`${team}-fortress` as const;
+    const eligible=(r:MatchRobot)=>r.team===team&&!weak(r)&&active(r,zone);
+    if(controlsOutpost(match,team,team)){side.fortressHolder=null;continue;}
+    if(!match.robots.some(r=>r.id===side.fortressHolder&&eligible(r)))
+      side.fortressHolder=match.robots.find(eligible)?.id??null;
+  }
+  // Cooling at the same referee tick as zone activation, so replay time
+  // steps cannot cool an entire interval using a stale fortress owner.
+  for(const r of match.robots){
+    r.heat=Math.max(0,r.heat-coolingRate(match,r)/10);
+    if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
+  }
   // Score the interval before applying transitions at its endpoint.
   for(const team of teams){
     if(teams.every(t=>controlsOutpost(match,t,team)))match.sides[team].controlTicks++;
@@ -258,6 +285,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
       area.controller=opponent(area.controller);area.full=!area.full;area.progress=0;
       if(kind==="outpost"&&area.full&&side.outpost===0)rebuildOutpost(side,area.controller);
     }
+    if(controlsOutpost(match,location,location))side.fortressHolder=null;
     if(side.cover)continue;
     for(const robot of match.robots){
       if(robot.team===location)continue;
@@ -366,6 +394,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
   const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*side.rune.attack*(1-match.sides[owner].rune.defense)));
   enemy[target.type]-=amount;side.damage+=amount;
+  if(target.type==="base")enemy.baseLow=Math.min(enemy.baseLow,enemy.base);
   attackXp(match,shooter,target.type==="outpost"?amount*2:Math.ceil(amount/2));
   if(target.type==="outpost"&&amount>0&&enemy.outpost===0){
     enemy.stopped=true;
@@ -399,8 +428,6 @@ function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPo
   const coolingTicks=Math.floor((match.elapsed+1e-8)*10)-Math.floor((before+1e-8)*10);
   for(const r of match.robots){
     r.cooldown=r.cooldown-dt>1e-8?r.cooldown-dt:0;
-    r.heat=Math.max(0,r.heat-coolingTicks*r.cooling*match.sides[r.team].rune.cooling/10);
-    if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
     if(r.pendingAmmoAt!==null&&match.elapsed>=r.pendingAmmoAt){
       if(r.hp>0)r.ammo+=r.heavy?10:100;
       r.pendingAmmoAt=null;
