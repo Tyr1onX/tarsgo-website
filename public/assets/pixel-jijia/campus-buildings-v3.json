@@ -1,0 +1,49 @@
+{
+  "version": 3,
+  "source": "Six image-generated campus buildings and an independently painted textured stone fountain.",
+  "atlas": "/assets/pixel-jijia/campus-buildings-v3.png",
+  "sprites": {
+    "mechanical": [
+      4,
+      4,
+      474,
+      455
+    ],
+    "honors": [
+      516,
+      4,
+      479,
+      461
+    ],
+    "electrical": [
+      1028,
+      4,
+      469,
+      459
+    ],
+    "vision": [
+      4,
+      516,
+      475,
+      418
+    ],
+    "guild": [
+      516,
+      516,
+      480,
+      400
+    ],
+    "ai": [
+      1028,
+      516,
+      474,
+      415
+    ],
+    "fountain": [
+      0,
+      1024,
+      192,
+      192
+    ]
+  }
+}

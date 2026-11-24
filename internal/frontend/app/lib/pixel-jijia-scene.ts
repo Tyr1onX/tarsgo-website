@@ -1,9 +1,10 @@
 import {
-  FOUNTAIN, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera,
-  type Direction, type Place, type Position, type PropSprite, type Scenery,
+  FOUNTAIN, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt,
+  type Direction, type Place, type Position, type PropSprite, type Scenery, type SurfaceMark,
 } from "./pixel-jijia-world.ts";
+import { explorerFrameBox, EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT, type ExplorerAnimation } from "./pixel-jijia-explorer.ts";
 import type { Season, ChangchunClimate, WeatherKind, SurfaceWeather } from "./pixel-jijia-climate";
-import { drawAnimal, drawFishing, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
+import { drawAnimal, drawFishing, fishingReady, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
 
 export type SpriteBox = [number, number, number, number];
 export type SpriteIndex = Record<string, SpriteBox>;
@@ -14,8 +15,8 @@ const PROP_CELLS: Record<PropSprite, number> = {
   fence: 8, hydrangea: 9, statue: 10, arch: 11,
 };
 const PROP_CELL = 128;
-const GROUND_PATCH = TILE * 8;
-const GROUND_EDGE_Y = GROUND_PATCH * 4;
+export const GROUND_PATCH=128,GROUND_TEXTURE_TILE=32,GROUND_ATLAS_HEIGHT=1376;
+const GROUND_EDGE_Y=GROUND_PATCH*10,GROUND_CELLS=GROUND_PATCH/GROUND_TEXTURE_TILE;
 const point = (value: number) => Math.round(value * TILE);
 
 function hash(x: number, y: number) {
@@ -51,8 +52,6 @@ const waterTiles=new Map(waterCells.map(cell=>[cell.y*WORLD_WIDTH+cell.x,cell]))
 function waterTile(ctx:CanvasRenderingContext2D,x:number,y:number,px:number,py:number){
   const cell=waterTiles.get(y*WORLD_WIDTH+x);
   if(!cell)return;
-  ctx.fillStyle=cell.depth===1?"rgba(182,216,182,.30)":"rgba(19,65,103,.29)";
-  ctx.fillRect(px,py,TILE,TILE);
   for(const side of cell.edges){
     const horizontal=side<2,reverse=side===1||side===3;
     const band=(offset:number,width:number,color:string)=>{
@@ -62,9 +61,16 @@ function waterTile(ctx:CanvasRenderingContext2D,x:number,y:number,px:number,py:n
       else ctx.fillRect(px+d,py,width,TILE);
     };
     if(cell.natural){
-      band(0,1.5,"#839e75");
-      band(1.5,1.5,"#a5b895");
-      band(3,1,"rgba(207,222,188,.45)");
+      // Shore edges have a narrow uneven wet-sand band. The water cell
+      // still has its actual depth; only the sub-tile visual edge softens.
+      for(let u=0;u<TILE;u+=.5){
+        const thickness=1+(hash(x*31+Math.floor(u*2),y*7+side)%4)*.5;
+        const d=reverse?TILE-thickness:0;
+        ctx.fillStyle="#b6b08b";
+        if(horizontal)ctx.fillRect(px+u,py+d,.5,thickness);
+        else ctx.fillRect(px+d,py+u,thickness,.5);
+      }
+      band(2.5,.5,"rgba(217,226,193,.48)");
       for(let k=0;k<5;k++){
         const u=(cell.seed>>>((k*5)%24))%30*.5;
         ctx.fillStyle=k%2?"#b4c1a0":"#687f6c";
@@ -88,16 +94,38 @@ function waterTile(ctx:CanvasRenderingContext2D,x:number,y:number,px:number,py:n
   }
 }
 
+// Soft material seams are sampled from the real adjacent texture. A narrow
+// stepped transition is painted once into the static terrain cache.
+function naturalMaterialEdge(ctx:CanvasRenderingContext2D,tiles:HTMLImageElement,
+  x:number,y:number,side:number,neighbor:number){
+  const px=x*TILE,py=y*TILE,variant=hash(Math.floor(x/GROUND_CELLS),Math.floor(y/GROUND_CELLS))%3;
+  const sx=variant*GROUND_PATCH+(x%GROUND_CELLS)*GROUND_TEXTURE_TILE;
+  const sy=neighbor*GROUND_PATCH+(y%GROUND_CELLS)*GROUND_TEXTURE_TILE;
+  const horizontal=side<2,reverse=side===1||side===3;
+  ctx.save();
+  for(let u=0;u<TILE;u+=.5){
+    const seed=hash(x*31+Math.floor(u*2),y*37+side*11);
+    const width=2+(seed%7)*.5;
+    for(let d=0;d<width;d+=.5){
+      const k=reverse?TILE-.5-d:d;
+      const a=horizontal?u:k,b=horizontal?k:u;
+      ctx.globalAlpha=Math.min(1,(width-d)/2.5);
+      ctx.drawImage(tiles,sx+a*2,sy+b*2,1,1,px+a,py+b,.5,.5);
+    }
+  }
+  ctx.restore();
+}
+
 function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement, season: Season, startX:number,startY:number,endX:number,endY:number) {
   for (let y = startY; y < endY; y++) {
     for (let x = startX; x < endX; x++) {
       const kind = groundAt(x, y);
-      const variant = hash(Math.floor(x / 8), Math.floor(y / 8)) % 3;
+      const variant = hash(Math.floor(x/GROUND_CELLS),Math.floor(y/GROUND_CELLS))%3;
       const destX = point(x), destY = point(y);
-      ctx.drawImage(
-        tiles, variant * GROUND_PATCH + (x % 8) * TILE,
-        kind * GROUND_PATCH + (y % 8) * TILE, TILE, TILE, destX, destY, TILE, TILE,
-      );
+      const cell=waterTiles.get(y*WORLD_WIDTH+x);
+      const art=kind===3&&cell?.depth===1?(cell.natural?8:9):kind;
+      ctx.drawImage(tiles,variant*GROUND_PATCH+(x%GROUND_CELLS)*GROUND_TEXTURE_TILE,
+        art*GROUND_PATCH+(y%GROUND_CELLS)*GROUND_TEXTURE_TILE,GROUND_TEXTURE_TILE,GROUND_TEXTURE_TILE,destX,destY,TILE,TILE);
       // Fine half-pixel details on the native 32px surface grid, preserving
       // the existing authored texture and its large-scale joints.
       const seed=hash(x,y),px=destX+2+(seed%11),py=destY+2+((seed>>>8)%10);
@@ -135,25 +163,32 @@ function ground(ctx: CanvasRenderingContext2D, tiles: HTMLImageElement, season: 
         continue;
       }
       const borders = (neighbor: number) =>
-        neighbor !== kind && (kind !== 1 || neighbor === 0) && neighbor !== 3;
+        neighbor!==kind&&neighbor!==3&&(neighbor===0||kind>neighbor);
       for (const [side, nx, ny] of [[0, x, y - 1], [1, x, y + 1], [2, x - 1, y], [3, x + 1, y]]) {
-        if (borders(groundAt(nx, ny))) {
-          ctx.drawImage(tiles, ((kind - 1) * 4 + side) * TILE, GROUND_EDGE_Y, TILE, TILE, destX, destY, TILE, TILE);
+        const neighbor=groundAt(nx,ny);
+        if(borders(neighbor)){
+          if(kind===4||kind===5||kind===7){
+            naturalMaterialEdge(ctx,tiles,x,y,side,neighbor);
+            continue;
+          }
+          const edge=(kind-1)*4+side;
+          ctx.drawImage(tiles,(edge%12)*GROUND_TEXTURE_TILE,GROUND_EDGE_Y+Math.floor(edge/12)*GROUND_TEXTURE_TILE,GROUND_TEXTURE_TILE,GROUND_TEXTURE_TILE,destX,destY,TILE,TILE);
         }
       }
     }
   }
 }
 
-function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, place: Place, camera: Position) {
+export function buildingBounds(place: Place, sprites: SpriteIndex) {
   const box = sprites[place.id];
-  if (!box) throw new Error(`建筑素材缺失：${place.id}`);
+  if (!box) throw new Error(`像素素材缺失：${place.id}`);
   const width = point(place.width);
   const height = Math.round(width * box[3] / box[2]);
-  sprite(
-    ctx, atlas, sprites, place.id, point(place.x) - camera.x,
-    point(place.y + place.height) - height - camera.y, width, height,
-  );
+  return { x: point(place.x), y: point(place.y + place.height) - height, width, height };
+}
+function building(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, place: Place, camera: Position) {
+  const b = buildingBounds(place, sprites);
+  sprite(ctx, atlas, sprites, place.id, b.x - camera.x, b.y - camera.y, b.width, b.height);
 }
 
 type PropAtlas=HTMLImageElement|HTMLCanvasElement;
@@ -199,9 +234,9 @@ function decoration(ctx: CanvasRenderingContext2D, props: PropAtlas, object: Sce
   );
 }
 
-function fountain(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, sprites: SpriteIndex, camera: Position) {
-  sprite(ctx, atlas, sprites, "fountain",
-    point(FOUNTAIN.x) - 48 - camera.x, point(FOUNTAIN.y) - 50 - camera.y, 96, 96);
+function fountainBounds(){return {x:point(FOUNTAIN.x)-48,y:point(FOUNTAIN.y)-69,width:96,height:96};}
+function fountain(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:SpriteIndex,camera:Position){
+  const b=fountainBounds();sprite(ctx,atlas,sprites,"fountain",b.x-camera.x,b.y-camera.y,b.width,b.height);
 }
 
 // Sorting by ground contact rather than top-left image coordinates makes scenery
@@ -213,14 +248,60 @@ type SceneNode =
 const NODES: SceneNode[] = [
   ...PLACES.map(p => ({ kind: "building" as const, y: p.y + p.height, x: p.x + p.width / 2, value: p })),
   ...SCENERY.map(p => ({ kind: "prop" as const, y: p.y, x: p.x, value: p })),
-  { kind: "fountain" as const, x: FOUNTAIN.x, y: FOUNTAIN.y + 2.4 },
+  { kind: "fountain" as const, x: FOUNTAIN.x, y: FOUNTAIN.y + FOUNTAIN.radiusY },
 ].sort((a, b) => a.y - b.y);
 
-function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode, atlas: HTMLImageElement,
-  sprites: SpriteIndex, props: PropAtlas, camera: Position) {
-  if (node.kind === "building") building(ctx, atlas, sprites, node.value, camera);
-  else if (node.kind === "prop") decoration(ctx, props, node.value, camera);
-  else fountain(ctx, atlas, sprites, camera);
+const snowCaps=new WeakMap<CanvasImageSource,Map<string,HTMLCanvasElement>>();
+function snowCap(image:PropAtlas,box:SpriteBox,key:string){
+  let cache=snowCaps.get(image);
+  if(!cache){cache=new Map();snowCaps.set(image,cache);}
+  const found=cache.get(key);if(found)return found;
+  const canvas=document.createElement("canvas"),[sx,sy,w,h]=box;
+  canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext("2d")!;
+  ctx.drawImage(image,sx,sy,w,h,0,0,w,h);
+  const data=ctx.getImageData(0,0,w,h),src=data.data.slice();
+  data.data.fill(0);
+  for(let x=0;x<w;x++){
+    let top=-1;
+    for(let y=0;y<h*.62;y++)if(src[(y*w+x)*4+3]>180){top=y;break;}
+    if(top<0)continue;
+    const depth=Math.max(2,Math.floor(h*(.055+(hash(x,top)%7)*.004)));
+    for(let y=top;y<Math.min(h,top+depth);y++){
+      const i=(y*w+x)*4;if(src[i+3]<128)continue;
+      const shade=1-(y-top)/depth*.20;
+      data.data[i]=Math.round(237*shade);data.data[i+1]=Math.round(245*shade);
+      data.data[i+2]=Math.round(240*shade);data.data[i+3]=Math.round(225-(y-top)/depth*55);
+    }
+  }
+  ctx.putImageData(data,0,0);cache.set(key,canvas);return canvas;
+}
+function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageElement,
+  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0){
+  const b=node.kind==="building"?buildingBounds(node.value,sprites):
+    node.kind==="prop"?{x:point(node.x)-node.value.width/2,y:point(node.y)-node.value.height,width:node.value.width,height:node.value.height}:
+    fountainBounds();
+  if(viewport&&(b.x+b.width<camera.x||b.y+b.height<camera.y||b.x>camera.x+viewport.width||b.y>camera.y+viewport.height))return;
+  if(node.kind==="building")building(ctx,atlas,sprites,node.value,camera);
+  else if(node.kind==="prop"){
+    const tree=isTree(node.value);
+    // Only the canopy's upper rows sway. Trunk and physical footprint stay fixed.
+    if(tree&&time){
+      const cell=PROP_CELLS[node.value.sprite],sx=cell%4*PROP_CELL,sy=Math.floor(cell/4)*PROP_CELL;
+      const top=86,cut=node.value.height*top/PROP_CELL;
+      const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y),shift=Math.round(Math.sin(time/1300+node.x)*.8);
+      ctx.drawImage(props,sx,sy+top,PROP_CELL,PROP_CELL-top,x,y+cut,b.width,b.height-cut);
+      ctx.drawImage(props,sx,sy,PROP_CELL,top,x+shift,y,b.width,cut);
+    }else decoration(ctx,props,node.value,camera);
+  }else fountain(ctx,atlas,sprites,camera);
+  if(snow>.02&&(node.kind==="building"||node.kind==="prop"&&isTree(node.value))){
+    const box:SpriteBox=node.kind==="building"?sprites[node.value.id]:[
+      PROP_CELLS[node.value.sprite]%4*PROP_CELL,Math.floor(PROP_CELLS[node.value.sprite]/4)*PROP_CELL,PROP_CELL,PROP_CELL];
+    const key=node.kind==="building"?node.value.id:node.value.sprite;
+    ctx.save();ctx.globalAlpha=snow*.88;
+    ctx.drawImage(snowCap(node.kind==="building"?atlas:props,box,key),Math.round(b.x-camera.x),Math.round(b.y-camera.y),b.width,b.height);
+    ctx.restore();
+  }
 }
 
 export const WORLD_ART_SCALE=2;
@@ -331,7 +412,8 @@ function silhouette(image:HTMLImageElement,box:SpriteBox,key:string){
   shadowCache.set(key,canvas);return canvas;
 }
 const isTree=(p:Scenery)=>["oak","lime_tree","cherry"].includes(p.sprite);
-function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:SpriteIndex,props:HTMLImageElement,camera:Position,c:OutdoorClimate,width:number,height:number){
+function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:SpriteIndex,props:HTMLImageElement,camera:Position,c:OutdoorClimate,width:number,height:number,
+  character:HTMLImageElement,player:Position,pose:ExplorerAnimation){
   if(c.sunHeight<=.035||c.weather==="fog"||c.weather==="rain"||c.weather==="storm"||c.weather==="snow")return;
   const strength=c.weather==="clear"?.28:.075;
   const length=Math.min(1.25,.32/Math.max(.2,c.sunHeight));
@@ -349,10 +431,22 @@ function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:Spr
     ctx.save();ctx.transform(w/mask.width*.84,0,-dx/mask.height,-dy/mask.height,x-w*.42+dx,y+dy);
     ctx.drawImage(mask,0,0);ctx.restore();
   }
+  if (!waterDepthAt(player.x, player.y)) {
+    const box=explorerFrameBox(pose);
+    const mask=silhouette(character,box,`explorer:${pose.action}:${pose.direction}:${pose.frame}`);
+    const h=pose.seated?35:EXPLORER_FRAME_HEIGHT;
+    const dx = -c.sunX * h * length, dy = -c.sunY * h * length;
+    ctx.save();
+    ctx.transform(.84, 0, -dx / mask.height, -dy / mask.height,
+      point(player.x)-camera.x-mask.width*.42+dx, point(player.y)-camera.y+dy);
+    ctx.drawImage(mask, 0, 0);
+    ctx.restore();
+  }
   ctx.restore();
 }
-function drawWater(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,player:Position,
-  walking:boolean,time:number,motion:boolean,weather:WeatherKind|null){
+function drawWater(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,marks:SurfaceMark[],
+  time:number,motion:boolean,climate:OutdoorClimate|null){
+  const weather=climate?.weather??null;
   const visible=waterCells.filter(c=>c.x*TILE+TILE>=camera.x&&c.y*TILE+TILE>=camera.y&&
     c.x*TILE<camera.x+w&&c.y*TILE<camera.y+h);
   if(!visible.length)return;
@@ -365,30 +459,38 @@ function drawWater(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:numbe
     const x=c.x*TILE-camera.x,y=c.y*TILE-camera.y;
     const phase=(t*.32+c.seed%100/100)%1;
     const dx=Math.floor((phase*13)*2)/2;
-    ctx.globalAlpha=.09+.12*Math.sin(phase*Math.PI);
-    ctx.fillStyle=c.depth===1?"#cde8cf":"#a4dcd9";
+    const sunny=climate?.weather==="clear"?Math.max(0,climate.sunHeight):0;
+    ctx.globalAlpha=.07+.1*Math.sin(phase*Math.PI)+sunny*.08;
+    ctx.fillStyle=climate&&climate.night>.1?"#99c9d9":sunny>.2?"#dce8c4":c.depth===1?"#cde8cf":"#a4dcd9";
     const yy=y+2+(c.seed%9);
     ctx.fillRect(x+dx-2,yy,3,.5);
     ctx.fillRect(x+dx,yy-.5,3.5,.5);
+    if(sunny>.15&&c.seed%7===0){ctx.globalAlpha=.14*sunny*Math.sin(phase*Math.PI);ctx.fillRect(x+dx-4,yy+2,7,.7);}
     if(rain&&motion&&c.seed%4===0){
       const k=(t*1.2+c.seed%37/37)%1;
       ctx.globalAlpha=.32*(1-k);ctx.strokeStyle="#d3ece3";ctx.lineWidth=.5;
       ctx.beginPath();ctx.ellipse(x+8,y+9,1+5*k,.5+2.3*k,0,0,Math.PI*2);ctx.stroke();
     }
   }
-  if(waterDepthAt(player.x,player.y)){
-    const x=player.x*TILE-camera.x,y=player.y*TILE-camera.y;
-    for(let i=0;i<2;i++){
-      const phase=motion?(t*(walking?1.65:.7)+i*.5)%1:i*.5;
-      ctx.globalAlpha=(1-phase)*.56;ctx.strokeStyle="#d9f3de";ctx.lineWidth=.8;
-      ctx.beginPath();ctx.ellipse(x,y+1,8+phase*13,2+phase*5,0,0,Math.PI*2);ctx.stroke();
+  for (const mark of marks) {
+    if (mark.kind !== "water") continue;
+    const phase = mark.age / mark.ttl;
+    const x = mark.x * TILE - camera.x, y = mark.y * TILE - camera.y;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(mark.angle);
+    ctx.globalAlpha = (1 - phase) * .52; ctx.strokeStyle = "#d9f3de"; ctx.lineWidth = .65;
+    // Wake trails behind the movement direction, then expands and disappears.
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath();
+      ctx.ellipse(-3 - phase * 5, 0, 4 + phase * 8 + i * 2, 3 + phase * 3 + i * 1.5, 0, Math.PI * .56, Math.PI * 1.44);
+      ctx.stroke();
     }
+    ctx.restore();
   }
   ctx.restore();
 }
 const puddles=Array.from({length:WORLD_HEIGHT},(_,y)=>y).flatMap(y=>Array.from({length:WORLD_WIDTH},(_,x)=>({x,y})))
   .filter(({x,y})=> (groundAt(x,y)===1||groundAt(x,y)===2)&&hash(x,y)%49===0);
-function drawWetGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,c:OutdoorClimate,time:number,motion:boolean,surface:SurfaceWeather){
+function drawWetGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,c:OutdoorClimate,time:number,motion:boolean,surface:SurfaceWeather,marks:SurfaceMark[]){
   if(surface.wet<.01&&surface.snow<.01)return;
   ctx.save();
   const rain=c.weather==="rain"||c.weather==="storm";
@@ -406,7 +508,7 @@ function drawWetGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:n
     const endX=Math.min(WORLD_WIDTH,Math.ceil((camera.x+w)/TILE)),endY=Math.min(WORLD_HEIGHT,Math.ceil((camera.y+h)/TILE));
     for(let y=startY;y<endY;y++)for(let x=startX;x<endX;x++){
       const kind=groundAt(x,y),seed=hash(x,y);
-      if(kind===3||seed%9>surface.snow*(kind===0?8:3))continue;
+      if(kind===3||shelteredAt(x+.5,y+.5)||seed%9>surface.snow*(kind===0?8:3))continue;
       const px=x*TILE-camera.x,py=y*TILE-camera.y;
       // Pixel clusters accumulate in grass and along paving seams, leaving routes legible.
       ctx.fillStyle=kind===0?"#dce9df":"#d1dedb";
@@ -417,18 +519,28 @@ function drawWetGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:n
       }
     }
   }
+  for (const mark of marks) {
+    if (mark.kind !== "snow" || surface.snow < .12) continue;
+    ctx.save();
+    ctx.translate(mark.x*TILE-camera.x, mark.y*TILE-camera.y);
+    ctx.rotate(mark.angle + Math.PI / 2);
+    ctx.globalAlpha = Math.min(.42, surface.snow) * (1 - mark.age / mark.ttl);
+    ctx.fillStyle = "#546969";
+    ctx.fillRect(-3, -2, 2, 4); ctx.fillRect(1, 1, 2, 4);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
 // Window panes are registered against the actual building atlas crop,
 // so the light sits on glass rather than floating in front of a building.
 const WINDOWS:Record<string,number[][]>={
-  mechanical:[[.20,.61,.09,.09],[.60,.69,.11,.12]],
-  honors:[[.43,.32,.14,.17]],
-  electrical:[[.13,.54,.07,.12],[.77,.54,.08,.11]],
-  vision:[[.13,.68,.075,.13],[.27,.69,.07,.13],[.65,.69,.07,.13],[.83,.69,.07,.13]],
-  guild:[[.38,.33,.14,.11],[.73,.65,.18,.13]],
-  ai:[[.16,.34,.11,.1],[.75,.38,.11,.1]],
+  mechanical:[[.238,.47,.064,.035],[.718,.47,.064,.035],[.21,.63,.07,.091],[.756,.63,.07,.091]],
+  honors:[[.19,.40,.046,.062],[.74,.40,.046,.062],[.15,.64,.052,.138],[.80,.64,.052,.138]],
+  electrical:[[.13,.56,.14,.073],[.13,.75,.14,.083],[.42,.76,.14,.12]],
+  vision:[[.13,.64,.055,.12],[.29,.70,.055,.14],[.69,.70,.055,.14],[.83,.64,.055,.12]],
+  guild:[[.19,.35,.057,.075],[.75,.36,.055,.075],[.19,.54,.055,.10],[.75,.54,.055,.10]],
+  ai:[[.11,.48,.14,.075],[.74,.48,.15,.075],[.13,.61,.072,.12],[.43,.84,.13,.088]],
 };
 function glow(ctx:CanvasRenderingContext2D,x:number,y:number,r:number,color:string,alpha:number){
   const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,"rgba(255,216,145,0)");
@@ -477,82 +589,58 @@ function drawAtmosphere(ctx:CanvasRenderingContext2D,camera:Position,sprites:Spr
 export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: Terrain,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
-  characterSheet: HTMLImageElement, player: Position, direction: Direction,
-  walking: boolean, traveled: number, camera: Position, seated = false,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},
+  characterSheet: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
   drawTerrain(ctx,terrain,screenCamera,w,h);
-  drawWater(ctx,screenCamera,w,h,player,walking,time,motion,climate?.weather??null);
-  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h);}
+  drawWater(ctx,screenCamera,w,h,marks,time,motion,climate);
+  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land=animals.filter(a=>a.species!=="fish").sort((a,b)=>a.y-b.y);
   const seasonal=seasonalProps(props,climate?.season??"summer");
   let playerDrawn = false,index=0;
-  const drawPlayer=()=>renderExplorer(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated, waterDepthAt(player.x,player.y));
+  const drawPlayer=()=>renderExplorer(ctx, characterSheet, player, pose, screenCamera);
   for (const node of NODES) {
     while(index<land.length&&land[index].y<node.y){
       const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
     }
     if (!playerDrawn && node.y > player.y) {drawPlayer();playerDrawn = true;}
-    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera);
+    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0);
   }
   while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();
   if(climate)drawAtmosphere(ctx,screenCamera,sprites,climate,w,h);
-  if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion);
+  if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
 }
 
-const EXPLORER_ROWS: Record<Direction, number> = { down: 0, left: 1, right: 2, up: 3 };
-const EXPLORER_FRAME_WIDTH = 40;
-const EXPLORER_FRAME_HEIGHT = 54;
-
 export function renderExplorer(
-  ctx: CanvasRenderingContext2D, characterSheet: HTMLImageElement,
-  player: Position, direction: Direction, walking: boolean, traveled: number, camera: Position,
-  seated = false, water: 0 | 1 | 2 = 0,
+  ctx:CanvasRenderingContext2D,characterSheet:HTMLImageElement,
+  player:Position,pose:ExplorerAnimation,camera:Position,
 ) {
-  const footX = Math.round(player.x * TILE - camera.x);
-  const footY = Math.round(player.y * TILE - camera.y);
-  const frame = walking ? Math.floor(traveled / 0.5) % 4 : 0;
-  if (seated) {
-    // Draw the idle torso behind the seat; the bench front hides the legs.
-    ctx.drawImage(characterSheet, 0, EXPLORER_ROWS.down * EXPLORER_FRAME_HEIGHT,
-      EXPLORER_FRAME_WIDTH, 42, footX - 20, footY - 45, 40, 42);
-    return;
+  const footX=Math.round(player.x*TILE-camera.x),footY=Math.round(player.y*TILE-camera.y);
+  const [sx,sy,w,h]=explorerFrameBox(pose);
+  const swimming=pose.water===2||pose.action==="enter"||pose.action==="exit";
+  const top=footY-h+(swimming?8:0);
+  if(!pose.water){
+    ctx.fillStyle="rgba(44,66,48,.20)";ctx.beginPath();
+    ctx.ellipse(footX,footY-2,pose.seated?10:12,4,0,0,Math.PI*2);ctx.fill();
   }
-  if (water) {
-    // Keep the face and shoulders above water; the lower body is visible
-    // through the surface rather than disappearing into a floating head.
-    const visible = water === 2 ? 34 : 43;
-    const bob = walking ? Math.floor(traveled * 3) % 2 : 0;
-    const sourceX=frame*EXPLORER_FRAME_WIDTH,sourceY=EXPLORER_ROWS[direction]*EXPLORER_FRAME_HEIGHT;
-    const top=footY-visible+bob;
-    const submerged=EXPLORER_FRAME_HEIGHT-visible;
-    ctx.save();
-    ctx.globalAlpha=water===2?.27:.42;
-    ctx.drawImage(characterSheet,sourceX,sourceY+visible,EXPLORER_FRAME_WIDTH,submerged,
-      footX-20,top+visible,40,water===2?Math.round(submerged*.52):submerged);
+  if(pose.water){
+    // These are independently authored water poses, not the standing sprite.
+    // The existing water surface only tints the part below its physical plane.
+    const surface=swimming?38:46;
+    ctx.drawImage(characterSheet,sx,sy,w,surface,footX-w/2,top,w,surface);
+    ctx.save();ctx.globalAlpha=.72;
+    ctx.drawImage(characterSheet,sx,sy+surface,w,h-surface,footX-w/2,top+surface,w,h-surface);
     ctx.restore();
-    ctx.drawImage(characterSheet,sourceX,sourceY,EXPLORER_FRAME_WIDTH,visible,footX-20,top,40,visible);
-    return;
-  }
-  ctx.fillStyle = "rgba(44, 66, 48, 0.20)";
-  ctx.beginPath();
-  ctx.ellipse(footX, footY - 2, 12, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.drawImage(
-    characterSheet,
-    frame * EXPLORER_FRAME_WIDTH, EXPLORER_ROWS[direction] * EXPLORER_FRAME_HEIGHT,
-    EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT,
-    footX - 20, footY - 54, 40, 54,
-  );
+  }else ctx.drawImage(characterSheet,sx,sy,w,h,footX-w/2,top,w,h);
 }
 
 export type PixelParticle = {
   x: number; y: number; vx: number; vy: number;
-  age: number; ttl: number; color: string; size: number; height?: number;
+  age: number; ttl: number; color: string; size: number; height?: number; rain?:boolean;
 };
 
 // Particles live in the same world coordinates as every static prop.
@@ -560,6 +648,7 @@ export function renderParticles(ctx: CanvasRenderingContext2D, particles: PixelP
   const offset = snapCamera(camera);
   ctx.save();
   for (const particle of particles) {
+    if(particle.rain&&shelteredAt(particle.x/TILE,particle.y/TILE))continue;
     ctx.globalAlpha = Math.max(0, 1 - particle.age / particle.ttl);
     ctx.fillStyle = particle.color;
     ctx.fillRect(Math.round(particle.x - offset.x), Math.round(particle.y - offset.y),
