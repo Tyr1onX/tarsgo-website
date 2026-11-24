@@ -85,6 +85,7 @@ export default function PixelJijiaArenaPage() {
           {status.match.buff>0&&<span>防御 {status.match.buff}s</span>}
           {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}
           <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 B"}</button>
+          {status.match.hp<status.match.maxHp&&<button disabled={!status.match.canHeal} onClick={()=>controller.current?.heal()}>{status.match.pendingHeal>0?"回血 "+status.match.pendingHeal+"s":"回血 "+status.match.healCost+"金币"}</button>}
           <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock?"冷却中":"开火"}</button>
         </div>}
         {!disabled && playing && status.match?.phase==="running" && status.match.thermalLock && <div className="rmul3d-thermal-lock" aria-label="热量超限，图传断开" />}

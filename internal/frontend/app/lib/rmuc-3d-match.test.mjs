@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,fireRound,damageTarget} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -90,4 +90,18 @@ test("damageable armour is independently tagged and can be selected by a real me
  assert.ok(hit?.object.userData.hitPlate);
  const top=new THREE.Raycaster(new THREE.Vector3(0,3,0),new THREE.Vector3(0,-1,0)).intersectObject(model,true)[0];
  assert.ok(top);assert.notEqual(top.object.userData.hitPlate,true);
+});
+
+test("remote health waits six seconds, respects logistics and forfeits coins on death",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0],b=m.robots[1];
+ for(let i=0;i<8;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(r.hp,40);assert.equal(purchaseHealth(m,"r"),false);
+ updateMatch(m,6);assert.equal(remoteHealthCost(m),52);
+ m.sides.red.base=5000;assert.equal(purchaseHealth(m,"r"),true);
+ assert.equal(m.sides.red.coins,748);assert.equal(purchaseHealth(m,"r"),false);
+ updateMatch(m,5.9);assert.equal(r.hp,40);updateMatch(m,.1);assert.equal(r.hp,130);
+ assert.equal(purchaseHealth(m,"r"),true);const coins=m.sides.red.coins;
+ for(let i=0;i<7;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(r.hp,0);updateMatch(m,6);assert.equal(r.hp,0);assert.equal(m.sides.red.coins,coins);
 });

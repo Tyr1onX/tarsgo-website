@@ -4,12 +4,12 @@ export const MATCH_DURATION = 420;
 const teams = ["red", "blue"] as const;
 const opponent = (t: Team): Team => t === "red" ? "blue" : "red";
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null };
+export type MatchRobot = RobotSpec & { hp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null };
 type Side = { coins: number; purchased: number; base: number; outpost: number; control: number; damage: number; cover: boolean; stopped: boolean; buff: number; runeHits: number[]; siege: number };
 export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const side = (): Side => ({ coins:800, purchased:0, base:10000, outpost:1000, control:0, damage:0, cover:false, stopped:false, buff:0, runeHits:[], siege:0 });
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side(),blue:side()}, robots:robots.map(r=>({...r,hp:r.maxHp,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {elapsed:0, phase:"ready", winner:null, sides:{red:side(),blue:side()}, robots:robots.map(r=>({...r,hp:r.maxHp,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 export function startMatch(match: Match) {
   if(match.phase==="ready") match.phase="running";
@@ -27,6 +27,20 @@ export function purchaseAmmo(match:Match, id:string) {
   if(!robot||!canPurchaseAmmo(match,robot)) return false;
   const side=match.sides[robot.team];
   side.coins-=150;side.purchased+=100;robot.pendingAmmoAt=match.elapsed+6;
+  return true;
+}
+// §5.3.1, table 5-7 and table 5-19: delayed remote healing with
+// current base-dependent logistics. Death during the request forfeits coins.
+export const remoteHealthCost=(match:Match)=>50+Math.ceil(match.elapsed/60*20);
+export function canPurchaseHealth(match:Match,robot:MatchRobot){
+  return match.phase==="running"&&robot.hp>0&&robot.hp<robot.maxHp&&
+    match.elapsed-robot.lastCombat>=6&&robot.pendingHealAt===null&&match.sides[robot.team].coins>=remoteHealthCost(match);
+}
+export function purchaseHealth(match:Match,id:string){
+  const robot=match.robots.find(r=>r.id===id);
+  if(!robot||!canPurchaseHealth(match,robot))return false;
+  match.sides[robot.team].coins-=remoteHealthCost(match);
+  robot.pendingHealAt=match.elapsed+6;
   return true;
 }
 export function canFire(match:Match,robot:MatchRobot) {
@@ -55,7 +69,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0)return 0;
     const amount=Math.min(enemy.hp,match.sides[enemy.team].buff>0?15:20);
     enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0){enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;}
+    if(enemy.hp===0){enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;}
     return amount;
   }
   if(target.team===shooter.team)return 0;
@@ -82,6 +96,11 @@ export function updateMatch(match:Match, dt:number, siege: Record<Team,boolean> 
     if(r.pendingAmmoAt!==null&&match.elapsed>=r.pendingAmmoAt){
       if(r.hp>0)r.ammo+=100;
       r.pendingAmmoAt=null;
+    }
+    if(r.pendingHealAt!==null&&match.elapsed>=r.pendingHealAt){
+      const logistics=1-(10000-match.sides[r.team].base)/20000;
+      if(r.hp>0)r.hp=Math.min(r.maxHp,r.hp+Math.round(r.maxHp*.6*logistics));
+      r.pendingHealAt=null;
     }
   }
   match.pose.runeAngle+=match.direction*Math.PI/3*dt;
