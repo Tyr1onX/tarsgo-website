@@ -74,12 +74,13 @@ export default function PixelJijiaArenaPage() {
     <main className="rmul3d">
       <section className="rmul3d-stage" aria-label="RMUC 2027 三维训练战场">
         <div ref={mountRef} className="rmul3d-canvas" />
+        {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
+        {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
+        <div className="rmul3d-hud">
         <header className="rmul3d-header">
           <Link to={returnTo} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
         </header>
-        {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
-        {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
         {!disabled && !menu && status.match && <div className="rmul3d-match">
           {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始自主对抗训练</button> : <>
             <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><TeamScore team="blue" side={status.match.sides.blue} /></div>
@@ -129,15 +130,16 @@ export default function PixelJijiaArenaPage() {
           {status.match.launcher?.canRemove&&<button onClick={()=>controller.current?.removeLauncher()}>拆回工作台</button>}
           <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 "+status.match.ammoCount+"发 · "+status.match.ammoCost+"金币"}</button>
           {status.match.hp<status.match.maxHp&&<button disabled={!status.match.canHeal} onClick={()=>controller.current?.heal()}>{status.match.pendingHeal>0?"回血 "+status.match.pendingHeal+"s":"回血 "+status.match.healCost+"金币"}</button>}
-          <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button></>}
+          </>}
         </div>}
-        {!disabled && playing && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
-        {!disabled && !menu && playing && status.match?.thermalLock!=="cooling" && <div className="rmul3d-crosshair" aria-hidden="true" />}
+        <div className="rmul3d-actions">
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
           <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
             <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}
           </button>
         )}
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && !status.match.revival?.dead && status.match.stance?.control!=="auto" && <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button>}
+        </div>
         {!disabled && !menu && playing && status.match?.stance?.control!=="auto" && <div className="rmul3d-touch" aria-label="移动控制">
           {touchKeys.map(([key, arrow]) => <button key={key} type="button"
             aria-label={key === "KeyW" ? "前进" : key === "KeyS" ? "后退" : key === "KeyA" ? "左移" : "右移"}
@@ -146,6 +148,9 @@ export default function PixelJijiaArenaPage() {
             onPointerCancel={() => controller.current?.input(key, false)}
             onLostPointerCapture={() => controller.current?.input(key, false)}>{arrow}</button>)}
         </div>}
+        </div>
+        {!disabled && playing && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
+        {!disabled && !menu && playing && status.match?.thermalLock!=="cooling" && <div className="rmul3d-crosshair" aria-hidden="true" />}
         {menu && <aside className="rmul3d-help" aria-label="战场菜单" onKeyDown={event => { if (event.key === "Escape") toggleMenu(false); }}>
           <button className="rmul3d-close" onClick={() => toggleMenu(false)} aria-label="关闭">×</button>
           <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }}>战术演练</Link>

@@ -650,6 +650,7 @@ export function mountArena(
         look = { yaw: robot.object.rotation.y, pitch: -.05 };
       }
     }
+    clearInput();
     syncCamera();
     publish();
     invalidate();
@@ -664,7 +665,7 @@ export function mountArena(
   }
 
   function keydown(event: KeyboardEvent) {
-    if (!ready || paused || event.metaKey || event.ctrlKey || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if (!ready || paused || event.metaKey || event.ctrlKey || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
     if (movement.has(event.code) && isPlaying(mode)) {
       event.preventDefault();
       input(event.code, true);
