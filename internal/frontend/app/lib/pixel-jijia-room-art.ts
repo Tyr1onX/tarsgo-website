@@ -1,8 +1,9 @@
 import { TILE, type Position } from "./pixel-jijia-world.ts";
 import type { RoomObject, RoomScene } from "./pixel-jijia-room.ts";
+import type { WeatherKind } from "./pixel-jijia-climate.ts";
 
 export const ROOM_ART_SCALE = 2;
-const ink = "#25313a";
+const ink = "#293b3e"; // shared muted campus outline
 type Paint = (x: number, y: number, w: number, h: number, color: string) => void;
 
 function shade(color: string, n: number) {
@@ -194,6 +195,7 @@ function plant(p: Paint, w: number, foot: number) {
     p(x - 2, y - 3, 2, 1, "#a0bc69");
   }
 }
+const WINDOW_X = [42, 162, 358, 478];
 function windowArt(p: Paint, x: number, y: number, w: number, light: string) {
   panel(p, x - 3, y - 3, w + 6, 45, "#9e8b71");
   panel(p, x, y, w, 37, "#283f4a");
@@ -217,10 +219,10 @@ function banner(p: Paint, x: number, y: number, w: number, color: string) {
   oval(p, x + w / 2, y + 14, 7, "#cfa861"); oval(p, x + w / 2, y + 14, 4.5, color);
   p(x + w / 2 - 1, y + 8, 2, 12, "#f3dc9b"); p(x + w / 2 - 4, y + 12, 8, 2, "#f3dc9b");
 }
-export function renderPublicRoomTerrain(room: RoomScene) {
+export function renderPublicRoomTerrain(room: RoomScene, campusTiles?: HTMLImageElement) {
   const w = room.width * TILE, h = room.height * TILE, {canvas, p} = bitmap(w, h);
   const wood = room.id === "guild" || room.id === "honors";
-  const base = room.theme.floor, wall = room.theme.wall, trim = wood ? "#a88b6b" : "#77898e";
+  const base = room.theme.floor, wall = room.theme.wall, trim = wood ? "#a88b6b" : "#8c9991";
   p(0, 0, w, h, "#28343b");
   const tw = wood ? 42 : room.id === "mechanical" ? 36 : 32, th = wood ? 12 : 24;
   for (let y = 80; y < h - 16; y += th) for (let x = 16 - (Math.round(y / th) % 2) * tw / 2; x < w - 16; x += tw) {
@@ -243,12 +245,25 @@ export function renderPublicRoomTerrain(room: RoomScene) {
       p(a + b - 4, y + c - 4, 1, 1, shade(base, n - 18));
     }
   }
+  // Reuse the campus masonry texture in the labs, with a subdued indoor
+  // finish rather than introducing a second unrelated texture library.
+  if (!wood && campusTiles) {
+    const ctx = canvas.getContext("2d")!;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = .28;
+    for (let y = 80; y < h - TILE; y += TILE) for (let x = TILE; x < w - TILE; x += TILE) {
+      const variant = (Math.floor(x / 128) + Math.floor(y / 128) * 2) % 3;
+      ctx.drawImage(campusTiles, variant * 128 + x % 128, 256 + y % 128, TILE, TILE, x, y, TILE, TILE);
+    }
+    ctx.restore();
+  }
   panel(p, 0, 0, w, 80, wall);
   for (let x = 8; x < w - 8; x += 48) {
     p(x, 7, 1, 61, shade(wall, -17)); p(x + 1, 8, 1, 60, shade(wall, 18));
     p(x + 4, 60, 40, 2, shade(wall, -13));
   }
-  for (const x of [42, 162, 358, 478]) windowArt(p, x, 13, 56, room.theme.window);
+  for (const x of WINDOW_X) windowArt(p, x, 13, 56, room.theme.window);
   banner(p, w / 2 - 24, 11, 48, wood ? "#783e49" : "#344f72");
   // Each room's wall has a distinct emblem and decorative inlay.
   const cxWall = w / 2, cyWall = 25;
@@ -271,7 +286,7 @@ export function renderPublicRoomTerrain(room: RoomScene) {
       line(p, cxWall, cyWall, x, y, "#88bdd2", .7); oval(p, x, y, 1.8, "#d1eff2");
     }
   }
-  for (const x of [132, 244, 332, 446]) lamp(p, x, 35);
+  for (const x of [132, 446]) lamp(p, x, 35);
   panel(p, 0, 69, w, 11, trim);
   // Soft stepped window light and wall contact shadow are baked into terrain;
   // they are decoration, never entities or colliders.
@@ -281,7 +296,7 @@ export function renderPublicRoomTerrain(room: RoomScene) {
     ctx.globalAlpha = .12 * (1 - i / 16);
     p(16, 80 + i, w - 32, 1, "#26343d");
   }
-  for (const x of [42, 162, 358, 478]) {
+  for (const x of WINDOW_X) {
     for (let i = 0; i < 32; i++) {
       ctx.globalAlpha = .045 * (1 - i / 32);
       p(x + i * .35, 80 + i, 54 + i * .6, 1, room.theme.window);
@@ -551,10 +566,35 @@ export function drawPublicRoomObject(ctx: CanvasRenderingContext2D, o: RoomObjec
   }
   ctx.restore();
 }
+// Windows show the same outside conditions as the campus without indoor precipitation.
+export function drawRoomWindows(ctx: CanvasRenderingContext2D, camera: Position, elapsed: number,
+  motion: boolean, climate: { weather: WeatherKind | null; night: number } | null) {
+  if (!climate) return;
+  const p = painter(ctx), weather = climate.weather;
+  ctx.save();
+  for (const x of WINDOW_X) for (let i = 3; i < 53; i += 13) for (let j = 3; j < 32; j += 15) {
+    const left = x + i - camera.x, top = 13 + j - camera.y, w = Math.min(10, 53 - i);
+    if (weather && weather !== "clear") {
+      ctx.globalAlpha = weather === "fog" ? .52 : weather === "snow" ? .30 : .23;
+      p(left, top, w, 12, weather === "fog" || weather === "snow" ? "#bacacb" : "#617985");
+    }
+    if (climate.night > 0) {
+      ctx.globalAlpha = Math.min(.65, climate.night * 1.3);
+      p(left, top, w, 12, "#172b43");
+    }
+    if (motion && (weather === "rain" || weather === "storm" || weather === "snow")) {
+      const snow = weather === "snow", phase = (elapsed / (snow ? 230 : 85) + x + i * .9 + j * 1.7) % 10;
+      ctx.globalAlpha = .38;
+      p(left + 2 + ((i + j) % 4), top + phase, 1, snow ? 1 : Math.min(3, 12 - phase), "#d9e9ed");
+    }
+  }
+  ctx.restore();
+}
+
 export function drawRoomLight(ctx: CanvasRenderingContext2D, room: RoomScene, camera: Position, elapsed: number) {
   const p = painter(ctx), t = elapsed / 1000;
   ctx.save();
-  for (const x of [132, 244, 332, 446]) {
+  for (const x of [132, 446]) {
     ctx.globalAlpha = .14 + (Math.sin(t * 1.7 + x) + 1) * .07;
     p(x - 1 - camera.x, 38 - camera.y, 2, 5, "#fff1bf");
   }

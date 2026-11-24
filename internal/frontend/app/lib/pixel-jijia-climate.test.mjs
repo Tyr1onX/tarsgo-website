@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { changchunClimate } from "./pixel-jijia-climate.ts";
+import { changchunClimate, parseCurrentWeather, WEATHER_REFRESH_MS } from "./pixel-jijia-climate.ts";
 
 test("长春时钟不取访客本地时区，按照 UTC+8 确定季节", () => {
   const autumn = changchunClimate(new Date("2026-11-23T10:22:00.000Z"));
@@ -23,8 +23,11 @@ test("季节天气按四小时块确定，刷新不随机跳变，也不冒充�
     assert.equal(a.season, season);
     assert.equal(a.weather, b.weather);
     assert.equal(a.dateKey, b.dateKey);
+    assert.equal(a.temperature, b.temperature);
+    assert.ok(Number.isFinite(a.temperature));
     assert.ok(["clear", "cloudy", "rain", "snow"].includes(a.weather));
-    assert.equal(a.weather === "snow" && season !== "winter", false);
+    assert.equal(a.weather === "snow" && a.temperature > 0, false);
+    assert.equal(a.weather === "rain" && a.temperature <= 0, false);
   }
 });
 
@@ -45,7 +48,21 @@ test("四季地形、天气粒子与显示必须复用原 Canvas 及减少动态
   assert.ok(scene.includes('season === "autumn"'));
   assert.ok(scene.includes('season === "spring"'));
   assert.ok(route.includes("window.setInterval(refresh, 60_000)"));
-  assert.ok(route.includes('time - lastWeather > (climate.weather === "rain" ? 65 : 150)'));
+  assert.ok(route.includes('time - lastWeather > (climate.weather === "snow" ? 150 : climate.weather === "storm" ? 38 : 65)'));
   assert.ok(route.includes("if (reducedMotion.matches || room)"));
-  assert.ok(route.includes('aria-label="长春时间与游戏模拟天气"'));
+  assert.ok(route.includes('aria-label="长春时间与天气"'));
+});
+
+test("WMO 实况天气和温度来自同一时间点，未知及过期数据拒绝使用", () => {
+  const now = Date.UTC(2026, 10, 24, 1);
+  const payload = code => ({current:{time: now / 1000, temperature_2m: -7.5, weather_code: code}});
+  for (const [code, kind] of [[0,"clear"],[1,"clear"],[3,"cloudy"],[45,"fog"],[51,"rain"],[66,"rain"],[73,"snow"],[95,"storm"]]) {
+    const result = parseCurrentWeather(payload(code), now);
+    assert.equal(result.weather, kind);
+    assert.equal(result.temperature, -7.5);
+  }
+  assert.equal(parseCurrentWeather(payload(999), now), null);
+  assert.equal(parseCurrentWeather(payload(0), now + WEATHER_REFRESH_MS * 4), null);
+  assert.equal(parseCurrentWeather({current:{time:now / 1000, temperature_2m:null,weather_code:0}}, now), null);
+  assert.equal(parseCurrentWeather(null, now), null);
 });

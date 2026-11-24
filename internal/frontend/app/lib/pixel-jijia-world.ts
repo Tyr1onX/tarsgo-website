@@ -105,28 +105,28 @@ export const SCENERY: Scenery[] = [
   { sprite: "hydrangea", x: 52, y: 44, width: 42, height: 33 },
   { sprite: "hydrangea", x: 92, y: 44, width: 42, height: 33 },
   { sprite: "lime_tree", x: 29, y: 26, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 54, y: 31, width: 82, height: 96, solid: 0.9 },
-  { sprite: "lime_tree", x: 89, y: 30, width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 59, y: 30, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 84, y: 28, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 115, y: 27, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 29, y: 66, width: 82, height: 96, solid: 0.9 },
-  { sprite: "oak", x: 54, y: 76, width: 82, height: 96, solid: 0.9 },
-  { sprite: "lime_tree", x: 90, y: 76, width: 82, height: 96, solid: 0.9 },
+  { sprite: "oak", x: 49, y: 76, width: 82, height: 96, solid: 0.9 },
+  { sprite: "lime_tree", x: 95, y: 76, width: 82, height: 96, solid: 0.9 },
   { sprite: "oak", x: 115, y: 68, width: 82, height: 96, solid: 0.9 },
-  { sprite: "planter", x: 42, y: 40, width: 46, height: 36 },
-  { sprite: "planter", x: 102, y: 40, width: 46, height: 36 },
-  { sprite: "fence", x: 37, y: 53, width: 64, height: 34, solid: 0.5 },
-  { sprite: "fence", x: 107, y: 53, width: 64, height: 34, solid: 0.5 },
+  { sprite: "planter", x: 39, y: 40, width: 46, height: 36 },
+  { sprite: "planter", x: 105, y: 40, width: 46, height: 36 },
+  { sprite: "fence", x: 31, y: 53, width: 64, height: 34, solid: 0.5 },
+  { sprite: "fence", x: 113, y: 53, width: 64, height: 34, solid: 0.5 },
   // Four visible, readable discoveries. The same anchor drives art, collision, and interaction.
-  { sprite: "sign", x: 24, y: 17, width: 40, height: 59, solid: 0.38, story: {
+  { sprite: "sign", x: 24, y: 11, width: 40, height: 59, solid: 0.38, story: {
     title: "风铃小径", caption: "A QUIET PATH", description: "一条绕开主路的林荫小径。风吹过树梢时，路边的小牌子仿佛也在提醒：不是每段旅程都必须直奔终点。"
   } },
-  { sprite: "statue", x: 115, y: 17, width: 49, height: 62, solid: 0.9, story: {
+  { sprite: "statue", x: 115, y: 11, width: 49, height: 62, solid: 0.9, story: {
     title: "机器人试验场", caption: "FIELD NOTES", description: "测试场边留着一座小小的机器人纪念像。它没有写明胜负，只留下一句关于尝试的话：今天再让它往前走一步。"
   } },
-  { sprite: "sign", x: 119, y: 77, width: 40, height: 59, solid: 0.38, story: {
+  { sprite: "sign", x: 119, y: 74, width: 40, height: 59, solid: 0.38, story: {
     title: "数据树洞", caption: "HIDDEN SIGNAL", description: "这里有一张写给后来者的便条：世界再嘈杂，也总有一个信号值得认真接收。"
   } },
-  { sprite: "bench", x: 29, y: 83, width: 57, height: 38, solid: 0.8, story: {
+  { sprite: "bench", x: 29, y: 87, width: 57, height: 38, solid: 0.8, story: {
     title: "长椅上的片刻", caption: "REST STOP", description: "坐在这条支路旁，不必赶去下一座建筑。远处是科技园区，身边只有树叶与风，正好留一点时间给自己的想法。"
   } },
   // Outer-ring landmarks and natural transitions, using the existing twelve-piece kit.
@@ -143,24 +143,24 @@ export const SCENERY: Scenery[] = [
   { sprite: "lime_tree", x: 74, y: 92, width: 82, height: 96, solid: 0.9 },
   { sprite: "cherry", x: 101, y: 91, width: 86, height: 102, solid: 0.9 },
   { sprite: "hydrangea", x: 28, y: 12, width: 45, height: 36 },
-  { sprite: "planter", x: 34, y: 19, width: 51, height: 40, solid: 0.72 },
-  { sprite: "hydrangea", x: 43, y: 18, width: 45, height: 36 },
+  { sprite: "planter", x: 34, y: 10, width: 51, height: 40, solid: 0.72 },
+  { sprite: "hydrangea", x: 43, y: 10, width: 45, height: 36 },
   { sprite: "rocks", x: 13, y: 31, width: 58, height: 40, solid: 0.7 },
   { sprite: "hydrangea", x: 12, y: 45, width: 45, height: 36 },
   { sprite: "planter", x: 12, y: 65, width: 51, height: 40 },
   { sprite: "rocks", x: 29, y: 73, width: 58, height: 40, solid: 0.7, story: { title: "旧试验标记", caption: "OLD MARK", description: "这里曾用石块标记最早的自动巡航路线。草重新长了出来，路线却被记在了队员的笔记里。" } },
   { sprite: "hydrangea", x: 36, y: 88, width: 45, height: 36 },
-  { sprite: "bench", x: 54, y: 84, width: 57, height: 38, solid: 0.8, story: { title: "南侧观景座", caption: "GARDEN VIEW", description: "沿环线走累了，就在这里坐一会儿。风把远处工坊的声音吹得很轻。" } },
+  { sprite: "bench", x: 54, y: 88, width: 57, height: 38, solid: 0.8, story: { title: "南侧观景座", caption: "GARDEN VIEW", description: "沿环线走累了，就在这里坐一会儿。风把远处工坊的声音吹得很轻。" } },
   { sprite: "hydrangea", x: 67, y: 88, width: 45, height: 36 },
   { sprite: "rocks", x: 89, y: 89, width: 58, height: 40, solid: 0.7 },
-  { sprite: "planter", x: 106, y: 82, width: 51, height: 40, story: { title: "水岸小花圃", caption: "RIVERSIDE GARDEN", description: "谁也说不清第一株花是谁种下的。后来经过的每个人，都会顺手替它拂去落叶。" } },
+  { sprite: "planter", x: 106, y: 78, width: 51, height: 40, story: { title: "水岸小花圃", caption: "RIVERSIDE GARDEN", description: "谁也说不清第一株花是谁种下的。后来经过的每个人，都会顺手替它拂去落叶。" } },
   { sprite: "hydrangea", x: 135, y: 69, width: 45, height: 36 },
   { sprite: "rocks", x: 135, y: 41, width: 58, height: 40, solid: 0.7 },
-  { sprite: "lamp", x: 118, y: 20, width: 30, height: 75, solid: 0.4, story: { title: "实验区信标", caption: "SIGNAL BEACON", description: "每个晚归的队员都认得这盏路灯。它提醒着大家：回路要闭合，人也该回家。" } },
+  { sprite: "lamp", x: 118, y: 22, width: 30, height: 75, solid: 0.4, story: { title: "实验区信标", caption: "SIGNAL BEACON", description: "每个晚归的队员都认得这盏路灯。它提醒着大家：回路要闭合，人也该回家。" } },
   { sprite: "hydrangea", x: 132, y: 12, width: 45, height: 36 },
-  { sprite: "bench", x: 98, y: 17, width: 57, height: 38, solid: 0.8, story: { title: "观测记录点", caption: "OBSERVATION LOG", description: "站在北侧的林荫路上，正好可以看到实验室的天线和远处的树冠。" } },
+  { sprite: "bench", x: 98, y: 11, width: 57, height: 38, solid: 0.8, story: { title: "观测记录点", caption: "OBSERVATION LOG", description: "站在北侧的林荫路上，正好可以看到实验室的天线和远处的树冠。" } },
   { sprite: "hydrangea", x: 79, y: 9, width: 45, height: 36 },
-  { sprite: "fence", x: 108, y: 35, width: 64, height: 34, solid: 0.5 },
+  { sprite: "fence", x: 114, y: 35, width: 64, height: 34, solid: 0.5 },
   { sprite: "hydrangea", x: 117, y: 59, width: 45, height: 36 },
 ];
 export const FOUNTAIN = { x: 72, y: 48, radius: 2.5 } as const;

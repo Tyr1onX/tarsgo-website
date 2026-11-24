@@ -259,7 +259,7 @@ export function renderExplorer(
 
 export type PixelParticle = {
   x: number; y: number; vx: number; vy: number;
-  age: number; ttl: number; color: string; size: number;
+  age: number; ttl: number; color: string; size: number; height?: number;
 };
 
 // Particles live in the same world coordinates as every static prop.
@@ -270,7 +270,7 @@ export function renderParticles(ctx: CanvasRenderingContext2D, particles: PixelP
     ctx.globalAlpha = Math.max(0, 1 - particle.age / particle.ttl);
     ctx.fillStyle = particle.color;
     ctx.fillRect(Math.round(particle.x - offset.x), Math.round(particle.y - offset.y),
-      particle.size, particle.size);
+      particle.size, particle.height ?? particle.size);
   }
   ctx.restore();
 }
