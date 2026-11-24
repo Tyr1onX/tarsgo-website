@@ -7,19 +7,30 @@ import { robotSeasons } from "../data/robot-seasons.ts";
 // The 2026 photographs are appearance references, not 2027 robot CAD.
 // These are exhibition placements, NOT official competition spawn points.
 export const ROBOT_PREVIEWS = [
-  { id: "2026-hero-01", kind: "hero", x: -9, z: -4.5 },
-  { id: "2026-engineering-02", kind: "engineer", x: -7, z: -4.5 },
-  { id: "2026-infantry-03", kind: "infantry03", x: -5, z: -4.5 },
-  { id: "2026-infantry-04", kind: "infantry04", x: -9, z: -2.3 },
-  { id: "2026-sentinel-07", kind: "sentry", x: -6, z: -1.8 },
-  { id: "2026-hero-01-backup", kind: "heroBackup", x: -11, z: 1.8 },
-  { id: "2026-infantry-03-backup", kind: "infantryBackup", x: -8, z: 1.8 },
-  { id: "2026-air-06", kind: "air", x: -7, z: 3.5 },
-  { id: "2026-dart-08", kind: "dart", x: -5, z: 3.5 },
-  { id: "2026-radar-09", kind: "radar", x: -3, z: 2.9 },
+  { id: "2026-hero-01", kind: "hero", area: "field", x: -9, z: -4.5 },
+  { id: "2026-engineering-02", kind: "engineer", area: "pit", x: -19, z: 0 },
+  { id: "2026-infantry-03", kind: "infantry03", area: "field", x: -5, z: -4.5 },
+  { id: "2026-infantry-04", kind: "infantry04", area: "field", x: -9, z: -2.3 },
+  { id: "2026-sentinel-07", kind: "sentry", area: "field", x: -6, z: -1.8 },
+  { id: "2026-hero-01-backup", kind: "heroBackup", area: "pit", x: -19, z: -5 },
+  { id: "2026-infantry-03-backup", kind: "infantryBackup", area: "pit", x: -19, z: -2.5 },
+  { id: "2026-air-06", kind: "air", area: "pit", x: -21.5, z: -5 },
+  { id: "2026-dart-08", kind: "dart", area: "pit", x: -21.5, z: -2.5 },
+  { id: "2026-radar-09", kind: "radar", area: "pit", x: -21.5, z: 0 },
 ] as const;
 
 export type RobotPreviewKind = (typeof ROBOT_PREVIEWS)[number]["kind"];
+
+// RMUC 2027 table 3-1: 1 heavy, 2 infantry, 1 sentry per side.
+// The 2026 hero appearance is a visual stand-in for the 2027 heavy robot.
+// Engineering / air / dart / radar reference models are parked, not a
+// representation of the full 2027 combined-system competition lineup.
+export const ROBOT_PLACEMENTS = [
+  ...ROBOT_PREVIEWS.map(entry => ({ ...entry, team: "blue" as const, instanceId: entry.id })),
+  ...ROBOT_PREVIEWS.filter(entry => entry.area === "field").map(entry => ({
+    ...entry, team: "red" as const, instanceId: "red-" + entry.id, x: -entry.x, z: -entry.z,
+  })),
+];
 
 // Tiny generated weave, shared across all dark body panels. No external
 // texture download; the material remains readable at close driving distance.
@@ -410,20 +421,27 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
   exhibit.name = "tarsgo-2026-appearance-previews";
   const official = new Map(robotSeasons.find((season) => season.season === 2026)?.robots.map((robot) => [robot.id, robot]));
   field.updateMatrixWorld(true);
-  for (const entry of ROBOT_PREVIEWS) {
+  const blueLed = materials.led.clone();
+  blueLed.color.setHex(0x397dff);
+  blueLed.emissive.setHex(0x1747c7);
+  for (const entry of ROBOT_PLACEMENTS) {
     const photo = official.get(entry.id);
     if (!photo) throw new Error(`Missing TARS-Go 2026 reference photo: ${entry.id}`);
     const robot = createRobotPreview(entry.kind);
-    robot.name = entry.id;
+    robot.name = entry.instanceId;
+    if (entry.team === "blue") robot.traverse(object => {
+      if (object instanceof THREE.Mesh && object.material === materials.led) object.material = blueLed;
+    });
     const bounds = new THREE.Box3().setFromObject(robot);
     const size = bounds.getSize(new THREE.Vector3());
     const radius = Math.hypot(size.x, size.z) / 2;
-    robot.userData = { ...robot.userData, sourcePhoto: photo.image.medium, name: photo.name, prototype: true, radius };
-    const ground = terrain.heightAt(entry.x, entry.z);
+    robot.userData = { ...robot.userData, sourcePhoto: photo.image.medium,
+      name: photo.name, prototype: true, radius, team: entry.team, area: entry.area,
+      driveable: entry.area === "field" && robot.userData.driveable === true };
+    const ground = entry.area === "field" ? terrain.heightAt(entry.x, entry.z) : .1;
     if (!Number.isFinite(ground)) throw new Error("Robot placement outside CAD ground");
     robot.position.set(entry.x, ground - Math.min(0, bounds.min.y), entry.z);
-    robot.rotation.y = -Math.PI / 2;
-    if (entry.kind === "air") robot.position.y += 1.5;
+    robot.rotation.y = entry.team === "red" ? Math.PI / 2 : -Math.PI / 2;
     numberPlates(robot, photo.number);
     exhibit.add(robot);
   }
