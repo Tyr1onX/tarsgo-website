@@ -6,7 +6,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
@@ -120,9 +120,10 @@ export function mountArena(
         outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
     };
     const offer=match&&vehicle?ammoOffer(match,vehicle):null;
+    const rune=match&&vehicle?runeStatus(match,vehicle.team):null;
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
-        coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:vehicle?Math.ceil(runeStatus(match,vehicle.team).buff):0,rune:vehicle&&!vehicle.heavy?runeStatus(match,vehicle.team):null,
+        coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle),canFire:!!vehicle&&canFire(match,vehicle),
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
@@ -164,7 +165,7 @@ export function mountArena(
     matchTime=time;
     if(match&&mechanism&&match.phase==="running"){
       updateMatch(match,elapsed,new Map(robots.filter(r=>r.object.userData.area==="field").map(r=>[r.object.name,r.position])));
-      mechanism.apply(match.pose);mechanism.setRuneLights(runeStatus(match,"red").lit,runeStatus(match,"blue").lit);
+      mechanism.apply(match.pose);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));
       if(!paused && driving && match.phase==="running" && match.elapsed>=nextBotTurn){
         nextBotTurn=match.elapsed+.65;
         updateOpponent();
@@ -270,7 +271,7 @@ export function mountArena(
     for(const shot of shotEffects){shot.group.removeFromParent();shot.group.traverse(o=>{if(o instanceof THREE.Mesh)(o.material as THREE.Material).dispose()});}
     shotEffects.length=0;
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
-    mechanism.apply(match.pose);mechanism.setRuneLights(runeStatus(match,"red").lit,runeStatus(match,"blue").lit);updateVisibility();setView("first");publish();invalidate();
+    mechanism.apply(match.pose);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));updateVisibility();setView("first");publish();invalidate();
   }
   function install(){
     if(match&&driving){installLauncher(match,driving.object.name);publish();invalidate();}

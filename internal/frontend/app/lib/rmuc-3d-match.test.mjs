@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -285,4 +285,39 @@ test("heavy timed unlock uses historical opposing base and control advantages",(
  updateMatch(m,10);assert.equal(launcherStatus(m,h).unlockIn,250);
  m.sides.red.base=10000;updateMatch(m,249.9);assert.equal(h.launcher,"locked");
  updateMatch(m,.1);assert.equal(h.launcher,"unlocked");
+});
+
+
+test("rune lights follow completed small arms, activation and expiry",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);const r=m.robots[0];
+ assert.deepEqual(runeLights(m,"red"),[]);
+ activateRune(m,"r");
+ for(let i=0;i<5;i++){
+  const arm=runeStatus(m,"red").lit[0];
+  damageTarget(m,r,{type:"rune",team:"red",arm,ring:10});
+  assert.equal(new Set(runeLights(m,"red")).size,Math.min(5,i+2));
+ }
+ assert.equal(runeStatus(m,"red").buff,45);
+ assert.deepEqual(runeLights(m,"red"),[0,1,2,3,4]);
+ assert.deepEqual(runeLights(m,"blue"),[]);
+ updateMatch(m,45);
+ assert.deepEqual(runeLights(m,"red"),[]);
+});
+test("large rune long steps split rotation and cooling at attempt and bonus boundaries",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,180);activateRune(m,"r");
+ const a=structuredClone(m),b=structuredClone(m);
+ updateMatch(a,21);for(let i=0;i<210;i++)updateMatch(b,.1);
+ assert.equal(runeStatus(a,"red").active,false);
+ assert.equal(runeStatus(b,"red").active,false);
+ assert.ok(Math.abs(a.pose.runeAngle-b.pose.runeAngle)<1e-6);
+ const r=m.robots[0];
+ for(let i=0;i<5;i++){const [first,second]=runeStatus(m,"red").lit;
+  damageTarget(m,r,{type:"rune",team:"red",arm:first,ring:10});
+  damageTarget(m,r,{type:"rune",team:"red",arm:second,ring:10});
+ }
+ updateMatch(m,59.9);r.heat=40;
+ const c=structuredClone(m),d=structuredClone(m);
+ updateMatch(c,.5);for(let i=0;i<5;i++)updateMatch(d,.1);
+ assert.ok(Math.abs(c.robots[0].heat-d.robots[0].heat)<1e-6);
+ assert.equal(runeStatus(c,"red").buff,0);
 });

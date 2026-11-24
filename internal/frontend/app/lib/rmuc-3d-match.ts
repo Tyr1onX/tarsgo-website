@@ -241,6 +241,11 @@ export function runeStatus(m:Match,team:Team){
   const r=m.sides[team].rune;
   return {available:runeAvailable(m,r),active:r.attempt!==null,lit:r.attempt?.lit??[],groups:r.attempt?.groups??0,large:m.elapsed>=180,buff:Math.max(0,r.activatedUntil-m.elapsed),attack:r.attack,defense:r.defense,cooling:r.cooling};
 }
+export function runeLights(m:Match,team:Team){
+  const r=m.sides[team].rune;
+  if(r.activatedUntil>m.elapsed)return [0,1,2,3,4];
+  return [...(r.attempt?.completed??[]),...(r.attempt?.lit??[])];
+}
 export function activateRune(m:Match,id:string){
   const robot=m.robots.find(r=>r.id===id);
   if(m.phase!=="running"||!robot||robot.heavy||robot.hp<=0||weak(robot))return false;
@@ -331,13 +336,28 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
 }
 export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
   if(match.phase!=="running")return;
-  dt=Math.max(0,Math.min(dt,MATCH_DURATION-match.elapsed));
+  const end=Math.min(MATCH_DURATION,match.elapsed+Math.max(0,dt));
+  // Stop at rune state boundaries: cooling and shared-axis speed must not
+  // continue using an expired bonus/attempt during a long frame or a replay.
+  do{
+    let next=end;
+    for(const team of teams){
+      const rune=match.sides[team].rune;
+      for(const at of [rune.attempt?.end,rune.attempt?.deadline,rune.activatedUntil]){
+        if(at!==undefined&&at>match.elapsed&&at<next)next=at;
+      }
+    }
+    advanceMatch(match,next-match.elapsed,positions);
+  }while(match.phase==="running"&&match.elapsed<end);
+}
+function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPosition>){
+
   const before=match.elapsed;match.elapsed+=dt;
   for(const second of [61,121,181,241,301,361]) if(before<second&&match.elapsed>=second)
     for(const team of teams)match.sides[team].coins+=second===361?300:100;
   const coolingTicks=Math.floor((match.elapsed+1e-8)*10)-Math.floor((before+1e-8)*10);
   for(const r of match.robots){
-    r.cooldown=Math.max(0,r.cooldown-dt);
+    r.cooldown=r.cooldown-dt>1e-8?r.cooldown-dt:0;
     r.heat=Math.max(0,r.heat-coolingTicks*r.cooling*match.sides[r.team].rune.cooling/10);
     if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
     if(r.pendingAmmoAt!==null&&match.elapsed>=r.pendingAmmoAt){
