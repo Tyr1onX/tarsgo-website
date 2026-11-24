@@ -160,7 +160,7 @@ function ToolbarIcon({ name }: { name: ToolName | "image" | "link" | "imageSetti
 }
 
 function ToolbarButton({ label, name, onClick, disabled = false }: { label: string; name: ToolName | "image" | "link" | "imageSettings"; onClick: () => void; disabled?: boolean }) {
-  const [tooltip, setTooltip] = useState<{ top: number; left: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ top: number; left: number; container: HTMLElement } | null>(null);
   const hint = name === "imageSettings"
     ? disabled ? "先点击正文中的图片，再调整大小与对齐方式" : "图片设置：调整大小、对齐和说明"
     : label;
@@ -168,6 +168,7 @@ function ToolbarButton({ label, name, onClick, disabled = false }: { label: stri
   function showTooltip(element: HTMLElement) {
     const rect = element.getBoundingClientRect();
     setTooltip({
+      container: element.closest("dialog") ?? document.body,
       top: rect.bottom + 7,
       left: Math.max(110, Math.min(rect.left + rect.width / 2, window.innerWidth - 110)),
     });
@@ -183,8 +184,8 @@ function ToolbarButton({ label, name, onClick, disabled = false }: { label: stri
         onClick={() => { setTooltip(null); onClick(); }} disabled={disabled}><ToolbarIcon name={name} /></button>
     </span>
     {tooltip ? createPortal(
-      <span role="tooltip" className="community-editor-toolbar__tooltip" style={tooltip}>{hint}</span>,
-      document.body,
+      <span role="tooltip" className="community-editor-toolbar__tooltip" style={{ top: tooltip.top, left: tooltip.left }}>{hint}</span>,
+      tooltip.container,
     ) : null}
   </>;
 }
