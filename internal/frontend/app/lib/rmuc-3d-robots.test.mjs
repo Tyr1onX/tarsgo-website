@@ -98,3 +98,24 @@ test("AI preview aims through actual offset barrel without changing either visib
   assert.ok(preview.origin.distanceTo(actual.origin)<1e-8);assert.ok(preview.direction.distanceTo(actual.direction)<1e-8);
  }
 });
+
+test("red and blue LEDs retain their existing detector meshes and independent alive state",async()=>{
+ const {addRobotPreviews,setArmorLight}=await import("./rmuc-3d-robots.ts");
+ const T=await import("three"),scene=new T.Scene(),field=new T.Group();
+ globalThis.document={createElement:()=>({getContext:()=>null})};
+ let exhibit;try{exhibit=addRobotPreviews(field,scene,{heightAt:()=>0});}finally{delete globalThis.document;}
+ const active=exhibit.children.filter(r=>r.userData.area==="field");
+ assert.equal(active.length,8);
+ const used=new Set();
+ for(const r of active){
+   const lamps=[],detectors=[];
+   r.traverse(o=>{if(o.userData.armorLed)lamps.push(o);if(o.userData.hitPlate)detectors.push(o);});
+   assert.ok(lamps.length>0);assert.ok(lamps.every(o=>o.userData.hitPlate));
+   const mat=lamps[0].material;assert.ok(lamps.every(o=>o.material===mat));assert.ok(!used.has(mat));used.add(mat);
+   const rgb=mat.emissive;assert.ok(r.userData.team==="red"?rgb.r>rgb.b:rgb.b>rgb.r);
+   setArmorLight(r,false);assert.equal(mat.emissiveIntensity,0);
+   assert.ok(lamps.every(o=>detectors.includes(o)));
+   assert.ok(active.filter(a=>a!==r).every(a=>{let lit=true;a.traverse(o=>{if(o.userData.armorLed)lit&&=o.material.emissiveIntensity===2.2;});return lit;}));
+   setArmorLight(r,true);assert.equal(mat.emissiveIntensity,2.2);
+ }
+});

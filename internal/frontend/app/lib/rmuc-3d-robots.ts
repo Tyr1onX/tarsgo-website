@@ -57,7 +57,7 @@ const materials = {
   wheel: new THREE.MeshStandardMaterial({ color: 0x101114, roughness: .83 }),
   orange: new THREE.MeshStandardMaterial({ color: 0xef802f, roughness: .5 }),
   yellow: new THREE.MeshStandardMaterial({ color: 0xf2c839, roughness: .5 }),
-  led: new THREE.MeshStandardMaterial({ color: 0xe9464c, emissive: 0xb41925, emissiveIntensity: 1.7, roughness: .35 }),
+  led: new THREE.MeshStandardMaterial({ color: 0xff232a, emissive: 0xff1622, emissiveIntensity: 2.2, roughness: .35, toneMapped:false }),
   lens: new THREE.MeshStandardMaterial({ color: 0x477d92, metalness: .62, roughness: .16 }),
 };
 
@@ -448,7 +448,7 @@ export function createRobotPreview(kind: RobotPreviewKind): THREE.Group {
     }
   });
   group.traverse(object=>{
-    if(object instanceof THREE.Mesh && (object.material===hitPlateMaterial||object.material===materials.led)){object.userData.hitPlate=true;if(object.material===hitPlateMaterial)object.userData.armorSurface=true;}
+    if(object instanceof THREE.Mesh && (object.material===hitPlateMaterial||object.material===materials.led)){object.userData.hitPlate=true;if(object.material===hitPlateMaterial)object.userData.armorSurface=true;else object.userData.armorLed=true;}
   });
   return group;
 }
@@ -487,8 +487,8 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
   const official = new Map(robotSeasons.find((season) => season.season === 2026)?.robots.map((robot) => [robot.id, robot]));
   field.updateMatrixWorld(true);
   const blueLed = materials.led.clone();
-  blueLed.color.setHex(0x397dff);
-  blueLed.emissive.setHex(0x1747c7);
+  blueLed.color.setHex(0x236aff);
+  blueLed.emissive.setHex(0x1655ff);
   for (const entry of ROBOT_PLACEMENTS) {
     const photo = official.get(entry.id);
     if (!photo) throw new Error(`Missing TARS-Go 2026 reference photo: ${entry.id}`);
@@ -500,8 +500,9 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
     // the real assembly ramps. Preserve the original model and terrain.
     const scale=entry.kind==="hero"&&entry.area==="field"?.5:1;
     robot.scale.setScalar(scale);
-    if (entry.team === "blue") robot.traverse(object => {
-      if (object instanceof THREE.Mesh && object.material === materials.led) object.material = blueLed;
+    let led:THREE.MeshStandardMaterial|undefined;
+    robot.traverse(object=>{
+      if(object instanceof THREE.Mesh&&object.userData.armorLed)object.material=led??=(entry.team==="blue"?blueLed:materials.led).clone();
     });
     const bounds = new THREE.Box3().setFromObject(robot);
     const size = bounds.getSize(new THREE.Vector3());
@@ -517,6 +518,7 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
     numberPlates(robot, photo.number);
     exhibit.add(robot);
   }
+  blueLed.dispose();
   scene.add(exhibit);
   return exhibit;
 }
@@ -541,4 +543,15 @@ export function bindLauncherModule(robot:THREE.Object3D,bench:THREE.Object3D,pad
       weapon.updateWorldMatrix(true,true);
     }
   }};
+}
+
+// The existing LED meshes share one material per robot; no additional
+// detector geometry, point lights or post-processing.
+export function setArmorLight(robot:THREE.Object3D,active:boolean){
+  robot.traverse(object=>{
+    if(object instanceof THREE.Mesh&&object.userData.armorLed&&object.material instanceof THREE.MeshStandardMaterial){
+      object.material.emissiveIntensity=active?2.2:0;
+      object.material.color.setHex(active?(robot.userData.team==="blue"?0x236aff:0xff232a):0x242830);
+    }
+  });
 }
