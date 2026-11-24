@@ -86,6 +86,11 @@ export default function PixelJijiaArenaPage() {
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.performance && <div className="rmul3d-combat">
+          <label>底盘 <select value={status.match.performance.chassis} onChange={e=>controller.current?.performance({...status.match!.performance!,chassis:e.target.value as "hp"|"power"})}><option value="hp">血量优先</option><option value="power">功率优先</option></select></label>
+          <label>发射机构 <select value={status.match.performance.launcher} onChange={e=>controller.current?.performance({...status.match!.performance!,launcher:e.target.value as "cooling"|"burst"})}><option value="cooling">冷却优先</option><option value="burst">爆发优先</option></select></label>
+          <span>HP {status.match.maxHp} · {status.match.power?.limit}W · 热量上限 {status.match.heatLimit}</span>
+        </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
           <span>HP {status.match.hp}/{status.match.maxHp}</span>{status.match.xp!==null&&<span>Lv.{status.match.level} · {Math.floor(status.match.xp)} XP</span>}<span>弹药 {status.match.ammo}{status.match.reserve>0&&` + ${status.match.reserve} 储备`}</span><span>{status.match.coins} 金币</span>
           {status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}
@@ -102,10 +107,10 @@ export default function PixelJijiaArenaPage() {
           {status.match.launcher?.state==="unlocked"&&<button disabled={!status.match.launcher.canInstall} onClick={()=>controller.current?.install()}>安装 42mm</button>}
           <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 "+status.match.ammoCount+"发 · "+status.match.ammoCost+"金币"}</button>
           {status.match.hp<status.match.maxHp&&<button disabled={!status.match.canHeal} onClick={()=>controller.current?.heal()}>{status.match.pendingHeal>0?"回血 "+status.match.pendingHeal+"s":"回血 "+status.match.healCost+"金币"}</button>}
-          <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button></>}
+          <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button></>}
         </div>}
-        {!disabled && playing && status.match?.phase==="running" && status.match.thermalLock && <div className="rmul3d-thermal-lock" aria-label="热量超限，图传断开" />}
-        {!disabled && !menu && playing && !status.match?.thermalLock && <div className="rmul3d-crosshair" aria-hidden="true" />}
+        {!disabled && playing && status.match?.phase==="running" && status.match.thermalLock==="cooling" && <div className="rmul3d-thermal-lock" aria-label="热量超限，图传断开" />}
+        {!disabled && !menu && playing && status.match?.thermalLock!=="cooling" && <div className="rmul3d-crosshair" aria-hidden="true" />}
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
           <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
             <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}

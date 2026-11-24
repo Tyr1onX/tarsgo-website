@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -28,8 +28,8 @@ test("17mm referee heat, remote exchange and pre-assembly heavy restrictions",()
  assert.equal(purchaseAmmo(m,"r"),true);assert.equal(purchaseAmmo(m,"r"),false);
  updateMatch(m,5.9);assert.equal(r.ammo,0);updateMatch(m,.1);assert.equal(r.ammo,100);
  for(let i=0;i<6&&!r.thermalLock;i++){assert.ok(fireRound(m,"r"));updateMatch(m,.18);}
- assert.equal(r.thermalLock,true);assert.equal(fireRound(m,"r"),null);assert.equal(purchaseAmmo(m,"r"),false);
- updateMatch(m,1);assert.equal(r.thermalLock,true);
+ assert.equal(r.thermalLock,"cooling");assert.equal(fireRound(m,"r"),null);assert.equal(purchaseAmmo(m,"r"),false);
+ updateMatch(m,1);assert.equal(r.thermalLock,"cooling");
  updateMatch(m,5);assert.equal(r.heat,0);assert.equal(r.thermalLock,false);assert.equal(purchaseAmmo(m,"r"),true);
  damageTarget(m,s,{type:"robot",id:"b"});assert.equal(purchaseAmmo(m,"b"),false);
 });
@@ -472,4 +472,38 @@ test("sentry death pauses stance budget, revival preserves it, new round resets 
  const reset=createMatch(specs),fresh=reset.robots[2];
  assert.equal(sentryStatus(reset,fresh).mode,"move");assert.equal(powerLimit(reset,fresh),90);
  assert.deepEqual(sentryStatus(reset,fresh).remaining,{attack:15,defense:15,move:15});
+});
+
+test("infantry pre-round performance selection follows tables 5-17/18 and locks on start",()=>{
+ const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400},{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1);
+ const r=m.robots[0],b=m.robots[1];
+ assert.equal(selectInfantryPerformance(m,"h",{chassis:"power",launcher:"burst"}),false);
+ assert.equal(selectInfantryPerformance(m,"s",{chassis:"power",launcher:"burst"}),false);
+ assert.equal(selectInfantryPerformance(m,"r",{chassis:"power",launcher:"burst"}),true);
+ assert.deepEqual([r.hp,r.maxHp,powerLimit(m,r),r.heatLimit,r.cooling],[150,150,60,170,5]);
+ assert.deepEqual([b.hp,powerLimit(m,b),b.heatLimit,b.cooling],[200,45,40,12]);
+ startMatch(m);
+ assert.equal(selectInfantryPerformance(m,"r",{chassis:"hp",launcher:"cooling"}),false);
+ damageTarget(m,b,{type:"robot",id:"r"});
+ for(let i=0;i<14;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(robotLevel(r),2);
+ assert.deepEqual([r.hp,r.maxHp,powerLimit(m,r),r.heatLimit,r.cooling],[155,175,65,180,7]);
+ updateMatch(m,6);assert.ok(purchaseAmmo(m,"r"));updateMatch(m,6);assert.ok(fireRound(m,"r"));updateMatch(m,1);
+ assert.ok(Math.abs(r.heat-3)<1e-8); // 10 - 7 points per second
+ assert.deepEqual(createMatch(roster).robots[0].performance,{chassis:"hp",launcher:"cooling"});
+});
+
+test("permanent thermal lock threshold survives cooling, death, revival and enhancement",()=>{
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true}],1,1);
+ startMatch(m);const s=m.robots[2],b=m.robots[1];
+ // Isolated detector-boundary test: emulate accumulated heat from hardware
+ // reports that arrive before a lock is processed. Normal training firing
+ // is gated and cannot itself generate such delayed reports.
+ s.heat=s.heatLimit+90;assert.ok(fireRound(m,"s"));assert.equal(s.thermalLock,"permanent");
+ updateMatch(m,100);assert.equal(s.heat,0);assert.equal(s.thermalLock,"permanent");
+ assert.ok(switchSentry(m,"s","attack",true));assert.equal(fireRound(m,"s"),null);
+ for(let i=0;i<20;i++)damageTarget(m,b,{type:"robot",id:"s"});
+ assert.equal(s.hp,0);assert.equal(s.thermalLock,"permanent");
+ assert.ok(reviveRobot(m,"s",true));updateMatch(m,3);assert.equal(fireRound(m,"s"),null);
+ assert.equal(createMatch(roster).robots[0].thermalLock,false);
 });
