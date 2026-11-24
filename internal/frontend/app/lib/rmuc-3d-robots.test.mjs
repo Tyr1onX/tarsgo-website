@@ -11,9 +11,20 @@ test("all ten primary and backup 2026 robot photographs have a 3D appearance pre
   for (const entry of ROBOT_PREVIEWS) {
     assert.ok(entry.x < 0 && Math.abs(entry.z) < 7.5);
     const model = createRobotPreview(entry.kind);
-    let meshes = 0;
-    model.traverse((object) => { if (object.type === "Mesh") meshes++ });
-    assert.ok(meshes >= 8, `Missing modeled structure for ${entry.id}`);
+    let meshes = 0, triangles = 0;
+    model.traverse((object) => {
+      if (object.type !== "Mesh") return;
+      meshes++;
+      triangles += (object.geometry.index?.count ?? object.geometry.attributes.position.count) / 3;
+    });
+    assert.ok(triangles >= 250, `Missing modeled structure for ${entry.id}`);
+    assert.ok(meshes <= 30, `Excessive draw calls for ${entry.id}`);
+    if (model.userData.driveable) {
+      assert.ok(model.getObjectByName("gimbal"));
+      const wheels = [];
+      model.traverse(object => { if (object.name.startsWith("wheel-")) wheels.push(object); });
+      assert.equal(wheels.length, 4);
+    }
   }
 });
 
@@ -27,13 +38,13 @@ test("previews use actual team photography and do not replace 2027 official fiel
   }
   const source = await readFile(new URL("./rmul-3d-scene.ts", import.meta.url), "utf8");
   assert.match(source, /resolveCadModel\("rmucField"\)/);
-  assert.match(source, /addRobotPreviews\(map, scene\)/);
+  assert.match(source, /addRobotPreviews\(map, scene, terrain\)/);
   assert.doesNotMatch(source, /\.show\(model\)|CAD_VIEWER_CATALOG/);
 });
 
-test("the arena opens its only field directly with four calibration views", async () => {
+test("the arena provides exploration, driving and four calibration views without a model selector", async () => {
   const route = await readFile(new URL("../routes/pixel-jijia-arena.tsx", import.meta.url), "utf8");
-  for (const id of ["all", "red", "blue", "top"])
+  for (const id of ["first", "third", "all", "red", "blue", "top"])
     assert.match(route, new RegExp(`id: "${id}"`));
   assert.doesNotMatch(route, /rmul3d-models|selectModel|CAD_MODELS/);
   assert.match(route, /\/robots/);
