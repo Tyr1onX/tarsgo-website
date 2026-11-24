@@ -1,3 +1,4 @@
+import { CAD_MODELS } from "./rmul-3d-cad-assets.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
@@ -51,7 +52,7 @@ function triangles(root, skip) {
 }
 test("actual technology cores preserve source placements, isolate columns and expose twelve original energy units", async () => {
   const [field, parts] = await Promise.all([
-    load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),
+    load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),
     load(CORE_ASSET.url, CORE_ASSET.sha256)
   ]);
   const root = new THREE.Group();
@@ -142,7 +143,7 @@ test("actual technology cores preserve source placements, isolate columns and ex
 });
 
 test("production heavy footprint follows actual CAD routes and installs all four levels through real unit/column geometry",async()=>{
-  const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(CORE_ASSET.url,CORE_ASSET.sha256)]);
+  const [field,parts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(CORE_ASSET.url,CORE_ASSET.sha256)]);
   const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(root),middle=bounds.getCenter(new THREE.Vector3());root.position.set(-middle.x,-bounds.min.y,-middle.z);root.updateMatrixWorld(true);
   const installed=installCoreGeometry(field,parts);
@@ -214,7 +215,7 @@ test("production heavy footprint follows actual CAD routes and installs all four
 
 test("actual CAD outposts replace original assemblies; carrier and hit geometry rotate together", async () => {
   const [field, parts] = await Promise.all([
-    load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),
+    load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),
     load(MECHANISM_ASSET.url, MECHANISM_ASSET.sha256)
   ]);
   const root = new THREE.Group();
@@ -289,7 +290,7 @@ test("actual CAD outposts replace original assemblies; carrier and hit geometry 
 
 test("actual field and robots: meter-range shots follow rotating modules, stop at tower, and settle damage once", async () => {
   const [field,parts] = await Promise.all([
-    load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),
+    load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),
     load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),
   ]);
   const scene=new THREE.Scene(), root=new THREE.Group();
@@ -421,7 +422,7 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
 
 test("reviewed rune hubs move with five arms while source logos stay fixed", async () => {
   const [field,parts]=await Promise.all([
-    load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),
+    load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),
     load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),
   ]);
   const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;
@@ -460,7 +461,7 @@ test("reviewed rune hubs move with five arms while source logos stay fixed", asy
 
 test("ten source rune disks resolve only front hits within 150 mm at rotating poses",async()=>{
   const {runeHit}=await import("./rmuc-3d-mechanisms.ts");
-  const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+  const [field,parts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
   const mechanisms=installMechanisms(field,parts);
   for(const angle of [0,.6,1.7]){
     mechanisms.apply({runeAngle:angle,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}});
@@ -481,7 +482,7 @@ test("ten source rune disks resolve only front hits within 150 mm at rotating po
 });
 
 test("base shells block actual muzzle shots without scoring arbitrary surfaces", async()=>{
- const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+ const [field,parts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
  const scene=new THREE.Scene(),root=new THREE.Group();
  scene.add(root);root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
  const bounds=new THREE.Box3().setFromObject(root),center=bounds.getCenter(new THREE.Vector3());
@@ -526,7 +527,7 @@ test("base shells block actual muzzle shots without scoring arbitrary surfaces",
 });
 
 test("nearest rigid CAD bounds pruning preserves exact ray intersections",async()=>{
-  const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+  const [field,parts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
   const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(root),center=bounds.getCenter(new THREE.Vector3());
   root.position.set(-center.x,-bounds.min.y,-center.z);root.updateMatrixWorld(true);
@@ -560,7 +561,7 @@ test("nearest rigid CAD bounds pruning preserves exact ray intersections",async(
 });
 
 test("actual dart parts replace original assemblies and move both doors and detector carriages independently",async()=>{
- const [field,parts,darts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),load(DART_ASSET.url,DART_ASSET.sha256)]);
+ const [field,parts,darts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),load(DART_ASSET.url,DART_ASSET.sha256)]);
  const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
  const originals=TEAMS.map(t=>field.getObjectByName(t+"-ramp-dart-station_0_source_3749800_7"));
  const bounds=originals.map(o=>new THREE.Box3().setFromObject(o,true));

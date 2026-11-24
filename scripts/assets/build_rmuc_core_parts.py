@@ -2,6 +2,7 @@
 """Extract exact source geometry for the technology core.
 Usage: in the pinned rm-map-tools Python environment:
   python build_rmuc_core_parts.py UPSTREAM HIERARCHY OUTPUT.glb
+Then gltfpack -i OUTPUT.glb -o packed.glb -cc -kn -km -vp 16 -vn 12 -vt 16.
 The shaft and its coaxial flange/tip are distinct original shells. Other
 head and arm hardware stays at source rest pose; no certified arm rig.
 """

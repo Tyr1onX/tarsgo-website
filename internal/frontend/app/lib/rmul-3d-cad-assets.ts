@@ -3,10 +3,10 @@
 export const CAD_MODELS = {
   rmucField: {
     label: "RMUC 2027 完整场地",
-    // Official 2027 optimized visual GLB, then losslessly meshopt-encoded
-    // without vertex quantization. Keep source assembly nodes for game reuse.
-    url: "/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz",
-    sha256: "3b2530d319b891c780d2c90912acb2de1ca72a377ad983dfa274a2dc0738b55c",
+    // Official 2027 optimized visual GLB, then meshopt-encoded. Position/index streams and node
+    // transforms stay exact; only shading normals use 12-bit oct encoding.
+    url: "/assets/pixel-jijia/rmuc-2027-arena-5eb9e75a.glb.gz",
+    sha256: "5eb9e75ae24eb4bd9fbd2e79ede6affd48b2cd784c5cbf699509d06d2ae50608",
     source: "RMUC2027_V1.0.0.stp（全场官方 CAD）",
     triangles: 1106828,
     nodes: 69,

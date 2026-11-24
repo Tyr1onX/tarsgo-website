@@ -1,3 +1,4 @@
+import { CAD_MODELS } from "./rmul-3d-cad-assets.ts";
 import assert from "node:assert/strict";
 import { test, before } from "node:test";
 import { readFile } from "node:fs/promises";
@@ -10,7 +11,7 @@ import { ROBOT_PLACEMENTS, createRobotPreview } from "./rmuc-3d-robots.ts";
 
 let terrain, sourceField;
 before(async () => {
-  const data = gunzipSync(await readFile(new URL("../../../../public/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz", import.meta.url)));
+  const data = gunzipSync(await readFile(new URL("../../../../public"+CAD_MODELS.rmucField.url, import.meta.url)));
   const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), "");
   const root = new THREE.Group();
   root.add(gltf.scene);

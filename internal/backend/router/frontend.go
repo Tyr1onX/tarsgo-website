@@ -136,6 +136,9 @@ func isFingerprintFrontendAsset(name string) bool {
 
 	filename := path.Base(name)
 	stem := strings.TrimSuffix(filename, path.Ext(filename))
+	if strings.HasSuffix(filename, ".glb.gz") {
+		stem = strings.TrimSuffix(stem, ".glb")
+	}
 	separator := strings.LastIndexByte(stem, '-')
 	if separator < 0 {
 		return false

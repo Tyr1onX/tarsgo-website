@@ -7,8 +7,8 @@ export const MECHANISM_ASSET = {
 } as const;
 export const DART_ASSET = {url:"/assets/pixel-jijia/rmuc-dart-c871c084.glb.gz",sha256:"c871c0845dc3caac8e6302dd1b5ffb4b9773247ceb8d2fc0cd80ccc322860375"} as const;
 export const CORE_ASSET = {
-  url: "/assets/pixel-jijia/rmuc-core-53410a8f.glb.gz",
-  sha256: "53410a8f7d40a59783071b1914690ff9a65397fc360aae605d7e20b9a6613363",
+  url: "/assets/pixel-jijia/rmuc-core-4a23964a.glb.gz",
+  sha256: "4a23964ad0d25941aeb5c61b76b3a3e04cda89f0670453445b895b4c3f8144a8",
 } as const;
 export type Team = "red" | "blue";
 export const TEAMS = ["red", "blue"] as const;
