@@ -9,7 +9,7 @@ import "./pixel-jijia-arena.css";
 export function meta({}: Route.MetaArgs) {
   return buildPublicMeta({
     title: "RMUC 2027 三维战场 | TARSGO",
-    description: "RMUC 2027 官方 CAD 场地，支持自由探索与机器人驾驶预览。",
+    description: "RMUC 2027 官方 CAD 场地，支持自由探索与机器人对抗训练。",
     path: "/pixel-jijia/arena",
     image: "/assets/images/Social/home.jpg",
   });
@@ -74,6 +74,18 @@ export default function PixelJijiaArenaPage() {
         </header>
         {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
+        {!disabled && !menu && status.match && <div className="rmul3d-match">
+          {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始训练</button> : <>
+            <div className="rmul3d-score"><span className="red">{status.match.red}</span><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><span className="blue">{status.match.blue}</span></div>
+            {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
+          </>}
+        </div>}
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
+          <span>HP {status.match.hp}</span><span>弹药 {status.match.ammo}</span><span>{status.match.coins} 金币</span>
+          {status.match.buff>0&&<span>防御 {status.match.buff}s</span>}
+          <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>补弹 B</button>
+          <button disabled={!status.match.ammo} onClick={()=>controller.current?.fire()}>开火</button>
+        </div>}
         {!disabled && !menu && playing && <div className="rmul3d-crosshair" aria-hidden="true" />}
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
           <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
@@ -99,6 +111,8 @@ export default function PixelJijiaArenaPage() {
                 onClick={() => { controller.current?.view(id); toggleMenu(false); }}>{label}</button>
             ))}
           </nav>
+          <h2>训练</h2>
+          <button disabled={disabled} onClick={()=>{controller.current?.reset();toggleMenu(false);}}>重置比赛</button>
           <h2>操作</h2>
           <dl>
             <dt>W A S D</dt><dd>移动</dd>
@@ -107,6 +121,8 @@ export default function PixelJijiaArenaPage() {
             <dt>自由视角</dt><dd>拖动旋转、右键平移、滚轮缩放</dd>
             <dt>Shift</dt><dd>加速行走</dd>
             <dt>E</dt><dd>接管 / 退出机器人</dd>
+            <dt>左键 / 空格</dt><dd>开火</dd>
+            <dt>B</dt><dd>远程补弹</dd>
             <dt>V / M</dt><dd>切换视角 / 全场</dd>
             <dt>Esc</dt><dd>释放鼠标</dd>
           </dl>
@@ -114,7 +130,7 @@ export default function PixelJijiaArenaPage() {
           <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为探索与驾驶预览。</p>
+          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为简化对抗训练，非完整官方裁判仿真。基地护甲行程、命中区域、阵地及能量机关激活使用训练近似。</p>
         </aside>}
       </section>
     </main>

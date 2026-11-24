@@ -61,6 +61,9 @@ const materials = {
   lens: new THREE.MeshStandardMaterial({ color: 0x477d92, metalness: .62, roughness: .16 }),
 };
 
+// Keep damageable panels distinct from structural geometry when batching meshes.
+const hitPlateMaterial = materials.armour.clone();
+
 function box(group: THREE.Group, w: number, h: number, d: number, x: number, y: number, z: number, material: THREE.Material) {
   const bevel = Math.min(w, h, d);
   const geometry = bevel >= .045 && material !== materials.wheel && material !== materials.led
@@ -103,7 +106,7 @@ function chassis(root: THREE.Group, width: number, depth: number, wheelSize = .1
   for (const side of [-1, 1]) {
     box(group, .075, .075, depth, side * width * .46, .24, 0, materials.metal);
     box(group, width, .06, .065, 0, .25, side * depth * .47, materials.metal);
-    box(group, width * .53, .13, .025, 0, .36, side * depth * .49, materials.armour);
+    box(group, width * .53, .13, .025, 0, .36, side * depth * .49, hitPlateMaterial);
     box(group, width * .4, .018, .012, 0, .42, side * (depth * .49 + .017), materials.led);
   }
   for (const x of [-1, 1]) for (const z of [-1, 1]) {
@@ -140,7 +143,7 @@ function chassis(root: THREE.Group, width: number, depth: number, wheelSize = .1
     }
   }
   for (const x of [-1, 1]) {
-    const plate = box(group, .035, .22, depth * .53, x * width * .51, .39, 0, materials.armour);
+    const plate = box(group, .035, .22, depth * .53, x * width * .51, .39, 0, hitPlateMaterial);
     plate.rotation.z = x * -.12;
     box(group, .024, .036, depth * .42, x * width * .54, .42, 0, materials.led);
     for (const z of [-.19, .19]) box(group, .013, .02, .02, x * width * .54, .31, z, materials.metal);
@@ -386,6 +389,9 @@ export function createRobotPreview(kind: RobotPreviewKind): THREE.Group {
       object.add(new THREE.Mesh(merged, material));
     }
   });
+  group.traverse(object=>{
+    if(object instanceof THREE.Mesh && (object.material===hitPlateMaterial||object.material===materials.led))object.userData.hitPlate=true;
+  });
   return group;
 }
 
@@ -412,6 +418,7 @@ function numberPlates(robot: THREE.Group, number: string) {
     const plate = new THREE.Mesh(new THREE.PlaneGeometry(width * .36, .14), material);
     plate.position.set(0, .35, side * (depth * .49 + .02));
     plate.rotation.y = side === 1 ? 0 : Math.PI;
+    plate.userData.hitPlate=true;
     robot.add(plate);
   }
 }
