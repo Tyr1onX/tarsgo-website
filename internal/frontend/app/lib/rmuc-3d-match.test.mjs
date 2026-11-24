@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -227,4 +227,39 @@ test("paid revival restores full health, consumes coins, and lengthens subsequen
  updateMatch(m,12.6);assert.equal(revivalStatus(m,r).canConfirm,false);
  updateMatch(m,.1);assert.equal(reviveRobot(m,"r"),true);assert.equal(r.hp,20);
  assert.equal(createMatch(roster).robots[0].paidRevives,0);
+});
+
+
+test("42mm timed fallback, calibration shot, separate ammunition cap and real mesh damage",async()=>{
+ const {resolveArenaShot}=await import("./rmuc-3d-shot.ts");
+ const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400}],1,1);startMatch(m);
+ const h=m.robots[2],b=m.robots[1],r=m.robots[0];
+ assert.equal(damageTarget(m,b,{type:"robot",id:"h"}),10);
+ updateMatch(m,180);assert.equal(damageTarget(m,b,{type:"robot",id:"h"}),20);
+ updateMatch(m,119.9);assert.equal(launcherStatus(m,h).state,"locked");
+ updateMatch(m,.1);assert.equal(h.launcher,"unlocked");
+ assert.equal(installLauncher(m,"h"),false);
+ assert.equal(purchaseAmmo(m,"h"),true);updateMatch(m,6);assert.equal(h.ammo,10);
+ assert.equal(m.sides.red.purchased42,10);assert.equal(m.sides.red.purchased,0);
+ const supply=new Map([["h",{x:11.5,y:.2,z:-5.65}]]);
+ updateMatch(m,.1,supply);assert.equal(installLauncher(m,"h"),true);
+ assert.equal(ammoOffer(m,h).count,1);
+ assert.equal(purchaseAmmo(m,"h"),true);assert.equal(h.ammo,11);
+ const model=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial());
+ model.position.set(2,.2,0);model.userData.target={type:"robot",id:"b"};model.updateMatrixWorld(true);
+ const origin=new THREE.Vector3(0,.2,0),direction=new THREE.Vector3(1,0,0);
+ const shot=()=>resolveArenaShot(m,"h",new THREE.Raycaster(),[model],origin,direction);
+ const first=shot();assert.equal(first.damage,0);assert.equal(b.hp,200);
+ assert.equal(h.launcher,"ready");assert.equal(h.maxHp,600);assert.equal(h.heat,0);assert.equal(h.ammo,10);
+ assert.equal(h.heatLimit,300);assert.equal(h.cooling,100);
+ updateMatch(m,.3);assert.equal(shot().damage,200);assert.equal(h.heat,100);assert.equal(b.hp,0);
+ updateMatch(m,1);assert.equal(h.heat,0);
+ assert.equal(createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400}]).robots[2].launcher,"locked");
+});
+test("heavy timed unlock uses historical opposing base and control advantages",()=>{
+ const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400}],1,1);startMatch(m);
+ const h=m.robots[2];m.sides.red.base=8000;
+ updateMatch(m,10);assert.equal(launcherStatus(m,h).unlockIn,250);
+ m.sides.red.base=10000;updateMatch(m,249.9);assert.equal(h.launcher,"locked");
+ updateMatch(m,.1);assert.equal(h.launcher,"unlocked");
 });

@@ -6,19 +6,19 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, activeZone, controlsOutpost, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, controlsOutpost, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { findArenaPath, advanceBot } from "./rmuc-3d-navigation";
-import { ARENA_ZONES, type ZoneKind } from "./rmuc-3d-zones";
+import { ARENA_ZONES, zonesAtPosition, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
 type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null } };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
@@ -27,6 +27,7 @@ export interface ArenaController {
   heal: () => void;
   revive: (paid:boolean) => void;
   fire: () => void;
+  install: () => void;
   reset: () => void;
   input: (key: string, pressed: boolean) => void;
   pauseInput: (paused: boolean) => void;
@@ -130,7 +131,7 @@ export function mountArena(
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
         pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
-        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null} : undefined };
+        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle):null} : undefined };
     const signature = JSON.stringify(status);
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
   }
@@ -284,6 +285,9 @@ export function mountArena(
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
     mechanism.apply(match.pose);updateVisibility();setView("first");publish();invalidate();
   }
+  function install(){
+    if(match&&driving){installLauncher(match,driving.object.name);publish();invalidate();}
+  }
   function fire() {
     if(!ready||paused||!isPlaying(mode)||!driving||!match||!map)return;
     syncCamera();
@@ -316,17 +320,33 @@ export function mountArena(
       .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
     const zoneGoal=(team:Team,kind:ZoneKind)=>{
       const zone=ARENA_ZONES.find(z=>z.team===team&&z.kind===kind)!;
-      const [x,z]=zone.goal;return new THREE.Vector3(x,terrain!.heightAt(x,z),z);
+      if(zonesAtPosition(bot.position).includes(zone.id))return bot.position.clone();
+      const [x,z]=zone.goal;
+      const offsets=state.sentry?[[0,0],[.5,.4],[-.5,-.4]]:state.id.includes("03")?[[.5,.4],[0,0],[-.5,-.4]]:[[-.5,-.4],[0,0],[.5,.4]];
+      for(const [dx,dz] of offsets){
+        const p=new THREE.Vector3(x+dx,terrain!.heightAt(x+dx,z+dz),z+dz);
+        if(zonesAtPosition(p).includes(zone.id)&&supportedHeight(terrain!,p.x,p.z,bot.radius,p.y,.23)!==null)return p;
+      }
+      return new THREE.Vector3(x,terrain!.heightAt(x,z),z);
     };
     const supply=zoneGoal(state.team,"supply");
     const repair=ARENA_ZONES.filter(z=>z.kind==="outpost"&&controlsOutpost(match!,z.team,state.team,true))
       .map(z=>zoneGoal(z.team,"outpost")).sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position))[0];
-    const recovering=revival.weak||state.hp<state.maxHp*.38;
+    const recovering=revival.weak||state.hp<state.maxHp*.55;
     if(state.hp<state.maxHp*.5&&canPurchaseHealth(match,state)&&side.coins>remoteHealthCost(match)+150)purchaseHealth(match,state.id);
-    if(!state.heavy&&state.ammo<(state.sentry?80:20))purchaseAmmo(match,state.id);
-    const needAmmo=!state.heavy&&!state.ammo&&state.pendingAmmoAt===null;
+    if(state.heavy&&launcherStatus(match,state).canInstall)installLauncher(match,state.id);
+    const needsLauncher=state.heavy&&state.launcher==="unlocked";
+    const armed=!state.heavy||state.launcher==="ready"||state.launcher==="test";
+    if(armed&&state.ammo<(state.heavy?3:state.sentry?80:20))purchaseAmmo(match,state.id);
+    if(state.heavy&&state.launcher==="test"&&canFire(match,state)){
+      const shot=aimWeapon(bot.object,bot.object.rotation.y,0);
+      if(shot)shoot(bot,shot.origin,shot.direction);
+    }
+    const needAmmo=armed&&!state.ammo&&state.pendingAmmoAt===null;
     let goal:THREE.Vector3;
-    if(recovering||needAmmo){
+    if(needsLauncher){
+      goal=supply;
+    }else if(recovering||needAmmo){
       goal=repair&&repair.distanceToSquared(bot.position)<supply.distanceToSquared(bot.position)?repair:supply;
     }else if(!controlsOutpost(match,state.team,state.team)||side.outpostArea.progress>0){
       goal=zoneGoal(state.team,state.sentry?"outpost":"central");
@@ -337,7 +357,7 @@ export function mountArena(
     }else{
       goal=zoneGoal(enemyTeam,state.sentry?"central":"base");
     }
-    if(state.heavy&&!recovering)goal=zoneGoal(state.team,"central");
+    if(state.heavy&&state.launcher==="locked"&&!recovering)goal=zoneGoal(state.team,"central");
     if(canFire(match,state)&&!revival.weak){
       const candidates:THREE.Vector3[]=[];
       for(const enemy of enemies.slice(0,2)){
@@ -368,7 +388,8 @@ export function mountArena(
     while(route?.points.length&&bot.position.distanceTo(route.points[0])<.12)route.points.shift();
     if(route?.search)return;
     const next=route?.points[0]??goal;
-    if(!advanceBot(terrain,bot,next,occupants)&&(!route||match.elapsed>=route.retryAt)){
+    const moved=advanceBot(terrain,bot,next,occupants);
+    if(!moved&&(!route||match.elapsed>=route.retryAt)){
       route={goal:goal.clone(),points:[],search:findArenaPath(terrain,bot.position.clone(),goal.clone(),bot.radius,.4),retryAt:match.elapsed+4};
       botPaths.set(bot,route);
     }
@@ -562,7 +583,7 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input, pauseInput, start, buy, heal, revive, fire, reset,
+    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, fire, reset,
     dispose() {
       disposed = true;
       abort.abort();
