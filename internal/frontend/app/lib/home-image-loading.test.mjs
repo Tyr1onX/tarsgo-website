@@ -8,7 +8,7 @@ const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 test("every homepage photo has a tiny inline, valid WebP preview", () => {
-  for (const name of ["about", "robots", "join", "events", "history", "micro"]) {
+  for (const name of ["about", "robots", "join", "events", "history", "micro", "pixel", "arena", "community", "salon"]) {
     const data = previews.match(new RegExp(`  ${name}: "data:image/webp;base64,([^"]+)"`))?.[1];
     assert.ok(data, `missing inline preview for ${name}`);
     const image = Buffer.from(data, "base64");

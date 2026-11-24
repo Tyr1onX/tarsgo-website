@@ -25,7 +25,8 @@ type HomeNavigationModule = {
   description: string;
   href: string;
   placement: string;
-  image?: string;
+  image: string;
+  experience?: boolean;
   preview?: string;
   imageSrcSet?: string;
   imageSizes?: string;
@@ -68,25 +69,41 @@ const homeNavigationModules: HomeNavigationModule[] = [
     title: "像素吉甲",
     description: "漫游吉甲像素小镇。",
     href: "/pixel-jijia",
-    placement: "home-visual-card--cocreation home-visual-card--pixel",
+    image: "/assets/images/Home/pixel-experience-39b63f2c.webp",
+    preview: homeImagePreviews.pixel,
+    alt: "像素吉甲小镇的真实游戏画面",
+    experience: true,
+    placement: "home-visual-card--pixel",
   },
   {
     title: "战场模拟",
     description: "探索 RMUC 2027 三维赛场。",
     href: "/pixel-jijia/arena",
-    placement: "home-visual-card--cocreation home-visual-card--arena",
+    image: "/assets/images/Home/arena-experience-017e403f.webp",
+    preview: homeImagePreviews.arena,
+    alt: "RMUC 2027 三维赛场与机器人",
+    experience: true,
+    placement: "home-visual-card--arena",
   },
   {
     title: "吉甲社区",
     description: "分享想法，交流经验，找到同行的人。",
     href: "/dashboard",
-    placement: "home-visual-card--cocreation home-visual-card--community",
+    image: "/assets/images/Home/community-experience-0df8a6c1.webp",
+    preview: homeImagePreviews.community,
+    alt: "吉甲社区讨论列表示意",
+    experience: true,
+    placement: "home-visual-card--community",
   },
   {
     title: "AI 沙龙",
     description: "从一个想法开始，一起做出作品。",
     href: "/programs/ai-salon",
-    placement: "home-visual-card--cocreation home-visual-card--salon",
+    image: "/assets/images/Home/salon-experience-f22dc09e.webp",
+    preview: homeImagePreviews.salon,
+    alt: "AI 沙龙作品展示页面",
+    experience: true,
+    placement: "home-visual-card--salon",
   },
   {
     title: "赛事与荣誉",
@@ -132,43 +149,26 @@ function HomeVisualCard({ module }: { module: HomeNavigationModule }) {
   return (
     <Link
       to={module.href}
-      prefetch={module.image ? "viewport" : "intent"}
+      prefetch={module.experience ? "intent" : "viewport"}
       className={`home-visual-card ${module.placement}`}
       aria-label={`${module.title}：${module.description}`}
-      data-image-loaded={module.image ? imageLoaded : undefined}
-      onPointerDown={(event) => {
-        if (module.image || event.button !== 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        const card = event.currentTarget;
-        const rect = card.getBoundingClientRect();
-        card.style.setProperty("--home-ripple-x", `${event.clientX - rect.left}px`);
-        card.style.setProperty("--home-ripple-y", `${event.clientY - rect.top}px`);
-        card.classList.remove("home-visual-card--ripple");
-        void card.offsetWidth;
-        card.classList.add("home-visual-card--ripple");
-      }}
-      onAnimationEnd={(event) => {
-        if (event.animationName === "home-card-ripple") event.currentTarget.classList.remove("home-visual-card--ripple");
-      }}
+      data-image-loaded={imageLoaded}
     >
-      {module.image ? (
-        <>
-          {module.preview ? (
-            <span className="home-visual-card-preview" style={{ backgroundImage: `url("${module.preview}")` }} aria-hidden="true" />
-          ) : null}
-          <img
-            ref={imageRef}
-            src={module.image}
-            srcSet={module.imageSrcSet}
-            sizes={module.imageSizes}
-            alt={module.alt}
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageLoaded(false)}
-          />
-          <span className="home-visual-card-shade" aria-hidden="true" />
-        </>
+      {module.preview ? (
+        <span className="home-visual-card-preview" style={{ backgroundImage: `url("${module.preview}")` }} aria-hidden="true" />
       ) : null}
+      <img
+        ref={imageRef}
+        src={module.image}
+        srcSet={module.imageSrcSet}
+        sizes={module.imageSizes}
+        alt={module.alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setImageLoaded(true)}
+        onError={() => setImageLoaded(false)}
+      />
+      <span className="home-visual-card-shade" aria-hidden="true" />
       <div className="home-visual-card-copy">
         <h3>{module.title}</h3>
         <p>{module.description}</p>
@@ -195,7 +195,7 @@ export function HomeVisualNavigation() {
             {homeNavigationModules
               .filter((module) => module.href !== "/about" && module.href !== "/join")
               .map((module) => {
-                const kind = module.href === "/robots" ? "featured" : module.image ? "compact" : "action";
+                const kind = module.href === "/robots" ? "featured" : module.experience ? "experience" : "compact";
                 return (
                   <Link
                     key={module.href}
@@ -204,12 +204,11 @@ export function HomeVisualNavigation() {
                     className={`home-mobile-link home-mobile-link--${kind}`}
                     aria-label={`${module.title}：${module.description}`}
                   >
-                    {kind === "featured" ? (
+                    {kind !== "compact" ? (
                       <img src={module.image} alt={module.alt ?? ""} loading="lazy" decoding="async" />
                     ) : null}
                     <span className="home-mobile-link__copy">
                       <strong>{module.title}</strong>
-                      {kind === "action" ? <span>{module.description}</span> : null}
                     </span>
                     <svg className="home-mobile-link__arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M5 12h14m-6-6 6 6-6 6" />

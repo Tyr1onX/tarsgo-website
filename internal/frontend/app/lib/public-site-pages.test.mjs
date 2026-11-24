@@ -190,17 +190,18 @@ test("public photo illustrations do not show redundant explanatory captions", as
   assert.match(historyArchive, /image\.sourceIds\.map/);
 });
 
-test("the homepage keeps six photos and adds two experience entries alongside co-creation entries and preserves legacy navigation", () => {
+test("the homepage keeps all ten illustrated entries and preserves legacy navigation", () => {
   const modules = homeVisualNavigation.match(/const homeNavigationModules: HomeNavigationModule\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.deepEqual(Array.from(modules.matchAll(/title: "([^"]+)"/g), ([, title]) => title), [
     "认识吉甲", "机器人展示", "加入吉甲", "像素吉甲", "战场模拟", "吉甲社区", "AI 沙龙", "赛事与荣誉", "团队历程", "低空微专业",
   ]);
-  assert.equal((modules.match(/image: /g) ?? []).length, 6);
+  assert.equal((modules.match(/image: /g) ?? []).length, 10);
+  assert.equal((modules.match(/experience: true/g) ?? []).length, 4);
   assert.equal((modules.match(/href: "\/dashboard"/g) ?? []).length, 1);
   assert.equal((modules.match(/href: "\/programs\/ai-salon"/g) ?? []).length, 1);
   assert.match(modules, /分享想法，交流经验，找到同行的人。/);
   assert.match(modules, /从一个想法开始，一起做出作品。/);
-  assert.match(homeVisualNavigation, /prefetch=\{module\.image \? "viewport" : "intent"\}/);
+  assert.match(homeVisualNavigation, /prefetch=\{module\.experience \? "intent" : "viewport"\}/);
   assert.match(routes, /route\("programs\/ai-salon",/);
   assert.doesNotMatch(home, /25 张荣誉证书原图/);
   for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
@@ -295,25 +296,24 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
 
-test("the homepage preserves photo proportions with equal-width experience and co-creation rows", () => {
+test("the homepage preserves photo proportions with a single equal-width desktop experience row", () => {
   const desktopGrid = styles.match(/@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   const tabletGrid = styles.match(/@media \(min-width: 768px\) and \(max-width: 1023px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   assert.match(desktopGrid, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(desktopGrid, /--home-photo-height: clamp\(17\.5rem, 21vw, 20rem\)/);
-  for (const grid of [desktopGrid, tabletGrid]) {
-    assert.match(grid, /grid-template-rows: var\(--home-photo-height\) repeat\(2, calc\(var\(--home-photo-height\) \* 0\.7\)\) var\(--home-photo-height\)/);
-  }
+  assert.match(desktopGrid, /grid-template-rows: var\(--home-photo-height\) calc\(var\(--home-photo-height\) \* 0\.85\) var\(--home-photo-height\)/);
+  assert.match(tabletGrid, /grid-template-rows: var\(--home-photo-height\) repeat\(2, calc\(var\(--home-photo-height\) \* 0\.7\)\) var\(--home-photo-height\)/);
   for (const [card, placement] of [
     ["about", /grid-column: 1; grid-row: 1;/],
     ["robots", /grid-column: 2; grid-row: 1;/],
     ["join", /grid-column: 3 \/ span 2; grid-row: 1;/],
-    ["events", /grid-column: 1 \/ span 2; grid-row: 4;/],
-    ["history", /grid-column: 3; grid-row: 4;/],
-    ["micro", /grid-column: 4; grid-row: 4;/],
-    ["pixel", /grid-column: 1 \/ span 2; grid-row: 2;/],
-    ["arena", /grid-column: 3 \/ span 2; grid-row: 2;/],
-    ["community", /grid-column: 1 \/ span 2; grid-row: 3;/],
-    ["salon", /grid-column: 3 \/ span 2; grid-row: 3;/],
+    ["events", /grid-column: 1 \/ span 2; grid-row: 3;/],
+    ["history", /grid-column: 3; grid-row: 3;/],
+    ["micro", /grid-column: 4; grid-row: 3;/],
+    ["pixel", /grid-column: 1; grid-row: 2;/],
+    ["arena", /grid-column: 2; grid-row: 2;/],
+    ["community", /grid-column: 3; grid-row: 2;/],
+    ["salon", /grid-column: 4; grid-row: 2;/],
   ]) {
     assert.match(desktopGrid, new RegExp(`\\.home-visual-card--${card} \\{[^}]*${placement.source}[^}]*\\}`));
   }
@@ -351,8 +351,8 @@ test("homepage gallery renders progressive images with no sand animation", () =>
   assert.match(homeVisualNavigation, /decoding="async"/);
   assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
   assert.match(homeVisualNavigation, /className="home-visual-card-preview"/);
-  assert.match(homeVisualNavigation, /data-image-loaded=\{module\.image/);
-  assert.match(homeVisualNavigation, /prefetch=\{module\.image \? "viewport" : "intent"\}/);
+  assert.match(homeVisualNavigation, /data-image-loaded=\{imageLoaded/);
+  assert.match(homeVisualNavigation, /prefetch=\{module\.experience \? "intent" : "viewport"\}/);
   assert.doesNotMatch(homeVisualNavigation, /HomeSandRevealLayer|playbackStatus|IntersectionObserver|data-sand-phase/);
   assert.doesNotMatch(styles, /home-sand-reveal-canvas|traces-sand-preview|data-sand-mode/);
   assert.match(home, /<HomeVisualNavigation \/>/);
@@ -572,7 +572,7 @@ test("homepage mobile view prioritizes navigation without duplicating the deskto
   assert.match(home, /<PublicFooter compactMobile=\{routePage === "home"\} \/>/);
   assert.match(homeVisualNavigation, /className="home-mobile-navigation[^"]*sm:hidden"/);
   assert.match(homeVisualNavigation, /homeNavigationModules\s*\.filter\(\(module\) => module\.href !== "\/about" && module\.href !== "\/join"\)/);
-  assert.match(homeVisualNavigation, /module\.href === "\/robots" \? "featured" : module\.image \? "compact" : "action"/);
+  assert.match(homeVisualNavigation, /module\.href === "\/robots" \? "featured" : module\.experience \? "experience" : "compact"/);
   assert.match(homeVisualNavigation, /className="hidden border-t[^"]*sm:block/);
   assert.match(styles, /@media \(max-width: 639px\) \{[\s\S]*?\.home-mobile-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.home-mobile-link--featured\s*\{[^}]*grid-column: 1 \/ -1/);
