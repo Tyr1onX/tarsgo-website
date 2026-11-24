@@ -6,7 +6,7 @@ import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
   groundAt, waterDepthAt, sceneryGroundValid, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
-import { createWildlife, updateWildlife, fishingTarget, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
+import { createWildlife, updateWildlife, animalAnimation, fishingTarget, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
 import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt } from "./pixel-jijia-room.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -655,4 +655,54 @@ test("钓鱼仅从可达的休闲水岸抛竿，鱼种属于图鉴", () => {
   assert.equal(fishingTarget({x:9,y:60}),null);
   assert.equal(fishingTarget(FOUNTAIN),null);
   assert.equal(fishingTarget(SPAWN),null);
+});
+
+
+test("动物原生高密度动作帧具有透明背景、丰富颜色和不同姿态",async()=>{
+  const {animalFramePixels,ANIMAL_WIDTH,ANIMAL_HEIGHT}=await import("./pixel-jijia-animal-art.ts");
+  assert.equal(ANIMAL_WIDTH,64);assert.equal(ANIMAL_HEIGHT,56);
+  const poses={squirrel:["idle","forage","run","alert","shelter","sleep"],sparrow:["idle","forage","hop","fly","perch","sleep"],fish:["swim","dart"]};
+  for(const [species,actions] of Object.entries(poses)){
+    const silhouettes=new Set();
+    for(const pose of actions){
+      const frames=new Set();
+      for(let i=0;i<8;i++){
+        const pixels=animalFramePixels(species,pose,i);
+        assert.equal(pixels.length,64*56*4);
+        const colors=new Set();let visible=0;
+        for(let j=0;j<pixels.length;j+=4){
+          if(pixels[j+3]){visible++;colors.add(pixels.slice(j,j+3).join(","));}
+        }
+        assert.ok(visible>250&&visible<64*56);
+        assert.ok(colors.size>25);
+        frames.add(Buffer.from(pixels).toString("base64"));
+      }
+      silhouettes.add([...frames].join("|"));
+      if(["run","forage","hop","fly","swim","dart"].includes(pose))assert.ok(frames.size>=4, species+":"+pose);
+    }
+    assert.equal(silhouettes.size,actions.length,species);
+  }
+});
+
+test("松鼠姿态随实际位移和作息切换，减少动态时固定帧",()=>{
+  const a=createWildlife().find(a=>a.species==="squirrel");
+  assert.ok(a);
+  assert.equal(animalAnimation({...a,speed:1},true).pose,"run");
+  assert.equal(animalAnimation({...a,phase:4,speed:0},true).pose,"forage");
+  assert.equal(animalAnimation({...a,behavior:"alert",speed:0},true).pose,"alert");
+  assert.equal(animalAnimation({...a,behavior:"shelter"},true).pose,"shelter");
+  assert.equal(animalAnimation({...a,behavior:"rest"},true).pose,"sleep");
+  assert.equal(animalAnimation({...a,phase:4},false).frame,0);
+});
+
+test("松鼠先警觉抬头，再沿真实可通行路径逃离",()=>{
+  const a=createWildlife().find(a=>a.species==="squirrel");
+  const player={x:a.x-.5,y:a.y};
+  const start={x:a.x,y:a.y};
+  updateWildlife([a],player,1/60,12,"clear",true);
+  assert.equal(animalAnimation(a,true).pose,"alert");
+  assert.deepEqual({x:a.x,y:a.y},start);
+  for(let i=0;i<24;i++)updateWildlife([a],player,1/60,12,"clear",true);
+  assert.ok(Math.hypot(a.x-start.x,a.y-start.y)>0);
+  assert.ok(pathIsWalkable(a.home,a,true));
 });
