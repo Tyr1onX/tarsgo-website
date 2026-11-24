@@ -320,7 +320,7 @@ export function movePlayer(
   if (!len || dt <= 0) return position;
   const depth = walkable === isWalkable ? waterDepthAt(position.x, position.y) : 0;
   const speed = depth === 2 ? WALK_SPEED * .46 : depth === 1 ? WALK_SPEED * .65 : sprinting ? RUN_SPEED : WALK_SPEED;
-  const distance = speed * Math.min(dt, 0.05);
+  const distance = speed * Math.min(dt, 0.05) * Math.min(len, 1);
   // Short substeps keep thin obstacles solid at both walk and sprint speeds.
   const steps = Math.ceil(distance / 0.2);
   const dx = horizontal / len * distance / steps;
