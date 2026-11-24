@@ -96,3 +96,11 @@ test("only supported upward contacts leave bounded visual residue; reset clears"
  assert.equal(system.residueCount,0);
  system.clear();assert.ok(system.group.children.filter(o=>o.isInstancedMesh).every(o=>o.count===0));system.dispose();
 });
+
+test("dead robot physical mesh still blocks a projectile without repeat damage",()=>{
+ const {m,target,from}=fixture();m.robots[1].hp=0;
+ const behind=new T.Mesh(new T.BoxGeometry(.1,.4,.4),new T.MeshBasicMaterial());behind.position.set(6,1,0);behind.userData.target={type:"outpost",team:"blue"};behind.updateMatrixWorld(true);
+ const ray=new T.Raycaster(),roots=[target,behind],p=launchProjectile(m,"r",from,ballisticAim(from,target.position,25).direction);
+ let result;for(let i=0;i<20;i++){result=advanceProjectile(m,p,.025,ray,roots);if(result.done)break;}
+ assert.equal(result.hit.object,target);assert.equal(result.damage,0);assert.equal(m.sides.blue.outpost,1000);
+});

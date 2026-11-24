@@ -6,7 +6,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent } from "./rmuc-3d-match";
 import { traceArenaShot, prepareArenaShots, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { createDartVisual } from "./rmuc-3d-dart-visual";
 import { createProjectileSystem, projectileSpeed } from "./rmuc-3d-projectiles";
@@ -18,7 +18,8 @@ import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
-type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
+type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number};
+type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number;technology:number;robots:RobotStatus[];outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
 export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
@@ -155,12 +156,24 @@ export function mountArena(
 
   const manualRobot=()=>activeRobot()?.sentryControl==="auto"?null:driving;
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
+  const damageFlashes=new Map<string,{amount:number;until:number}>();
+  function recordDamage(event:DamageEvent){
+    const target=event.target,key=target.type==="robot"?target.id:target.team+"-"+target.type;
+    const old=damageFlashes.get(key);
+    damageFlashes.set(key,{amount:event.amount+(old&&old.until>event.at?old.amount:0),until:event.at+.65});
+    if(target.type==="robot"&&target.id===activeRobot()?.id&&activeRobot()?.hp===0)clearInput();
+  }
+  function damageFor(key:string){
+    const entry=damageFlashes.get(key);
+    return entry&&match?.phase==="running"&&entry.until>match.elapsed?entry.amount:0;
+  }
   function publish() {
     const vehicle = activeRobot();
     const side = vehicle&&match?.sides[vehicle.team];
     const teamStatus=(team:Team):SideStatus=>{
       const side=match!.sides[team];
-      return {base:side.base,outpost:side.outpost,outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
+      return {base:side.base,outpost:side.outpost,baseDamage:damageFor(team+"-base"),outpostDamage:damageFor(team+"-outpost"),coins:side.coins,technology:technologyLevel(match!,team),
+        robots:match!.robots.filter(r=>r.team===team).map(r=>{const revival=revivalStatus(match!,r);return {id:r.id,number:r.id.slice(-2),kind:r.heavy?"heavy":r.sentry?"sentry":"infantry",hp:r.hp,maxHp:r.maxHp,level:robotLevel(r,match!),powerOff:r.hp===0&&!canDriveRobot(match!,r)||r.powerLockUntil>match!.elapsed,launcherLocked:r.hp===0||!!r.thermalLock||revival.weak||r.heavy&&r.launcher!=="ready"&&r.launcher!=="test",revival:revival.dead?Math.floor(revival.progress*100):null,weak:revival.weak,immune:revival.immune,damage:damageFor(r.id)};}),outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
         outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
     };
     const offer=match&&vehicle?ammoOffer(match,vehicle,true):null;
@@ -188,7 +201,7 @@ export function mountArena(
     for (const robot of robots){const state=match?.robots.find(r=>r.id===robot.object.name);
       const lit=!state||state.hp>0;
       if(armorLit.get(robot)!==lit){armorLit.set(robot,lit);setArmorLight(robot.object,lit);}
-      robot.object.visible=(mode!=="first"||driving!==robot)&&(!match||!state||canDriveRobot(match,state));}
+      robot.object.visible=mode!=="first"||driving!==robot;}
   }
 
   function syncCamera() {
@@ -277,7 +290,7 @@ export function mountArena(
       if(!driving&&(f||r)){
         const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.hypot(f,r);
         moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
-          robots.filter(robot=>match?.robots.find(m=>m.id===robot.object.name)?.hp!==0&&Math.abs(robot.position.y-explorer.y)<1.15));
+          robots.filter(robot=>Math.abs(robot.position.y-explorer.y)<1.15));
       }else if(driving&&match?.phase==="ready"){
         advanceMotion(dt);advanceAiming(dt);
       }
@@ -286,7 +299,6 @@ export function mountArena(
         invalidate();
       } else lastTime = null;
       syncCamera();
-      publish();
     } else if (controls.enabled) controls.update();
     publish();
     if(match)dartVisual?.update(match);
@@ -341,6 +353,7 @@ export function mountArena(
   function reset() {
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
+    damageFlashes.clear();match.onDamage=recordDamage;
     nextBotTurn=0;botCursor=0;motionDebt=0;matchTime=null;botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     projectiles.clear();dartVisual?.clear();
@@ -396,7 +409,7 @@ export function mountArena(
     coreGeometry?.applyTechnology(match);syncLaunchers();
   }
   function shotRoots(){
-    return [map!,ground,benchModules,...fieldRobots.filter(r=>match?.robots.find(m=>m.id===r.object.name)?.hp!==0).map(r=>r.object)];
+    return [map!,ground,benchModules,...fieldRobots.map(r=>r.object)];
   }
   function trace(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3){
     if(!map)return undefined;
@@ -436,13 +449,13 @@ export function mountArena(
       const zone=ARENA_ZONES.find(z=>z.team===team&&z.kind===kind)!;
       if(kind!=="assembly"&&zonesAtPosition(bot.position).includes(zone.id))return bot.position.clone();
       const previous=botPaths.get(bot)?.goal;
-      if(kind!=="assembly"&&previous&&zonesAtPosition(previous).includes(zone.id)&&!active.some(r=>r!==bot&&Math.abs(r.position.y-previous.y)<1.15&&Math.hypot(r.position.x-previous.x,r.position.z-previous.z)<r.radius+bot.radius))return previous.clone();
+      if(kind!=="assembly"&&previous&&zonesAtPosition(previous).includes(zone.id)&&!field.some(r=>r!==bot&&Math.abs(r.position.y-previous.y)<1.15&&Math.hypot(r.position.x-previous.x,r.position.z-previous.z)<r.radius+bot.radius))return previous.clone();
       const [x,z]=zone.goal;
       const offsets=kind==="assembly"?[[0,0],[.2,-.2],[-.2,.2]]:state.sentry?[[0,0],[.5,.4],[-.5,-.4]]:state.id.includes("03")?[[.5,.4],[0,0],[-.5,-.4]]:[[-.5,-.4],[0,0],[.5,.4]];
       for(const [dx,dz] of offsets){
         const p=new THREE.Vector3(x+dx,terrain!.heightAt(x+dx,z+dz),z+dz);
         if(zonesAtPosition(p).includes(zone.id)&&supportedHeight(terrain!,p.x,p.z,bot.radius,p.y,.23)!==null
-          && !active.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))return p;
+          && !field.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))return p;
       }
       return new THREE.Vector3(x,terrain!.heightAt(x,z),z);
     };
@@ -530,7 +543,7 @@ export function mountArena(
               const y=terrain.heightAt(x,z);
               const point=new THREE.Vector3(x,y,z);
               if(Math.abs(y-p.y)>1.4||unit.location.kind==="rack"&&!zonesAtPosition(point).includes(`${state.team}-supply`)||supportedHeight(terrain,x,z,bot.radius,y,.23)===null)continue;
-              if(active.some(r=>r!==bot&&Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))continue;
+              if(field.some(r=>r!==bot&&Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))continue;
               candidates.push(point);
             }
             candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
@@ -580,7 +593,7 @@ export function mountArena(
             const p=center.clone().addScaledVector(normal,distance).addScaledVector(lateral,offset);
             p.y=terrain.heightAt(p.x,p.z);
             if(supportedHeight(terrain,p.x,p.z,bot.radius,p.y,.23)===null||p.distanceTo(bot.position)<.3)continue;
-            if(active.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))continue;
+            if(field.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))continue;
             goal=p;runeDuty=true;break;
           }
           if(runeDuty)break;
@@ -631,13 +644,12 @@ export function mountArena(
   }
   function advanceMotion(dt:number){
     if(!match||!terrain||dt<=0)return;
-    const active=fieldRobots.filter(b=>match!.robots.find(r=>r.id===b.object.name)!.hp>0);
     for(const bot of fieldRobots){
       const state=match.robots.find(r=>r.id===bot.object.name)!;
       const motion=motionFor(bot),manual=manualRobot()===bot;
       const previousYaw=bot.object.rotation.y;
       const gimbal=bot.object.getObjectByName("gimbal");
-      const occupants=active.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
+      const occupants=fieldRobots.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
       let target:THREE.Vector3|null=null,command:0|1|2=0;
       const route=botPaths.get(bot);
       if(manual&&isPlaying(mode)&&!paused){
@@ -680,8 +692,14 @@ export function mountArena(
     for(const bot of fieldRobots){
       const state=match.robots.find(r=>r.id===bot.object.name)!;
       const g=bot.object.getObjectByName("gimbal"),w=bot.object.getObjectByName("weapon-pitch");
-      if(!g||!w||state.hp<=0){shotIntents.delete(bot);continue;}
+      if(!g||!w||!canDriveRobot(match,state)){shotIntents.delete(bot);continue;}
+      if(state.hp<=0)shotIntents.delete(bot);
       const manual=manualRobot()===bot&&isPlaying(mode),intent=shotIntents.get(bot);
+      if(intent?.object){
+        let target:THREE.Object3D|null=intent.object;
+        while(target&&!target.userData.target)target=target.parent;
+        if(target?.userData.target.type==="robot"&&match.robots.some(r=>r.id===target!.userData.target.id&&r.hp===0)){shotIntents.delete(bot);continue;}
+      }
       let desired:{yaw:number;pitch:number}|null=manual?look:null;
       if(!manual&&intent){
         const point=intent.object?intent.object.localToWorld(intent.point.clone()):intent.point.clone();
@@ -914,6 +932,7 @@ export function mountArena(
       armorCenters.set(robot,list);
     }
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
+    damageFlashes.clear();match.onDamage=recordDamage;
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});

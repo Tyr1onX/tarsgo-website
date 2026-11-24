@@ -18,8 +18,37 @@ export function meta({}: Route.MetaArgs) {
 type AreaStatus = NonNullable<ArenaStatus["match"]>["sides"]["red"]["baseArea"];
 const teamName=(team:"red"|"blue")=>team==="red"?"红":"蓝";
 const areaText=(area:AreaStatus)=>teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争夺":area.progress>0?"·"+Math.floor(area.progress/5)*10+"%":"");
+function HealthBar({value,max,damage=0,label}:{value:number;max:number;damage?:number;label:string}){
+  return <div className="rmul3d-health" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
+    <i style={{width:Math.max(0,Math.min(100,value/max*100))+"%"}}/>
+    {damage>0&&<b className="rmul3d-damage">−{damage}</b>}
+  </div>;
+}
+function RobotIcon({kind}:{kind:"heavy"|"infantry"|"sentry"}){
+  return <svg viewBox="0 0 24 16" width="24" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <path d="M3 12V7h18v5M2 12h20M5 12v2m14-2v2"/>
+    {kind==="heavy"?<path d="M8 7V3h7v4M15 4h8v2h-8"/>:kind==="sentry"?<path d="M10 7V2h4v5M7 2h10"/>:<path d="M9 7V4h6v3m0-2h7"/>}
+  </svg>;
+}
 function TeamScore({team,side}:{team:"red"|"blue";side:NonNullable<ArenaStatus["match"]>["sides"]["red"]}){
-  return <span className={team}>基地 {side.base}<small>前哨 {side.outpost} ({teamName(side.outpostOwner)}) · {side.alive}/4</small><small>前哨阵地 {areaText(side.outpostArea)}</small><small>基地阵地 {areaText(side.baseArea)} · 控制度 {side.control}</small></span>;
+  return <section className={"rmul3d-team "+team} aria-label={teamName(team)+"方"}>
+    <div className="rmul3d-base-line"><span>{teamName(team)}方基地</span><strong>{side.base}</strong></div>
+    <HealthBar value={side.base} max={10000} damage={side.baseDamage} label={teamName(team)+"方基地血量"}/>
+    <div className="rmul3d-outpost-line"><span>前哨 · {teamName(side.outpostOwner)}</span><b>{side.outpost}</b></div>
+    <HealthBar value={side.outpost} max={1000} damage={side.outpostDamage} label={teamName(team)+"方前哨血量"}/>
+    <div className="rmul3d-team-metrics"><span>金币 <b>{side.coins}</b></span><span>科技 <b>{side.technology}</b></span><span>控制 <b>{side.control}</b></span></div>
+    <div className="rmul3d-roster">{side.robots.map(r=>{
+      const labels=r.hp===0?[r.powerOff?"战亡":"撤离"]:[r.powerOff?"断电":"",r.launcherLocked?"枪锁":"",r.weak?"虚弱":"",r.immune?"无敌":""].filter(Boolean);
+      const label=labels.join(" ");
+      return <div className={"rmul3d-robot-status"+(r.hp===0?" dead":"")} key={r.id} aria-label={teamName(team)+r.number+"号 "+r.hp+"/"+r.maxHp+" 级别"+r.level+" "+label}>
+        <div className="rmul3d-robot-id"><RobotIcon kind={r.kind}/><b>{r.number}</b></div>
+        <div className="rmul3d-robot-hp"><b>{r.hp}</b><span>Lv{r.level}</span></div>
+        <HealthBar value={r.hp} max={r.maxHp} damage={r.damage} label={teamName(team)+r.number+"号血量"}/>
+        <div className="rmul3d-robot-state">{r.revival!==null?<><span>{label}</span><span>{r.revival}%</span></>:(labels.length?labels.map(text=><span key={text}>{text}</span>):<span> </span>)}</div>
+      </div>;
+    })}</div>
+    <div className="rmul3d-territory" title={"前哨阵地 "+areaText(side.outpostArea)+" · 基地阵地 "+areaText(side.baseArea)}><span>前哨 {areaText(side.outpostArea)}</span><span>基地 {areaText(side.baseArea)}</span></div>
+  </section>;
 }
 const CAMERA_VIEWS = [
   { id: "first", label: "第一人称" },
@@ -83,7 +112,7 @@ export default function PixelJijiaArenaPage() {
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
           {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始自主对抗训练</button> : <>
-            <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><TeamScore team="blue" side={status.match.sides.blue} /></div>
+            <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><div className="rmul3d-clock"><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><small>{status.match.phase==="finished"?"结束":"RMUC 2027"}</small></div><TeamScore team="blue" side={status.match.sides.blue} /></div>
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}
