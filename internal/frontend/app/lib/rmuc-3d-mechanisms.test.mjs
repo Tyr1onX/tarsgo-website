@@ -157,7 +157,7 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
     assert.ok(shooter);
     const saved=shooter.position.clone();
     const roots=[root,...robots.filter(r=>r!==shooter)];
-    assert.ok(purchaseAmmo(match,shooter.name));
+    assert.ok(purchaseAmmo(match,shooter.name));updateMatch(match,6);
     const rotor=parts.getObjectByName(team+"-outpost-rotor");
     const pivot=rotor.getWorldPosition(new THREE.Vector3());
     const size=new THREE.Box3().setFromObject(shooter).getSize(new THREE.Vector3());
@@ -207,7 +207,7 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
         assert.ok(result.hit.point.distanceTo(result.to)<1e-9);
         assert.equal(resolveArenaShot(match,shooter.name,ray,roots,aim.from,aim.direction),null);
         assert.equal(match.sides[team].outpost,before-20);
-        updateMatch(match,.18);
+        updateMatch(match,1);
         const blocked=findRay(module,point,true);
         assert.ok(blocked,team+" tower occlusion at "+angle);
         const stop=resolveArenaShot(match,shooter.name,ray,roots,blocked.from,blocked.direction);
@@ -216,7 +216,7 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
         assert.equal(stop.damage,0);
         assert.equal(match.sides[team].outpost,before-20);
         console.log(team,plate,angle,"direct meters",aim.distance.toFixed(3),"blocked meters",blocked.distance.toFixed(3));
-        updateMatch(match,.18);
+        updateMatch(match,1);
       }
     }
     shooter.position.copy(saved);

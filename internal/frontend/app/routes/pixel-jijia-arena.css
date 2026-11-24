@@ -42,3 +42,5 @@
 .rmul3d-score .red { color:#ff8792; } .rmul3d-score .blue { color:#8bbaff; }
 .rmul3d-combat { position:absolute; bottom:18%; right:16px; display:flex; flex-wrap:wrap; max-width:320px; align-items:center; justify-content:flex-end; gap:7px; background:#121c27c9; padding:8px; border-radius:6px; z-index:2; font-size:13px; }
 @media(max-width:680px){.rmul3d-combat{bottom:195px;right:10px;max-width:180px}.rmul3d-score{gap:9px;padding:8px}}
+
+.rmul3d-thermal-lock { position:absolute; inset:0; background:#101720; pointer-events:none; z-index:1; }
