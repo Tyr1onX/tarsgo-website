@@ -258,5 +258,5 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
       object.position.copy(rest).addScaledVector(local, pose.cover[team]);
     parts.updateMatrixWorld(true);
   }
-  return { parts, old, apply, rotors, banks, covers, setRuneLights, applyDart, dartBindings };
+  return { parts, old, apply, rotors, banks, rotorAxis, runeAxis, covers, setRuneLights, applyDart, dartBindings };
 }

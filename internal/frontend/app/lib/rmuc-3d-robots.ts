@@ -3,6 +3,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { ArenaTerrain } from "./rmuc-3d-terrain";
 import { robotSeasons } from "../data/robot-seasons.ts";
+import { ballisticAim } from "./rmuc-3d-projectiles.ts";
 
 // The 2026 photographs are appearance references, not 2027 robot CAD.
 // These are exhibition placements, NOT official competition spawn points.
@@ -132,7 +133,7 @@ export function aimWeaponAt(robot: THREE.Object3D, point: THREE.Vector3) {
 
 // Pure planning sight for rigid, uniformly scaled preview gimbals. Never
 // rotate the rendered weapon to a candidate just to test line of sight.
-export function previewWeaponAt(robot:THREE.Object3D,point:THREE.Vector3){
+export function previewWeaponAt(robot:THREE.Object3D,point:THREE.Vector3,speed?:number){
   const gimbal=robot.getObjectByName("gimbal"),weapon=robot.getObjectByName("weapon-pitch"),muzzle=robot.getObjectByName("weapon-muzzle");
   if(!gimbal||!weapon||!muzzle)return null;
   const delta=point.clone().sub(robot.getWorldPosition(new THREE.Vector3()));
@@ -143,9 +144,12 @@ export function previewWeaponAt(robot:THREE.Object3D,point:THREE.Vector3){
   const center=gimbal.getWorldPosition(new THREE.Vector3());
   const pivot=weapon.getWorldPosition(new THREE.Vector3()).sub(center)
     .applyAxisAngle(new THREE.Vector3(0,1,0),yaw-robot.rotation.y-gimbal.rotation.y).add(center);
-  const pitch=Math.atan2(point.y-pivot.y,Math.hypot(point.x-pivot.x,point.z-pivot.z));
-  const direction=new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
-  return {yaw,pitch,direction,origin:pivot.addScaledVector(direction,-muzzle.position.z*scale)};
+  const length=-muzzle.position.z*scale;
+  const ballistic=speed===undefined?null:ballisticAim(pivot,point,speed,length);
+  if(speed!==undefined&&!ballistic)return null;
+  const pitch=ballistic?.pitch??Math.atan2(point.y-pivot.y,Math.hypot(point.x-pivot.x,point.z-pivot.z));
+  const direction=ballistic?.direction??new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
+  return {yaw,pitch,direction,origin:pivot.addScaledVector(direction,length),flightTime:ballistic?.time??0};
 }
 
 function chassis(root: THREE.Group, width: number, depth: number, wheelSize = .12) {
