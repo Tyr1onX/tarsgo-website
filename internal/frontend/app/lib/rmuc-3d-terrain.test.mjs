@@ -88,3 +88,14 @@ test("training navigation routes around a raised CAD-style obstacle rather than 
   for(const p of path){while(bot.position.distanceTo(p)>.1)assert.ok(advanceBot(floor,bot,p,[]));}
   assert.ok(bot.position.distanceTo(goal)<.65);
 });
+
+import {ARENA_ZONES,zonesAtPosition} from "./rmuc-3d-zones.ts";
+test("each estimated referee zone has a supported goal on actual CAD terrain",()=>{
+ for(const zone of ARENA_ZONES){
+  const [x,z]=zone.goal,y=terrain.heightAt(x,z);
+  assert.ok(zonesAtPosition({x,y,z}).includes(zone.id),zone.id);
+  assert.notEqual(supportedHeight(terrain,x,z,.45,y,.23),null,zone.id);
+ }
+ assert.deepEqual(zonesAtPosition({x:0,y:.3,z:0}),[]);
+ assert.deepEqual(zonesAtPosition({x:3.23,y:.3,z:0}),[],"below central highland is not an activation");
+});

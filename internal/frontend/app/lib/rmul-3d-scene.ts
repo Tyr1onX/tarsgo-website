@@ -6,22 +6,26 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, canFire, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, activeZone, controlsOutpost, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { findArenaPath, advanceBot } from "./rmuc-3d-navigation";
+import { ARENA_ZONES, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; red: number; blue: number; redOutpost: number; blueOutpost: number; redAlive: number; blueAlive: number; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number } };
+type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
   start: () => void;
   buy: () => void;
+  heal: () => void;
+  revive: (paid:boolean) => void;
   fire: () => void;
   reset: () => void;
   input: (key: string, pressed: boolean) => void;
@@ -95,10 +99,9 @@ export function mountArena(
   const shotRay = new THREE.Raycaster();
   const shotEffects: { group: THREE.Group; remaining: number }[] = [];
   const shotGeometry = new THREE.BoxGeometry(1,1,1);
-  const initial = new Map<Robot, { position: THREE.Vector3; yaw: number }>();
-  const baseCenters = new Map<Team,THREE.Vector3>();
   const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>}>();
   const armorCenters = new Map<Robot,{object:THREE.Object3D;center:THREE.Vector3}[]>();
+  const initial = new Map<Robot, { position: THREE.Vector3; yaw: number }>();
   const roster = () => robots.filter(r=>r.object.userData.area==="field").map(r=>({id:r.object.name,team:r.object.userData.team as Team,heavy:r.object.name.includes("hero"),sentry:r.object.name.includes("sentinel"),maxHp:r.object.name.includes("hero")?400:200}));
   const activeRobot = () => match?.robots.find(r=>r.id===driving?.object.name);
   let mode: ArenaView = "first";
@@ -110,16 +113,24 @@ export function mountArena(
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
-  const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots.filter(r=>!match||match.robots.find(m=>m.id===r.object.name)?.hp!==0)) : null;
+  const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   function publish() {
     const vehicle = activeRobot();
     const side = vehicle&&match?.sides[vehicle.team];
+    const teamStatus=(team:Team):SideStatus=>{
+      const side=match!.sides[team];
+      return {base:side.base,outpost:side.outpost,outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
+        outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
+    };
+    const offer=match&&vehicle?ammoOffer(match,vehicle):null;
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
-      match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,red:match.sides.red.base,blue:match.sides.blue.base,
-        redOutpost:match.sides.red.outpost,blueOutpost:match.sides.blue.outpost,redAlive:match.robots.filter(r=>r.team==="red"&&r.hp>0).length,blueAlive:match.robots.filter(r=>r.team==="blue"&&r.hp>0).length,coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(side?.buff??0),
+      match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
+        coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(side?.buff??0),
         canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle),canFire:!!vehicle&&canFire(match,vehicle),
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
-        pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0} : undefined };
+        pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
+        pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
+        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null} : undefined };
     const signature = JSON.stringify(status);
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
   }
@@ -155,12 +166,7 @@ export function mountArena(
     const elapsed = matchTime===null?0:Math.max(0,(time-matchTime)/1000);
     matchTime=time;
     if(match&&mechanism&&match.phase==="running"){
-      const siege={red:false,blue:false};
-      for(const team of ["red","blue"] as const){
-        const center=baseCenters.get(team)!;
-        siege[team]=robots.some(r=>r.object.userData.area==="field"&&r.object.userData.team!==team&&match!.robots.some(m=>m.id===r.object.name&&m.hp>0)&&Math.hypot(r.position.x-center.x,r.position.z-center.z)<2.5);
-      }
-      updateMatch(match,elapsed,siege);
+      updateMatch(match,elapsed,new Map(robots.filter(r=>r.object.userData.area==="field").map(r=>[r.object.name,r.position])));
       mechanism.apply(match.pose);
       if(match.phase==="running" && match.elapsed>=nextBotTurn){
         nextBotTurn=match.elapsed+.12;
@@ -176,7 +182,7 @@ export function mountArena(
         }while(performance.now()<searchBudget);
         if(performance.now()>=searchBudget)break;
       }
-      if(driving&&activeRobot()?.hp===0){explorer.copy(driving.position);driving=null;clearInput();}
+      if(driving&&activeRobot()?.hp===0)clearInput();
       updateVisibility();
       invalidate();
     }
@@ -193,7 +199,7 @@ export function mountArena(
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
       if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
       const { yaw } = look;
-      if (f || r) {
+      if ((f || r)&&activeRobot()?.hp!==0) {
         const target = driving?.position ?? explorer;
         const radius = driving?.radius ?? PLAYER_RADIUS;
         const speed = driving ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 3.6 : 2.2;
@@ -257,8 +263,13 @@ export function mountArena(
     if(!match||match.phase!=="ready")return;
     matchTime=null;
     startMatch(match);
-    if(driving)purchaseAmmo(match,driving.object.name);
     publish();invalidate();
+  }
+  function revive(paid:boolean) {
+    if(match&&driving){reviveRobot(match,driving.object.name,paid);publish();invalidate();}
+  }
+  function heal() {
+    if(match&&driving){purchaseHealth(match,driving.object.name);publish();invalidate();}
   }
   function buy() {
     if(match&&driving){purchaseAmmo(match,driving.object.name);publish();invalidate();}
@@ -287,26 +298,54 @@ export function mountArena(
   }
   function updateBots() {
     if(!match||!terrain||!mechanism)return;
-    const active=robots.filter(r=>r.object.userData.area==="field"&&match!.robots.some(m=>m.id===r.object.name&&m.hp>0));
-    const available=active.filter(bot=>bot!==driving&&!match!.robots.find(r=>r.id===bot.object.name)?.heavy);
+    const field=robots.filter(r=>r.object.userData.area==="field");
+    const available=field.filter(bot=>bot!==driving);
     const bot=available[botCursor++%available.length];
     if(!bot)return;
     const state=match.robots.find(m=>m.id===bot.object.name)!;
-    if(state.hp<=0||state.heavy)return; // assembly is not implemented
-    const enemies=active.filter(r=>r.object.userData.team!==state.team&&match!.robots.some(m=>m.id===r.object.name&&m.hp>0))
+    const side=match.sides[state.team],enemyTeam=state.team==="red"?"blue":"red",enemySide=match.sides[enemyTeam];
+    const revival=revivalStatus(match,state);
+    if(revival.dead){
+      botPaths.delete(bot);
+      if(revival.canConfirm)reviveRobot(match,state.id);
+      else if(revival.canPay&&side.coins>revival.cost+300&&match.elapsed>300)reviveRobot(match,state.id,true);
+      return;
+    }
+    const active=field.filter(r=>match!.robots.some(m=>m.id===r.object.name&&m.hp>0));
+    const enemies=active.filter(r=>r.object.userData.team!==state.team)
       .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
-    if(!state.ammo)purchaseAmmo(match,state.id);
-    const enemyTeam=state.team==="red"?"blue":"red";
-    const plates=Array.from({length:3},(_,i)=>mechanism!.parts.getObjectByName(enemyTeam+"-outpost-armor-"+i)!);
-    const goal=enemies[0]?.position??(match.sides[enemyTeam].outpost>0?mechanism.parts.getObjectByName(enemyTeam+"-outpost-rotor")!.getWorldPosition(new THREE.Vector3()):baseCenters.get(enemyTeam)!);
-    let fired=false;
-    if(canFire(match,state)){
+    const zoneGoal=(team:Team,kind:ZoneKind)=>{
+      const zone=ARENA_ZONES.find(z=>z.team===team&&z.kind===kind)!;
+      const [x,z]=zone.goal;return new THREE.Vector3(x,terrain!.heightAt(x,z),z);
+    };
+    const supply=zoneGoal(state.team,"supply");
+    const repair=ARENA_ZONES.filter(z=>z.kind==="outpost"&&controlsOutpost(match!,z.team,state.team,true))
+      .map(z=>zoneGoal(z.team,"outpost")).sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position))[0];
+    const recovering=revival.weak||state.hp<state.maxHp*.38;
+    if(state.hp<state.maxHp*.5&&canPurchaseHealth(match,state)&&side.coins>remoteHealthCost(match)+150)purchaseHealth(match,state.id);
+    if(!state.heavy&&state.ammo<(state.sentry?80:20))purchaseAmmo(match,state.id);
+    const needAmmo=!state.heavy&&!state.ammo&&state.pendingAmmoAt===null;
+    let goal:THREE.Vector3;
+    if(recovering||needAmmo){
+      goal=repair&&repair.distanceToSquared(bot.position)<supply.distanceToSquared(bot.position)?repair:supply;
+    }else if(!controlsOutpost(match,state.team,state.team)||side.outpostArea.progress>0){
+      goal=zoneGoal(state.team,state.sentry?"outpost":"central");
+    }else if(match.elapsed>=180&&controlsOutpost(match,enemyTeam,state.team)&&!enemySide.cover){
+      goal=zoneGoal(enemyTeam,"fortress");
+    }else if(!controlsOutpost(match,enemyTeam,state.team,true)){
+      goal=zoneGoal(enemyTeam,state.sentry||state.id.includes("04")?"central":"outpost");
+    }else{
+      goal=zoneGoal(enemyTeam,state.sentry?"central":"base");
+    }
+    if(state.heavy&&!recovering)goal=zoneGoal(state.team,"central");
+    if(canFire(match,state)&&!revival.weak){
       const candidates:THREE.Vector3[]=[];
       for(const enemy of enemies.slice(0,2)){
         if(enemy.position.distanceTo(bot.position)>12)continue;
         for(const {object,center} of armorCenters.get(enemy)??[])candidates.push(object.localToWorld(center.clone()));
       }
-      if(match.sides[enemyTeam].outpost>0)for(const plate of plates)candidates.push(new THREE.Box3().setFromObject(plate).getCenter(new THREE.Vector3()));
+      for(const location of ["red","blue"] as const)if(match.sides[location].outpostOwner!==state.team&&match.sides[location].outpost>0)
+        for(let i=0;i<3;i++)candidates.push(new THREE.Box3().setFromObject(mechanism.parts.getObjectByName(location+"-outpost-armor-"+i)!).getCenter(new THREE.Vector3()));
       candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
       for(const point of candidates.slice(0,6)){
         if(point.distanceTo(bot.position)>12)continue;
@@ -315,26 +354,23 @@ export function mountArena(
         let hit:THREE.Object3D|null=trace(bot,shot.origin,shot.direction)?.object??null;
         while(hit&&!hit.userData.target)hit=hit.parent;
         const target=hit?.userData.target;
-        if(target?.type==="outpost"&&target.team===enemyTeam||target?.type==="robot"&&enemies.some(r=>r.object.name===target.id)){
-          shoot(bot,shot.origin,shot.direction);fired=true;break;
+        if(target?.type==="outpost"&&match.sides[target.team as Team].outpostOwner!==state.team||target?.type==="robot"&&enemies.some(r=>r.object.name===target.id)){
+          shoot(bot,shot.origin,shot.direction);break;
         }
       }
     }
-    if(fired)return;
-    if(state.thermalLock||!state.ammo)return;
-    const distance=Math.hypot(goal.x-bot.position.x,goal.z-bot.position.z);
-    if(distance<2.2)return;
+    // Territory objectives still matter while firing, cooling, or waiting for ammo.
+    if(Math.hypot(goal.x-bot.position.x,goal.z-bot.position.z)<.22){botPaths.delete(bot);return;}
     const occupants=active.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
     const before=bot.position.clone();
     let route=botPaths.get(bot);
-    if(route&&route.goal.distanceTo(goal)>2){botPaths.delete(bot);route=undefined;}
+    if(route&&route.goal.distanceTo(goal)>.5){botPaths.delete(bot);route=undefined;}
     while(route?.points.length&&bot.position.distanceTo(route.points[0])<.12)route.points.shift();
     if(route?.search)return;
     const next=route?.points[0]??goal;
     if(!advanceBot(terrain,bot,next,occupants)&&(!route||match.elapsed>=route.retryAt)){
-      route={goal:goal.clone(),points:[],search:findArenaPath(terrain,bot.position.clone(),goal.clone(),bot.radius),retryAt:match.elapsed+4};
+      route={goal:goal.clone(),points:[],search:findArenaPath(terrain,bot.position.clone(),goal.clone(),bot.radius,.4),retryAt:match.elapsed+4};
       botPaths.set(bot,route);
-
     }
     const delta=bot.position.clone().sub(before);
     if(delta.length()>.01){
@@ -376,6 +412,7 @@ export function mountArena(
       const robot = nearby();
       if (robot) {
         driving = robot;
+        botPaths.delete(robot);
         look = { yaw: robot.object.rotation.y, pitch: -.05 };
       }
     }
@@ -504,7 +541,6 @@ export function mountArena(
     terrain = createArenaTerrain(root);
     // Ground support uses the original static CAD envelope. Visible/shot geometry uses the articulated replacements.
     mechanism=installMechanisms(field,parts);
-    for(const team of ["red","blue"] as const)baseCenters.set(team,new THREE.Box3().setFromObject(parts.getObjectByName(team+"-base-assembly")!).getCenter(new THREE.Vector3()));
     exhibit = addRobotPreviews(map, scene, terrain);
     robots = exhibit.children.map(object => {
       const group = object as THREE.Group;
@@ -526,7 +562,7 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input, pauseInput, start, buy, fire, reset,
+    view: setView, interact, input, pauseInput, start, buy, heal, revive, fire, reset,
     dispose() {
       disposed = true;
       abort.abort();

@@ -1,8 +1,8 @@
 import * as THREE from "three";
 
 export const MECHANISM_ASSET = {
-  url: "/assets/pixel-jijia/rmuc-mechanisms-d8dd0c5e.glb.gz",
-  sha256: "d8dd0c5e4278a97c35cfdda3da450de29a52529169543c1a8487dd6bed1f2a7d",
+  url: "/assets/pixel-jijia/rmuc-mechanisms-51f0d28d.glb.gz",
+  sha256: "51f0d28d08fc36449004deb020c4a0c2733cc1854a2521ec969f05147c249af3",
 } as const;
 export type Team = "red" | "blue";
 export const TEAMS = ["red", "blue"] as const;

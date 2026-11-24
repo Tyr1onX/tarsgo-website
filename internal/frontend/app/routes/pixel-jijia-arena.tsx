@@ -15,6 +15,12 @@ export function meta({}: Route.MetaArgs) {
   });
 }
 
+type AreaStatus = NonNullable<ArenaStatus["match"]>["sides"]["red"]["baseArea"];
+const teamName=(team:"red"|"blue")=>team==="red"?"红":"蓝";
+const areaText=(area:AreaStatus)=>teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争夺":area.progress>0?"·"+Math.floor(area.progress/5)*10+"%":"");
+function TeamScore({team,side}:{team:"red"|"blue";side:NonNullable<ArenaStatus["match"]>["sides"]["red"]}){
+  return <span className={team}>基地 {side.base}<small>前哨 {side.outpost} ({teamName(side.outpostOwner)}) · {side.alive}/4</small><small>前哨阵地 {areaText(side.outpostArea)}</small><small>基地阵地 {areaText(side.baseArea)} · 控制度 {side.control}</small></span>;
+}
 const CAMERA_VIEWS = [
   { id: "first", label: "第一人称" },
   { id: "third", label: "自由视角" },
@@ -76,16 +82,19 @@ export default function PixelJijiaArenaPage() {
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
         {!disabled && !menu && status.match && <div className="rmul3d-match">
           {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始训练</button> : <>
-            <div className="rmul3d-score"><span className="red">基地 {status.match.red}<small>前哨 {status.match.redOutpost} · 存活 {status.match.redAlive}/4</small></span><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><span className="blue">基地 {status.match.blue}<small>前哨 {status.match.blueOutpost} · 存活 {status.match.blueAlive}/4</small></span></div>
+            <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><TeamScore team="blue" side={status.match.sides.blue} /></div>
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
           <span>HP {status.match.hp}</span><span>弹药 {status.match.ammo}</span><span>{status.match.coins} 金币</span>
+          {status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}
           {status.match.buff>0&&<span>防御 {status.match.buff}s</span>}
           {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}
-          <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 B"}</button>
-          <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock?"冷却中":"开火"}</button>
+          {status.match.revival?.dead?<><span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
+          <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 "+status.match.ammoCount+"发 · "+status.match.ammoCost+"金币"}</button>
+          {status.match.hp<status.match.maxHp&&<button disabled={!status.match.canHeal} onClick={()=>controller.current?.heal()}>{status.match.pendingHeal>0?"回血 "+status.match.pendingHeal+"s":"回血 "+status.match.healCost+"金币"}</button>}
+          <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock?"冷却中":"开火"}</button></>}
         </div>}
         {!disabled && playing && status.match?.phase==="running" && status.match.thermalLock && <div className="rmul3d-thermal-lock" aria-label="热量超限，图传断开" />}
         {!disabled && !menu && playing && !status.match?.thermalLock && <div className="rmul3d-crosshair" aria-hidden="true" />}
@@ -132,7 +141,7 @@ export default function PixelJijiaArenaPage() {
           <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为简化对抗训练，非完整官方裁判仿真。基地护甲行程、命中区域、阵地及能量机关激活使用训练近似。</p>
+          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为简化对抗训练，非完整官方裁判仿真。基地护甲行程及命中区域、场地交互模块卡覆盖范围、能量机关激活仍为训练近似。</p>
         </aside>}
       </section>
     </main>
