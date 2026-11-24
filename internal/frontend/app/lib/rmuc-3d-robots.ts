@@ -399,11 +399,14 @@ export function createRobotPreview(kind: RobotPreviewKind): THREE.Group {
   else if (kind === "air") drone(group);
   else if (kind === "dart") dart(group);
   else radar(group);
+  const fieldArmor=["hero","infantry03","infantry04","sentry"].includes(kind);
+  // Only the active field types need distinct physical armor frames; keep
+  // the non-competing exhibition models batched.
   // Combine fixed parts of each joint by material; wheels and gimbal remain independently animated.
   group.traverse(object => {
     const sets = new Map<THREE.Material, THREE.Mesh[]>();
     for (const child of [...object.children]) {
-      if (!(child instanceof THREE.Mesh) || Array.isArray(child.material)) continue;
+      if (!(child instanceof THREE.Mesh) || Array.isArray(child.material)||fieldArmor&&child.material===hitPlateMaterial) continue;
       const meshes = sets.get(child.material) ?? [];
       meshes.push(child);
       sets.set(child.material, meshes);
@@ -427,7 +430,7 @@ export function createRobotPreview(kind: RobotPreviewKind): THREE.Group {
     }
   });
   group.traverse(object=>{
-    if(object instanceof THREE.Mesh && (object.material===hitPlateMaterial||object.material===materials.led))object.userData.hitPlate=true;
+    if(object instanceof THREE.Mesh && (object.material===hitPlateMaterial||object.material===materials.led)){object.userData.hitPlate=true;if(object.material===hitPlateMaterial)object.userData.armorSurface=true;}
   });
   return group;
 }
