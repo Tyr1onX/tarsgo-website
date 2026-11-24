@@ -12,7 +12,7 @@ import { ROOM_ART_SCALE } from "~/lib/pixel-jijia-room-art";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
-import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
+import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -74,7 +74,16 @@ export default function PixelJijiaPage() {
   const nearRoomIdRef = useRef<string | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-  const [climate, setClimate] = useState<ChangchunClimate | null>(null);
+  const [clock, setClock] = useState<ChangchunClimate | null>(null);
+  const [weatherMode, setWeatherMode] = useState<WeatherMode | null>(null);
+  const [actualWeather, setActualWeather] = useState<CurrentWeather | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const liveWeather = actualWeather && Math.abs(Date.now() - actualWeather.time) <= WEATHER_REFRESH_MS * 3 ? actualWeather : null;
+  const climate = clock && {
+    ...clock,
+    weather: weatherMode === "random" ? clock.weather : liveWeather?.weather ?? null,
+    temperature: weatherMode === "random" ? clock.temperature : liveWeather?.temperature ?? null,
+  };
   const [mapOpen, setMapOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
@@ -99,7 +108,7 @@ export default function PixelJijiaPage() {
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const refresh = () => setClimate(changchunClimate(new Date()));
+    const refresh = () => setClock(changchunClimate(new Date()));
     refresh();
     const interval = window.setInterval(refresh, 60_000);
     document.addEventListener("visibilitychange", refresh);
@@ -108,6 +117,48 @@ export default function PixelJijiaPage() {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
+
+  useEffect(() => {
+    setWeatherMode(localStorage.getItem("pixel-jijia-weather-mode") === "random" ? "random" : "actual");
+  }, []);
+
+  useEffect(() => {
+    if (weatherMode !== "actual") return;
+    let active = true;
+    let request: AbortController | null = null;
+    const refresh = async () => {
+      if (request) return;
+      request = new AbortController();
+      const timeout = window.setTimeout(() => request?.abort(), 10_000);
+      setWeatherLoading(true);
+      try {
+        const response = await fetch(WEATHER_URL, { signal: request.signal });
+        const value = response.ok ? parseCurrentWeather(await response.json()) : null;
+        if (active) setActualWeather(value);
+      } catch {
+        if (active) setActualWeather(null);
+      } finally {
+        window.clearTimeout(timeout);
+        request = null;
+        if (active) setWeatherLoading(false);
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(refresh, WEATHER_REFRESH_MS);
+    return () => {
+      active = false;
+      request?.abort();
+      window.clearInterval(interval);
+    };
+  }, [weatherMode]);
+
+  const changeWeatherMode = (mode: WeatherMode) => {
+    if (mode === weatherMode) return;
+    setActualWeather(null);
+    setWeatherLoading(mode === "actual");
+    setWeatherMode(mode);
+    localStorage.setItem("pixel-jijia-weather-mode", mode);
+  };
 
   const selectPlace = useCallback((place: Feature | null) => {
     selectedRef.current = place;
@@ -338,7 +389,7 @@ export default function PixelJijiaPage() {
         groundTilesRef.current = ground;
         terrainRef.current = renderTerrain(ground, changchunClimate(new Date()).season);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
-        roomTerrainRef.current = Object.fromEntries(Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene)]));
+        roomTerrainRef.current = Object.fromEntries(Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene, ground)]));
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -511,10 +562,17 @@ export default function PixelJijiaPage() {
       if (room && roomTerrain) {
         renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
           directionRef.current, walking, traveled, cameraRef.current,
-          time, !reducedMotion.matches);
+          time, !reducedMotion.matches, climate);
       } else {
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated));
+        if (climate?.weather && climate.weather !== "clear") {
+          ctx.fillStyle = climate.weather === "fog" ? "rgba(192, 207, 208, .22)"
+            : climate.weather === "storm" ? "rgba(46, 58, 83, .20)"
+            : climate.weather === "snow" ? "rgba(214, 230, 235, .10)"
+            : "rgba(76, 96, 108, .11)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
         if (climate?.night) {
           ctx.fillStyle = `rgba(13, 29, 55, ${climate.night})`;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -524,7 +582,7 @@ export default function PixelJijiaPage() {
       if (reducedMotion.matches || room) {
         particles.length = 0;
       } else {
-        if (walking && sprinting && time - lastDust > 110) {
+        if (walking && sprinting && climate?.weather !== "rain" && climate?.weather !== "storm" && climate?.weather !== "snow" && time - lastDust > 110) {
           const foot = playerRef.current;
           let surface = 0;
           for (let index = GROUND_AREAS.length - 1; index >= 0; index--) {
@@ -540,14 +598,14 @@ export default function PixelJijiaPage() {
             color: surface === 0 ? "#c4d69c" : "#e5d9bd", size: 2 });
           lastDust = time;
         }
-        if (time - lastFountain > 220 &&
+        if ((climate?.temperature ?? 0) > 0 && time - lastFountain > 220 &&
             Math.hypot(playerRef.current.x - FOUNTAIN.x, playerRef.current.y - FOUNTAIN.y) < 19) {
           emit({ x: FOUNTAIN.x * TILE + (Math.random() - 0.5) * 32,
             y: (FOUNTAIN.y - 1.25) * TILE, vx: (Math.random() - 0.5) * 14,
             vy: -14, age: 0, ttl: 0.58, color: "#a8effa", size: 2 });
           lastFountain = time;
         }
-        if (time - lastPetal > 560) {
+        if (climate?.season === "spring" && climate.weather !== "rain" && climate.weather !== "storm" && time - lastPetal > 560) {
           lastPetal = time;
           const tree = cherryTrees.find((item) =>
             Math.hypot(playerRef.current.x - item.x, playerRef.current.y - item.y) < 16);
@@ -557,13 +615,13 @@ export default function PixelJijiaPage() {
               age: 0, ttl: 2.1, color: "#f7b6ce", size: 3 });
           }
         }
-        if (climate && (climate.weather === "rain" || climate.weather === "snow") &&
-            time - lastWeather > (climate.weather === "rain" ? 65 : 150)) {
+        if (climate && (climate.weather === "rain" || climate.weather === "storm" || climate.weather === "snow") &&
+            time - lastWeather > (climate.weather === "snow" ? 150 : climate.weather === "storm" ? 38 : 65)) {
           const snow = climate.weather === "snow";
           emit({ x: cameraRef.current.x + Math.random() * canvas.width,
-            y: cameraRef.current.y - 6, vx: snow ? 4 : -20,
+            y: cameraRef.current.y + Math.random() * canvas.height - 24, vx: snow ? 4 : -20,
             vy: snow ? 24 : 140, age: 0, ttl: snow ? 4 : 1.4,
-            color: snow ? "#f4f7ed" : "#a3d3e0", size: snow ? 3 : 2 });
+            color: snow ? "#f4f7ed" : "#a3d3e0", size: snow ? 2 : 1, height: snow ? 2 : 8 });
           lastWeather = time;
         }
         for (let index = particles.length - 1; index >= 0; index--) {
@@ -635,7 +693,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, climate?.weather, climate?.night, enterRoom, exitRoom]);
+    climate?.season, climate?.weather, climate?.night, climate?.temperature, enterRoom, exitRoom]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -781,10 +839,20 @@ export default function PixelJijiaPage() {
       {studyNotice && <div className="pixel-world-study-notice" role="status">
         {studyNotice} {studyNotice.includes("未登录") && <Link to="/login">前往登录</Link>}
       </div>}
-      {climate && <div className="pixel-world-climate" role="status" aria-label="长春时间与游戏模拟天气">
-        <span>{SEASON_LABEL[climate.season]}</span>
-        <time>{String(climate.hour).padStart(2, "0")}:{String(climate.minute).padStart(2, "0")}</time>
-        {!room && <span>{WEATHER_LABEL[climate.weather]} · 模拟</span>}
+      {climate && <div className="pixel-world-climate" aria-label="长春时间与天气">
+        <div className="pixel-world-weather-line" role="status">
+          <span>{SEASON_LABEL[climate.season]}</span>
+          <time>{String(climate.hour).padStart(2, "0")}:{String(climate.minute).padStart(2, "0")}</time>
+          <span>{weatherMode === "random" ? WEATHER_LABEL[clock!.weather] : liveWeather?.label ?? (weatherLoading ? "更新中" : "天气不可用")}</span>
+          {climate.temperature !== null && <span>{climate.temperature.toFixed(0)}°C</span>}
+        </div>
+        {weatherMode && <div className="pixel-world-weather-controls">
+          <select aria-label="天气模式" value={weatherMode} onChange={event => changeWeatherMode(event.target.value as WeatherMode)}>
+            <option value="actual">长春实况</option>
+            <option value="random">随机天气</option>
+          </select>
+          {weatherMode === "actual" && liveWeather && <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" title="当前天气来自 Open-Meteo 气象模型">Open-Meteo</a>}
+        </div>}
       </div>}
       {showHelp && <div className="pixel-world-guide" role="note">
         WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图

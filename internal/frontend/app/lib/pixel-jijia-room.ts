@@ -1,6 +1,7 @@
+import type { WeatherKind } from "./pixel-jijia-climate.ts";
 import { TILE, overlapsRect, snapCamera, type Direction, type Position } from "./pixel-jijia-world.ts";
 import { renderExplorer } from "./pixel-jijia-scene.ts";
-import { ROOM_ART_SCALE, drawPublicRoomObject, drawRoomLight, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
+import { ROOM_ART_SCALE, drawPublicRoomObject, drawRoomLight, drawRoomWindows, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
 
 type Rect = Position & { width: number; height: number };
 export type RoomObject = Rect & {
@@ -166,15 +167,17 @@ export const ROOMS: Record<string, RoomScene> = {
 // Decorative furniture uses the same entity geometry as interactive equipment.
 const ROOM_DECOR: Record<string, [RoomObject["kind"], number, number, number, number][]> = {
   mechanical: [["cabinet", 3, 17, 4, 3], ["chair", 26, 14.8, 1.5, 1.2]],
-  honors: [["display", 28, 7, 5, 3], ["chair", 6, 18, 1.5, 1.2]],
+  honors: [["display", 28, 7, 5, 3], ["chair", 6, 18, 1.5, 1.2], ["plant", 2, 22, 2, 1], ["plant", 32, 22, 2, 1]],
   electrical: [["cabinet", 3, 7, 4, 4], ["chair", 25, 17, 1.5, 1.2]],
   vision: [["cabinet", 2, 7, 4, 3], ["chair", 25, 17, 1.5, 1.2]],
-  guild: [["cabinet", 2, 8, 4, 4], ["chair", 6, 13.6, 1.5, 1.2], ["chair", 24.7, 16.7, 1.5, 1.2]],
+  guild: [["cabinet", 2, 8, 4, 4], ["chair", 6, 14.3, 1.5, 1.2], ["chair", 7, 21.5, 1.5, 1.2], ["plant", 2, 22, 2, 1], ["plant", 32, 22, 2, 1]],
   ai: [["server", 3, 8, 4, 5], ["chair", 11.5, 18, 1.5, 1.2]],
 };
 for (const room of Object.values(ROOMS)) {
   if (room.id === "study") continue;
-  const decor = [...ROOM_DECOR[room.id], ["plant", 2, 22, 2, 1], ["plant", 32, 22, 2, 1]] as const;
+  // Plants belong in public reception and exhibition spaces, not beside
+  // electrical benches or precision machinery. Keep furnishing task-driven.
+  const decor = ROOM_DECOR[room.id];
   for (const [i, [kind, x, y, width, height]] of decor.entries()) room.objects.push({
     id: `decor-${i}`, title: "", description: "", kind, x, y, width, height, solid: true, decorative: true,
   });
@@ -214,8 +217,8 @@ export function closestRoomObject(room: RoomScene, position: Position): RoomObje
   return result;
 }
 
-export function renderRoomTerrain(room: RoomScene): HTMLCanvasElement {
-  if (room.id !== "study") return renderPublicRoomTerrain(room);
+export function renderRoomTerrain(room: RoomScene, campusTiles?: HTMLImageElement): HTMLCanvasElement {
+  if (room.id !== "study") return renderPublicRoomTerrain(room, campusTiles);
   const canvas = document.createElement("canvas");
   canvas.width = room.width * TILE;
   canvas.height = room.height * TILE;
@@ -305,6 +308,7 @@ export function renderRoomScene(
   character: HTMLImageElement, player: Position, direction: Direction,
   walking: boolean, traveled: number, camera: Position,
   elapsed: number, motionAllowed: boolean,
+  climate: { weather: WeatherKind | null; night: number } | null = null,
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -318,6 +322,7 @@ export function renderRoomScene(
   // at its footprint; sorting by feet lets its actual transparent silhouette
   // occlude the explorer instead of copying opaque pieces of a room image.
   if (room.id !== "study") {
+    drawRoomWindows(ctx, screenCamera, elapsed, motionAllowed, climate);
     if (motionAllowed) drawRoomLight(ctx, room, screenCamera, elapsed);
     for (const object of room.objects) {
       if (!object.solid && object.kind !== "exit")

@@ -329,7 +329,7 @@ test("六栋建筑都有不同的可进入室内与独立设备，不复制人�
   for (const kind of ["display", "camera", "server", "reception"]) {
     assert.ok(source.includes(`kind: "${kind}"`), `缺少 ${kind} 类型设施`);
   }
-  assert.ok(route.includes("Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene)])"),
+  assert.ok(route.includes("Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene, ground)])"),
     "各室内复用独立地形及组件绘制");
   assert.ok(source.includes('if (room.id === "study") drawRoomObject(ctx, object, screenCamera)'),
     "个人研究室应继续使用可编辑家具层");
@@ -361,7 +361,7 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(scene.includes("if (motionAllowed) drawRoomLight("));
   assert.ok(art.includes("if (!motion) return;"));
-  assert.ok(route.includes("time, !reducedMotion.matches)"));
+  assert.ok(route.includes("time, !reducedMotion.matches, climate)"));
   assert.ok(!art.includes("requestAnimationFrame("));
   assert.ok(route.includes('transition.phase = "in"'));
   assert.ok(route.includes('transition.target === (room?.id ?? null)'));
@@ -588,5 +588,24 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
     }
     assert.ok(alphas.some(a => a === 0) && alphas.some(a => a > 0),
       "过渡贴图必须既有透明区域也有真实边缘像素");
+  }
+});
+
+test("外围环形步行主路连续通畅，设施布置不占用主路中心线", () => {
+  for (const [x1,y1,x2,y2] of [[19,16,125,16],[19,83,125,83],[19,16,19,83],[125,16,125,83]]) {
+    const distance = Math.hypot(x2-x1,y2-y1);
+    for (let i=0;i<=distance*2;i++) {
+      const t=i/(distance*2), x=x1+(x2-x1)*t, y=y1+(y2-y1)*t;
+      assert.ok(isWalkable(x,y), `主路阻断 ${x},${y}`);
+    }
+  }
+});
+
+test("技术空间复用校园石材纹理，接待与展陈保留木质材料", () => {
+  const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
+  assert.ok(art.includes('room.id === "guild" || room.id === "honors"'));
+  assert.ok(art.includes("ctx.drawImage(campusTiles,"));
+  for (const id of ["mechanical","electrical","vision","ai"]) {
+    assert.ok(!ROOMS[id].objects.some(o=>o.kind==="plant"), id + " 设备区不放置绿植");
   }
 });
