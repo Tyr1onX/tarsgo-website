@@ -44,3 +44,5 @@
 @media(max-width:680px){.rmul3d-combat{bottom:195px;right:10px;max-width:180px}.rmul3d-score{gap:9px;padding:8px}}
 
 .rmul3d-thermal-lock { position:absolute; inset:0; background:#101720; pointer-events:none; z-index:1; }
+
+.rmul3d-score small { display:block; font-size:11px; font-weight:400; white-space:nowrap; }

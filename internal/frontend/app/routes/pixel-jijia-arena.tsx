@@ -15,6 +15,12 @@ export function meta({}: Route.MetaArgs) {
   });
 }
 
+type AreaStatus = NonNullable<ArenaStatus["match"]>["sides"]["red"]["baseArea"];
+const teamName=(team:"red"|"blue")=>team==="red"?"红":"蓝";
+const areaText=(area:AreaStatus)=>teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争夺":area.progress>0?"·"+Math.floor(area.progress/5)*10+"%":"");
+function TeamScore({team,side}:{team:"red"|"blue";side:NonNullable<ArenaStatus["match"]>["sides"]["red"]}){
+  return <span className={team}>基地 {side.base}<small>前哨 {side.outpost} ({teamName(side.outpostOwner)}) · {side.alive}/4</small><small>前哨阵地 {areaText(side.outpostArea)}</small><small>基地阵地 {areaText(side.baseArea)} · 控制度 {side.control}</small></span>;
+}
 const CAMERA_VIEWS = [
   { id: "first", label: "第一人称" },
   { id: "third", label: "自由视角" },
@@ -76,7 +82,7 @@ export default function PixelJijiaArenaPage() {
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
         {!disabled && !menu && status.match && <div className="rmul3d-match">
           {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始训练</button> : <>
-            <div className="rmul3d-score"><span className="red">{status.match.red}</span><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><span className="blue">{status.match.blue}</span></div>
+            <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><TeamScore team="blue" side={status.match.sides.blue} /></div>
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}
@@ -133,7 +139,7 @@ export default function PixelJijiaArenaPage() {
           <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为简化对抗训练，非完整官方裁判仿真。基地护甲行程、命中区域、阵地及能量机关激活使用训练近似。</p>
+          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为简化对抗训练，非完整官方裁判仿真。基地护甲行程及命中区域、场地交互模块卡覆盖范围、能量机关激活仍为训练近似。</p>
         </aside>}
       </section>
     </main>

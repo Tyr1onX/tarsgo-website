@@ -75,3 +75,14 @@ test("takeover chooses a nearby ground vehicle, not a static or airborne asset",
   assert.equal(nearestDriveable(player,[staticAsset,above,ground]),ground);
   assert.equal(nearestDriveable(player,[staticAsset,above]),null);
 });
+
+import {ARENA_ZONES,zonesAtPosition} from "./rmuc-3d-zones.ts";
+test("each estimated referee zone has a supported goal on actual CAD terrain",()=>{
+ for(const zone of ARENA_ZONES){
+  const [x,z]=zone.goal,y=terrain.heightAt(x,z);
+  assert.ok(zonesAtPosition({x,y,z}).includes(zone.id),zone.id);
+  assert.notEqual(supportedHeight(terrain,x,z,.45,y,.23),null,zone.id);
+ }
+ assert.deepEqual(zonesAtPosition({x:0,y:.3,z:0}),[]);
+ assert.deepEqual(zonesAtPosition({x:3.23,y:.3,z:0}),[],"below central highland is not an activation");
+});
