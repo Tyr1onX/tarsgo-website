@@ -12,10 +12,10 @@ import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } fro
 import { ROOMS, STUDY_ROOM, closestRoomObject, seatPlacement, seatDepth, meetingChair, meetingSeat, roomInteractable, type SeatObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
 import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds } from "~/lib/pixel-jijia-room-art";
-import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityDiscoveryId } from "~/lib/pixel-jijia-community";
+import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, type CommunityCredit, communityDiscoveryId } from "~/lib/pixel-jijia-community";
 import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
 import { apiRequest } from "~/lib/api-client";
-import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, type AuthUser } from "~/lib/auth-client";
+import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, subscribePermissionChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
@@ -32,7 +32,7 @@ const communityObjects = Object.values(COMMUNITY_ROOM_OBJECTS).flat();
 
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
-const featureAction=(feature:Feature)=>"href" in feature?"进入":feature.sprite==="bench"?"坐下":"观察";
+const featureAction=(feature:Feature)=>"href" in feature?"进入":feature.sprite==="bench"?"坐下":feature.story?.action??"观察";
 const roomAction=(object:RoomObject)=>object.kind==="chair"?"坐下":object.kind==="exit"?"离开":({senior:"对话",meeting:"落座",drive:"驾驶",assembly:"组装",terminal:"使用",silverwolf:"使用",memoir:"查看",memory:"查看"} as Record<string,string>)[object.community?.interaction??""]??(object.community?"互动":"查看");
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
@@ -129,9 +129,10 @@ export default function PixelJijiaPage() {
   const [muted, setMuted] = useState(false);
   useEffect(()=>()=>audioRef.current?.pause(),[]);
   const [studyEditing, setStudyEditing] = useState(false);
-  const [creditNames, setCreditNames] = useState<Record<number,string>>({});
+  const [creditNames, setCreditNames] = useState<Record<number,CommunityCredit>>({});
   const [catalogueDetail, setCatalogueDetail] = useState<RoomObject | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const studyAccessRef = useRef<{ownerId:number;controller:AbortController}|null>(null);
   const [studyItems, setStudyItems] = useState<StudyFurniture[]>([]);
   const [studyGuest, setStudyGuest] = useState(false);
   const [studyTool, setStudyTool] = useState<StudyFurnitureKind | "erase">("desk");
@@ -161,6 +162,21 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if(discoveries.length) localStorage.setItem("pixel-jijia-nature-log",JSON.stringify(discoveries));
   },[discoveries]);
+  const resetStudy = useCallback(() => {
+    studyAccessRef.current?.controller.abort();
+    studyAccessRef.current=null;
+    setStudyItems([]);setStudyGuest(false);setStudyEditing(false);
+    setStudySaving(false);setStudyHasInvite(false);setStudyInvite("");setStudyNotice("");
+  }, []);
+  const invalidateOwnerStudy = useCallback(() => {
+    if (!studyAccessRef.current) return;
+    resetStudy();
+    transitionRef.current=null;
+    clearInput();effectsRef.current.clear();audioRef.current?.pause();
+    playerRef.current={...SPAWN};setSeated(null);setRoomId(null);
+    setSelectedRoom(null);setSelected(null);selectedRef.current=null;
+    targetRef.current=null;setMapOpen(false);
+  }, [resetStudy,clearInput]);
   useEffect(() => {
     let active = true, request:AbortController|undefined, identity:string|undefined;
     const ids=new Set(communityObjects.flatMap(o=>o.community.sources.map(s=>s.comment)));
@@ -170,14 +186,26 @@ export default function PixelJijiaPage() {
       identity=next;request?.abort();setCreditNames({});
       if(!user)return;
       const controller=request=new AbortController();
-      void apiRequest<{comments:{id:number;authorName:string;isDeleted:boolean}[]}>("/api/community/posts/28",{cache:"no-store",signal:controller.signal})
-        .then(data=>{if(active&&!controller.signal.aborted)setCreditNames(Object.fromEntries(data.comments.filter(c=>ids.has(c.id)&&!c.isDeleted).map(c=>[c.id,c.authorName])));})
+      void apiRequest<{comments:({id:number;isDeleted:boolean}&CommunityCredit)[]}>("/api/community/posts/28",{cache:"no-store",signal:controller.signal})
+        .then(data=>{if(active&&!controller.signal.aborted)setCreditNames(Object.fromEntries(data.comments.filter(c=>ids.has(c.id)&&!c.isDeleted).map(c=>[c.id,{authorId:c.authorId,authorName:c.authorName}])));})
         .catch(()=>{});
     };
-    const unsubscribe=subscribeAuthStateChange(load);
-    void getCurrentUser().then(()=>load(getCachedCurrentUser()),()=>load(null));
-    return()=>{active=false;request?.abort();unsubscribe();};
-  }, []);
+    const refresh=()=>{
+      load(null);
+      void getCurrentUser({force:true}).then(()=>load(getCachedCurrentUser()),()=>load(getCachedCurrentUser()));
+    };
+    const onAuth=(user:AuthUser|null)=>{
+      if(studyAccessRef.current&&studyAccessRef.current.ownerId!==user?.id)invalidateOwnerStudy();
+      load(user);
+    };
+    const unsubscribe=subscribeAuthStateChange(onAuth);
+    const unsubscribeSession=subscribeAccountSessionChange(()=>{invalidateOwnerStudy();refresh();});
+    const unsubscribePermission=subscribePermissionChange(userId=>{
+      if(userId===null||getCachedCurrentUser()?.id===userId)refresh();
+    });
+    void getCurrentUser().then(()=>onAuth(getCachedCurrentUser()),()=>onAuth(getCachedCurrentUser()));
+    return()=>{active=false;request?.abort();unsubscribe();unsubscribeSession();unsubscribePermission();studyAccessRef.current?.controller.abort();};
+  }, [invalidateOwnerStudy]);
   const standUp = useCallback(() => {
     if (!seated) return;
     playerRef.current = seated.exit;
@@ -278,14 +306,18 @@ export default function PixelJijiaPage() {
     if(!placement)return false;
     clearInput();castRef.current=null;
     playerRef.current=placement.anchor;directionRef.current="down";
+    if(room&&"kind" in object&&meetingSeat(room,object)){
+      const table=room.objects.find(o=>o.community?.interaction==="meeting")!;
+      directionRef.current=object.y>table.y?"up":"down";
+    }
     setSeated({object,exit:placement.exit});
     if("sprite" in object&&object.story)recordDiscovery(object.story.title);
     return true;
   };
-  const playLaugh = (frog: boolean) => {
+  const playSound = (name: "frog-laugh"|"poster-laugh"|"chime") => {
     if(muted||document.hidden)return;
     audioRef.current?.pause();
-    const audio=new Audio(frog?"/assets/pixel-jijia/frog-laugh.wav":"/assets/pixel-jijia/poster-laugh.wav");
+    const audio=new Audio(`/assets/pixel-jijia/${name}.wav`);
     audio.volume=.35;audioRef.current=audio;
     void audio.play().catch(()=>{});
   };
@@ -315,7 +347,6 @@ export default function PixelJijiaPage() {
       setSeated(null);
       setRoomId(placeId);
       setSelectedRoom(null);
-      setSeated(null);
       setMapOpen(false);
       selectedRef.current = null;
       setSelected(null);
@@ -324,13 +355,22 @@ export default function PixelJijiaPage() {
 
   const openStudy = useCallback(async (invitation?: string) => {
     setStudyNotice("");
+    let access:typeof studyAccessRef.current=null;
     try {
-      if (!invitation) await getCurrentUser();
+      if (!invitation) {
+        const user=await getCurrentUser();
+        if(getCachedCurrentUser()?.id!==user.id)return;
+        studyAccessRef.current?.controller.abort();
+        access={ownerId:user.id,controller:new AbortController()};
+        studyAccessRef.current=access;
+      }
       const data = await apiRequest<{
         furniture: StudyFurniture[]; inviteActive?: boolean;
       }>(invitation ? `/api/pixel-home/visit?token=${encodeURIComponent(invitation)}`
-        : "/api/pixel-home/me", { cache: "no-store" });
+        : "/api/pixel-home/me", { cache: "no-store",signal:access?.controller.signal });
+      if(access?.controller.signal.aborted)return;
       transitionTo("study", () => {
+        if(access?.controller.signal.aborted)return;
         setStudyItems(data.furniture);setStudyEditing(false);
         setStudyHasInvite(Boolean(data.inviteActive));
         setStudyGuest(Boolean(invitation));
@@ -347,6 +387,8 @@ export default function PixelJijiaPage() {
         selectPlace(null);
       });
     } catch (error) {
+      if(access?.controller.signal.aborted)return;
+      if(studyAccessRef.current===access)studyAccessRef.current=null;
       setStudyNotice(error instanceof Error ? error.message : "研究室无法打开");
     }
   }, [selectPlace, transitionTo, clearInput]);
@@ -356,49 +398,42 @@ export default function PixelJijiaPage() {
     if (token) void openStudy(token);
   }, [openStudy]);
 
-  const saveStudy = async () => {
-    if (studyGuest || studySaving) return;
-    setStudySaving(true);
-    setStudyNotice("");
+  const saveStudy = async (invite=false) => {
+    const access=studyAccessRef.current;
+    if (!access||studyGuest||studySaving||getCachedCurrentUser()?.id!==access.ownerId) return;
+    const signal=access.controller.signal;
+    setStudySaving(true);setStudyNotice("");
     try {
       await apiRequest("/api/pixel-home/me", {
-        method: "PUT", body: { furniture: studyItems },
+        method:"PUT",body:{furniture:studyItems},signal,
       });
-      setStudyNotice("布局已保存");
-    } catch (error) {
-      setStudyNotice(error instanceof Error ? error.message : "保存失败");
+      if(signal.aborted)return;
+      if(invite){
+        const result=await apiRequest<{token:string}>("/api/pixel-home/invite",{method:"POST",signal});
+        if(signal.aborted)return;
+        setStudyInvite(`${window.location.origin}/pixel-jijia?visit=${result.token}`);
+        setStudyHasInvite(true);
+      }
+      setStudyNotice(invite?"邀请已生成，可复制链接发给访客":"布局已保存");
+    } catch(error){
+      if(!signal.aborted)setStudyNotice(error instanceof Error?error.message:invite?"邀请生成失败":"保存失败");
     } finally {
-      setStudySaving(false);
-    }
-  };
-  const createStudyInvite = async () => {
-    if (studySaving || studyGuest) return;
-    setStudySaving(true);
-    setStudyNotice("");
-    try {
-      // Invite links must point to the currently visible layout, not an old saved copy.
-      await apiRequest("/api/pixel-home/me", {
-        method: "PUT", body: { furniture: studyItems },
-      });
-      const result = await apiRequest<{ token: string }>("/api/pixel-home/invite", { method: "POST" });
-      const url = `${window.location.origin}/pixel-jijia?visit=${result.token}`;
-      setStudyInvite(url);
-      setStudyHasInvite(true);
-      setStudyNotice("邀请已生成，可复制链接发给访客");
-    } catch (error) {
-      setStudyNotice(error instanceof Error ? error.message : "邀请生成失败");
-    } finally {
-      setStudySaving(false);
+      if(!signal.aborted)setStudySaving(false);
     }
   };
   const revokeStudyInvite = async () => {
+    const access=studyAccessRef.current;
+    if(!access||studyGuest||studySaving||getCachedCurrentUser()?.id!==access.ownerId)return;
+    const signal=access.controller.signal;
+    setStudySaving(true);
     try {
-      await apiRequest("/api/pixel-home/invite", { method: "DELETE" });
-      setStudyInvite("");
-      setStudyHasInvite(false);
-      setStudyNotice("旧邀请链接已失效");
-    } catch (error) {
-      setStudyNotice(error instanceof Error ? error.message : "撤销失败");
+      await apiRequest("/api/pixel-home/invite",{method:"DELETE",signal});
+      if(signal.aborted)return;
+      setStudyInvite("");setStudyHasInvite(false);setStudyNotice("旧邀请链接已失效");
+    } catch(error){
+      if(!signal.aborted)setStudyNotice(error instanceof Error?error.message:"撤销失败");
+    } finally {
+      if(!signal.aborted)setStudySaving(false);
     }
   };
 
@@ -412,7 +447,7 @@ export default function PixelJijiaPage() {
         setRoomId(null);
         setSelectedRoom(null);
       setSeated(null);
-        setStudyGuest(false);
+        resetStudy();
         if (window.location.search.includes("visit=")) window.history.replaceState(null, "", "/pixel-jijia");
         return;
       }
@@ -425,7 +460,7 @@ export default function PixelJijiaPage() {
       setSeated(null);
       setRoomId(null);
     });
-  }, [roomId, transitionTo]);
+  }, [roomId, transitionTo, resetStudy]);
 
   const resizeCanvas = useCallback(() => {
     const stage = stageRef.current, canvas = canvasRef.current;
@@ -581,7 +616,7 @@ export default function PixelJijiaPage() {
       if(!action || ["smoke","burst","glow","cable","old-capacitor","laugh","poster-laugh","tools"].includes(action)){
         if((action==="laugh"||action==="poster-laugh")&&performance.now()-(effectsRef.current.get(object.id)??-Infinity)<1500)return;
         effectsRef.current.set(object.id,performance.now());
-        if(action==="laugh"||action==="poster-laugh")playLaugh(action==="laugh");
+        if(action==="laugh"||action==="poster-laugh")playSound(action==="laugh"?"frog-laugh":"poster-laugh");
 
         return;
       }
@@ -599,9 +634,16 @@ export default function PixelJijiaPage() {
       if (Math.hypot(playerRef.current.x-feature.x,playerRef.current.y-feature.y) >= radius) { distanceNotice(); return; }
       if(seated){standUp();return;}
       if(feature.sprite==="bench"){if(!sit(feature))distanceNotice();return;}
-      if(feature.story){recordDiscovery(feature.story.title,feature.story.result ?? feature.story.title);}
+      if(feature.story){
+        const now=performance.now();
+        if(feature.story.action&&now-(effectsRef.current.get(feature.story.title)??-Infinity)<1500)return;
+        effectsRef.current.set(feature.story.title,now);
+        if(feature.sprite==="arch")playSound("chime");
+        if(feature.sprite==="cherry")poseRef.current={...poseRef.current,action:"observe",since:now};
+        recordDiscovery(feature.story.title,feature.sprite==="statue"&&feature.story.action?"自检通过":feature.sprite==="sign"&&feature.story.action?feature.story.result:feature.story.title);
+      }
     }
-  }, [room, enterRoom, selectPlace, distanceNotice, seated, standUp, recordDiscovery, clearInput]);
+  }, [room, enterRoom, selectPlace, distanceNotice, seated, standUp, recordDiscovery, clearInput, muted]);
   useEffect(() => {
     if (menuOpen || mapOpen || selectedRoom || selected || catalogueDetail) clearInput();
   }, [menuOpen, mapOpen, selectedRoom, selected, catalogueDetail, clearInput]);
@@ -806,7 +848,7 @@ export default function PixelJijiaPage() {
         updateWildlife(wildlifeRef.current,playerRef.current,dt,climate?.hour??12,climate?.weather??null,!reducedMotion.matches,castRef.current);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
-          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y);
+          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current);
       }
 
       if (reducedMotion.matches || room) {
@@ -1159,7 +1201,7 @@ export default function PixelJijiaPage() {
           <option value="erase">移除家具</option>
         </select>}
         <button type="button" disabled={studySaving} onClick={() => void saveStudy()}>保存布局</button>
-        <button type="button" onClick={() => void createStudyInvite()}>邀请参观</button>
+        <button type="button" onClick={() => void saveStudy(true)}>邀请参观</button>
         {studyHasInvite && <button type="button" onClick={() => void revokeStudyInvite()}>撤销邀请</button>}
         {studyInvite && <>
           <input aria-label="参观邀请链接" readOnly value={studyInvite}
@@ -1189,7 +1231,7 @@ export default function PixelJijiaPage() {
       </div>}
       {naturePrompt==="等待鱼咬钩" && !natureNotice && <div className="pixel-world-nature-notice" role="status">等待鱼咬钩</div>}
       {natureNotice&&<div className="pixel-world-nature-notice" role="status">{typeof natureNotice==="string"?natureNotice:<>
-        发现共建彩蛋 · {natureNotice.title}{[...new Set(natureNotice.community?.sources.filter(s=>s.role==="suggestion").map(s=>creditNames[s.comment]).filter(Boolean))].map(name=><span key={name}> · {name}</span>)}
+        发现共建彩蛋 · {natureNotice.title}{[...new Map(natureNotice.community?.sources.filter(s=>s.role==="suggestion"&&creditNames[s.comment]).map(s=>{const c=creditNames[s.comment];return [c.authorId,c.authorName] as const})).entries()].map(([id,name])=><span key={id}> · {name}</span>)}
       </>}</div>}
       {mobile && !studyEditing && !menuOpen && !mapOpen && !selected && !selectedRoom && !catalogueDetail && (seated || nearbyRoom || nearby || (naturePrompt && naturePrompt!=="等待鱼咬钩")) &&
         <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
@@ -1204,7 +1246,7 @@ export default function PixelJijiaPage() {
           {!("href" in selected) && selected.story?.description && <p>{selected.story.description}</p>}
           {"href" in selected && <Link to={selected.href} state={selected.href === "/pixel-jijia/battle" ? { experienceReturnTo: returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia" } : undefined} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
-          {"story" in selected && selected.story?.result && <p>{selected.story.result}</p>}
+
         </div></section>
       )}
       {selectedRoom && <section ref={dialogRef} className={`pixel-world-detail${selectedRoom.community ? " pixel-world-community-detail" : ""}`} role="dialog"

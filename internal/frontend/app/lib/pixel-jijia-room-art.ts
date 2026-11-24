@@ -209,6 +209,7 @@ export function renderPublicRoomTerrain(room: RoomScene, campusTiles?: HTMLImage
 // existing per-object cache also supplies the exact alpha hit test.
 type PreparedSprite={canvas:HTMLCanvasElement;frames:HTMLCanvasElement[];bounds:{x:number;y:number;w:number;h:number}};
 const sprites=new WeakMap<RoomObject,PreparedSprite>();
+let studyChair: HTMLCanvasElement;
 function spriteKey(o:RoomObject){return o.decorative?`decor-${o.kind}`:o.id;}
 function spriteBox(o:RoomObject,spriteIndex:Record<string,number[]>){
   const source=spriteIndex[spriteKey(o)];
@@ -240,8 +241,16 @@ export function preparePublicRoomArt(atlas:HTMLImageElement,rooms:RoomScene[],sp
         return frame;
       });
       sprites.set(o,{canvas,frames:[canvas,...frames],bounds:b});
+      if(o.kind==="chair")studyChair=canvas;
     }
   }
+}
+// The study uses the same stool silhouette, centered over its existing
+// one-tile collision footprint (the image overhang is four pixels per side).
+export function drawStudyChair(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position){
+  const w=studyChair.width/ROOM_ART_SCALE,h=studyChair.height/ROOM_ART_SCALE;
+  ctx.drawImage(studyChair,Math.round((o.x+o.width/2)*TILE-camera.x-w/2),
+    Math.round((o.y+o.height)*TILE-camera.y-h),w,h);
 }
 function sprite(o:RoomObject){
   const image=sprites.get(o);
@@ -268,7 +277,7 @@ export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,c
   const active=age>=0&&age<1500;
   const action=o.community?.interaction;
   const laugh=action==="laugh" || action==="poster-laugh";
-  const frame=active&&laugh&&motion?Math.min(prepared.frames.length-1,1+Math.floor(age/120)%Math.max(1,prepared.frames.length-1)):laugh?0:phase;
+  const frame=active&&laugh&&motion?Math.min(prepared.frames.length-1,1+Math.floor(age/80)%Math.max(1,prepared.frames.length-1)):laugh?0:phase;
   ctx.drawImage(prepared.frames[frame],x,y,b.w,b.h);
   if(active){
     const t=age/1500;

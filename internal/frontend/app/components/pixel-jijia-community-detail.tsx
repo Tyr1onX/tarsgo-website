@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Link } from "react-router";
-import { COMMUNITY_POSES, communitySourceHref } from "~/lib/pixel-jijia-community";
+import { COMMUNITY_POSES, communitySourceHref, type CommunityCredit } from "~/lib/pixel-jijia-community";
 import type { RoomObject } from "~/lib/pixel-jijia-room";
 import { robotSeasons } from "~/data/robot-seasons";
 import communityAtlas from "../assets/pixel-jijia/room-community-v31.png?url";
@@ -141,20 +141,20 @@ function Senior() {
   </div>;
 }
 
-export function CommunityCredits({object,names}:{object:RoomObject;names:Record<number,string>}) {
+export function CommunityCredits({object,names}:{object:RoomObject;names:Record<number,CommunityCredit>}) {
   const sources=object.community?.sources??[];
   return <div className="pixel-community-credits">
     {sources.map((source,index)=>{
-      const name=names[source.comment], duplicate=name&&sources.slice(0,index).some(s=>s.role===source.role&&names[s.comment]===name);
+      const credit=names[source.comment], duplicate=credit&&sources.slice(0,index).some(s=>s.role===source.role&&names[s.comment]?.authorId===credit.authorId);
       return <div className="pixel-community-credit" key={source.comment}>
-        {!duplicate&&<span>{source.role==="suggestion"?"建议者":source.role==="support"?"支持者":"跟帖者"}：{name??"共建成员"}</span>}
+        {!duplicate&&<span>{source.role==="suggestion"?"建议者":source.role==="support"?"支持者":"跟帖者"}：{credit?.authorName??"共建成员"}</span>}
         <span>{source.date} · <Link to={communitySourceHref(source)} target="_blank" rel="noreferrer">{source.role==="suggestion"?"原始提议":"原始回复"}{sources.length>1?` ${index+1}`:""} ↗</Link></span>
       </div>;
     })}
   </div>;
 }
 
-export function CommunityObjectDetail({ object, names, returnTo }: { object: RoomObject; names:Record<number,string>; returnTo: string }) {
+export function CommunityObjectDetail({ object, names, returnTo }: { object: RoomObject; names:Record<number,CommunityCredit>; returnTo: string }) {
   const action = object.community?.interaction;
   return <>
     {action === "terminal" && <div className="pixel-community-terminal" role="status"><span className="pixel-community-typewriter">!!Hello World!!</span></div>}

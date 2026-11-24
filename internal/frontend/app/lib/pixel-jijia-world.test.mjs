@@ -249,7 +249,7 @@ test("故事点复用可见素材和碰撞配置，不制造不可见标记", ()
   assert.ok(route.includes("closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null)"));
   assert.ok(route.includes("selected.story?.description"));
   assert.ok(route.includes('if(feature.sprite==="bench"){if(!sit(feature))distanceNotice();return;}'));
-  assert.ok(route.includes("selected.story?.result"));
+  assert.ok(route.includes("effectsRef.current.set(feature.story.title,now)"));
   assert.ok(stories.filter(p => p.story?.action && p.story?.result).length >= 5);
 });
 
@@ -403,9 +403,10 @@ test("实体脚底阻挡、装饰无操作、每栋入口及出口可通行", ()
       if (o.decorative && o.kind!=="chair") assert.notEqual(closestRoomObject(room, {x, y})?.id, o.id);
     }
     const door = room.objects.find(o => o.kind === "exit");
-    const x = door.x + door.width / 2, y = door.y + .1;
+    const x = door.x + door.width / 2, y = door.y + door.height - .6;
     assert.ok(isRoomWalkable(room, x, y), id + " exit walkable");
     assert.ok(roomExitAt(room, {x, y}, 1), id + " exit trigger");
+    assert.equal(roomExitAt(room, {x, y:door.y+.5}, 1), false, id + " passing indoor aisle must not exit");
   }
 });
 
@@ -456,8 +457,8 @@ test("生成场景的家具碰撞与可见物件位置对应且入口可通行",
   assert.ok(source.includes('entry: { x: 18, y: 19.4 }'));
   assert.ok(source.includes('entry: { x: 18, y: 21.7 }'), "电控入口必须在工作台前方");
   assert.ok(source.includes('entry: { x: 18, y: 22.1 }'), "视觉入口必须在中央装置前方");
-  assert.ok(source.includes('position.y <= exit.y + exit.height - 0.4'),
-    "室内出口触发范围要覆盖入口门槛，避免无法返回");
+  assert.ok(source.includes('position.y <= exit.y + exit.height - 0.3'),
+    "室内出口触发范围要覆盖门口深处并保持合法可达");
   assert.ok(source.includes('id: "exit", kind: "exit", x: 16, y: 21'));
 });
 
@@ -486,7 +487,7 @@ test("室内出口、可见门槛和户外入口自动构成进出闭环", () =>
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(source.includes("export function roomExitAt("));
   assert.ok(source.includes('object.kind === "exit"'));
-  assert.ok(source.includes("position.y >= exit.y - 0.55"));
+  assert.ok(source.includes("position.y >= exit.y + exit.height - 0.8"));
   assert.ok(source.includes("ctx.fillRect(x, y, exit.width * TILE, 7)"));
   assert.ok(source.includes("entry: { x: 18, y: 19.4 }"));
   assert.ok(route.includes("roomExitAt(room, next, y)"));
@@ -859,4 +860,6 @@ test("朝向轻量加权且背后唯一候选仍可选中",()=>{
   assert.equal(closestFeature(exit,"down"),bench);
   const room=ROOMS.electrical,exitObject=room.objects.find(o=>o.kind==="exit");
   assert.equal(closestRoomObject(room,{x:18,y:22},"down")?.id,exitObject.id);
+  assert.equal(closestRoomObject(room,{x:19,y:21.15},"up")?.id,"lit-capacitor");
+  assert.equal(roomExitAt(room,{x:19,y:21.15},1),false);
 });

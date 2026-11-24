@@ -9,6 +9,7 @@ export type CommunitySource = {
   role: "suggestion" | "support" | "reply";
 };
 export type CommunityInteraction = "smoke" | "burst" | "cable" | "old-capacitor" | "glow" | "tools" | "assembly" | "drive" | "terminal" | "silverwolf" | "memoir" | "memory" | "meeting" | "senior" | "laugh" | "poster-laugh";
+export type CommunityCredit = { authorId: number; authorName: string };
 export type CommunityContribution = {
   sources: readonly CommunitySource[];
   interaction?: CommunityInteraction;

@@ -2,7 +2,7 @@ import { TILE, overlapsRect, snapCamera, benchSeat, benchExit, facingScore, type
 import { renderExplorer } from "./pixel-jijia-scene.ts";
 import type { ExplorerAnimation } from "./pixel-jijia-explorer.ts";
 import { COMMUNITY_ROOM_OBJECTS, type CommunityContribution } from "./pixel-jijia-community.ts";
-import { ROOM_ART_SCALE, drawPublicRoomObject, drawRoomLight, drawRoomWindows,drawRoomAmbient, type RoomClimate, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
+import { ROOM_ART_SCALE, drawPublicRoomObject, drawStudyChair, drawRoomLight, drawRoomWindows,drawRoomAmbient, type RoomClimate, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
 
 type Rect = Position & { width: number; height: number };
 export type RoomObject = Rect & {
@@ -205,10 +205,14 @@ export function roomExitAt(room: RoomScene, position: Position, vertical: number
   const exit = room.objects.find(object => object.kind === "exit");
   return Boolean(exit && position.x >= exit.x + 0.65 &&
     position.x <= exit.x + exit.width - 0.65 &&
-    position.y >= exit.y - 0.55 && position.y <= exit.y + exit.height - 0.4);
+    position.y >= exit.y + exit.height - 0.8 && position.y <= exit.y + exit.height - 0.3);
 }
 
 export function roomInteractionDistance(room: RoomScene, object: RoomObject, position: Position): number {
+  if(object.kind==="exit"){
+    const dx=Math.max(object.x+.65-position.x,0,position.x-(object.x+object.width-.65));
+    return Math.hypot(dx,object.y+object.height-.6-position.y);
+  }
   if(object.kind==="chair"){
     if(Math.hypot(object.x+object.width/2-position.x,object.y+object.height/2-position.y)>4)return Infinity;
     const exit=chairExit(room,object,position);
@@ -253,7 +257,7 @@ export function seatPlacement(room:RoomScene|null,object:SeatObject,from:Positio
   if(!room||object.kind!=="chair"||Math.hypot(object.x+object.width/2-from.x,object.y+object.height/2-from.y)>4)return null;
   const exit=chairExit(room,object,from);
   if(!exit||Math.hypot(exit.x-from.x,exit.y-from.y)>=2.1)return null;
-  return {anchor:{x:object.x+object.width/2,y:object.y+object.height-.22},exit};
+  return {anchor:{x:object.x+object.width/2,y:object.y+object.height-.5},exit};
 }
 export function meetingSeat(room:RoomScene,object:RoomObject):boolean {
   if(object.kind!=="chair")return false;
@@ -347,11 +351,12 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
   const y = Math.round(object.y * TILE - camera.y);
   const w = object.width * TILE, h = object.height * TILE;
   if (object.kind === "exit") return;
+  if (object.kind === "chair") { drawStudyChair(ctx, object, camera); return; }
   ctx.fillStyle = "#334346";
   ctx.fillRect(x + 2, y + 5, w, h);
-  if (["desk", "chair", "shelf", "lamp", "plant"].includes(object.kind)) {
+  if (["desk", "shelf", "lamp", "plant"].includes(object.kind)) {
     const shades: Record<string, [string, string]> = {
-      desk: ["#8b6545", "#ddab78"], chair: ["#667a6b", "#b0c49f"],
+      desk: ["#8b6545", "#ddab78"],
       shelf: ["#735846", "#d2b076"], lamp: ["#556d77", "#ffdf8b"],
       plant: ["#6b5846", "#8aba75"],
     };
