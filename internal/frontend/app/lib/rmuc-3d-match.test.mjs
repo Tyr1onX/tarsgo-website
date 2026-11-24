@@ -28,8 +28,8 @@ test("17mm referee heat, remote exchange and pre-assembly heavy restrictions",()
  assert.equal(purchaseAmmo(m,"r"),true);assert.equal(purchaseAmmo(m,"r"),false);
  updateMatch(m,5.9);assert.equal(r.ammo,0);updateMatch(m,.1);assert.equal(r.ammo,100);
  for(let i=0;i<6&&!r.thermalLock;i++){assert.ok(fireRound(m,"r"));updateMatch(m,.18);}
- assert.equal(r.thermalLock,true);assert.equal(fireRound(m,"r"),null);assert.equal(purchaseAmmo(m,"r"),false);
- updateMatch(m,1);assert.equal(r.thermalLock,true);
+ assert.equal(r.thermalLock,"cooling");assert.equal(fireRound(m,"r"),null);assert.equal(purchaseAmmo(m,"r"),false);
+ updateMatch(m,1);assert.equal(r.thermalLock,"cooling");
  updateMatch(m,5);assert.equal(r.heat,0);assert.equal(r.thermalLock,false);assert.equal(purchaseAmmo(m,"r"),true);
  damageTarget(m,s,{type:"robot",id:"b"});assert.equal(purchaseAmmo(m,"b"),false);
 });
@@ -491,4 +491,19 @@ test("infantry pre-round performance selection follows tables 5-17/18 and locks 
  updateMatch(m,6);assert.ok(purchaseAmmo(m,"r"));updateMatch(m,6);assert.ok(fireRound(m,"r"));updateMatch(m,1);
  assert.ok(Math.abs(r.heat-3)<1e-8); // 10 - 7 points per second
  assert.deepEqual(createMatch(roster).robots[0].performance,{chassis:"hp",launcher:"cooling"});
+});
+
+test("permanent thermal lock threshold survives cooling, death, revival and enhancement",()=>{
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true}],1,1);
+ startMatch(m);const s=m.robots[2],b=m.robots[1];
+ // Isolated detector-boundary test: emulate accumulated heat from hardware
+ // reports that arrive before a lock is processed. Normal training firing
+ // is gated and cannot itself generate such delayed reports.
+ s.heat=s.heatLimit+90;assert.ok(fireRound(m,"s"));assert.equal(s.thermalLock,"permanent");
+ updateMatch(m,100);assert.equal(s.heat,0);assert.equal(s.thermalLock,"permanent");
+ assert.ok(switchSentry(m,"s","attack",true));assert.equal(fireRound(m,"s"),null);
+ for(let i=0;i<20;i++)damageTarget(m,b,{type:"robot",id:"s"});
+ assert.equal(s.hp,0);assert.equal(s.thermalLock,"permanent");
+ assert.ok(reviveRobot(m,"s",true));updateMatch(m,3);assert.equal(fireRound(m,"s"),null);
+ assert.equal(createMatch(roster).robots[0].thermalLock,false);
 });

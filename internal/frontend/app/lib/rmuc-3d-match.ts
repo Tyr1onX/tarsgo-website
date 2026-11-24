@@ -22,7 +22,7 @@ type SentryStance = {mode:SentryMode; enhanced:boolean; switchedAt:number; ticks
 const stanceTicks=():Record<SentryMode,number>=>({attack:0,defense:0,move:0});
 export type InfantryPerformance={chassis:"hp"|"power";launcher:"cooling"|"burst"};
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
+export type MatchRobot = RobotSpec & { hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:false|"cooling"|"permanent"; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
 type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
@@ -40,16 +40,17 @@ const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
 const levelFromXp=(xp:number)=>Math.min(5,XP_LEVELS.filter(x=>xp>=x).length);
 export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
 // Tables 5-17/18. Selection is only possible before the round starts.
-function infantryAttributes(r:MatchRobot){
-  const index=robotLevel(r)-1, power=r.performance?.chassis==="power", burst=r.performance?.launcher==="burst";
-  return {hp:(power?[150,175,200,225,250,275,300,325,350,400]:[200,225,250,275,300,325,350,375,400,400])[index],
-    power:(power?[60,65,70,75,80,85,90,95,100,100]:[45,50,55,60,65,70,75,80,90,100])[index],
-    heat:(burst?[170,180,190,200,210,220,230,240,250,260]:[40,48,56,64,72,80,88,96,104,120])[index],
-    cooling:(burst?[5,7,9,11,12,13,14,16,18,20]:[12,14,16,18,20,22,24,26,28,30])[index]};
-}
+const INFANTRY_CHASSIS={
+  hp:{hp:[200,225,250,275,300,325,350,375,400,400],power:[45,50,55,60,65,70,75,80,90,100]},
+  power:{hp:[150,175,200,225,250,275,300,325,350,400],power:[60,65,70,75,80,85,90,95,100,100]},
+};
+const INFANTRY_LAUNCHER={
+  cooling:{heat:[40,48,56,64,72,80,88,96,104,120],cooling:[12,14,16,18,20,22,24,26,28,30]},
+  burst:{heat:[170,180,190,200,210,220,230,240,250,260],cooling:[5,7,9,11,12,13,14,16,18,20]},
+};
 function refreshInfantry(r:MatchRobot){
-  const a=infantryAttributes(r);
-  r.hp=Math.min(a.hp,r.hp+a.hp-r.maxHp);r.maxHp=a.hp;r.heatLimit=a.heat;r.cooling=a.cooling;
+  const index=robotLevel(r)-1,chassis=INFANTRY_CHASSIS[r.performance?.chassis??"hp"],launcher=INFANTRY_LAUNCHER[r.performance?.launcher??"cooling"];
+  const hp=chassis.hp[index];r.hp=Math.min(hp,r.hp+hp-r.maxHp);r.maxHp=hp;r.heatLimit=launcher.heat[index];r.cooling=launcher.cooling[index];
 }
 export function selectInfantryPerformance(match:Match,id:string,performance:InfantryPerformance){
   const r=match.robots.find(r=>r.id===id);
@@ -71,7 +72,7 @@ export function switchSentry(match:Match,id:string,mode:SentryMode,enhanced=fals
   const tick=Math.floor((match.elapsed+1e-8)*10);
   if(tick<s.switchedAt+50||(s.mode===mode&&s.enhanced===enhanced)||(enhanced&&s.enhancedTicks[mode]>=150))return false;
   s.mode=mode;s.enhanced=enhanced;s.switchedAt=tick;
-  if(mode==="attack"&&enhanced){r.heat=0;r.thermalLock=false;}
+  if(mode==="attack"&&enhanced){r.heat=0;if(r.thermalLock!=="permanent")r.thermalLock=false;}
   return true;
 }
 function advanceStance(r:MatchRobot){
@@ -82,7 +83,7 @@ function advanceStance(r:MatchRobot){
 // §5.1.4 / tables 5-16, 5-17; the current kinematic preview does not
 // measure motor current. Its movement command supplies an estimated demand.
 export function powerLimit(match:Match,r:MatchRobot,time=match.elapsed){
-  const base=r.heavy?50:r.sentry?60:infantryAttributes(r).power;
+  const base=r.heavy?50:r.sentry?60:INFANTRY_CHASSIS[r.performance?.chassis??"hp"].power[robotLevel(r)-1];
   const paid=time<r.powerBoostUntil;
   const s=r.stance;
   if(!s)return Math.min(200,base*(paid?2:1));
@@ -222,7 +223,8 @@ export function fireRound(match:Match,id:string) {
   gainXp(match,robot,1);
   if(robot.stance?.enhanced&&robot.stance.mode==="attack"){robot.heat=0;robot.thermalLock=false;}
   else robot.heat+=robot.heavy?100:10;
-  if(robot.heat>robot.heatLimit)robot.thermalLock=true;
+  if(robot.heat>=robot.heatLimit+(robot.heavy?200:100))robot.thermalLock="permanent";
+  else if(robot.heat>robot.heatLimit)robot.thermalLock="cooling";
   return robot;
 }
 // Territory progress and zone expiry use integer 10 Hz referee ticks.
@@ -340,7 +342,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   for(const r of match.robots){
     advancePower(match,r,tick);
     r.heat=r.stance?.mode==="attack"&&r.stance.enhanced?0:Math.max(0,r.heat-coolingRate(match,r)/10);
-    if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
+    if(r.heat<1e-8){r.heat=0;if(r.thermalLock!=="permanent")r.thermalLock=false;}
     advanceStance(r);
   }
   // Score the interval before applying transitions at its endpoint.
@@ -460,7 +462,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0||immune(match,enemy))return 0;
     const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*side.rune.attack*robotDefense(match,enemy))));
     enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0){enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
+    if(enemy.hp===0){enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
     attackXp(match,shooter,amount*4,enemy);
     return amount;
   }
