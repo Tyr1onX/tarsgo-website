@@ -9,7 +9,7 @@ import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMe
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
-import { addRobotPreviews, aimWeapon, aimWeaponAt, bindLauncherModule } from "./rmuc-3d-robots";
+import { addRobotPreviews, aimWeapon, aimWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { findArenaPath, advanceBot } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
@@ -163,8 +163,12 @@ export function mountArena(
     if (!disposed && !frame) frame = requestAnimationFrame(render);
   }
 
+  const armorLit=new Map<Robot,boolean>();
   function updateVisibility() {
-    for (const robot of robots){const state=match?.robots.find(r=>r.id===robot.object.name);robot.object.visible=(mode!=="first"||driving!==robot)&&(!match||!state||canDriveRobot(match,state));}
+    for (const robot of robots){const state=match?.robots.find(r=>r.id===robot.object.name);
+      const lit=!state||state.hp>0;
+      if(armorLit.get(robot)!==lit){armorLit.set(robot,lit);setArmorLight(robot.object,lit);}
+      robot.object.visible=(mode!=="first"||driving!==robot)&&(!match||!state||canDriveRobot(match,state));}
   }
 
   function syncCamera() {
