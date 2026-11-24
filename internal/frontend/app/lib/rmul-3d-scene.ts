@@ -26,7 +26,7 @@ export interface ArenaController {
   buy: () => void;
   heal: () => void;
   revive: (paid:boolean) => void;
-  fire: () => void;
+  fire: (source:string,pressed:boolean) => void;
   install: () => void;
   removeLauncher:()=>void;
   pickup: () => void;
@@ -137,6 +137,7 @@ export function mountArena(
   let lastTime: number | null = null;
   let lastStatus = "";
   const keys = new Set<string>();
+  const triggers = new Set<string>();
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
@@ -248,7 +249,9 @@ export function mountArena(
         advanceAiming(dt,dt>0?{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt}:undefined);
       }
       else {shotIntents.clear();motions.clear();motionDebt=0;projectiles.clear();}
+      if(match.phase!=="running"||activeRobot()?.hp===0)triggers.clear();
       if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
+      if(triggers.size&&match.elapsed>before)fire();
       updateVisibility();
       invalidate();
     }
@@ -280,8 +283,7 @@ export function mountArena(
 
   function setView(next: ArenaView) {
     if (!ready) return;
-    keys.clear();
-    lastTime = null;
+    clearInput();
     if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);
     const previous = mode;
     mode = next;
@@ -358,8 +360,17 @@ export function mountArena(
     if(match&&driving){installLauncher(match,driving.object.name,driving.position);syncLaunchers();publish();invalidate();}
   }
   function detachLauncher(){if(match&&driving){removeLauncher(match,driving.object.name,driving.position);syncLaunchers();publish();invalidate();}}
+  function trigger(source:string,pressed:boolean){
+    if(!pressed){triggers.delete(source);return;}
+    if(!ready||paused||document.hidden||!isPlaying(mode)||!manualRobot()||match?.phase!=="running"||!activeRobot()?.hp||triggers.has(source))return;
+    const first=!triggers.size;
+    triggers.add(source);
+    if(first)fire();
+    invalidate();
+  }
   function fire() {
-    if(!ready||paused||!isPlaying(mode)||!driving||!manualRobot()||!match||!map)return;
+    const robot=activeRobot();
+    if(!ready||paused||document.hidden||!isPlaying(mode)||!driving||!manualRobot()||!match||!map||!robot||!canFire(match,robot))return;
     syncCamera();
     const shot = aimWeapon(driving.object,driving.object.rotation.y+(driving.object.getObjectByName("gimbal")?.rotation.y??0),driving.object.getObjectByName("weapon-pitch")?.rotation.x??0);
     if (shot) shoot(driving,shot.origin,shot.direction);
@@ -740,14 +751,14 @@ export function mountArena(
     if (movement.has(event.code) && isPlaying(mode)) {
       event.preventDefault();
       input(event.code, true);
-    } else if (event.code === "Space" && driving && isPlaying(mode)) {event.preventDefault();fire();}
+    } else if (event.code === "Space" && driving && isPlaying(mode)) {event.preventDefault();if(!event.repeat)trigger("space",true);}
     else if (!event.repeat && event.code === "KeyB") buy();
     else if (!event.repeat && event.code === "KeyE") interact();
     else if (!event.repeat && event.code === "KeyV") setView(mode === "first" ? "third" : "first");
     else if (!event.repeat && event.code === "KeyM") setView(mode === "all" ? "first" : "all");
   }
-  function keyup(event: KeyboardEvent) { input(event.code, false); }
-  function clearInput() { keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
+  function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);else input(event.code, false); }
+  function clearInput() { triggers.clear();keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
   function turn(dx: number, dy: number) {
     if (!ready || paused || !isPlaying(mode)) return;
     look = turnView(look, dx, dy);
@@ -756,7 +767,8 @@ export function mountArena(
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
   function pointerdown(event: PointerEvent) {
     if (!ready || paused || !isPlaying(mode) || event.button !== 0) return;
-    if(document.pointerLockElement===canvas){fire();return;}
+    if(event.pointerType==="mouse")trigger("mouse:"+event.pointerId,true);
+    if(document.pointerLockElement===canvas)return;
     canvas.focus({ preventScroll: true });
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
     canvas.setPointerCapture(event.pointerId);
@@ -769,10 +781,11 @@ export function mountArena(
     drag.x = event.clientX; drag.y = event.clientY;
   }
   function pointerup(event: PointerEvent) {
+    trigger("mouse:"+event.pointerId,false);
+    trigger("button:"+event.pointerId,false);
     if (drag?.id !== event.pointerId) return;
     const click = !drag.moved && event.type === "pointerup" && event.pointerType === "mouse";
     drag = null;
-    if(click&&driving)fire();
     if (click && !paused && canvas.requestPointerLock) {
       try { const result = canvas.requestPointerLock(); if (result) void result.catch(() => {}); } catch { /* drag stays available */ }
     }
@@ -816,6 +829,8 @@ export function mountArena(
   window.addEventListener("keydown", keydown);
   window.addEventListener("keyup", keyup);
   window.addEventListener("blur", clearInput);
+  window.addEventListener("pointerup", pointerup);
+  window.addEventListener("pointercancel", pointerup);
   onBusy();
 
   async function loadAsset(asset:{url:string;sha256:string}) {
@@ -901,7 +916,7 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
     armorFortify:(x,y)=>{const r=activeRobot();if(match&&r){const c=recommendedArmorCenter(match,r.team);fortifyArmor(match,r.team,{x:x??c.x,y:y??c.y});}publish();invalidate();},
@@ -926,6 +941,8 @@ export function mountArena(
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", clearInput);
+      window.removeEventListener("pointerup", pointerup);
+      window.removeEventListener("pointercancel", pointerup);
       controls.removeEventListener("change", invalidate);
       controls.dispose();
       projectiles.dispose();

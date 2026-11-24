@@ -77,3 +77,6 @@
 .rmul3d-score small { display:block; font-size:11px; font-weight:400; overflow-wrap:anywhere; }
 
 .rmul3d-combat select { color:inherit; background:#121c27; border:1px solid #61738580; border-radius:5px; padding:6px; font:inherit; }
+
+.rmul3d .rmul3d-fire { touch-action: none; }
+.rmul3d .rmul3d-fire[aria-disabled="true"] { opacity: .4; }

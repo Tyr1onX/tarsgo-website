@@ -138,7 +138,11 @@ export default function PixelJijiaArenaPage() {
             <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}
           </button>
         )}
-        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && !status.match.revival?.dead && status.match.stance?.control!=="auto" && <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button>}
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && !status.match.revival?.dead && status.match.stance?.control!=="auto" && <button type="button" className="rmul3d-fire" aria-disabled={!status.match.canFire}
+          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.fire("button:"+event.pointerId,true);}}
+          onPointerUp={event=>controller.current?.fire("button:"+event.pointerId,false)}
+          onPointerCancel={event=>controller.current?.fire("button:"+event.pointerId,false)}
+          onLostPointerCapture={event=>controller.current?.fire("button:"+event.pointerId,false)}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button>}
         </div>
         {!disabled && !menu && playing && status.match?.stance?.control!=="auto" && <div className="rmul3d-touch" aria-label="移动控制">
           {touchKeys.map(([key, arrow]) => <button key={key} type="button"
@@ -172,7 +176,7 @@ export default function PixelJijiaArenaPage() {
             <dt>自由视角</dt><dd>拖动旋转、右键平移、滚轮缩放</dd>
             <dt>Shift</dt><dd>加速行走 / 底盘超功率训练</dd>
             <dt>E</dt><dd>接管 / 退出机器人</dd>
-            <dt>左键 / 空格</dt><dd>开火</dd>
+            <dt>左键 / 空格</dt><dd>按住持续开火</dd>
             <dt>B</dt><dd>远程补弹</dd>
             <dt>V / M</dt><dd>切换视角 / 全场</dd>
             <dt>Esc</dt><dd>释放鼠标</dd>
