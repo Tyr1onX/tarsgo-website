@@ -584,11 +584,15 @@ export function controlsOutpost(match:Match,location:Team,team:Team,full=false){
   return a.controller===team&&(!full||a.full);
 }
 const territoryZones=(location:Team,kind:"outpost"|"base"):ZoneId[]=>kind==="outpost"?[`${location}-outpost`,`${location}-central`]:[`${location}-base`,`${location}-fortress`];
+function territoryDirection(area:Territory,own:boolean,other:boolean){
+  return own&&other?0:(area.full?other:!own)?1:-1;
+}
 export function territoryStatus(match:Match,location:Team,kind:"outpost"|"base"){
   const area=kind==="outpost"?match.sides[location].outpostArea:match.sides[location].baseArea;
   const ids=territoryZones(location,kind);
-  const contested=teams.every(team=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>activeZone(match,r,id))));
-  return {...area,contested};
+  const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>activeZone(match,r,id)));
+  const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
+  return {...area,contested:direction===0,progressing:direction>0,enabled:zoneEnabled(match,`${location}-${kind}`)};
 }
 function rebuildOutpost(side:Side,team:Team){
   side.outpost=500;side.outpostOwner=team;side.stopped=true;
@@ -712,10 +716,9 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
       ["base",side.baseArea,territoryZones(location,"base")],
     ] as const){
       const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>active(r,id)));
-      const own=present(area.controller),other=present(opponent(area.controller));
-      if(own&&other)continue;
-      const progressing=area.full?other:!own;
-      area.progress=Math.max(0,Math.min(50,area.progress+(progressing?1:-1)));
+      const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
+      if(direction===0)continue;
+      area.progress=Math.max(0,Math.min(50,area.progress+direction));
       if(area.progress<50)continue;
       area.controller=opponent(area.controller);area.full=!area.full;area.progress=0;
       if(kind==="outpost"&&area.full&&side.outpost===0)rebuildOutpost(side,area.controller);
