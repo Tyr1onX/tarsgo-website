@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { joystickIntent } from "./pixel-jijia-input.ts";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
@@ -154,8 +155,8 @@ test("Shift / 按住按钮疾跑更快且仍使用同一条安全碰撞路径", 
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes('event.key === "Shift"'));
   assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting,"));
-  assert.ok(route.includes('aria-label="按住疾跑"'));
-  assert.ok(route.includes("sprintTouchRef.current = false"));
+  assert.ok(route.includes("joystickIntent(dx, dy, active.running)"));
+  assert.ok(route.includes("releaseJoystick()"));
 });
 
 test("V4 提速约三成，疾跑依然有明确区别且不破坏碰撞", () => {
@@ -245,7 +246,7 @@ test("故事点复用可见素材和碰撞配置，不制造不可见标记", ()
     assert.equal(closestStory({ x: item.x + 1.5, y: item.y })?.story?.title, item.story.title);
   }
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
-  assert.ok(route.includes("closestFeature(playerRef.current)"));
+  assert.ok(route.includes("closestFeature(playerRef.current, mobile)"));
   assert.ok(route.includes("selected.story?.description"));
   assert.ok(route.includes("selected.story?.action"));
   assert.ok(route.includes("selected.story?.result"));
@@ -337,7 +338,7 @@ test("机械工坊具备可通行室内、独立功能区与真实进出闭环",
   assert.ok(route.includes("roomExitAt(room, next, y)"));
   assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"), "进入建筑不能再依赖点击按钮");
   assert.ok(route.includes("setRoomId(null)"));
-  assert.ok(route.includes("{!room && <aside"));
+  assert.ok(route.includes("{(!room || (mobile && mapOpen)) && <aside"));
 });
 
 test("六栋建筑都有不同的可进入室内与独立设备，不复制人物控制器", () => {
@@ -490,8 +491,8 @@ test("室内出口、可见门槛和户外入口自动构成进出闭环", () =>
   assert.ok(route.includes("if (room) exitRoom()"));
   assert.ok(route.includes("enterRoom(door.id)"));
   assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"));
-  assert.ok(!route.includes('if (object.kind === "exit") exitRoom()'));
-  assert.ok(route.includes("Keep held directions across room changes"));
+  assert.ok(route.includes('if (object.kind === "exit") exitRoom()'));
+  assert.ok(route.includes("clearInput();"));
   assert.ok(route.includes("place.y + place.height + 1.2"));
 });
 
@@ -800,4 +801,24 @@ test("六栋建筑每件公共家具对应独立透明美术图集区域",()=>{
       assert.ok(x>=0&&y>=0&&a>8&&b>8&&x+a<=w&&y+b<=h,key);
     }
   }
+});
+
+test("动态摇杆死区、360 度方向、连续速度与疾跑迟滞", () => {
+  assert.deepEqual(joystickIntent(7, 0, false), { x: 0, y: 0, running: false });
+  assert.equal(joystickIntent(38, 0, false).running, false);
+  assert.equal(joystickIntent(39, 0, false).running, true);
+  assert.equal(joystickIntent(35, 0, true).running, true);
+  assert.equal(joystickIntent(31, 0, true).running, false);
+  for (let i=0;i<360;i+=15) {
+    const angle=i*Math.PI/180;
+    const {x,y,running}=joystickIntent(60*Math.cos(angle),60*Math.sin(angle),false);
+    assert.ok(Math.abs(x-Math.cos(angle))<1e-10);
+    assert.ok(Math.abs(y-Math.sin(angle))<1e-10);
+    assert.ok(running);
+  }
+  const slow=joystickIntent(24,0,false);
+  const end=movePlayer(SPAWN,slow.x,slow.y,.05,false);
+  const full=movePlayer(SPAWN,1,0,.05,false);
+  assert.ok(end.x>SPAWN.x && end.x<full.x);
+  assert.equal(movePlayer(SPAWN,0,0,.05,false),SPAWN);
 });

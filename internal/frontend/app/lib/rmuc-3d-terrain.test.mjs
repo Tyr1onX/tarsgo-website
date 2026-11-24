@@ -8,7 +8,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { createArenaTerrain, insideField, moveOnArena, nearestDriveable, supportedHeight } from "./rmuc-3d-terrain.ts";
 import { ROBOT_PLACEMENTS, createRobotPreview } from "./rmuc-3d-robots.ts";
 
-let terrain;
+let terrain, sourceField;
 before(async () => {
   const data = gunzipSync(await readFile(new URL("../../../../public/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz", import.meta.url)));
   const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), "");
@@ -19,7 +19,29 @@ before(async () => {
   const bounds = new THREE.Box3().setFromObject(root);
   const center = bounds.getCenter(new THREE.Vector3());
   root.position.set(-center.x, -bounds.min.y, -center.z);
+  sourceField=root;
   terrain = createArenaTerrain(root);
+});
+
+test("sampled support heights agree with original CAD rays",()=>{
+ const surfaces=[];
+ sourceField.traverse(mesh=>{if(mesh.isMesh)surfaces.push({mesh,bounds:new THREE.Box3().setFromObject(mesh)});});
+ const ray=new THREE.Raycaster(),down=new THREE.Vector3(0,-1,0);
+ let seed=1234567;
+ const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/2**32);
+ for(let i=0;i<1500;i++){
+  const x=Math.round((rng()*28-14)*10)*.1,z=Math.round((rng()*15-7.5)*10)*.1;
+  ray.set(new THREE.Vector3(x,10,z),down);
+  let top=-Infinity;
+  for(const {mesh,bounds} of surfaces){
+   if(x<bounds.min.x||x>bounds.max.x||z<bounds.min.z||z>bounds.max.z)continue;
+   const hit=ray.intersectObject(mesh,false)[0];
+   if(hit)top=Math.max(top,hit.point.y);
+  }
+  const actual=terrain.heightAt(x,z);
+  assert.ok(actual===top||Math.abs(actual-top)<1e-6,`${x},${z}: ${actual} != ${top}`);
+ }
+ assert.equal(terrain.heightAt(20,0),-Infinity);
 });
 
 test("movement respects physical boundary, raised obstacles, support and other robots", () => {
@@ -76,6 +98,19 @@ test("takeover chooses a nearby ground vehicle, not a static or airborne asset",
   assert.equal(nearestDriveable(player,[staticAsset,above]),null);
 });
 
+test("training navigation routes around a raised CAD-style obstacle rather than crossing it", async()=>{
+  const {findArenaPath,advanceBot}=await import("./rmuc-3d-navigation.ts");
+  const floor={heightAt:(x,z)=>Math.abs(x)<.35&&Math.abs(z)<2?2:.2};
+  const bot={position:new THREE.Vector3(-3,.2,0),radius:.3};
+  const goal=new THREE.Vector3(3,.2,0);
+  const search=findArenaPath(floor,bot.position,goal,bot.radius,.5);
+  let step=search.next();while(!step.done)step=search.next();const path=step.value;
+  assert.ok(path.length>0);
+  assert.ok(path.some(p=>Math.abs(p.z)>2.3));
+  for(const p of path){while(bot.position.distanceTo(p)>.1)assert.ok(advanceBot(floor,bot,p,[]));}
+  assert.ok(bot.position.distanceTo(goal)<.65);
+});
+
 import {ARENA_ZONES,zonesAtPosition} from "./rmuc-3d-zones.ts";
 test("each estimated referee zone has a supported goal on actual CAD terrain",()=>{
  for(const zone of ARENA_ZONES){
@@ -85,4 +120,39 @@ test("each estimated referee zone has a supported goal on actual CAD terrain",()
  }
  assert.deepEqual(zonesAtPosition({x:0,y:.3,z:0}),[]);
  assert.deepEqual(zonesAtPosition({x:3.23,y:.3,z:0}),[],"below central highland is not an activation");
+});
+
+test("navigation reaches an exact off-grid goal rather than stopping short",async()=>{
+ const {findArenaPath,advanceBot}=await import("./rmuc-3d-navigation.ts");
+ const floor={heightAt:()=>.2},start=new THREE.Vector3(0,.2,0),goal=new THREE.Vector3(2.4,.2,0);
+ const search=findArenaPath(floor,start,goal,.3,.4);
+ let step=search.next();while(!step.done)step=search.next();
+ assert.ok(step.value.at(-1).distanceTo(goal)<.015);
+ const bot={position:start.clone(),radius:.4};
+ const other={position:new THREE.Vector3(.8,.2,0),radius:.4};
+ assert.ok(advanceBot(floor,bot,goal,[other]));
+ assert.ok(Math.abs(bot.position.z)>.15);
+ assert.ok(bot.position.distanceTo(other.position)>=.8);
+});
+
+test("sentry can reach the opposing fortress from the previously blocked real CAD position",async()=>{
+ const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
+ const model=createRobotPreview("sentry"),size=new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+ const radius=Math.hypot(size.x,size.z)/2;
+ const start=new THREE.Vector3(-5.3418323739813784,.245009577062169,-2.080637695654538);
+ const goal=new THREE.Vector3(7.43,terrain.heightAt(7.43,0),0);
+ const path=findArenaPath(terrain,start,goal,radius,.4);let step=path.next();while(!step.done)step=path.next();
+ assert.ok(step.value.at(-1).distanceTo(goal)<.015);
+ const p=start.clone();
+ for(const node of step.value){moveOnArena(terrain,p,node.x-p.x,node.z-p.z,radius,.23,[]);assert.ok(p.distanceTo(node)<.016);}
+ assert.ok(zonesAtPosition(p).includes("red-fortress"));
+});
+test("path search can route around an occupied waypoint",async()=>{
+ const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
+ const floor={heightAt:()=>.2},start=new THREE.Vector3(-2,.2,0),goal=new THREE.Vector3(2,.2,0);
+ const other={position:new THREE.Vector3(0,.2,0),radius:.6},radius=.4;
+ const path=findArenaPath(floor,start,goal,radius,.4,[other]);let step=path.next();while(!step.done)step=path.next();
+ assert.ok(step.value.at(-1).distanceTo(goal)<.015);
+ assert.ok(step.value.some(p=>Math.abs(p.z)>=.9));
+ for(const node of step.value){moveOnArena(floor,start,node.x-start.x,node.z-start.z,radius,.23,[other]);assert.ok(start.distanceTo(node)<.016);}
 });

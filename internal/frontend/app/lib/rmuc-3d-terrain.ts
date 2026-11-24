@@ -11,37 +11,59 @@ export function insideField(x: number, z: number, radius: number) {
   return Math.abs(x) + radius <= FIELD_HALF_X && Math.abs(z) + radius <= FIELD_HALF_Z;
 }
 
-// Height queries come from the actual CAD triangles, with a small on-demand
-// spatial cache. The controller uses a footprint rather than point collision.
-// This is a training locomotion approximation, not a certified physics mesh.
+// Rasterize the same 0.1 m support samples previously obtained by vertical
+// CAD raycasts. The fixed field is sampled once; A* never raycasts cold cells.
+// Preserve the highest intersection of the actual source triangles, not an
+// independently authored collision map.
+const RESOLUTION=.1, HALF_X=Math.round(FIELD_HALF_X/RESOLUTION), HALF_Z=Math.round(FIELD_HALF_Z/RESOLUTION);
+const WIDTH=2*HALF_X+1, DEPTH=2*HALF_Z+1;
+function createSupportSamples(surfaces:readonly Surface[]){
+  const samples=new Float64Array(WIDTH*DEPTH).fill(-Infinity);
+  const v=new THREE.Vector3();
+  for(const {mesh} of surfaces){
+    const g=mesh.geometry,position=g.attributes.position,index=g.index;
+    const points=new Float64Array(position.count*3);
+    for(let i=0;i<position.count;i++){
+      v.fromBufferAttribute(position,i).applyMatrix4(mesh.matrixWorld);
+      points[3*i]=v.x;points[3*i+1]=v.y;points[3*i+2]=v.z;
+    }
+    const side=Array.isArray(mesh.material)?THREE.DoubleSide:mesh.material.side;
+    const orientation=mesh.matrixWorld.determinant()<0?-1:1;
+    const start=g.drawRange.start,end=Math.min(index?.count??position.count,start+g.drawRange.count);
+    for(let i=start;i+2<end;i+=3){
+      const a=3*(index?index.getX(i):i),b=3*(index?index.getX(i+1):i+1),c=3*(index?index.getX(i+2):i+2);
+      const ax=points[a],ay=points[a+1],az=points[a+2],bx=points[b],by=points[b+1],bz=points[b+2],cx=points[c],cy=points[c+1],cz=points[c+2];
+      const denominator=(bz-cz)*(ax-cx)+(cx-bx)*(az-cz);
+      if(Math.abs(denominator)<1e-15||side===THREE.FrontSide&&denominator*orientation>0||side===THREE.BackSide&&denominator*orientation<0)continue;
+      const minX=Math.max(-HALF_X,Math.ceil(Math.min(ax,bx,cx)/RESOLUTION-1e-9));
+      const maxX=Math.min(HALF_X,Math.floor(Math.max(ax,bx,cx)/RESOLUTION+1e-9));
+      const minZ=Math.max(-HALF_Z,Math.ceil(Math.min(az,bz,cz)/RESOLUTION-1e-9));
+      const maxZ=Math.min(HALF_Z,Math.floor(Math.max(az,bz,cz)/RESOLUTION+1e-9));
+      for(let ix=minX;ix<=maxX;ix++)for(let iz=minZ;iz<=maxZ;iz++){
+        const x=ix*RESOLUTION,z=iz*RESOLUTION;
+        const u=((bz-cz)*(x-cx)+(cx-bx)*(z-cz))/denominator;
+        const w=((cz-az)*(x-cx)+(ax-cx)*(z-cz))/denominator;
+        if(u< -1e-9||w< -1e-9||u+w>1+1e-9)continue;
+        const y=u*ay+w*by+(1-u-w)*cy,key=(ix+HALF_X)*DEPTH+iz+HALF_Z;
+        if(y<=10&&y>samples[key])samples[key]=y;
+      }
+    }
+  }
+  return samples;
+}
+
+// Locomotion remains a footprint-based training approximation of the CAD.
 export function createArenaTerrain(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
   const surfaces: Surface[] = [];
   root.traverse(object => {
     if (object instanceof THREE.Mesh) surfaces.push({ mesh: object, bounds: new THREE.Box3().setFromObject(object) });
   });
+  const samples=createSupportSamples(surfaces);
   const raycaster = new THREE.Raycaster();
-  const down = new THREE.Vector3(0, -1, 0);
-  const origin = new THREE.Vector3();
-  const cache = new Map<number, number>();
-  const resolution = .1;
   const heightAt = (x: number, z: number) => {
-    const ix = Math.round(x / resolution), iz = Math.round(z / resolution);
-    const key = (ix + 200) * 512 + iz + 200;
-    const cached = cache.get(key);
-    if (cached !== undefined) return cached;
-    x = ix * resolution;
-    z = iz * resolution;
-    origin.set(x, 10, z);
-    raycaster.set(origin, down);
-    let top = -Infinity;
-    for (const { mesh, bounds } of surfaces) {
-      if (x < bounds.min.x || x > bounds.max.x || z < bounds.min.z || z > bounds.max.z) continue;
-      const hit = raycaster.intersectObject(mesh, false)[0];
-      if (hit) top = Math.max(top, hit.point.y);
-    }
-    cache.set(key, top);
-    return top;
+    const ix=Math.round(x/RESOLUTION),iz=Math.round(z/RESOLUTION);
+    return Math.abs(ix)<=HALF_X&&Math.abs(iz)<=HALF_Z?samples[(ix+HALF_X)*DEPTH+iz+HALF_Z]:-Infinity;
   };
 
   const cameraDistance = (from: THREE.Vector3, to: THREE.Vector3) => {
