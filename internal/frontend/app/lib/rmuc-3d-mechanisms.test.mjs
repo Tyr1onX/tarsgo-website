@@ -8,8 +8,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { installMechanisms, installCoreGeometry, CORE_ASSET, DART_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
-import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose } from "./rmuc-3d-match.ts";
-import { resolveArenaShot, traceArenaShot } from "./rmuc-3d-shot.ts";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose, armorStatus, fortifyArmor } from "./rmuc-3d-match.ts";
+import { resolveArenaShot, traceArenaShot, bindArmorFrame, armorHit } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight, moveOnArena } from "./rmuc-3d-terrain.ts";
 import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt, addRobotPreviews } from "./rmuc-3d-robots.ts";
 
@@ -300,6 +300,10 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
   root.updateMatrixWorld(true);
   const terrain=createArenaTerrain(root);
   const mechanisms=installMechanisms(field,parts);
+  for(const team of TEAMS){
+    const rotor=parts.getObjectByName(team+"-outpost-rotor");
+    for(let i=0;i<3;i++)bindArmorFrame(parts.getObjectByName(team+"-outpost-armor-"+i),rotor);
+  }
   const robots=ROBOT_PLACEMENTS.filter(e=>e.area==="field").map(e=>{
     const model=createRobotPreview(e.kind);
     model.name=e.instanceId;model.userData.team=e.team;
@@ -381,6 +385,31 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
         console.log(team,plate,angle,"direct meters",aim.distance.toFixed(3),"blocked meters",blocked.distance.toFixed(3));
         updateMatch(match,1);
       }
+    }
+    // The tenth qualifying hit and the two armor classifications use the
+    // same real CAD plate, legal purchase/fire and actual muzzle ray.
+    const module=parts.getObjectByName(team+"-outpost-armor-0");
+    match.pose.outpostAngle[team]=0;mechanisms.apply(match.pose);scene.updateMatrixWorld(true);
+    const point=new THREE.Box3().setFromObject(module).getCenter(new THREE.Vector3());
+    const aim=findRay(module,point,false);assert.ok(aim);
+    const hit=resolveArenaShot(match,shooter.name,ray,roots,aim.from,aim.direction);
+    assert.equal(hit.damage,20);assert.equal(armorStatus(match,shooter.userData.team).hits,10);
+    const coordinate=armorHit(hit.hit);assert.ok(coordinate&&coordinate.area>0);
+    updateMatch(match,1);
+    if(team==="blue"){
+      updateMatch(match,120-match.elapsed);
+      assert.ok(fortifyArmor(match,team,coordinate));
+      match.pose.outpostAngle[team]=0;mechanisms.apply(match.pose);scene.updateMatrixWorld(true);
+      const next=findRay(module,point,false);assert.ok(next);
+      const reinforced=resolveArenaShot(match,shooter.name,ray,roots,next.from,next.direction);
+      assert.equal(reinforced.damage,10);
+      assert.equal(armorStatus(match,team).lastHit,"reinforced");
+      updateMatch(match,1);
+      assert.ok(fortifyArmor(match,team,{x:1,y:1}));
+      match.pose.outpostAngle[team]=0;mechanisms.apply(match.pose);scene.updateMatrixWorld(true);
+      const exposedAim=findRay(module,point,false);assert.ok(exposedAim);
+      const exposed=resolveArenaShot(match,shooter.name,ray,roots,exposedAim.from,exposedAim.direction);
+      assert.equal(exposed.damage,30);assert.equal(armorStatus(match,team).lastHit,"exposed");
     }
     shooter.position.copy(saved);
   }
