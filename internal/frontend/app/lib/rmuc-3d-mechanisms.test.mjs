@@ -227,3 +227,42 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
   assert.equal(resolveArenaShot(match,robots[0].name,ray,[root],new THREE.Vector3(),new THREE.Vector3(1,0,0)),null);
   mechanisms.apply(createMatch(roster).pose);
 });
+
+test("reviewed rune hubs move with five arms while source logos stay fixed", async () => {
+  const [field,parts]=await Promise.all([
+    load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),
+    load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),
+  ]);
+  const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;
+  root.updateMatrixWorld(true);
+  const mechanism=installMechanisms(field,parts);
+  const pose={runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}};
+  mechanism.apply(pose);
+  const assembly=parts.getObjectByName("rune-assembly");
+  assert.equal(field.getObjectByName(REPLACEMENTS["rune-assembly"]),undefined);
+  const samples=[];
+  for (const side of ["a","b"]) {
+    const hub=parts.getObjectByName("rune-hub-"+side);
+    const logo=parts.getObjectByName("rune-logo-"+side);
+    const bank=parts.getObjectByName("rune-bank-"+side);
+    assert.ok(hub&&logo&&bank);
+    const moving=new Set(meshes(bank));
+    assert.ok(meshes(hub).every(m=>moving.has(m)));
+    assert.ok(meshes(logo).every(m=>!moving.has(m)));
+    for(let i=0;i<5;i++)assert.ok(meshes(parts.getObjectByName("rune-arm-"+side+"-"+i)).every(m=>moving.has(m)));
+    assert.equal(target(meshes(hub)[0]),undefined);
+    assert.equal(target(meshes(logo)[0]),undefined);
+    const fixed=triangles(assembly,moving), spin=triangles(bank);
+    assert.equal([...spin].filter(t=>fixed.has(t)).length,0);
+    const hm=meshes(hub)[0],lm=meshes(logo)[0];
+    samples.push({hm,lm,hubRest:hm.matrixWorld.clone(),logoRest:lm.matrixWorld.clone()});
+  }
+  for (const angle of [.7,1.6,0]) {
+    pose.runeAngle=angle;mechanism.apply(pose);
+    for (const {hm,lm,hubRest,logoRest} of samples) {
+      assert.ok(lm.matrixWorld.equals(logoRest));
+      assert.equal(hm.matrixWorld.equals(hubRest),angle===0);
+    }
+    assert.ok(mechanism.banks[0].quaternion.equals(mechanism.banks[1].quaternion));
+  }
+});

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Extract reviewed, separately movable meshes from the pinned upstream CAD GLB.
 
-Usage: python3 scripts/assets/extract_rmuc_mechanisms.py SOURCE.glb CORRECTED_OUTPOST.glb OUTPUT.glb
+Usage: python3 scripts/assets/extract_rmuc_mechanisms.py SOURCE.glb CORRECTED_OUTPOST.glb CORRECTED_RUNE.glb OUTPUT.glb
 Then gltfpack -i OUTPUT.glb -o packed.glb -cc -kn -km -noq
 Source release: hxyulin/rm-map-tools rmuc2027-simplified-glb-20261018.
 Motion axes: rules/source-motion-rmuc2027.json, source product 1354629 / 2603236.
 The outpost uses the reviewed source-face partition from rm-map-tools
-fe859777e5ee7a311f2a7d7cd1ea9f798a585233. Rune hub/logo remains unresolved.
+fe859777e5ee7a311f2a7d7cd1ea9f798a585233. Rune hubs and fixed logos use the same reviewed source hierarchy.
 DJI / RoboMaster CAD remains subject to upstream CAD usage terms.
 """
 import copy
@@ -16,7 +16,7 @@ import struct
 import sys
 from pathlib import Path
 
-source, corrected, output = map(Path, sys.argv[1:])
+source, corrected, rune_corrected, output = map(Path, sys.argv[1:])
 raw = source.read_bytes()
 assert hashlib.sha256(raw).hexdigest() == "ef40412bae1324475aab47e908e150b7b21d66f233740561232df5adf7919882"
 length = struct.unpack_from("<I", raw, 12)[0]
@@ -24,29 +24,38 @@ doc = json.loads(raw[20:20 + length])
 binary = raw[28 + length:]
 # Replace the old fused upper cluster with disjoint source-derived fixed
 # and moving surfaces. Both occurrences share these two mesh definitions.
-raw2 = corrected.read_bytes()
-assert hashlib.sha256(raw2).hexdigest() == "cb1e05db459284bf7817eca7f84eb2208ffc72bacff8dc675e06212fc5706b97"
-length2 = struct.unpack_from("<I", raw2, 12)[0]
-fix = json.loads(raw2[20:20 + length2])
-assert [n.get("name") for n in fix["nodes"]] == ["outpost-corrected-parts", "upper-cluster", "carrier-frame", "armor-0", "armor-1", "armor-2"]
-assert not any(fix.get(k) for k in ("textures", "images", "extensionsUsed"))
-assert len(binary) % 4 == 0
-offsets = {k: len(doc[k]) for k in ("bufferViews", "accessors", "materials", "meshes")}
-for view in fix["bufferViews"]:
-    assert view["buffer"] == 0
-    view["byteOffset"] = view.get("byteOffset", 0) + len(binary)
-for accessor in fix["accessors"]:
-    accessor["bufferView"] += offsets["bufferViews"]
-for mesh in fix["meshes"]:
-    for primitive in mesh["primitives"]:
-        primitive["attributes"] = {k: v + offsets["accessors"] for k, v in primitive["attributes"].items()}
-        primitive["indices"] += offsets["accessors"]
-        primitive["material"] += offsets["materials"]
-for k in offsets:
-    doc[k].extend(fix[k])
-binary += raw2[28 + length2:]
-doc["buffers"][0]["byteLength"] = len(binary)
-fixed_mesh, carrier_mesh, *armor_meshes = [fix["nodes"][i]["mesh"] + offsets["meshes"] for i in range(1, 6)]
+def append_parts(path, sha256, names):
+    global binary
+    data = path.read_bytes()
+    assert hashlib.sha256(data).hexdigest() == sha256
+    size = struct.unpack_from("<I", data, 12)[0]
+    fix = json.loads(data[20:20 + size])
+    assert [n.get("name") for n in fix["nodes"]] == names
+    assert not any(fix.get(k) for k in ("textures", "images", "extensionsUsed"))
+    assert len(binary) % 4 == 0
+    offsets = {k: len(doc[k]) for k in ("bufferViews", "accessors", "materials", "meshes")}
+    for view in fix["bufferViews"]:
+        assert view["buffer"] == 0
+        view["byteOffset"] = view.get("byteOffset", 0) + len(binary)
+    for accessor in fix["accessors"]:
+        accessor["bufferView"] += offsets["bufferViews"]
+    for mesh in fix["meshes"]:
+        for primitive in mesh["primitives"]:
+            primitive["attributes"] = {k: v + offsets["accessors"] for k, v in primitive["attributes"].items()}
+            primitive["indices"] += offsets["accessors"]
+            primitive["material"] += offsets["materials"]
+    for k in offsets:
+        doc[k].extend(fix[k])
+    binary += data[28 + size:]
+    doc["buffers"][0]["byteLength"] = len(binary)
+    return [n["mesh"] + offsets["meshes"] for n in fix["nodes"][1:]]
+
+fixed_mesh, carrier_mesh, *armor_meshes = append_parts(corrected,
+    "cb1e05db459284bf7817eca7f84eb2208ffc72bacff8dc675e06212fc5706b97",
+    ["outpost-corrected-parts", "upper-cluster", "carrier-frame", "armor-0", "armor-1", "armor-2"])
+a_hub, a_logo, b_hub, b_logo = append_parts(rune_corrected,
+    "9cb754c077360a51991720049efb2c408c9d0a16f9526a582fe52db7c99f11c0",
+    ["rune-corrected-parts", "a-hub", "a-logo", "b-hub", "b-logo"])
 nodes = doc["nodes"]
 selected = []
 
@@ -113,7 +122,7 @@ for side, parent, product, fixed, upper, rotor in [
 
 original(2045, "rune")
 named(2045, "rune-assembly")
-for index, side in [(2162,"a"),(2323,"b")]:
+for index, side, hub_mesh, logo_mesh in [(2162,"a",a_hub,a_logo),(2323,"b",b_hub,b_logo)]:
     original(index, "bank-" + side)
     children = nodes[index]["children"]
     assert [nodes[i]["name"] for i in children[:5]] == [f"rune/banks/bank-{side}/arm-{i}" for i in range(5)]
@@ -121,10 +130,15 @@ for index, side in [(2162,"a"),(2323,"b")]:
         named(arm, f"rune-arm-{side}-{i}")
     hub = children[5]
     assert nodes[hub]["name"] == f"rune/banks/bank-{side}/hub-cluster"
-    # Keep the old combined hub/logo stationary; move all five source arms.
-    moving = node(matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],children=children[:5])
-    pivot(moving, "rune-bank-" + side, [-.4234287973876,.1215088436247,.093], children[:5])
-    nodes[index]["children"] = [moving,hub]
+    # Replace the old combined geometry, rather than overlay another hub.
+    nodes[hub] = {"mesh": hub_mesh}
+    named(hub, "rune-hub-" + side)
+    logo = node(mesh=logo_mesh)
+    named(logo, "rune-logo-" + side)
+    arms = children[:5] + [hub]
+    moving = node(matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],children=arms)
+    pivot(moving, "rune-bank-" + side, [-.4234287973876,.1215088436247,.093], arms)
+    nodes[index]["children"] = [moving,logo]
 
 doc["scenes"] = [{"nodes":[931,1279,1627,1733,2045]}]
 doc["scene"] = 0
