@@ -11,7 +11,7 @@ import { installMechanisms, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-
 import { createMatch, startMatch, updateMatch, purchaseAmmo } from "./rmuc-3d-match.ts";
 import { resolveArenaShot, traceArenaShot } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight } from "./rmuc-3d-terrain.ts";
-import { createRobotPreview, ROBOT_PLACEMENTS } from "./rmuc-3d-robots.ts";
+import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt } from "./rmuc-3d-robots.ts";
 
 // Node geometry tests do not render textures. Keep the actual mesh decoder.
 globalThis.self = globalThis;
@@ -160,7 +160,6 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
     assert.ok(purchaseAmmo(match,shooter.name));
     const rotor=parts.getObjectByName(team+"-outpost-rotor");
     const pivot=rotor.getWorldPosition(new THREE.Vector3());
-    const eye=shooter.getObjectByName("driver-eye");
     const size=new THREE.Box3().setFromObject(shooter).getSize(new THREE.Vector3());
     const radius=Math.hypot(size.x,size.z)/2;
     const aimAt=(point,angle,distance)=>{
@@ -171,9 +170,9 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
           Math.hypot(r.position.x-x,r.position.z-z)<radius+.5))return;
       shooter.position.set(x,y,z);
       scene.updateMatrixWorld(true);
-      const from=eye.getWorldPosition(new THREE.Vector3());
-      const direction=point.clone().sub(from).normalize();
-      return {from,direction};
+      const shot=aimWeaponAt(shooter,point);
+      if(!shot)return;
+      return {from:shot.origin,direction:shot.direction};
     };
     const findRay=(module,point,blocked)=>{
       const radial=Math.atan2(point.z-pivot.z,point.x-pivot.x)+(blocked?Math.PI:0);

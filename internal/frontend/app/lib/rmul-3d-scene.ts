@@ -9,7 +9,7 @@ import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechani
 import { createMatch, startMatch, updateMatch, purchaseAmmo, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
-import { addRobotPreviews } from "./rmuc-3d-robots";
+import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
@@ -134,9 +134,9 @@ export function mountArena(
     eye.copy(target).y += driving?.eyeHeight ?? 1.6;
     camera.up.set(0, 1, 0);
     if (driving) {
-      const gimbal = driving.object.getObjectByName("gimbal");
-      if (gimbal) gimbal.rotation.y = yaw - driving.object.rotation.y;
-      driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
+      const sight = aimWeapon(driving.object, yaw, look.pitch);
+      if (sight) { eye.copy(sight.origin); forward.copy(sight.direction); }
+      else driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
     }
     camera.position.copy(eye);
     camera.lookAt(clock.copy(eye).add(forward));
@@ -251,7 +251,7 @@ export function mountArena(
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster());
     nextBotTurn=0;
-    for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);}
+    for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);}
     for(const shot of shotEffects){shot.group.removeFromParent();shot.group.traverse(o=>{if(o instanceof THREE.Mesh)(o.material as THREE.Material).dispose()});}
     shotEffects.length=0;
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
@@ -260,7 +260,8 @@ export function mountArena(
   function fire() {
     if(!ready||paused||!isPlaying(mode)||!driving||!match||!map)return;
     syncCamera();
-    shoot(driving,camera.position.clone().addScaledVector(forward,.1),forward);
+    const shot = aimWeapon(driving.object,look.yaw,look.pitch);
+    if (shot) shoot(driving,shot.origin,shot.direction);
   }
   function shotTargets(robot: Robot) {
     return [map!, ...robots.filter(r=>r!==robot&&r.object.userData.area==="field"&&match?.robots.find(m=>m.id===r.object.name)?.hp!==0).map(r=>r.object)];
@@ -281,11 +282,9 @@ export function mountArena(
       const delta=target.clone().sub(bot.position);
       const distance=Math.hypot(delta.x,delta.z);
       const yaw=Math.atan2(-delta.x,-delta.z);
-      const gimbal=bot.object.getObjectByName("gimbal");
-      if(gimbal)gimbal.rotation.y=yaw-bot.object.rotation.y;
-      const from=bot.object.getObjectByName("driver-eye")?.getWorldPosition(new THREE.Vector3());
-      if(!from)continue;
-      const aim=target.clone().sub(from).normalize();
+      const shot = aimWeaponAt(bot.object,target);
+      if(!shot)continue;
+      const {origin:from,direction:aim}=shot;
       const intersection=trace(bot,from,aim);
       let object:THREE.Object3D|null=intersection?.object??null;
       while(object&&object!==driving.object)object=object.parent;
@@ -296,7 +295,7 @@ export function mountArena(
         const step=Math.min(.28,distance-2);
         moveOnArena(terrain,bot.position,delta.x/distance*step,delta.z/distance*step,bot.radius,.23,active.filter(r=>r!==bot));
         bot.object.rotation.y=yaw;
-        if(gimbal)gimbal.rotation.y=0;
+        aimWeapon(bot.object,yaw,0);
       }
       if(player.hp<=0)break;
     }

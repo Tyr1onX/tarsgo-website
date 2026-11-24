@@ -84,13 +84,49 @@ function rod(group: THREE.Group, from: THREE.Vector3, to: THREE.Vector3, radius:
 }
 
 function barrel(group: THREE.Group, x: number, y: number, z: number, length: number, radius: number) {
+  const pitch = new THREE.Group();
+  pitch.name = "weapon-pitch";
+  pitch.position.set(x, y, z + length / 2);
+  group.add(pitch);
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.08, length, 12, 1, true), materials.metal);
-  mesh.position.set(x, y, z);
+  mesh.position.z = -length / 2;
   mesh.rotation.x = Math.PI / 2;
-  group.add(mesh);
+  pitch.add(mesh);
   const muzzle = new THREE.Mesh(new THREE.TorusGeometry(radius, radius * .2, 5, 12), materials.frame);
-  muzzle.position.set(x, y, z - length / 2);
-  group.add(muzzle);
+  muzzle.position.z = -length;
+  pitch.add(muzzle);
+  const bore = new THREE.Object3D();
+  bore.name = "weapon-muzzle";
+  bore.position.z = -length;
+  pitch.add(bore);
+}
+
+// A synthetic bore-aligned sight for the 2026 appearance previews, not a
+// calibration of a physical 2027 camera or ballistic model.
+export function aimWeapon(robot: THREE.Object3D, yaw: number, pitch: number) {
+  const gimbal = robot.getObjectByName("gimbal");
+  const weapon = robot.getObjectByName("weapon-pitch");
+  const muzzle = robot.getObjectByName("weapon-muzzle");
+  if (!gimbal || !weapon || !muzzle) return null;
+  gimbal.rotation.y = yaw - robot.rotation.y;
+  weapon.rotation.x = pitch;
+  const origin = muzzle.getWorldPosition(new THREE.Vector3());
+  const direction = new THREE.Vector3(0,0,-1).applyQuaternion(muzzle.getWorldQuaternion(new THREE.Quaternion())).normalize();
+  return { origin, direction };
+}
+
+// Account for the barrel's lateral offset and pitch pivot when aiming a bot.
+export function aimWeaponAt(robot: THREE.Object3D, point: THREE.Vector3) {
+  const weapon = robot.getObjectByName("weapon-pitch");
+  if (!weapon) return null;
+  const delta = point.clone().sub(robot.getWorldPosition(new THREE.Vector3()));
+  const distance = Math.hypot(delta.x,delta.z);
+  if (distance <= Math.abs(weapon.position.x)) return null;
+  const yaw = Math.atan2(-delta.x,-delta.z) + Math.asin(weapon.position.x/distance);
+  aimWeapon(robot,yaw,0);
+  const pivot = weapon.getWorldPosition(new THREE.Vector3());
+  const pitch = Math.atan2(point.y-pivot.y,Math.hypot(point.x-pivot.x,point.z-pivot.z));
+  return aimWeapon(robot,yaw,pitch);
 }
 
 function chassis(root: THREE.Group, width: number, depth: number, wheelSize = .12) {
