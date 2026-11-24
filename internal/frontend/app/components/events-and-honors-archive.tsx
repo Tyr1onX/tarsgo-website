@@ -9,7 +9,7 @@ import {
 } from "~/lib/events-and-honors-data";
 import { honorMaterialThumbnails } from "~/lib/honor-material-thumbnails";
 import { LoadingImage } from "~/components/loading-image";
-import { AnimatedCounter, Reveal, useScrollSpy } from "~/components/public-motion";
+import { Reveal, useScrollSpy } from "~/components/public-motion";
 import "./events-and-honors-archive.css";
 
 const featuredAwards = honorAwards.filter((award) => award.featured);
@@ -100,15 +100,15 @@ export function EventsAndHonorsArchive() {
           <div className="public-home-container">
             <div className="honors-stats-strip" aria-label="赛事与荣誉总览">
               <div className="honors-stat">
-                <strong><AnimatedCounter target={honorAwards.length} /></strong>
+                <strong className="public-counter">{honorAwards.length}</strong>
                 <span>已归档的赛事与项目成果</span>
               </div>
               <div className="honors-stat">
-                <strong><AnimatedCounter target={archiveYears.length} suffix=" 年" /></strong>
+                <strong className="public-counter">{archiveYears.length} 年</strong>
                 <span>成果档案覆盖年份</span>
               </div>
               <div className="honors-stat">
-                <strong><AnimatedCounter target={honorMaterials.filter((material) => material.relation === "certificate").length} suffix=" 份" /></strong>
+                <strong className="public-counter">{honorMaterials.filter((material) => material.relation === "certificate").length} 份</strong>
                 <span>已关联的荣誉材料</span>
               </div>
             </div>

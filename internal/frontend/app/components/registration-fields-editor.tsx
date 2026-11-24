@@ -5,7 +5,6 @@ import plus from "@iconify-icons/lucide/plus";
 import trash2 from "@iconify-icons/lucide/trash-2";
 import chevronDown from "@iconify-icons/lucide/chevron-down";
 import chevronUp from "@iconify-icons/lucide/chevron-up";
-import { AnimatedSelect } from "~/components/animated-select";
 import {
   buildCustomRegistrationField,
   cloneRegistrationFields,
@@ -214,7 +213,7 @@ export function RegistrationFieldsEditor({
                                     active ? "" : field.key,
                                   )
                                 }
-                                className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
+                                className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-150 ${
                                   active
                                     ? "border-[var(--admin-accent)] bg-[color-mix(in_srgb,var(--admin-accent)_8%,var(--admin-surface))]"
                                     : "border-[var(--admin-border-subtle)] bg-[var(--admin-hover-overlay)] hover:border-[var(--admin-border-subtle)] hover:bg-[var(--admin-hover-overlay)]"
@@ -345,18 +344,15 @@ export function RegistrationFieldsEditor({
                                     </div>
                                     <div>
                                       <FieldLabel label="字段类型" />
-                                      <AnimatedSelect
-                                        ariaLabel="字段类型"
-                                        value={selectedField?.type ?? "text"}
-                                        disabled={locked}
-                                        onChange={(value) =>
-                                          updateFieldType(value as RegistrationFormField["type"])
-                                        }
-                                        options={REGISTRATION_FIELD_TYPE_OPTIONS.map((option) => ({
-                                          value: option.value,
-                                          label: option.label,
-                                        }))}
-                                      />
+                                      <select className={InputClassName(locked)} aria-label="字段类型"
+                                        value={selectedField?.type ?? "text"} disabled={locked}
+                                        onChange={(event) =>
+                                          updateFieldType(event.target.value as RegistrationFormField["type"])
+                                        }>
+                                        {REGISTRATION_FIELD_TYPE_OPTIONS.map((option) =>
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        )}
+                                      </select>
                                     </div>
                                     <div className="flex items-end">
                                       <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-input-surface)] px-3.5 py-2.5 text-sm text-fg-primary transition hover:bg-[var(--admin-surface-hover)]">

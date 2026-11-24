@@ -1,6 +1,5 @@
 import fileText from "@iconify-icons/lucide/file-text";
 import { Icon } from "@iconify/react";
-import { AnimatedSelect } from "~/components/animated-select";
 import { isFileField, isOptionField } from "~/lib/registration-form-schema";
 import type { RegistrationFormField } from "~/lib/registration-forms-client";
 
@@ -104,17 +103,12 @@ function renderPreviewControl(field: RegistrationFormField) {
   if (isOptionField(field.type)) {
     if (field.type === "select" || field.type === "user_group_select") {
       return (
-        <AnimatedSelect
-          ariaLabel={field.label}
-          value=""
-          onChange={() => {}}
-          disabled
-          placeholder="请选择"
-          options={(field.options ?? []).map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
+        <select className={cls} aria-label={field.label} value="" disabled>
+          <option value="">请选择</option>
+          {(field.options ?? []).map((option) =>
+            <option key={option.value} value={option.value}>{option.label}</option>
+          )}
+        </select>
       );
     }
 

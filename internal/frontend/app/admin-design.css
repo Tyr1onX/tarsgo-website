@@ -625,13 +625,13 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.25rem;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
-    transform 260ms cubic-bezier(0.2, 1.45, 0.35, 1);
+  transition: background-color var(--motion-duration-fast) ease, border-color var(--motion-duration-fast) ease, color var(--motion-duration-fast) ease,
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .admin-design .admin-button:active:not(:disabled) {
-  transform: scale(0.97);
-  transition-duration: 120ms;
+  transform: scale(0.98);
+  transition-duration: var(--motion-duration-press);
 }
 
 .admin-design .admin-button:disabled {
