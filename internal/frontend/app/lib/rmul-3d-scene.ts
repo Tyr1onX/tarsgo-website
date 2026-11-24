@@ -6,7 +6,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
@@ -15,7 +15,8 @@ import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; red: number; blue: number; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number } };
+type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
@@ -95,7 +96,6 @@ export function mountArena(
   const shotEffects: { group: THREE.Group; remaining: number }[] = [];
   const shotGeometry = new THREE.BoxGeometry(1,1,1);
   const initial = new Map<Robot, { position: THREE.Vector3; yaw: number }>();
-  const baseCenters = new Map<Team,THREE.Vector3>();
   const roster = () => robots.filter(r=>r.object.userData.area==="field").map(r=>({id:r.object.name,team:r.object.userData.team as Team,heavy:r.object.name.includes("hero"),sentry:r.object.name.includes("sentinel"),maxHp:r.object.name.includes("hero")?400:200}));
   const activeRobot = () => match?.robots.find(r=>r.id===driving?.object.name);
   let mode: ArenaView = "first";
@@ -111,8 +111,13 @@ export function mountArena(
   function publish() {
     const vehicle = activeRobot();
     const side = vehicle&&match?.sides[vehicle.team];
+    const teamStatus=(team:Team):SideStatus=>{
+      const side=match!.sides[team];
+      return {base:side.base,outpost:side.outpost,outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
+        outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
+    };
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
-      match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,red:match.sides.red.base,blue:match.sides.blue.base,
+      match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(side?.buff??0),
         canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle),canFire:!!vehicle&&canFire(match,vehicle),
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
@@ -154,12 +159,7 @@ export function mountArena(
     const elapsed = matchTime===null?0:Math.max(0,(time-matchTime)/1000);
     matchTime=time;
     if(match&&mechanism&&match.phase==="running"){
-      const siege={red:false,blue:false};
-      for(const team of ["red","blue"] as const){
-        const center=baseCenters.get(team)!;
-        siege[team]=robots.some(r=>r.object.userData.area==="field"&&r.object.userData.team!==team&&match!.robots.some(m=>m.id===r.object.name&&m.hp>0)&&Math.hypot(r.position.x-center.x,r.position.z-center.z)<2.5);
-      }
-      updateMatch(match,elapsed,siege);
+      updateMatch(match,elapsed,new Map(robots.filter(r=>r.object.userData.area==="field").map(r=>[r.object.name,r.position])));
       mechanism.apply(match.pose);
       if(!paused && driving && match.phase==="running" && match.elapsed>=nextBotTurn){
         nextBotTurn=match.elapsed+.65;
@@ -468,7 +468,6 @@ export function mountArena(
     terrain = createArenaTerrain(root);
     // Ground support uses the original static CAD envelope. Visible/shot geometry uses the articulated replacements.
     mechanism=installMechanisms(field,parts);
-    for(const team of ["red","blue"] as const)baseCenters.set(team,new THREE.Box3().setFromObject(parts.getObjectByName(team+"-base-assembly")!).getCenter(new THREE.Vector3()));
     exhibit = addRobotPreviews(map, scene, terrain);
     robots = exhibit.children.map(object => {
       const group = object as THREE.Group;

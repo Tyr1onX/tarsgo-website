@@ -42,20 +42,65 @@ test("distinct arm hits grant a timed training buff; repeated hits do not",()=>{
  assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"r"}),15);
  updateMatch(m,31);assert.equal(m.sides.red.buff,0);
 });
-test("outpost stop, protected base, ten second siege, time and tie breaks",()=>{
+test("formal territory: protected base, destroy and rebuild, fortress hold, and settlement",()=>{
  const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,5);
- assert.ok(m.pose.outpostAngle.red>0);
- const r=m.robots[0];assert.equal(damageTarget(m,r,{type:"base",team:"blue"}),0);
+ const r=m.robots[0],b=m.robots[1];
+ assert.equal(damageTarget(m,r,{type:"base",team:"blue"}),0);
+ const blueCentral={x:-3.23,y:.601,z:0},blueFort={x:-7.43,y:.451,z:0};
+ const redOnCentral=new Map([["r",blueCentral]]);
+ updateMatch(m,4.9,redOnCentral);
+ assert.equal(m.sides.blue.outpostArea.full,true);
+ assert.equal(m.sides.blue.outpostArea.progress,49);
+ updateMatch(m,.1,redOnCentral);
+ assert.deepEqual(m.sides.blue.outpostArea,{controller:"red",full:false,progress:0});
+ for(let i=0;i<50;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(m.sides.blue.outpost,500);
+ assert.equal(m.sides.blue.outpostOwner,"red");
+ assert.deepEqual(m.sides.blue.outpostArea,{controller:"red",full:true,progress:0});
+ assert.equal(damageTarget(m,r,{type:"outpost",team:"blue"}),0);
+ assert.equal(damageTarget(m,b,{type:"outpost",team:"blue"}),20);
+ updateMatch(m,170,redOnCentral);
+ assert.equal(m.pose.outpostAngle.blue,0);
+ const atFort=new Map([["r",blueFort]]);
+ updateMatch(m,9.9,atFort);assert.equal(m.sides.blue.cover,false);
+ updateMatch(m,.1,atFort);assert.equal(m.sides.blue.cover,true);
+ assert.equal(damageTarget(m,r,{type:"base",team:"blue"}),20);
+ updateMatch(m,420);assert.equal(m.phase,"finished");assert.equal(m.winner,"red");
+ assert.equal(m.sides.red.coins,1600);assert.equal(m.elapsed,420);assert.equal(fireRound(m,"r"),null);
+});
+test("territory progress regresses, pauses under contest, and destroyed outposts cannot be restored by defending",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0],b=m.robots[1];
+ const central={x:-3.23,y:.601,z:0},outpost={x:-2.4,y:.495,z:4};
+ const red=new Map([["r",central]]);
+ const both=new Map([["r",central],["b",outpost]]);
+ updateMatch(m,2,red);assert.equal(m.sides.blue.outpostArea.progress,20);
+ updateMatch(m,1,both);assert.equal(m.sides.blue.outpostArea.progress,20);
+ // Activation persists for two seconds after a robot leaves its zone.
+ updateMatch(m,2.9,new Map());assert.equal(m.sides.blue.outpostArea.progress,10);
+ updateMatch(m,1);assert.equal(m.sides.blue.outpostArea.progress,0);
  for(let i=0;i<50;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
  assert.equal(m.sides.blue.outpost,0);
- const angle=m.pose.outpostAngle.blue;updateMatch(m,175);
- assert.notEqual(angle,0);assert.equal(m.pose.outpostAngle.blue,0);assert.equal(m.sides.blue.cover,false);
- updateMatch(m,9,{red:false,blue:true});assert.equal(m.sides.blue.cover,false);
- updateMatch(m,1,{red:false,blue:true});assert.equal(m.sides.blue.cover,true);
- assert.equal(damageTarget(m,r,{type:"base",team:"blue"}),20);
- updateMatch(m,230);assert.equal(m.phase,"finished");assert.equal(m.winner,"red");
- assert.equal(m.sides.red.coins,1600);assert.equal(m.elapsed,420);
- assert.equal(fireRound(m,"r"),null);
+ assert.deepEqual(m.sides.blue.outpostArea,{controller:"blue",full:false,progress:0});
+ const defense=new Map([["b",outpost]]);
+ updateMatch(m,20,defense);assert.equal(m.sides.blue.outpost,0);
+ assert.equal(m.sides.blue.outpostArea.full,false);
+ updateMatch(m,6.9);assert.equal(m.sides.blue.outpost,500);
+ assert.equal(m.sides.blue.outpostOwner,"red");assert.equal(m.sides.blue.outpostArea.full,true);
+ assert.equal(m.sides.blue.stopped,true);
+ // Reverse capture, repeated rebuild, and stationary state.
+ updateMatch(m,5,defense);assert.equal(m.sides.blue.outpostArea.controller,"blue");
+ for(let i=0;i<25;i++)damageTarget(m,b,{type:"outpost",team:"blue"});
+ assert.equal(m.sides.blue.outpost,500);assert.equal(m.sides.blue.outpostOwner,"blue");
+ assert.equal(m.sides.blue.outpostArea.full,true);assert.equal(m.pose.outpostAngle.blue,0);
+});
+test("base capture is independent from outpost and territory scoring includes temporary control",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const base=new Map([["r",{x:-10.15,y:.3,z:0}]]);
+ updateMatch(m,5,base);assert.equal(m.sides.blue.baseArea.controller,"red");assert.equal(m.sides.blue.baseArea.full,false);
+ assert.equal(m.sides.blue.outpost,1000);
+ updateMatch(m,10,base);assert.equal(m.sides.red.controlTicks,300);
+ updateMatch(m,6.9);assert.equal(m.sides.blue.baseArea.controller,"blue");assert.equal(m.sides.blue.baseArea.full,true);
 });
 test("real source assemblies match static CAD bounds and rotate independently",async()=>{
  globalThis.self=globalThis;globalThis.createImageBitmap=async()=>({width:1,height:1,close(){}});
@@ -116,7 +161,7 @@ test("outposts ramp consistently, return to rest at stop and never restart",()=>
   const angle=a.pose.outpostAngle.blue;updateMatch(a,.1);
   assert.ok(Math.abs(a.pose.outpostAngle.blue-angle)<.3);
   updateMatch(a,3);assert.equal(a.pose.outpostAngle.blue,0);assert.equal(a.sides.blue.stopped,true);
-  a.sides.blue.outpost=500;updateMatch(a,1);assert.equal(a.pose.outpostAngle.blue,0);
+  updateMatch(a,3);assert.equal(a.sides.blue.outpost,500);assert.equal(a.sides.blue.outpostOwner,"red");assert.equal(a.pose.outpostAngle.blue,0);
   updateMatch(a,170);assert.equal(a.sides.red.stopped,true);assert.equal(a.pose.outpostAngle.red,0);
   assert.equal(createMatch(roster).pose.outpostAngle.red,0);
  }
