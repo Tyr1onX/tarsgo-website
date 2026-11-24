@@ -4,7 +4,7 @@ import * as T from "three";
 import {createMatch,startMatch,updateMatch} from "./rmuc-3d-match.ts";
 import {launchProjectile,advanceProjectile,ballisticAim,projectileSpeed,projectileDiameter,projectileVisualDiameter,RESIDUE_LIMIT,createProjectileSystem} from "./rmuc-3d-projectiles.ts";
 import {createRobotPreview,previewWeaponAt,aimWeapon} from "./rmuc-3d-robots.ts";
-import {traceArenaShot,prepareArenaShots} from "./rmuc-3d-shot.ts";
+import {traceArenaShot,prepareArenaShots,createArenaShotPreparer} from "./rmuc-3d-shot.ts";
 const fixture=()=>{
  const m=createMatch([{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}],1,1);
  startMatch(m);m.robots[0].ammo=10;
@@ -103,4 +103,24 @@ test("dead robot physical mesh still blocks a projectile without repeat damage",
  const ray=new T.Raycaster(),roots=[target,behind],p=launchProjectile(m,"r",from,ballisticAim(from,target.position,25).direction);
  let result;for(let i=0;i<20;i++){result=advanceProjectile(m,p,.025,ray,roots);if(result.done)break;}
  assert.equal(result.hit.object,target);assert.equal(result.damage,0);assert.equal(m.sides.blue.outpost,1000);
+});
+
+test("cached CAD plan preserves traversal, moving bounds, layer changes and launcher reparenting",()=>{
+ const fixed=new T.Group(),moving=new T.Group(),bench=new T.Group(),root=new T.Group(),mat=new T.MeshBasicMaterial({side:T.DoubleSide});
+ const mesh=x=>{const m=new T.Mesh(new T.BoxGeometry(.25,.25,.25),mat);m.position.x=x;return m;};
+ const wall=mesh(10),body=mesh(4),launcher=mesh(2);root.add(fixed,moving,bench);fixed.add(wall);moving.add(body,launcher);root.updateMatrixWorld(true);
+ const roots=[root],prepare=createArenaShotPreparer(roots,new Set([moving,bench])),ray=new T.Raycaster(),from=new T.Vector3(),dir=new T.Vector3(1,0,0);
+ function compare(exclude){
+   const fresh=prepareArenaShots(roots),cached=prepare();
+   assert.deepEqual(cached.surfaces.map(s=>s.object),fresh.surfaces.map(s=>s.object));
+   for(let i=0;i<fresh.surfaces.length;i++)assert.ok(fresh.surfaces[i].bounds.equals(cached.surfaces[i].bounds));
+   const a=traceArenaShot(ray,roots,from,dir,35,fresh,exclude),b=traceArenaShot(ray,roots,from,dir,35,cached,exclude);
+   assert.equal(a?.object,b?.object);assert.equal(a?.distance,b?.distance);assert.equal(a?.faceIndex,b?.faceIndex);
+   return b?.object;
+ }
+ assert.equal(compare(),launcher);
+ moving.position.x=2;root.updateMatrixWorld(true);assert.equal(compare(),launcher);
+ bench.attach(launcher);launcher.position.x=12;root.updateMatrixWorld(true);assert.equal(compare(),body);
+ body.layers.disable(0);assert.equal(compare(),wall);
+ body.layers.enable(0);assert.equal(compare(),body);
 });
