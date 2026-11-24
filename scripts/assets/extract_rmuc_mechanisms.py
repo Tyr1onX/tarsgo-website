@@ -2,7 +2,7 @@
 """Extract reviewed, separately movable meshes from the pinned upstream CAD GLB.
 
 Usage: python3 scripts/assets/extract_rmuc_mechanisms.py SOURCE.glb CORRECTED_OUTPOST.glb CORRECTED_RUNE.glb OUTPUT.glb
-Then gltfpack -i OUTPUT.glb -o packed.glb -cc -kn -km -noq
+Then gltfpack -i OUTPUT.glb -o packed.glb -cc -kn -km -vp 16 -vn 12 -vt 16
 Source release: hxyulin/rm-map-tools rmuc2027-simplified-glb-20261018.
 Motion axes: rules/source-motion-rmuc2027.json, source product 1354629 / 2603236.
 The outpost uses the reviewed source-face partition from rm-map-tools
