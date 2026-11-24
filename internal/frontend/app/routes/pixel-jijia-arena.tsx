@@ -76,7 +76,7 @@ export default function PixelJijiaArenaPage() {
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
         {!disabled && !menu && status.match && <div className="rmul3d-match">
           {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始训练</button> : <>
-            <div className="rmul3d-score"><span className="red">{status.match.red}</span><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><span className="blue">{status.match.blue}</span></div>
+            <div className="rmul3d-score"><span className="red">基地 {status.match.red}<small>前哨 {status.match.redOutpost} · 存活 {status.match.redAlive}/4</small></span><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><span className="blue">基地 {status.match.blue}<small>前哨 {status.match.blueOutpost} · 存活 {status.match.blueAlive}/4</small></span></div>
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}

@@ -75,3 +75,16 @@ test("takeover chooses a nearby ground vehicle, not a static or airborne asset",
   assert.equal(nearestDriveable(player,[staticAsset,above,ground]),ground);
   assert.equal(nearestDriveable(player,[staticAsset,above]),null);
 });
+
+test("training navigation routes around a raised CAD-style obstacle rather than crossing it", async()=>{
+  const {findArenaPath,advanceBot}=await import("./rmuc-3d-navigation.ts");
+  const floor={heightAt:(x,z)=>Math.abs(x)<.35&&Math.abs(z)<2?2:.2};
+  const bot={position:new THREE.Vector3(-3,.2,0),radius:.3};
+  const goal=new THREE.Vector3(3,.2,0);
+  const search=findArenaPath(floor,bot.position,goal,bot.radius,.5);
+  let step=search.next();while(!step.done)step=search.next();const path=step.value;
+  assert.ok(path.length>0);
+  assert.ok(path.some(p=>Math.abs(p.z)>2.3));
+  for(const p of path){while(bot.position.distanceTo(p)>.1)assert.ok(advanceBot(floor,bot,p,[]));}
+  assert.ok(bot.position.distanceTo(goal)<.65);
+});

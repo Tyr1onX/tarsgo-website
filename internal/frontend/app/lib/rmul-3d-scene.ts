@@ -11,11 +11,12 @@ import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
+import { findArenaPath, advanceBot } from "./rmuc-3d-navigation";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; red: number; blue: number; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number } };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; red: number; blue: number; redOutpost: number; blueOutpost: number; redAlive: number; blueAlive: number; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
@@ -90,11 +91,14 @@ export function mountArena(
   let match: Match | null = null;
   let matchTime: number | null = null;
   let nextBotTurn = 0;
+  let botCursor = 0;
   const shotRay = new THREE.Raycaster();
   const shotEffects: { group: THREE.Group; remaining: number }[] = [];
   const shotGeometry = new THREE.BoxGeometry(1,1,1);
   const initial = new Map<Robot, { position: THREE.Vector3; yaw: number }>();
   const baseCenters = new Map<Team,THREE.Vector3>();
+  const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>}>();
+  const armorCenters = new Map<Robot,{object:THREE.Object3D;center:THREE.Vector3}[]>();
   const roster = () => robots.filter(r=>r.object.userData.area==="field").map(r=>({id:r.object.name,team:r.object.userData.team as Team,heavy:r.object.name.includes("hero"),sentry:r.object.name.includes("sentinel"),maxHp:r.object.name.includes("hero")?400:200}));
   const activeRobot = () => match?.robots.find(r=>r.id===driving?.object.name);
   let mode: ArenaView = "first";
@@ -112,7 +116,7 @@ export function mountArena(
     const side = vehicle&&match?.sides[vehicle.team];
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,red:match.sides.red.base,blue:match.sides.blue.base,
-        coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(side?.buff??0),
+        redOutpost:match.sides.red.outpost,blueOutpost:match.sides.blue.outpost,redAlive:match.robots.filter(r=>r.team==="red"&&r.hp>0).length,blueAlive:match.robots.filter(r=>r.team==="blue"&&r.hp>0).length,coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(side?.buff??0),
         canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle),canFire:!!vehicle&&canFire(match,vehicle),
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0} : undefined };
@@ -158,9 +162,19 @@ export function mountArena(
       }
       updateMatch(match,elapsed,siege);
       mechanism.apply(match.pose);
-      if(!paused && driving && match.phase==="running" && match.elapsed>=nextBotTurn){
-        nextBotTurn=match.elapsed+.65;
-        updateOpponent();
+      if(match.phase==="running" && match.elapsed>=nextBotTurn){
+        nextBotTurn=match.elapsed+.12;
+        updateBots();
+      }
+      const searchBudget=performance.now()+4;
+      for(const [bot,route] of botPaths){
+        if(bot===driving||match.robots.find(r=>r.id===bot.object.name)?.hp===0){botPaths.delete(bot);continue;}
+        if(!route.search)continue;
+        do{
+          const step=route.search.next();
+          if(step.done){route.points=step.value;route.search=undefined;break;}
+        }while(performance.now()<searchBudget);
+        if(performance.now()>=searchBudget)break;
       }
       if(driving&&activeRobot()?.hp===0){explorer.copy(driving.position);driving=null;clearInput();}
       updateVisibility();
@@ -252,7 +266,7 @@ export function mountArena(
   function reset() {
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster());
-    nextBotTurn=0;
+    nextBotTurn=0;botCursor=0;botPaths.clear();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);}
     for(const shot of shotEffects){shot.group.removeFromParent();shot.group.traverse(o=>{if(o instanceof THREE.Mesh)(o.material as THREE.Material).dispose()});}
     shotEffects.length=0;
@@ -271,35 +285,63 @@ export function mountArena(
   function trace(robot: Robot, from: THREE.Vector3, direction: THREE.Vector3) {
     return map ? traceArenaShot(shotRay,shotTargets(robot),from,direction) : undefined;
   }
-  function updateOpponent() {
-    if(!match||!driving||!terrain)return;
-    const player=activeRobot();
-    if(!player||player.hp<=0)return;
-    // Deliberately simple local training opponents, not official autonomous control.
-    const target=driving.position.clone().add(new THREE.Vector3(0,.38,0));
+  function updateBots() {
+    if(!match||!terrain||!mechanism)return;
     const active=robots.filter(r=>r.object.userData.area==="field"&&match!.robots.some(m=>m.id===r.object.name&&m.hp>0));
-    for(const bot of active){
-      const state=match.robots.find(m=>m.id===bot.object.name)!;
-      if(state.team===player.team)continue;
-      const delta=target.clone().sub(bot.position);
-      const distance=Math.hypot(delta.x,delta.z);
-      const yaw=Math.atan2(-delta.x,-delta.z);
-      const shot = aimWeaponAt(bot.object,target);
-      if(!shot)continue;
-      const {origin:from,direction:aim}=shot;
-      const intersection=trace(bot,from,aim);
-      let object:THREE.Object3D|null=intersection?.object??null;
-      while(object&&object!==driving.object)object=object.parent;
-      if(distance<10&&object===driving.object){
-        if(!state.ammo)purchaseAmmo(match,state.id);
-        shoot(bot,from,aim);
-      }else if(distance>2){
-        const step=Math.min(.28,distance-2);
-        moveOnArena(terrain,bot.position,delta.x/distance*step,delta.z/distance*step,bot.radius,.23,active.filter(r=>r!==bot));
-        bot.object.rotation.y=yaw;
-        aimWeapon(bot.object,yaw,0);
+    const available=active.filter(bot=>bot!==driving&&!match!.robots.find(r=>r.id===bot.object.name)?.heavy);
+    const bot=available[botCursor++%available.length];
+    if(!bot)return;
+    const state=match.robots.find(m=>m.id===bot.object.name)!;
+    if(state.hp<=0||state.heavy)return; // assembly is not implemented
+    const enemies=active.filter(r=>r.object.userData.team!==state.team&&match!.robots.some(m=>m.id===r.object.name&&m.hp>0))
+      .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
+    if(!state.ammo)purchaseAmmo(match,state.id);
+    const enemyTeam=state.team==="red"?"blue":"red";
+    const plates=Array.from({length:3},(_,i)=>mechanism!.parts.getObjectByName(enemyTeam+"-outpost-armor-"+i)!);
+    const goal=enemies[0]?.position??(match.sides[enemyTeam].outpost>0?mechanism.parts.getObjectByName(enemyTeam+"-outpost-rotor")!.getWorldPosition(new THREE.Vector3()):baseCenters.get(enemyTeam)!);
+    let fired=false;
+    if(canFire(match,state)){
+      const candidates:THREE.Vector3[]=[];
+      for(const enemy of enemies.slice(0,2)){
+        if(enemy.position.distanceTo(bot.position)>12)continue;
+        for(const {object,center} of armorCenters.get(enemy)??[])candidates.push(object.localToWorld(center.clone()));
       }
-      if(player.hp<=0)break;
+      if(match.sides[enemyTeam].outpost>0)for(const plate of plates)candidates.push(new THREE.Box3().setFromObject(plate).getCenter(new THREE.Vector3()));
+      candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
+      for(const point of candidates.slice(0,6)){
+        if(point.distanceTo(bot.position)>12)continue;
+        const shot=aimWeaponAt(bot.object,point);
+        if(!shot)continue;
+        let hit:THREE.Object3D|null=trace(bot,shot.origin,shot.direction)?.object??null;
+        while(hit&&!hit.userData.target)hit=hit.parent;
+        const target=hit?.userData.target;
+        if(target?.type==="outpost"&&target.team===enemyTeam||target?.type==="robot"&&enemies.some(r=>r.object.name===target.id)){
+          shoot(bot,shot.origin,shot.direction);fired=true;break;
+        }
+      }
+    }
+    if(fired)return;
+    if(state.thermalLock||!state.ammo)return;
+    const distance=Math.hypot(goal.x-bot.position.x,goal.z-bot.position.z);
+    if(distance<2.2)return;
+    const occupants=active.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
+    const before=bot.position.clone();
+    let route=botPaths.get(bot);
+    if(route&&route.goal.distanceTo(goal)>2){botPaths.delete(bot);route=undefined;}
+    while(route?.points.length&&bot.position.distanceTo(route.points[0])<.12)route.points.shift();
+    if(route?.search)return;
+    const next=route?.points[0]??goal;
+    if(!advanceBot(terrain,bot,next,occupants)&&(!route||match.elapsed>=route.retryAt)){
+      route={goal:goal.clone(),points:[],search:findArenaPath(terrain,bot.position.clone(),goal.clone(),bot.radius),retryAt:match.elapsed+4};
+      botPaths.set(bot,route);
+
+    }
+    const delta=bot.position.clone().sub(before);
+    if(delta.length()>.01){
+      const yaw=Math.atan2(-delta.x,-delta.z);
+      bot.object.rotation.y=yaw;aimWeapon(bot.object,yaw,0);
+      bot.object.traverse(o=>{if(o.name.startsWith("wheel-"))o.rotation.x+=delta.length()/bot.wheelRadius;});
+      bot.object.updateMatrixWorld(true);
     }
   }
   function shoot(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3) {
@@ -470,7 +512,7 @@ export function mountArena(
         driveable: group.userData.driveable === true, name: group.userData.name,
         eyeHeight: group.userData.eyeHeight ?? 1, wheelRadius: group.userData.wheelRadius ?? .12 };
     });
-    for(const robot of robots){initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});if(robot.object.userData.area==="field")robot.object.traverse(o=>{if(o.userData.hitPlate)o.userData.target={type:"robot",id:robot.object.name};});}
+    for(const robot of robots){initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});if(robot.object.userData.area==="field")robot.object.traverse(o=>{if(o.userData.hitPlate&&o instanceof THREE.Mesh){o.userData.target={type:"robot",id:robot.object.name};o.geometry.computeBoundingBox();const list=armorCenters.get(robot)??[];list.push({object:o,center:o.geometry.boundingBox!.getCenter(new THREE.Vector3())});armorCenters.set(robot,list);}});}
     match=createMatch(roster());
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
