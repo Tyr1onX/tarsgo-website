@@ -7,7 +7,7 @@ import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, controlsOutpost, type Match } from "./rmuc-3d-match";
-import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
+import { traceArenaShot, resolveArenaShot, arenaHitTarget } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
@@ -327,7 +327,8 @@ export function mountArena(
       const offsets=state.sentry?[[0,0],[.5,.4],[-.5,-.4]]:state.id.includes("03")?[[.5,.4],[0,0],[-.5,-.4]]:[[-.5,-.4],[0,0],[.5,.4]];
       for(const [dx,dz] of offsets){
         const p=new THREE.Vector3(x+dx,terrain!.heightAt(x+dx,z+dz),z+dz);
-        if(zonesAtPosition(p).includes(zone.id)&&supportedHeight(terrain!,p.x,p.z,bot.radius,p.y,.23)!==null)return p;
+        if(zonesAtPosition(p).includes(zone.id)&&supportedHeight(terrain!,p.x,p.z,bot.radius,p.y,.23)!==null
+          && !active.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))return p;
       }
       return new THREE.Vector3(x,terrain!.heightAt(x,z),z);
     };
@@ -360,7 +361,55 @@ export function mountArena(
       goal=zoneGoal(enemyTeam,state.sentry?"central":"base");
     }
     if(state.heavy&&state.launcher==="locked"&&!recovering)goal=zoneGoal(state.team,"central");
-    if(canFire(match,state)&&!revival.weak){
+    // One available infantry per team handles rune attempts. Do not spend
+    // an activation until its actual muzzle has an unobstructed detector.
+    const rune=runeStatus(match,state.team);
+    const runeBot=active.find(r=>r!==driving&&r.object.userData.team===state.team&&r.object.name.includes("infantry-04"))
+      ??active.find(r=>r!==driving&&r.object.userData.team===state.team&&r.object.name.includes("infantry"));
+    let runeDuty=false;
+    if(bot===runeBot&&!recovering&&!needAmmo&&state.ammo>=(rune.active?1:5)&&!rune.buff&&(rune.active||rune.available>0)){
+      const bank=state.team==="red"?"a":"b";
+      const arms=Array.from({length:5},(_,i)=>mechanism!.parts.getObjectByName("rune-arm-"+bank+"-"+i)!);
+      const center=new THREE.Vector3();
+      for(const arm of arms)center.add(arm.localToWorld(arm.userData.runeDetector.center.clone()));
+      center.divideScalar(5);
+      const normal=arms[0].userData.runeDetector.normal.clone().transformDirection(arms[0].matrixWorld);
+      normal.y=0;normal.normalize();
+      const lateral=new THREE.Vector3(-normal.z,0,normal.x);
+      const minRing=side.rune.largeWins>=2?7:side.rune.largeWins===1?4:1;
+      const shotAt=(indices:readonly number[])=>{
+        for(const i of indices){
+          const arm=arms[i],point=arm.localToWorld(arm.userData.runeDetector.center.clone());
+          if(bot.position.distanceTo(point)>8)continue;
+          const shot=aimWeaponAt(bot.object,point);
+          if(!shot)continue;
+          const target=arenaHitTarget(trace(bot,shot.origin,shot.direction),shot.direction);
+          if(target?.type==="rune"&&target.team===state.team&&target.arm===i&&(!rune.large||target.ring>=minRing))return shot;
+        }
+        return null;
+      };
+      const visible=shotAt(rune.active?rune.lit:[0,1,2,3,4]);
+      if(visible){
+        if(!rune.active)activateRune(match,state.id);
+        if(canFire(match,state)){
+          const shot=shotAt(runeStatus(match,state.team).lit);
+          if(shot)shoot(bot,shot.origin,shot.direction);
+        }
+        goal=bot.position.clone();runeDuty=true;
+      }else{
+        for(const distance of [3.5,4.5,2.5,5.5]){
+          for(const offset of [0,.8,-.8,1.6,-1.6]){
+            const p=center.clone().addScaledVector(normal,distance).addScaledVector(lateral,offset);
+            p.y=terrain.heightAt(p.x,p.z);
+            if(supportedHeight(terrain,p.x,p.z,bot.radius,p.y,.23)===null||p.distanceTo(bot.position)<.3)continue;
+            if(active.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))continue;
+            goal=p;runeDuty=true;break;
+          }
+          if(runeDuty)break;
+        }
+      }
+    }
+    if(!runeDuty&&canFire(match,state)&&!revival.weak){
       const candidates:THREE.Vector3[]=[];
       for(const enemy of enemies.slice(0,2)){
         if(enemy.position.distanceTo(bot.position)>12)continue;
@@ -373,9 +422,7 @@ export function mountArena(
         if(point.distanceTo(bot.position)>12)continue;
         const shot=aimWeaponAt(bot.object,point);
         if(!shot)continue;
-        let hit:THREE.Object3D|null=trace(bot,shot.origin,shot.direction)?.object??null;
-        while(hit&&!hit.userData.target)hit=hit.parent;
-        const target=hit?.userData.target;
+        const target=arenaHitTarget(trace(bot,shot.origin,shot.direction),shot.direction);
         if(target?.type==="outpost"&&match.sides[target.team as Team].outpostOwner!==state.team||target?.type==="robot"&&enemies.some(r=>r.object.name===target.id)){
           shoot(bot,shot.origin,shot.direction);break;
         }

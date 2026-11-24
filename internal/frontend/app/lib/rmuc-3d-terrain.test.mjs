@@ -121,3 +121,16 @@ test("each estimated referee zone has a supported goal on actual CAD terrain",()
  assert.deepEqual(zonesAtPosition({x:0,y:.3,z:0}),[]);
  assert.deepEqual(zonesAtPosition({x:3.23,y:.3,z:0}),[],"below central highland is not an activation");
 });
+
+test("navigation reaches an exact off-grid goal rather than stopping short",async()=>{
+ const {findArenaPath,advanceBot}=await import("./rmuc-3d-navigation.ts");
+ const floor={heightAt:()=>.2},start=new THREE.Vector3(0,.2,0),goal=new THREE.Vector3(2.4,.2,0);
+ const search=findArenaPath(floor,start,goal,.3,.4);
+ let step=search.next();while(!step.done)step=search.next();
+ assert.ok(step.value.at(-1).distanceTo(goal)<.015);
+ const bot={position:start.clone(),radius:.4};
+ const other={position:new THREE.Vector3(.8,.2,0),radius:.4};
+ assert.ok(advanceBot(floor,bot,goal,[other]));
+ assert.ok(Math.abs(bot.position.z)>.15);
+ assert.ok(bot.position.distanceTo(other.position)>=.8);
+});

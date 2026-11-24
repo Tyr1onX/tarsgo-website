@@ -17,7 +17,12 @@ export function* findArenaPath(terrain:Pick<ArenaTerrain,"heightAt">, start:THRE
     const node=queue.pop()!;
     if(node.cost>seen.get(node.ix+","+node.iz)!)continue;
     if(distance(node.p)<distance(best.p))best=node;
-    if(distance(node.p)<=reach){best=node;break;}
+    if(distance(node.p)<=Math.max(reach,GRID)){
+      const p=node.p.clone();
+      yield;
+      moveOnArena(terrain,p,goal.x-p.x,goal.z-p.z,radius,.23,[]);
+      if(distance(p)<.015){best={...node,p,parent:node};break;}
+    }
     for(const [dx,dz] of NEIGHBORS){
       const ix=node.ix+dx,iz=node.iz+dz,key=ix+","+iz;
       const cost=node.cost+Math.hypot(dx,dz)*GRID;
@@ -40,5 +45,16 @@ export function advanceBot(terrain:Pick<ArenaTerrain,"heightAt">, bot:Occupant, 
   if(distance<.03)return false;
   const length=Math.min(distance,step), before=bot.position.clone();
   moveOnArena(terrain,bot.position,delta.x/distance*length,delta.z/distance*length,bot.radius,.23,occupants);
-  return bot.position.distanceTo(before)>.06;
+  if(bot.position.distanceTo(before)>.06)return true;
+  // A teammate can temporarily block a valid static path. Yield sideways
+  // only when the same direct step works with no robot in the way.
+  const direct=before.clone();
+  moveOnArena(terrain,direct,delta.x/distance*length,delta.z/distance*length,bot.radius,.23,[]);
+  if(direct.distanceTo(before)<.06)return false;
+  for(const sign of [1,-1]){
+    const p=before.clone();
+    moveOnArena(terrain,p,-delta.z/distance*length*sign,delta.x/distance*length*sign,bot.radius,.23,occupants);
+    if(p.distanceTo(before)>.15){bot.position.copy(p);return true;}
+  }
+  return false;
 }
