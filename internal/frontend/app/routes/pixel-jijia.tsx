@@ -11,7 +11,7 @@ import { buildingBounds, renderNavigationMap, renderParticles, renderScene, rend
 import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } from "~/lib/pixel-jijia-explorer";
 import { ROOMS, STUDY_ROOM, closestRoomObject, seatPlacement, seatDepth, meetingChair, meetingSeat, roomInteractable, type SeatObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
-import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds, hasEquipmentBehavior, equipmentProgress } from "~/lib/pixel-jijia-room-art";
+import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds, hasEquipmentBehavior, equipmentProgress, roomSpriteKey } from "~/lib/pixel-jijia-room-art";
 import { PixelWorldAudio, footstepMaterial, distanceVolume, type LocalSound } from "~/lib/pixel-jijia-audio";
 import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityCreditRole, communityDiscoveryId } from "~/lib/pixel-jijia-community";
 import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
@@ -601,7 +601,7 @@ export default function PixelJijiaPage() {
     directionRef.current=directionToward(playerRef.current,{x:object.x+object.width/2,y:object.y+object.height/2},directionRef.current);
     poseRef.current={...poseRef.current,action:"idle",frame:0,since:performance.now()};
     const now=performance.now();
-    if(hasEquipmentBehavior(object.id)&&equipmentProgress(object.id,now,effectsRef.current.get(object.id))<0)
+    if(hasEquipmentBehavior(object.id)&&equipmentProgress(object.id,now,effectsRef.current.get(object.id),(climateRef.current?.hour??12)+(climateRef.current?.minute??0)/60)<0)
       effectsRef.current.set(object.id,now);
     if (object.community) {
       const action=object.community.interaction;
@@ -831,7 +831,7 @@ export default function PixelJijiaPage() {
           let kind:LocalSound="none",volume=0;
           if(room){
             for(const o of room.objects){
-              if(equipmentProgress(o.id,time,effectsRef.current.get(o.id))<0)continue;
+              if(equipmentProgress(roomSpriteKey(o),time,effectsRef.current.get(o.id),(climate?.hour??12)+(climate?.minute??0)/60)<0)continue;
               const gain=distanceVolume(Math.hypot(foot.x-o.x-o.width/2,foot.y-o.y-o.height),9)*.095;
               if(gain>volume){volume=gain;kind="device";}
             }
@@ -877,7 +877,7 @@ export default function PixelJijiaPage() {
           time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current);
       } else {
         advanceSurfaceTrail(trailRef.current, previous, playerRef.current, dt, surfaceRef.current, !reducedMotion.matches);
-        updateWildlife(wildlifeRef.current,playerRef.current,dt,climate?.hour??12,climate?.weather??null,!reducedMotion.matches,castRef.current);
+        updateWildlife(wildlifeRef.current,playerRef.current,dt,(climate?.hour??12)+(climate?.minute??0)/60,climate?.weather??null,!reducedMotion.matches,castRef.current,walking);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
           climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind);

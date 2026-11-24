@@ -210,10 +210,10 @@ export function renderPublicRoomTerrain(room: RoomScene, campusTiles?: HTMLImage
 type PreparedSprite={canvas:HTMLCanvasElement;frames:HTMLCanvasElement[];bounds:{x:number;y:number;w:number;h:number};marginX:number;marginY:number};
 const sprites=new WeakMap<RoomObject,PreparedSprite>();
 let studyChair: HTMLCanvasElement;
-function spriteKey(o:RoomObject){return o.decorative?`decor-${o.kind}`:o.id;}
+export function roomSpriteKey(o:RoomObject){return o.decorative?`decor-${o.kind}`:o.id;}
 function spriteBox(o:RoomObject,spriteIndex:Record<string,number[]>){
-  const source=spriteIndex[spriteKey(o)];
-  if(!source)throw new Error(`Missing room sprite: ${spriteKey(o)}`);
+  const source=spriteIndex[roomSpriteKey(o)];
+  if(!source)throw new Error(`Missing room sprite: ${roomSpriteKey(o)}`);
   const [sx,sy,sw,sh]=source;
   const w=o.width*TILE,h=Math.round(w*sh/sw);
   return {sx,sy,sw,sh,x:o.x*TILE,y:(o.y+o.height)*TILE-h,w,h};
@@ -293,22 +293,28 @@ export function drawStudyChair(ctx:CanvasRenderingContext2D,o:RoomObject,camera:
 }
 function sprite(o:RoomObject){
   const image=sprites.get(o);
-  if(!image)throw new Error(`Room sprite not prepared: ${spriteKey(o)}`);
+  if(!image)throw new Error(`Room sprite not prepared: ${roomSpriteKey(o)}`);
   return image;
 }
 // Work bursts have a start, work and return phase, with alternating idle gaps.
 const EQUIPMENT_CYCLES:Record<string,readonly [number,number,number]>={
   machine:[6600,10500,3100],"test-robot":[5700,12500,1800],
-  assembly:[6500,15000,4600],cad:[8200,6000,1300],screen:[8900,6500,2700],
+  assembly:[6500,15000,4600],cad:[8200,6000,1300],
   oscilloscope:[9200,5000,800],"signal-wall":[8000,6500,2000],embedded:[6800,10000,4200],
   dataset:[8400,6300,1600],compute:[9200,7000,5400],"lens-calibration":[5600,10500,2300],
   models:[11500,8500,3600],planning:[7900,9300,5300],strategy:[9500,8500,3000],
   simulation:[8500,12000,6200],"hello-terminal":[7000,11000,900],"decor-server":[10000,7000,7200],
 };
-export function equipmentProgress(key:string,time:number,triggeredAt?:number):number{
+export function equipmentProgress(key:string,time:number,triggeredAt?:number,hour=12):number{
   const config=EQUIPMENT_CYCLES[key];if(!config)return -1;
   const [duration,rest,offset]=config;
-  const clock=triggeredAt!==undefined&&time>=triggeredAt?time-triggeredAt:time+offset;
+  const age=triggeredAt===undefined?Infinity:time-triggeredAt;
+  // A late-night interaction still works; only the automatic work stops.
+  // Servers keep running while the workshop and public exhibition rest.
+  if((hour<5.5||hour>=23)&&key!=="compute"&&key!=="models"&&key!=="decor-server"){
+    return age>=0&&age<duration?age/duration:-1;
+  }
+  const clock=age>=0&&Number.isFinite(age)?age:time+offset;
   const period=duration+rest,cycle=clock%(period*2+2700),phase=cycle<period?cycle:cycle-period;
   return phase<duration?phase/duration:-1;
 }
@@ -332,7 +338,7 @@ const LIGHT_POINTS:Record<string,number[][]>={
 };
 // Registered against the visible interiors of room-props-v3, not object hitboxes.
 const SCREENS:Record<string,readonly number[][]>={
-  cad:[[.10,.09,.80,.35]],screen:[[.10,.09,.80,.35]],
+  cad:[[.10,.09,.80,.35]],
   oscilloscope:[[.18,.36,.58,.14]],"signal-wall":[[.07,.11,.86,.75]],
   dataset:[[.15,.09,.10,.21],[.34,.10,.12,.23],[.68,.10,.13,.23]],
   strategy:[[.15,.17,.24,.20],[.60,.17,.24,.20]],
@@ -367,6 +373,16 @@ function drawEquipmentDisplay(ctx:CanvasRenderingContext2D,key:string,x:number,y
         p(bx,by,bw,1,"#8ce3cd");p(bx,by+bh,bw,1,"#8ce3cd");
         p(bx,by,1,bh,"#8ce3cd");p(bx+bw,by,1,bh,"#8ce3cd");
       }
+    }else if(key==="simulation"){
+      ctx.globalAlpha=.65;
+      // A small simulated path follows its own fixed map, then clears.
+      const points=[[.17,.75],[.37,.75],[.37,.35],[.70,.35],[.70,.18]];
+      for(let i=1;i<points.length;i++){
+        const [ax,ay]=points[i-1],[bx,by]=points[i],u=Math.min(1,Math.max(0,progress*4-i+1));
+        if(u<=0)continue;
+        line(p,left+ax*sw,top+ay*sh,left+(ax+(bx-ax)*u)*sw,top+(ay+(by-ay)*u)*sh,"#a8d4ca",.5);
+        if(u<1)p(left+(ax+(bx-ax)*u)*sw-.5,top+(ay+(by-ay)*u)*sh-.5,1.5,1.5,"#ead4a4");
+      }
     }else if(key==="hello-terminal"){
       ctx.globalAlpha=.62;
       const rows=Math.min(4,Math.floor(progress*6));
@@ -386,12 +402,12 @@ export function roomObjectVisualBounds(object:RoomObject):Position {
   const b=sprite(object).bounds;
   return {x:(b.x+b.w/2)/TILE,y:b.y/TILE};
 }
-export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt:number|undefined,w:number,h:number){
+export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt:number|undefined,w:number,h:number,hour=12){
   const prepared=sprite(o),b=prepared.bounds;
   const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
   // Cull sprite work before the animation and screen drawing.
   if(x+b.w+prepared.marginX<0||y+b.h+prepared.marginY<0||x-prepared.marginX>w||y-prepared.marginY>h)return;
-  const key=spriteKey(o),progress=motion?equipmentProgress(key,elapsed,triggeredAt):-1;
+  const key=roomSpriteKey(o),progress=motion?equipmentProgress(key,elapsed,triggeredAt,hour):-1;
   const phase = motion ? Math.floor(elapsed / (520+(Math.round(o.x*17+o.y*23)%240)) + o.x+o.y*.7) % prepared.frames.length : 0;
   const age=triggeredAt===undefined ? Infinity : elapsed-triggeredAt;
   const active=age>=0&&age<1500;
@@ -463,7 +479,7 @@ export function drawRoomWindows(ctx: CanvasRenderingContext2D, camera: Position,
   ctx.restore();
 }
 
-export type RoomClimate={weather:WeatherKind|null;night:number;sunX:number;sunY:number;sunHeight:number;temperature?:number|null};
+export type RoomClimate={weather:WeatherKind|null;night:number;sunX:number;sunY:number;sunHeight:number;temperature?:number|null;hour?:number;minute?:number};
 export function drawRoomLight(ctx:CanvasRenderingContext2D,room:RoomScene,camera:Position,elapsed:number,
   climate:RoomClimate|null,motion:boolean) {
   const p=painter(ctx),t=motion?elapsed/1000:0;
@@ -482,13 +498,16 @@ export function drawRoomLight(ctx:CanvasRenderingContext2D,room:RoomScene,camera
   ctx.restore();
   ctx.save();
   for (const x of [132, 446]) {
-    ctx.globalAlpha=.14+(Math.sin(t*1.7+x)+1)*.07;
+    ctx.globalAlpha=.18+Math.min(.20,(climate?.night??0)*.5);
     p(x - 1 - camera.x, 38 - camera.y, 2, 5, "#fff1bf");
   }
-  if(motion)for (let i = 0; i < 5; i++) {
-    const a = (t * (.045 + i * .008) + i * .19) % 1;
-    ctx.globalAlpha = .16 * Math.sin(a * Math.PI);
-    p((4.6 + i * 6.3 + Math.sin(t * .28 + i) * .32) * TILE - camera.x, (17.4 - a * 8) * TILE - camera.y, 1, .5, room.theme.window);
+  if(motion&&strength>.08&&climate&&(room.id==="honors"||room.id==="guild")){
+    const length=Math.min(96,36/Math.max(.22,climate.sunHeight)),drift=-climate.sunX*length*.65;
+    for(let i=0;i<4;i++){
+      const a=(t*(.04+i*.008)+i*.23)%1;
+      ctx.globalAlpha=.18*Math.sin(a*Math.PI);
+      p(WINDOW_X[i]+16+drift*a+Math.sin(t*.3+i)*3-camera.x,80+a*length-camera.y,1,.5,"#f4e6c9");
+    }
   }
   ctx.restore();
 }
