@@ -110,6 +110,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
   const sphere=new THREE.SphereGeometry(.5,10,8),shaft=new THREE.CylinderGeometry(.5,.5,1,6);
   const ball=new THREE.MeshBasicMaterial({color:0xe4ff42,toneMapped:false});
   const impact=new THREE.MeshBasicMaterial({color:0xeaff9a,toneMapped:false,transparent:true,opacity:.75,depthWrite:false});
+  const damageImpact=new THREE.MeshBasicMaterial({color:0xffe0a0,toneMapped:false,transparent:true,opacity:.9,depthWrite:false});
   const glow=softGlowTexture(),haloMaterial=new THREE.SpriteMaterial({map:glow,color:0xc8ff24,opacity:.72,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
   const trailMaterials=[.8,.63,.45,.29,.15,.07].map(opacity=>new THREE.MeshBasicMaterial({color:0xc7ff25,toneMapped:false,transparent:true,opacity,depthWrite:false}));
   type Slot={body:THREE.Mesh;halo:THREE.Sprite;trail:THREE.Mesh[];history:THREE.Vector3[];projectile:Projectile|null;owner:THREE.Object3D|null;flash:number};
@@ -160,7 +161,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
         for(const mesh of slot.trail)mesh.visible=false;
         if(result.hit){
           if(support&&!result.target){const r=groundResidue(result.hit,p,support);if(r){if(residues.length===RESIDUE_LIMIT)residues.shift();residues.push(r);}}
-          slot.flash=.075;slot.body.material=impact;slot.body.scale.setScalar(p.shooter.heavy?.09:.055);
+          slot.flash=result.damage>0?.14:.075;slot.body.material=result.damage>0?damageImpact:impact;slot.body.scale.setScalar((p.shooter.heavy?.09:.055)*(result.damage>0?1.6:1));
         }else{release(slot);active.splice(i,1);}
         continue;
       }
@@ -197,7 +198,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
   }
   function clear(){for(const slot of active)release(slot);active.length=0;residues.length=0;for(const mesh of residueMeshes)mesh.count=0;}
   function dispose(){
-    clear();group.removeFromParent();sphere.dispose();shaft.dispose();ball.dispose();impact.dispose();glow.dispose();haloMaterial.dispose();
+    clear();group.removeFromParent();sphere.dispose();shaft.dispose();ball.dispose();impact.dispose();damageImpact.dispose();glow.dispose();haloMaterial.dispose();
     for(const material of trailMaterials)material.dispose();
     for(const mesh of residueMeshes)mesh.dispose();for(const material of residueMaterials)material.dispose();slots.length=0;
   }

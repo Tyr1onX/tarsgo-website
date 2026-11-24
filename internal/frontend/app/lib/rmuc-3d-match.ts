@@ -58,7 +58,8 @@ type ArmorRegion="default"|"reinforced"|"exposed";
 type Armor={shots:number;hits:(ArmorPoint&{region:ArmorRegion})[];used:number;center:ArmorPoint|null};
 const armor=():Armor=>({shots:0,hits:[],used:0,center:null});
 type Side = { armor:Armor;dart:Dart;blindUntil:number;runeDisabledUntil:number;baseZoneUntil:number;outpostZoneUntil:number;tech:Technology; coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
-export type Match = { coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
+export type DamageEvent={target:Exclude<Target,{type:"rune"}>;amount:number;at:number;source:"projectile"|"dart"};
+export type Match = { onDamage?:(event:DamageEvent)=>void; coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({armor:armor(),dart:dart(),blindUntil:0,runeDisabledUntil:0,baseZoneUntil:0,outpostZoneUntil:0,tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
@@ -794,9 +795,17 @@ function hitRune(m:Match,shooter:MatchRobot,target:Extract<Target,{type:"rune"}>
 }
 
 function killRobot(match:Match,enemy:MatchRobot){
-  enemy.commandTarget=null;enemy.terrain.effects={};enemy.terrain.combinedUntil=0;enemy.terrain.attempt=null;enemy.terrain.seen=[];markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
+  enemy.commandTarget=null;enemy.terrain.effects={};enemy.terrain.combinedUntil=0;enemy.terrain.attempt=null;enemy.terrain.seen=[];markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.powerBuffer=60;enemy.powerLockUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
 }
-function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|"base",amount:number){
+function damageRobot(match:Match,attacker:Team,enemy:MatchRobot,amount:number,source:DamageEvent["source"]){
+  amount=Math.min(enemy.hp,Math.max(0,amount));
+  if(!amount)return 0;
+  enemy.hp-=amount;match.sides[attacker].damage+=amount;enemy.lastCombat=match.elapsed;
+  if(enemy.hp===0)killRobot(match,enemy);
+  match.onDamage?.({target:{type:"robot",id:enemy.id},amount,at:match.elapsed,source});
+  return amount;
+}
+function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|"base",amount:number,source:DamageEvent["source"]="projectile"){
   const enemy=match.sides[location],side=match.sides[attacker],owner=type==="outpost"?enemy.outpostOwner:location;
   if(owner===attacker)return 0;
   amount=Math.min(enemy[type],amount);
@@ -807,6 +816,7 @@ function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|
     if(area.full){area.full=false;area.progress=0;}
     else if(area.controller!==owner){area.full=true;area.progress=0;rebuildOutpost(enemy,area.controller);}
   }
+  if(amount>0)match.onDamage?.({target:{type,team:location},amount,at:match.elapsed,source});
   return amount;
 }
 // §5.7.3. Virtual detection: a launched training dart reports a qualified
@@ -861,9 +871,9 @@ function settleDart(m:Match,team:Team,mode:DartMode){
   d.hits++;d.windowHits++;d.blockedUntil=t+2;
   const blind=mobileDart(mode)?10:[10,5,3,2][Math.min(3,d.hits-1)];
   enemy.blindUntil=Math.max(t,enemy.blindUntil)+blind;
-  if(mode==="outpost"){damageStructure(m,team,other,"outpost",1000);enemy.outpostZoneUntil=t+30;return;}
+  if(mode==="outpost"){damageStructure(m,team,other,"outpost",1000,"dart");enemy.outpostZoneUntil=t+30;return;}
   d.baseHits++;enemy.baseZoneUntil=t+30;
-  damageStructure(m,team,other,"base",({fixed:200,randomFixed:300,randomMoving:800,terminalMoving:1250})[mode]);
+  damageStructure(m,team,other,"base",({fixed:200,randomFixed:300,randomMoving:800,terminalMoving:1250})[mode],"dart");
   shareXp(m,team,mode==="fixed"?200:mode==="randomFixed"?600:2500);
   if(mode==="randomFixed"&&enemy.rune.activatedUntil>t)enemy.runeDisabledUntil=Math.min(enemy.rune.activatedUntil,Math.max(t,enemy.runeDisabledUntil)+blind);
   if(mode==="randomFixed"){
@@ -874,7 +884,7 @@ function settleDart(m:Match,team:Team,mode:DartMode){
     for(const r of m.robots)if(r.team===other&&r.hp>0){
       r.terrain.effects={};r.terrain.combinedUntil=0;
       const amount=Math.min(r.hp,Math.round(r.maxHp*(mode==="terminalMoving"?.5:.2)));
-      r.hp-=amount;side.damage+=amount;r.lastCombat=t;if(r.hp===0)killRobot(m,r);
+      damageRobot(m,team,r,amount,"dart");
     }
   }
   if(mobileDart(mode)||d.baseHits===4)enemy.cover=true;
@@ -955,8 +965,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
     const multiplier=armorMultiplier(match,shooter.team,enemy.team,hit);
     if(immune(match,enemy))return 0;
     const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*multiplier*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack)*robotDefense(match,enemy))));
-    enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0)killRobot(match,enemy);
+    damageRobot(match,shooter.team,enemy,amount,"projectile");
     attackXp(match,shooter,amount*4,enemy);
     return amount;
   }
@@ -968,9 +977,9 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
   // conditions are satisfied. Physical base detector binding is pending.
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
   const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*multiplier*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack)*(1-teamDefense(match,owner))));
-  damageStructure(match,shooter.team,target.team,target.type,amount);
-  attackXp(match,shooter,target.type==="outpost"?amount*2:Math.ceil(amount/2));
-  return amount;
+  const dealt=damageStructure(match,shooter.team,target.team,target.type,amount);
+  attackXp(match,shooter,target.type==="outpost"?dealt*2:Math.ceil(dealt/2));
+  return dealt;
 }
 export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
   if(match.phase!=="running")return;
