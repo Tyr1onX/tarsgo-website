@@ -14,7 +14,7 @@ import { ROOM_ART_SCALE } from "~/lib/pixel-jijia-room-art";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
-import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
+import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import "./pixel-jijia.css";
@@ -24,6 +24,7 @@ const DEFAULT_ZOOM = 1.35;
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
 const closestFeature = (position: Position): Feature | null => {
+  if(waterDepthAt(position.x,position.y))return null;
   const place = closestPlace(position);
   const story = closestStory(position), bench = closestBench(position);
   const scenery = story && bench && Math.hypot(position.x - bench.x, position.y - bench.y) <
@@ -64,12 +65,16 @@ export default function PixelJijiaPage() {
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<Terrain | null>(null);
   const wildlifeRef = useRef<Animal[]>([]);
+  const surfaceRef=useRef<SurfaceWeather>({wet:0,snow:0});
   const castRef = useRef<FishingCast | null>(null);
   const naturePromptRef = useRef("");
   const noticeUntilRef = useRef(0);
   const [naturePrompt,setNaturePrompt] = useState("");
   const [natureNotice,setNatureNotice] = useState("");
   const [discoveries,setDiscoveries] = useState<string[]>([]);
+  const storySites=SCENERY.filter(p=>p.story);
+  const knownStories=storySites.filter(p=>discoveries.includes(p.story!.title));
+  const natureDiscoveries=discoveries.filter(name=>!storySites.some(p=>p.story!.title===name));
   const groundTilesRef = useRef<HTMLImageElement | null>(null);
   const roomTerrainRef = useRef<Record<string, HTMLCanvasElement>>({});
   const transitionRef = useRef<{
@@ -125,8 +130,8 @@ export default function PixelJijiaPage() {
       if(Array.isArray(stored))setDiscoveries(stored.filter((item):item is string=>typeof item==="string"));
     } catch { /* Ignore an invalid local collection. */ }
   },[]);
-  const recordNature = useCallback((item:string,notice:string)=>{
-    setNatureNotice(notice);noticeUntilRef.current=performance.now()+3200;
+  const recordDiscovery = useCallback((item:string,notice?:string)=>{
+    if(notice){setNatureNotice(notice);noticeUntilRef.current=performance.now()+3200;}
     setDiscoveries(items=>items.includes(item)?items:[...items,item]);
   },[]);
   useEffect(() => {
@@ -137,13 +142,13 @@ export default function PixelJijiaPage() {
     const player=playerRef.current,cast=castRef.current;
     if(cast){
       if(performance.now()-cast.started<1800)return;
-      const fish=catchFish(cast);castRef.current=null;recordNature(fish,"钓到一条"+fish);return;
+      const fish=catchFish(cast);castRef.current=null;recordDiscovery(fish,"钓到一条"+fish);return;
     }
     const target=fishingTarget(player);
     if(target){castRef.current={target,started:performance.now()};return;}
     const animal=closestAnimal(wildlifeRef.current,player);
-    if(animal)recordNature(SPECIES_LABEL[animal.species],"已观察："+SPECIES_LABEL[animal.species]);
-  },[recordNature]);
+    if(animal)recordDiscovery(SPECIES_LABEL[animal.species],"已观察："+SPECIES_LABEL[animal.species]);
+  },[recordDiscovery]);
 
   useEffect(() => {
     const refresh = () => setClock(changchunClimate(new Date(), timeMode));
@@ -200,7 +205,11 @@ export default function PixelJijiaPage() {
   };
 
   const selectPlace = useCallback((place: Feature | null) => {
-    if(place)castRef.current=null;
+    if(place){
+      castRef.current=null;
+      if(!("href" in place)&&place.story&&Math.hypot(playerRef.current.x-place.x,playerRef.current.y-place.y)<2.8)
+        recordDiscovery(place.story.title);
+    }
     selectedRef.current = place;
     keysRef.current.clear();
     touchRef.current.clear();
@@ -208,7 +217,7 @@ export default function PixelJijiaPage() {
     sprintTouchRef.current = false;
     setStoryActivated(false);
     setSelected(place);
-  }, []);
+  }, [recordDiscovery]);
 
   const standUp = useCallback(() => {
     if (!seated) return;
@@ -429,8 +438,9 @@ export default function PixelJijiaPage() {
         propsRef.current = environment;
         wildlifeRef.current = createWildlife();
         groundTilesRef.current = ground;
-        terrainRef.current = renderTerrain(ground, changchunClimate(new Date()).season);
-        previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
+        const season=changchunClimate(new Date()).season;
+        terrainRef.current = renderTerrain(ground, season);
+        previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment,season);
         roomTerrainRef.current = Object.fromEntries(Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene, ground)]));
         setAssetState("ready");
       })
@@ -453,7 +463,7 @@ export default function PixelJijiaPage() {
         !artRef.current || !artIndexRef.current || !propsRef.current) return;
     terrainRef.current = renderTerrain(groundTilesRef.current, climate.season);
     previewRef.current = renderWorldPreview(terrainRef.current, artRef.current,
-      artIndexRef.current, propsRef.current);
+      artIndexRef.current, propsRef.current,climate.season);
   }, [climate?.season]);
 
   useEffect(() => {
@@ -466,6 +476,7 @@ export default function PixelJijiaPage() {
       if (transitionRef.current) return;
       if (event.key === "Escape") {
         if (selectedRoom) setSelectedRoom(null);
+        else if(castRef.current)castRef.current=null;
         else if (selectedRef.current) selectPlace(null);
         else { setMapOpen(false); setShowHelp(false); }
         return;
@@ -479,7 +490,7 @@ export default function PixelJijiaPage() {
         return;
       }
       if (event.key.toLowerCase() === "e") {
-        if (selectedRoom) return;
+        if (selectedRoom || event.repeat) return;
         if (room) {
           const object = closestRoomObject(room, playerRef.current);
           if (object && object.kind !== "exit") {
@@ -566,6 +577,7 @@ export default function PixelJijiaPage() {
       const climate = climateRef.current;
       const dt = lastTime ? Math.min((time - lastTime) / 1000, 0.05) : 0;
       lastTime = time;
+      surfaceRef.current=advanceSurface(surfaceRef.current,climate?.weather??null,climate?.temperature??null,dt);
       const held = (dir: Direction) => Number(keysRef.current.has(dir) || touchRef.current.has(dir));
       const x = held("right") - held("left");
       const y = held("down") - held("up");
@@ -612,7 +624,7 @@ export default function PixelJijiaPage() {
         updateWildlife(wildlifeRef.current,playerRef.current,dt,climate?.hour??12,climate?.weather??null,!reducedMotion.matches);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, directionRef.current, walking, traveled, cameraRef.current, Boolean(seated),
-          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches);
+          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current);
       }
 
       if (reducedMotion.matches || room) {
@@ -664,6 +676,8 @@ export default function PixelJijiaPage() {
       canvas.dataset.particles = String(particles.length);
       canvas.dataset.scene = room?.id ?? "outdoor";
       canvas.dataset.waterDepth = String(room ? 0 : waterDepthAt(playerRef.current.x,playerRef.current.y));
+      canvas.dataset.wetness=surfaceRef.current.wet.toFixed(2);
+      canvas.dataset.snow=surfaceRef.current.snow.toFixed(2);
 
       const nextNearby = seated || room ? null : closestFeature(playerRef.current);
       const cast=castRef.current;
@@ -695,7 +709,7 @@ export default function PixelJijiaPage() {
 
       if (!room && miniCtx && time - lastMini > 100) {
         renderNavigationMap(miniCtx, preview, playerRef.current, directionRef.current,
-          cameraRef.current, viewWidth, viewHeight, mapOpen);
+          cameraRef.current, viewWidth, viewHeight, mapOpen,discoveries);
         lastMini = time;
       }
       const transition = transitionRef.current;
@@ -730,7 +744,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom]);
+    climate?.season, enterRoom, exitRoom, discoveries]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -770,7 +784,7 @@ export default function PixelJijiaPage() {
     if (place) selectPlace(place);
     else {
       const story = closestStory({ x, y });
-      if (story) selectPlace(story);
+      if (story && (discoveries.includes(story.story!.title) || Math.hypot(playerRef.current.x-story.x,playerRef.current.y-story.y)<2.8)) selectPlace(story);
     }
   };
 
@@ -780,7 +794,7 @@ export default function PixelJijiaPage() {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / rect.width * WORLD_WIDTH;
     const y = (event.clientY - rect.top) / rect.height * WORLD_HEIGHT;
-    const story = SCENERY.find(p => p.story && Math.hypot(x - p.x, y - p.y) < 2.8);
+    const story = knownStories.find(p => Math.hypot(x - p.x, y - p.y) < 2.8);
     const place = PLACES.find(p => x >= p.x && x <= p.x + p.width &&
       y >= p.y && y <= p.y + p.height);
     if (story || place) {
@@ -837,17 +851,18 @@ export default function PixelJijiaPage() {
           ))}
         </div>
         <details className="pixel-world-map-discoveries">
-          <summary>探索发现 · {SCENERY.filter(p => p.story).length}</summary>
+          <summary>探索发现 · {knownStories.length}/{storySites.length}</summary>
           <div className="pixel-world-map-discovery-list">
-            {SCENERY.filter(p => p.story).map(item => (
+            {knownStories.length===0&&<span className="pixel-world-nature-log">靠近地标，按 E 探索。</span>}
+            {knownStories.map(item => (
               <button type="button" key={item.story!.title}
                 onClick={() => { selectPlace(item); setMapOpen(false); }}>{item.story!.title}</button>
             ))}
           </div>
         </details>
         <details className="pixel-world-map-discoveries">
-          <summary>自然图鉴 · {discoveries.length}</summary>
-          {discoveries.length?<div className="pixel-world-nature-log">{discoveries.join(" · ")}</div>:<div className="pixel-world-nature-log">观察动物或钓鱼后收录。</div>}
+          <summary>自然图鉴 · {natureDiscoveries.length}</summary>
+          {natureDiscoveries.length?<div className="pixel-world-nature-log">{natureDiscoveries.join(" · ")}</div>:<div className="pixel-world-nature-log">观察动物或钓鱼后收录。</div>}
         </details>
         <div className="pixel-world-zoom">
           <button type="button" aria-label="缩小地图" onClick={() => setMapZoom(zoomRef.current - 0.1)}>−</button>

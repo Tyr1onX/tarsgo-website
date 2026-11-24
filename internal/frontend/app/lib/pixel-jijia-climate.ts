@@ -38,13 +38,15 @@ export function changchunClimate(now: Date, mode: TimeMode = "actual"): Changchu
     : month >= 6 && month <= 8 ? "summer" : month >= 9 && month <= 11 ? "autumn" : "winter";
   const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   // Fixed within each four-hour block; refreshes never reroll the same conditions.
-  const seed = year * 211 + month * 541 + day * 271 + Math.floor(hour / 4) * 127;
-  const random = ((Math.imul(seed ^ (seed >>> 7), 1664525) + 1013904223) >>> 0) / 4294967296;
+  const daySeed = mode === "game" ? Math.floor(now.getTime() / 1_440_000) : year * 211 + month * 541 + day * 271;
+  const seed = Math.imul(daySeed + Math.floor(hour / 4) * 127, 374761393);
+
+  const random = ((Math.imul(seed ^ (seed >>> 13), 1274126177) ^ (seed >>> 17)) >>> 0) / 4294967296;
   const candidate: WeatherKind = season === "winter"
-    ? (random < 0.38 ? "snow" : random < 0.68 ? "cloudy" : "clear")
+    ? (random < 0.32 ? "snow" : random < 0.40 ? "fog" : random < 0.68 ? "cloudy" : "clear")
     : season === "summer"
-      ? (random < 0.36 ? "rain" : random < 0.61 ? "cloudy" : "clear")
-      : random < 0.2 ? "rain" : random < 0.53 ? "cloudy" : "clear";
+      ? (random < 0.10 ? "storm" : random < 0.36 ? "rain" : random < 0.42 ? "fog" : random < 0.66 ? "cloudy" : "clear")
+      : random < 0.20 ? "rain" : random < 0.28 ? "fog" : random < 0.56 ? "cloudy" : "clear";
   // Approximate solar direction using latitude, seasonal declination and hour
   // angle. East is +x, north is -y; the artwork uses an overhead projection.
   const dayOfYear = (Date.UTC(year,month-1,day)-Date.UTC(year,0,0))/86400000;
@@ -58,8 +60,25 @@ export function changchunClimate(now: Date, mode: TimeMode = "actual"): Changchu
   // Simulated temperature follows seasonal conditions and daytime warming.
   const monthly = [-16, -12, -3, 8, 16, 21, 24, 22, 16, 7, -3, -13][month - 1];
   const temperature = Math.round(monthly + Math.cos((Math.floor(hour / 4) * 4 + 2 - 14) * Math.PI / 12) * 5 + (random - .5) * 8 - (candidate === "snow" ? 3 : 0));
-  const weather: WeatherKind = candidate === "rain" && temperature <= 0 ? "snow" : candidate === "snow" && temperature > 0 ? "rain" : candidate;
+  const weather: WeatherKind = (candidate === "rain" || candidate === "storm") && temperature <= 0 ? "snow" : candidate === "snow" && temperature > 0 ? "rain" : candidate;
   return { year, month, day, hour, minute, season, weather, temperature, night, sunX, sunY, sunHeight, dateKey };
+}
+
+export type SurfaceWeather = { wet: number; snow: number };
+const unit = (value:number) => Math.max(0,Math.min(1,value));
+
+// Visual accumulation lives in the scene, not in per-tile gameplay state.
+// Rainwater drains gradually, and snow melts only as the temperature rises.
+export function advanceSurface(surface: SurfaceWeather, weather: WeatherKind|null,
+  temperature: number|null, dt: number): SurfaceWeather {
+  if(!weather || temperature===null || dt<=0)return surface;
+  const rain=weather==="rain"||weather==="storm";
+  const snowfall=weather==="snow";
+  const melt=temperature>0 ? Math.min(surface.snow,dt*(.012+temperature*.003)) : 0;
+  return {
+    wet:unit(surface.wet+dt*(rain?.11:-.014)+melt*.65),
+    snow:unit(surface.snow+dt*(snowfall?.085:0)-melt),
+  };
 }
 
 export const SEASON_LABEL: Record<Season, string> = {
