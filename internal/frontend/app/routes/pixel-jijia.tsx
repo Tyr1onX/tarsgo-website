@@ -7,26 +7,17 @@ import {
   type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
-import { ROOMS, STUDY_ROOM, closestRoomObject, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOMS, STUDY_ROOM, closestRoomObject, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOM_ART_SCALE } from "~/lib/pixel-jijia-room-art";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, changchunClimate, type ChangchunClimate } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
-import mechanicalRoomUrl from "../assets/pixel-jijia/interior-mechanical-v6.webp?url";
-import honorsRoomUrl from "../assets/pixel-jijia/interior-honors-v6.webp?url";
-import electricalRoomUrl from "../assets/pixel-jijia/interior-electrical-v6.webp?url";
-import visionRoomUrl from "../assets/pixel-jijia/interior-vision-v6.webp?url";
-import guildRoomUrl from "../assets/pixel-jijia/interior-guild-v6.webp?url";
-import aiRoomUrl from "../assets/pixel-jijia/interior-ai-v6.webp?url";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
-const INTERIOR_ART = {
-  mechanical: mechanicalRoomUrl, honors: honorsRoomUrl, electrical: electricalRoomUrl,
-  vision: visionRoomUrl, guild: guildRoomUrl, ai: aiRoomUrl,
-} as const;
 
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
@@ -70,11 +61,10 @@ export default function PixelJijiaPage() {
   const selectedRef = useRef<Feature | null>(null);
   const terrainRef = useRef<HTMLCanvasElement | null>(null);
   const groundTilesRef = useRef<HTMLImageElement | null>(null);
-  const roomTerrainRef = useRef<HTMLCanvasElement | null>(null);
+  const roomTerrainRef = useRef<Record<string, HTMLCanvasElement>>({});
   const transitionRef = useRef<{
     target: string | null; phase: "out" | "in"; started: number | null; swap: () => void;
   } | null>(null);
-  const roomArtRef = useRef<Record<string, HTMLImageElement>>({});
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const characterRef = useRef<HTMLImageElement | null>(null);
   const artRef = useRef<HTMLImageElement | null>(null);
@@ -103,6 +93,7 @@ export default function PixelJijiaPage() {
   const room = useMemo(() => roomId === "study"
     ? makeStudyRoom(studyItems, studyGuest)
     : roomId ? ROOMS[roomId] ?? null : null, [roomId, studyItems, studyGuest]);
+  const roomScale = room && room.id !== "study" ? ROOM_ART_SCALE : 1;
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -144,8 +135,8 @@ export default function PixelJijiaPage() {
     selectPlace(null);
   };
 
-  // Both fade halves use the existing animation frame. Swap only while
-  // fully covered and begin revealing after the destination has rendered.
+  // The existing animation frame owns both halves of the fade. Swap only
+  // while fully covered, and keep it covered until the destination has rendered.
   const transitionTo = useCallback((target: string | null, swap: () => void) => {
     if (transitionRef.current) return;
     if (!canvasRef.current?.dataset.scene || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -165,7 +156,7 @@ export default function PixelJijiaPage() {
     transitionTo(placeId, () => {
       playerRef.current = { ...destination.entry };
       const canvas = canvasRef.current;
-      if (canvas) cameraRef.current = cameraAt(destination.entry, canvas.width, canvas.height,
+      if (canvas) cameraRef.current = cameraAt(destination.entry, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current,
         destination.width * TILE, destination.height * TILE);
       setSeated(null);
       setRoomId(placeId);
@@ -192,7 +183,7 @@ export default function PixelJijiaPage() {
         setStudyInvite("");
         playerRef.current = { ...STUDY_ROOM.entry };
         const canvas = canvasRef.current;
-        if (canvas) cameraRef.current = cameraAt(STUDY_ROOM.entry, canvas.width, canvas.height,
+        if (canvas) cameraRef.current = cameraAt(STUDY_ROOM.entry, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current,
           STUDY_ROOM.width * TILE, STUDY_ROOM.height * TILE);
         keysRef.current.clear();
         touchRef.current.clear();
@@ -263,7 +254,7 @@ export default function PixelJijiaPage() {
       if (roomId === "study") {
         playerRef.current = { ...SPAWN };
         const canvas = canvasRef.current;
-        if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.width, canvas.height);
+        if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current);
         setRoomId(null);
         setSelectedRoom(null);
         setStudyGuest(false);
@@ -274,7 +265,7 @@ export default function PixelJijiaPage() {
       if (!place) return;
       playerRef.current = { x: place.x + place.width / 2, y: place.y + place.height + 1.2 };
       const canvas = canvasRef.current;
-      if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.width, canvas.height);
+      if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current);
       setSelectedRoom(null);
       setRoomId(null);
     });
@@ -290,14 +281,14 @@ export default function PixelJijiaPage() {
     }
     const width = Math.max(1, Math.round(stage.clientWidth / value));
     const height = Math.max(1, Math.round(stage.clientHeight / value));
-    if (canvas.width === width && canvas.height === height) return;
-    canvas.width = width;
-    canvas.height = height;
+    if (canvas.width === width * roomScale && canvas.height === height * roomScale) return;
+    canvas.width = width * roomScale;
+    canvas.height = height * roomScale;
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.imageSmoothingEnabled = false;
     cameraRef.current = cameraAt(playerRef.current, width, height,
       (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
-  }, [room]);
+  }, [room, roomScale]);
 
   const setMapZoom = useCallback((next: number) => {
     const stage = stageRef.current;
@@ -326,15 +317,13 @@ export default function PixelJijiaPage() {
       loadImage(character, "/assets/pixel-jijia/explorer-4dir.png"),
       loadImage(groundTiles, groundTilesUrl),
       loadImage(props, plazaPropsUrl),
-      Promise.all(Object.entries(INTERIOR_ART).map(async ([id, url]) =>
-        [id, await loadImage(new Image(), url)] as const)),
       fetch("/assets/pixel-jijia/actual-imagegen-atlas.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, ground, environment, interiors, metadata]) => {
+      .then(([image, explorer, ground, environment, metadata]) => {
         if (!active) return;
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 528) {
           throw new Error("地面图集与场景版本不匹配");
@@ -349,8 +338,7 @@ export default function PixelJijiaPage() {
         groundTilesRef.current = ground;
         terrainRef.current = renderTerrain(ground, changchunClimate(new Date()).season);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment);
-        roomTerrainRef.current = renderRoomTerrain(STUDY_ROOM);
-        roomArtRef.current = Object.fromEntries(interiors);
+        roomTerrainRef.current = Object.fromEntries(Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene)]));
         setAssetState("ready");
       })
       .catch(() => { if (active) setAssetState("error"); });
@@ -447,8 +435,7 @@ export default function PixelJijiaPage() {
     if (assetState !== "ready") return;
     const stage = stageRef.current, canvas = canvasRef.current;
     const minimap = miniRef.current, terrain = terrainRef.current, preview = previewRef.current;
-    const roomTerrain = room?.id === "study" ? roomTerrainRef.current
-      : room ? roomArtRef.current[room.id] : null;
+    const roomTerrain = room ? roomTerrainRef.current[room.id] : null;
     const character = characterRef.current;
     const atlas = artRef.current, sprites = artIndexRef.current, props = propsRef.current;
     if (!stage || !canvas || !terrain || !preview || !character || !atlas || !sprites || !props || (room && !roomTerrain)) return;
@@ -511,13 +498,15 @@ export default function PixelJijiaPage() {
           }
         }
       }
-      const target = cameraAt(playerRef.current, canvas.width, canvas.height,
+      const viewWidth = canvas.width / roomScale, viewHeight = canvas.height / roomScale;
+      const target = cameraAt(playerRef.current, viewWidth, viewHeight,
         (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
       const follow = 1 - Math.exp(-(sprinting ? 8 : 6) * dt);
       cameraRef.current.x += (target.x - cameraRef.current.x) * follow;
       cameraRef.current.y += (target.y - cameraRef.current.y) * follow;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
+      ctx.clearRect(0, 0, viewWidth, viewHeight);
       ctx.imageSmoothingEnabled = false;
       if (room && roomTerrain) {
         renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
@@ -633,7 +622,7 @@ export default function PixelJijiaPage() {
         ctx.save();
         ctx.globalAlpha = alpha * alpha * (3 - 2 * alpha);
         ctx.fillStyle = "#101c24";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, viewWidth, viewHeight);
         ctx.restore();
         canvas.dataset.transition = transitionRef.current ? transition.phase : "idle";
       } else canvas.dataset.transition = "idle";
@@ -645,7 +634,7 @@ export default function PixelJijiaPage() {
       observer.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, selectedRoom,
+  }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
     climate?.season, climate?.weather, climate?.night, enterRoom, exitRoom]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -653,8 +642,8 @@ export default function PixelJijiaPage() {
     if (!canvas || transitionRef.current) return;
     const rect = canvas.getBoundingClientRect();
     const camera = snapCamera(cameraRef.current);
-    const x = ((event.clientX - rect.left) / rect.width * canvas.width + camera.x) / TILE;
-    const y = ((event.clientY - rect.top) / rect.height * canvas.height + camera.y) / TILE;
+    const x = ((event.clientX - rect.left) / rect.width * canvas.width / roomScale + camera.x) / TILE;
+    const y = ((event.clientY - rect.top) / rect.height * canvas.height / roomScale + camera.y) / TILE;
     if (room?.id === "study" && !studyGuest) {
       const cellX = Math.floor(x), cellY = Math.floor(y);
       if (studyTool === "erase") {
@@ -678,7 +667,7 @@ export default function PixelJijiaPage() {
       return;
     }
     if (room) {
-      const object = closestRoomObject(room, { x, y });
+      const object = roomObjectAt(room, { x, y });
       if (object && object.kind !== "exit") setSelectedRoom(object);
       return;
     }

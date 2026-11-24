@@ -1,5 +1,6 @@
-import { TILE, overlapsRect, snapCamera, type Direction, type Position } from "./pixel-jijia-world";
-import { renderExplorer } from "./pixel-jijia-scene";
+import { TILE, overlapsRect, snapCamera, type Direction, type Position } from "./pixel-jijia-world.ts";
+import { renderExplorer } from "./pixel-jijia-scene.ts";
+import { ROOM_ART_SCALE, drawPublicRoomObject, drawRoomLight, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
 
 type Rect = Position & { width: number; height: number };
 export type RoomObject = Rect & {
@@ -8,6 +9,7 @@ export type RoomObject = Rect & {
   description: string;
   kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit" | "desk" | "chair" | "shelf" | "lamp" | "plant";
   solid?: boolean;
+  decorative?: boolean;
   href?: string;
   action?: string;
 };
@@ -35,7 +37,7 @@ export const MECHANICAL_ROOM: RoomScene = {
       title: "装配工作台", description: "机械组在这里完成零件定位、工具检查和整机装配。台面上还有未完成的轮组草图。" },
     { id: "tool-storage", kind: "cabinet", x: 4, y: 7, width: 7, height: 7, solid: true,
       title: "工具储藏柜", description: "扭矩扳手、游标卡尺和常用紧固件都按尺寸分类。每次使用后，工具要回到自己的位置。" },
-    { id: "machine", kind: "machine", x: 11.5, y: 11, width: 3, height: 6, solid: true,
+    { id: "machine", kind: "machine", x: 11, y: 11, width: 2.5, height: 6, solid: true,
       title: "加工设备", description: "试制零件在这里完成加工。机器上的安全标识提醒每一个进入工坊的人保持专注。" },
     { id: "cad", kind: "console", x: 24, y: 8, width: 5, height: 6, solid: true,
       title: "设计工作站", description: "屏幕上是机械结构的三维装配模型。每一个尺寸，都需要与实际材料相吻合。", href: "/about", action: "了解机械组" },
@@ -75,7 +77,7 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "赛事影像台", description: "在这里可以回顾那些决定胜负的瞬间，以及镜头没有拍下的训练日常。" },
       { id: "archive", kind: "cabinet", x: 2, y: 10, width: 3, height: 7, solid: true,
         title: "资料档案室", description: "纸质资料、设计草案和赛事记录被按照年份仔细收存。" },
-      { id: "team-photo", kind: "display", x: 10, y: 4.5, width: 3, height: 5,
+      { id: "team-photo", kind: "display", x: 10, y: 5, width: 3, height: 0.5,
         title: "历届队员合影", description: "从赛场到镜头，一代代队员留下共同经历，名字与奖杯不同，热爱相同。" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
         title: "返回吉甲小镇", description: "走出荣誉殿堂，回到校园道路。" },
@@ -95,7 +97,7 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "嵌入式测试台", description: "从开发板到电机控制器，每一次调试都会让机器人更可靠一些。" },
       { id: "components", kind: "cabinet", x: 28, y: 6, width: 5, height: 8, solid: true,
         title: "元件收纳柜", description: "电阻、电容和芯片都有自己的编号，方便下一次实验快速找到。" },
-      { id: "signal-wall", kind: "display", x: 8, y: 8, width: 5, height: 5,
+      { id: "signal-wall", kind: "display", x: 8, y: 5, width: 5, height: 0.5,
         title: "信号分析墙", description: "PWM、CAN 与闭环控制的波形与实验笔记，记录着每次调试的来龙去脉。" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
         title: "返回吉甲小镇", description: "离开实验室，回到户外。" },
@@ -111,11 +113,11 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "视觉采集设备", description: "标定板和相机共同决定目标位置。细微的像素误差也会影响识别结果。" },
       { id: "dataset", kind: "console", x: 10, y: 10, width: 16, height: 5, solid: true,
         title: "图像数据工作站", description: "画面中的物体被逐帧分析，算法在真实环境中不断修正判断。", href: "/about", action: "了解视觉组" },
-      { id: "observe", kind: "display", x: 13, y: 5, width: 10, height: 4,
+      { id: "observe", kind: "display", x: 13, y: 5, width: 10, height: 0.5,
         title: "观测窗", description: "这里用于观察机器人在试验区的移动和目标跟踪表现。" },
       { id: "compute", kind: "server", x: 28, y: 8, width: 6, height: 7, solid: true,
         title: "图像处理计算站", description: "计算资源支持实时图像处理与识别算法的测试。" },
-      { id: "lens-calibration", kind: "console", x: 15, y: 15, width: 6, height: 6.5, solid: true,
+      { id: "lens-calibration", kind: "console", x: 15, y: 15, width: 6, height: 5.5, solid: true,
         title: "镜头标定台", description: "棋盘格与镜头参数被一一校准，像素误差最终会反映在赛场的每次瞄准中。" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
         title: "返回吉甲小镇", description: "走出观测站，重新回到自然光线中。" },
@@ -128,7 +130,7 @@ export const ROOMS: Record<string, RoomScene> = {
     objects: [
       { id: "welcome", kind: "reception", x: 11, y: 9, width: 13, height: 5, solid: true,
         title: "招新接待台", description: "每个来到吉甲的人，都可以从这里了解不同组别的工作和训练生活。", href: "/join", action: "加入吉甲大师" },
-      { id: "board", kind: "display", x: 2, y: 7, width: 6, height: 8,
+      { id: "board", kind: "display", x: 2, y: 5, width: 6, height: 0.5,
         title: "活动公告栏", description: "展示近期活动、开放实践日和团队见面安排。" },
       { id: "events", kind: "workbench", x: 2, y: 16, width: 8, height: 5, solid: true,
         title: "共创交流桌", description: "不同组别的想法在这里碰撞，一次简单的讨论可能成为下一项实践项目。" },
@@ -153,13 +155,34 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "战术讨论台", description: "策略从假设开始，经仿真、推演与实际对抗不断优化。" },
       { id: "simulation", kind: "console", x: 26, y: 16, width: 8, height: 5, solid: true,
         title: "战术演练终端", description: "当前像素世界的战术演练入口也属于 AI 研究所的一部分。", href: "/pixel-jijia/battle", action: "进入战术演练" },
-      { id: "field-log", kind: "display", x: 3, y: 6, width: 5, height: 5,
+      { id: "field-log", kind: "display", x: 3, y: 5, width: 5, height: 0.5,
         title: "策略实验记录", description: "真实赛场的测试推动感知、路径规划和自主决策持续迭代。" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
         title: "返回吉甲小镇", description: "从研究所走回小镇。" },
     ],
   },
 };
+
+// Decorative furniture uses the same entity geometry as interactive equipment.
+const ROOM_DECOR: Record<string, [RoomObject["kind"], number, number, number, number][]> = {
+  mechanical: [["cabinet", 3, 17, 4, 3], ["chair", 26, 14.8, 1.5, 1.2]],
+  honors: [["display", 28, 7, 5, 3], ["chair", 6, 18, 1.5, 1.2]],
+  electrical: [["cabinet", 3, 7, 4, 4], ["chair", 25, 17, 1.5, 1.2]],
+  vision: [["cabinet", 2, 7, 4, 3], ["chair", 25, 17, 1.5, 1.2]],
+  guild: [["cabinet", 2, 8, 4, 4], ["chair", 6, 13.6, 1.5, 1.2], ["chair", 24.7, 16.7, 1.5, 1.2]],
+  ai: [["server", 3, 8, 4, 5], ["chair", 11.5, 18, 1.5, 1.2]],
+};
+for (const room of Object.values(ROOMS)) {
+  if (room.id === "study") continue;
+  const decor = [...ROOM_DECOR[room.id], ["plant", 2, 22, 2, 1], ["plant", 32, 22, 2, 1]] as const;
+  for (const [i, [kind, x, y, width, height]] of decor.entries()) room.objects.push({
+    id: `decor-${i}`, title: "", description: "", kind, x, y, width, height, solid: true, decorative: true,
+  });
+}
+
+export function roomObjectAt(room: RoomScene, position: Position): RoomObject | null {
+  return room.id === "study" ? closestRoomObject(room, position) : publicRoomObjectAt(room, position);
+}
 
 export function isRoomWalkable(room: RoomScene, x: number, y: number): boolean {
   const radius = 0.3;
@@ -182,6 +205,7 @@ export function closestRoomObject(room: RoomScene, position: Position): RoomObje
   let best = 2.1;
   let result: RoomObject | null = null;
   for (const object of room.objects) {
+    if (object.decorative) continue;
     const dx = Math.max(object.x - position.x, 0, position.x - object.x - object.width);
     const dy = Math.max(object.y - position.y, 0, position.y - object.y - object.height);
     const distance = Math.hypot(dx, dy);
@@ -191,6 +215,7 @@ export function closestRoomObject(room: RoomScene, position: Position): RoomObje
 }
 
 export function renderRoomTerrain(room: RoomScene): HTMLCanvasElement {
+  if (room.id !== "study") return renderPublicRoomTerrain(room);
   const canvas = document.createElement("canvas");
   canvas.width = room.width * TILE;
   canvas.height = room.height * TILE;
@@ -273,185 +298,6 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
     }
     return;
   }
-  if (object.kind === "cabinet") {
-    ctx.fillStyle = "#526f77";
-    ctx.fillRect(x, y - 26, w, h + 26);
-    ctx.fillStyle = "#e5c58a";
-    for (let i = 1; i < object.width; i++) ctx.fillRect(x + i * TILE, y - 25, 2, h + 23);
-    ctx.fillStyle = "#b9d5d4";
-    ctx.fillRect(x + 6, y - 16, w - 12, 5);
-  } else if (object.kind === "display") {
-    ctx.fillStyle = "#916e4b";
-    ctx.fillRect(x, y - 29, w, h + 29);
-    ctx.fillStyle = "#273f47";
-    ctx.fillRect(x + 5, y - 23, w - 10, 25);
-    for (let i = 0; i < Math.max(1, object.width - 2); i += 2) {
-      ctx.fillStyle = "#e6c37e";
-      ctx.fillRect(x + 11 + i * TILE, y - 17, 9, 12);
-      ctx.fillRect(x + 13 + i * TILE, y - 21, 5, 4);
-    }
-    ctx.fillStyle = "#c8e4dd";
-    ctx.fillRect(x + 5, y - 23, w - 10, 2);
-  } else if (object.kind === "camera") {
-    ctx.fillStyle = "#345566";
-    ctx.fillRect(x + w / 2 - 7, y - 30, 14, 29);
-    ctx.fillStyle = "#aec1b5";
-    ctx.fillRect(x + w / 2 - 18, y - 35, 36, 16);
-    ctx.fillStyle = "#64b4d4";
-    ctx.fillRect(x + w / 2 - 3, y - 32, 12, 10);
-    ctx.fillStyle = "#c5ac73";
-    ctx.fillRect(x + 7, y, w - 14, 5);
-  } else if (object.kind === "server") {
-    ctx.fillStyle = "#33445c";
-    ctx.fillRect(x, y - 37, w, h + 37);
-    for (let i = 0; i < object.width; i += 2) {
-      ctx.fillStyle = "#64778f";
-      ctx.fillRect(x + 5 + i * TILE, y - 32, 24, h + 29);
-      for (let j = 0; j < 3; j++) {
-        ctx.fillStyle = j === 1 ? "#b9e59d" : "#71c6e5";
-        ctx.fillRect(x + 9 + i * TILE, y - 25 + j * 12, 5, 3);
-      }
-    }
-  } else if (object.kind === "reception") {
-    ctx.fillStyle = "#896248";
-    ctx.fillRect(x, y - 18, w, h + 18);
-    ctx.fillStyle = "#d6a16b";
-    ctx.fillRect(x - 3, y - 23, w + 6, 11);
-    ctx.fillStyle = "#f6db9a";
-    ctx.fillRect(x + 12, y - 20, w - 24, 4);
-    ctx.fillStyle = "#547d7d";
-    ctx.fillRect(x + 8, y + 8, w - 16, 10);
-  } else if (object.kind === "console") {
-    ctx.fillStyle = "#665d53";
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = "#243c4d";
-    ctx.fillRect(x + 9, y - 34, w - 18, 34);
-    ctx.fillStyle = "#71c9de";
-    ctx.fillRect(x + 14, y - 29, w - 28, 24);
-    ctx.fillStyle = "#e0cc8c";
-    ctx.fillRect(x + 4, y, w - 8, 5);
-  } else if (object.kind === "machine") {
-    ctx.fillStyle = "#566f77";
-    ctx.fillRect(x, y - 25, w, h + 25);
-    ctx.fillStyle = "#c3a56e";
-    ctx.fillRect(x + 8, y - 18, w - 16, 5);
-    ctx.fillStyle = "#6daec2";
-    ctx.fillRect(x + 11, y - 8, 17, 11);
-    ctx.fillRect(x + w - 28, y - 8, 17, 11);
-  } else {
-    ctx.fillStyle = "#755a43";
-    ctx.fillRect(x, y - 8, w, h + 8);
-    ctx.fillStyle = "#c39a6a";
-    ctx.fillRect(x - 2, y - 12, w + 4, 12);
-    for (let i = 0; i < object.width; i += 2) {
-      ctx.fillStyle = "#e3bd7e";
-      ctx.fillRect(x + i * TILE + 6, y - 9, 6, 2);
-    }
-  }
-  // A small illuminated marker distinguishes working, navigable terminals.
-  if (object.href) {
-    ctx.fillStyle = "#173d49";
-    ctx.fillRect(x + w - 16, y - 10, 12, 9);
-    ctx.fillStyle = "#b9efca";
-    ctx.fillRect(x + w - 13, y - 7, 6, 3);
-  }
-}
-
-// A few artwork-aligned, low-contrast details. Coordinates are in the same
-// 36 × 24 tile space as the room image; they do not alter physical objects.
-function renderRoomAmbient(
-  ctx: CanvasRenderingContext2D, room: RoomScene, camera: Position, elapsed: number,
-) {
-  const t = elapsed / 1000;
-  const pulse = (speed: number, phase = 0) => (Math.sin(t * speed + phase) + 1) / 2;
-  const mark = (x: number, y: number, w: number, h: number, color: string, alpha: number) => {
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = color;
-    ctx.fillRect(Math.round(x * TILE), Math.round(y * TILE), w, h);
-  };
-  const gleam = (x: number, y: number, phase: number, color: string) => {
-    const strength = Math.pow(pulse(0.65, phase), 14) * 0.46;
-    if (strength < 0.025) return;
-    mark(x, y, 2, 2, color, strength);
-    mark(x - 0.16, y + 0.03, 1, 1, color, strength * 0.6);
-    mark(x + 0.18, y + 0.03, 1, 1, color, strength * 0.6);
-  };
-
-  ctx.save();
-  ctx.translate(-camera.x, -camera.y);
-
-  // Near-invisible airborne specks drift slowly through the shared interior light.
-  // Their paths are deterministic, so room changes never allocate particle state.
-  for (let i = 0; i < 5; i++) {
-    const drift = (t * (0.045 + i * 0.008) + i * 0.19) % 1;
-    const x = 4.6 + i * 6.3 + Math.sin(t * 0.28 + i * 2.4) * 0.32;
-    const y = 17.4 - drift * 8 + i % 2;
-    mark(x, y, i % 3 === 0 ? 2 : 1, 1, room.theme.window,
-      Math.sin(drift * Math.PI) * (0.08 + (i % 3) * 0.045));
-  }
-
-  switch (room.id) {
-    case "mechanical":
-      // Robot-arm joint indicators and a slowly traversing CAD cursor.
-      mark(13.7, 11.25, 2, 2, "#f8c978", 0.13 + pulse(1.7) * 0.31);
-      mark(22.05, 11.25, 2, 2, "#f8c978", 0.11 + pulse(1.35, 2) * 0.3);
-      mark(24.6 + (t * 0.3) % 3.8, 9.2, 1, 16, "#b9f4ff", 0.1);
-      gleam(18.3, 10.65, 1.4, "#fff3d5");
-      break;
-    case "honors":
-      // Display-case reflections arrive at different times, never in sync.
-      gleam(18.4, 3.8, 0.4, "#fff4d0");
-      gleam(8.5, 16, 2.7, "#fff1c2");
-      gleam(27.1, 15.9, 4.7, "#fff1c2");
-      mark(4.05, 4.6, 3, 4, "#ffe0a0", 0.08 + pulse(0.75) * 0.12);
-      mark(31.5, 4.6, 3, 4, "#ffe0a0", 0.08 + pulse(0.67, 2.1) * 0.12);
-      break;
-    case "electrical":
-      // A tiny measured signal inside the existing main oscilloscope.
-      for (let i = 0; i < 35; i++) {
-        const x = 15 + i * 0.17;
-        const y = 8.95 + Math.sin(i * 0.55 - t * 1.3) * 0.13;
-        mark(x, y, 2, 1, "#d6f8ff", 0.17 + pulse(1.6, i * 0.14) * 0.12);
-      }
-      mark(14.7 + (t * 0.24) % 6.6, 7.15, 1, 37, "#8bdaf6", 0.09);
-      mark(10.55, 11.1, 2, 2, "#b5f1ce", 0.1 + pulse(1.6) * 0.34);
-      mark(25.1, 10.3, 2, 2, "#b5f1ce", 0.12 + pulse(1.25, 1.7) * 0.32);
-      break;
-    case "vision":
-      // The projection and camera retain their painted silhouettes; only light moves.
-      for (let i = 0; i < 4; i++) {
-        const phase = t * (0.37 + i * 0.06) + i * 1.7;
-        mark(18 + Math.sin(phase) * (1.3 + i * 0.18),
-          15.25 + Math.cos(phase) * 0.6, 2, 2, "#a4fff5",
-          0.13 + pulse(1.1, i) * 0.17);
-      }
-      mark(5.72, 15.6, 2, 2, "#a4fff5", 0.1 + pulse(1.3) * 0.3);
-      mark(13.1 + (t * 0.24) % 8.2, 12.0, 2, 1, "#a8f4fb", 0.18);
-      break;
-    case "guild":
-      // Independent candle-like shifts at the wall lamps, plus crest polish.
-      for (const [x, phase] of [[11.15, 0], [24.85, 2.4]] as const) {
-        const flicker = pulse(2.2, phase) * 0.13 + pulse(3.7, phase + 1) * 0.09;
-        mark(x, 6.45, 3, 5, "#ffe2a0", 0.1 + flicker);
-        mark(x + 0.07, 6.33, 1, 2, "#fff0c0", 0.1 + flicker * 0.8);
-      }
-      gleam(18.15, 3.1, 3.5, "#fff2ba");
-      break;
-    case "ai":
-      // Data-rack LEDs and a few points ascending inside the holographic tree.
-      for (let i = 0; i < 4; i++) {
-        const cycle = (t * (0.12 + i * 0.016) + i * 0.21) % 1;
-        mark(18 + Math.sin(t * 0.62 + i) * (0.25 + i * 0.22),
-          12.2 - cycle * 5.3, 2, 2, "#c5faff", Math.sin(cycle * Math.PI) * 0.34);
-      }
-      for (let i = 0; i < 4; i++) {
-        mark(29.9 + (i % 2) * 1.9, 6.6 + i * 1.05, 2, 2, "#7be4ff",
-          0.12 + Math.pow(pulse(1.1 + i * 0.22, i * 1.3), 4) * 0.29);
-      }
-      gleam(18, 14.6, 1.1, "#d8feff");
-      break;
-  }
-  ctx.restore();
 }
 
 export function renderRoomScene(
@@ -463,45 +309,31 @@ export function renderRoomScene(
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
   ctx.fillStyle = "#172d35";
-  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const scale = room.id === "study" ? 1 : ROOM_ART_SCALE;
+  ctx.fillRect(0, 0, ctx.canvas.width / scale, ctx.canvas.height / scale);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y, width, height);
-  if (motionAllowed && room.id !== "study") renderRoomAmbient(ctx, room, screenCamera, elapsed);
 
-  // The public interiors are authored image assets. Repainting their former
-  // geometric furniture would duplicate it and break the single art direction.
-  // Private-study furniture remains separately rendered because it is editable.
+  // The background contains only terrain. Each object is independently drawn
+  // at its footprint; sorting by feet lets its actual transparent silhouette
+  // occlude the explorer instead of copying opaque pieces of a room image.
   if (room.id !== "study") {
-    renderExplorer(ctx, character, player, direction, walking, traveled, screenCamera);
-    // A shallow foreground redraw preserves foot-depth occlusion without making
-    // a second sprite/collision configuration for the flattened room artwork.
-    const foreground = room.objects.filter(object =>
-      object.solid && player.y < object.y + object.height &&
-      player.x >= object.x - 1 && player.x <= object.x + object.width + 1);
-    for (const object of foreground) {
-      const x = Math.max(0, (object.x - 0.5) * TILE);
-      const y = Math.max(0, (object.y - 1.5) * TILE);
-      const w = Math.min(width - x, (object.width + 1) * TILE);
-      const h = Math.min(height - y, (object.height + 1.5) * TILE);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x - screenCamera.x, y - screenCamera.y, w, h);
-      ctx.clip();
-      ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y, width, height);
-      ctx.restore();
+    if (motionAllowed) drawRoomLight(ctx, room, screenCamera, elapsed);
+    for (const object of room.objects) {
+      if (!object.solid && object.kind !== "exit")
+        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
     }
-    return;
   }
-
   let playerDrawn = false;
-  const props = [...room.objects].filter(o => o.kind !== "exit")
+  const props = room.objects.filter(o => o.kind !== "exit" && (room.id === "study" || o.solid))
     .sort((a, b) => a.y + a.height - b.y - b.height);
   for (const object of props) {
     if (!playerDrawn && player.y < object.y + object.height) {
       renderExplorer(ctx, character, player, direction, walking, traveled, screenCamera);
       playerDrawn = true;
     }
-    drawRoomObject(ctx, object, screenCamera);
+    if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
+    else drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
   }
   if (!playerDrawn) renderExplorer(ctx, character, player, direction, walking, traveled, screenCamera);
 }
