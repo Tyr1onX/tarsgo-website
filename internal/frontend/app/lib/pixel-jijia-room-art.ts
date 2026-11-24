@@ -1,5 +1,6 @@
 import { TILE, type Position } from "./pixel-jijia-world.ts";
 import type { RoomObject, RoomScene } from "./pixel-jijia-room.ts";
+import { COMMUNITY_POSES } from "./pixel-jijia-community.ts";
 import type { WeatherKind } from "./pixel-jijia-climate.ts";
 
 export const ROOM_ART_SCALE = 2;
@@ -206,7 +207,7 @@ export function renderPublicRoomTerrain(room: RoomScene, campusTiles?: HTMLImage
 
 // Each object is prepared from the independently masked art atlas. The
 // existing per-object cache also supplies the exact alpha hit test.
-type PreparedSprite={canvas:HTMLCanvasElement;bounds:{x:number;y:number;w:number;h:number}};
+type PreparedSprite={canvas:HTMLCanvasElement;frames:HTMLCanvasElement[];bounds:{x:number;y:number;w:number;h:number}};
 const sprites=new WeakMap<RoomObject,PreparedSprite>();
 function spriteKey(o:RoomObject){return o.decorative?`decor-${o.kind}`:o.id;}
 function spriteBox(o:RoomObject,spriteIndex:Record<string,number[]>){
@@ -216,21 +217,29 @@ function spriteBox(o:RoomObject,spriteIndex:Record<string,number[]>){
   const w=o.width*TILE,h=Math.round(w*sh/sw);
   return {sx,sy,sw,sh,x:o.x*TILE,y:(o.y+o.height)*TILE-h,w,h};
 }
-export function preparePublicRoomArt(atlas:HTMLImageElement,rooms:RoomScene[],spriteIndex:Record<string,number[]>){
+export function preparePublicRoomArt(atlas:HTMLImageElement,rooms:RoomScene[],spriteIndex:Record<string,number[]>, communityAtlas:HTMLImageElement, communityIndex:Record<string,number[]>){
   for(const room of rooms){
     if(room.id==="study")continue;
     for(const o of room.objects){
       if(o.kind==="exit")continue;
-      const b=spriteBox(o,spriteIndex);
+      const b=spriteBox(o,o.community ? communityIndex : spriteIndex);
       const {canvas,p}=bitmap(b.w,b.h);
       const ctx=canvas.getContext("2d")!;
       ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(atlas,b.sx,b.sy,b.sw,b.sh,0,0,b.w,b.h);
+      ctx.drawImage(o.community ? communityAtlas : atlas,b.sx,b.sy,b.sw,b.sh,0,0,b.w,b.h);
       if (o.href) {
         const x=b.w-13,y=b.h-12;
         panel(p,x,y,10,9,"#234351");p(x+2,y+3,5,2,"#b4e8c4");p(x+6,y+2,2,4,"#b4e8c4");
       }
-      sprites.set(o,{canvas,bounds:b});
+      const frames = (COMMUNITY_POSES[o.id] ?? []).slice(1).map(key => {
+        const [sx,sy,sw,sh] = communityIndex[key];
+        const frame = bitmap(b.w,b.h).canvas;
+        const context = frame.getContext("2d")!;
+        context.imageSmoothingEnabled=false;
+        context.drawImage(communityAtlas,sx,sy,sw,sh,0,0,b.w,b.h);
+        return frame;
+      });
+      sprites.set(o,{canvas,frames:[canvas,...frames],bounds:b});
     }
   }
 }
@@ -250,7 +259,8 @@ const LIGHT_POINTS:Record<string,number[][]>={
 export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean){
   const prepared=sprite(o),b=prepared.bounds;
   const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
-  ctx.drawImage(prepared.canvas,x,y,b.w,b.h);
+  const phase = motion ? Math.floor(elapsed / 650 + o.x) % prepared.frames.length : 0;
+  ctx.drawImage(prepared.frames[phase],x,y,b.w,b.h);
   if (!motion) return;
   const points=LIGHT_POINTS[spriteKey(o)];
   if(!points)return;
@@ -335,8 +345,9 @@ export function drawRoomAmbient(ctx:CanvasRenderingContext2D,room:RoomScene,came
 // Click the visible alpha silhouette, not the background or an invisible
 // rectangle. Frontmost solid props win; decorative props block the click.
 export function publicRoomObjectAt(room: RoomScene, position: Position): RoomObject | null {
-  const objects = room.objects.filter(o => o.kind !== "exit").sort((a, b) =>
-    Number(Boolean(b.solid)) - Number(Boolean(a.solid)) || b.y + b.height - a.y - a.height);
+  const walls = room.objects.filter(o => !o.solid && !o.host && o.kind !== "exit");
+  const floor = room.objects.filter(o => o.solid).sort((a,b) => a.y + a.height - b.y - b.height);
+  const objects = [...walls, ...floor.flatMap(o => [o, ...room.objects.filter(child => child.host === o.id)])].reverse();
   for (const object of objects) {
     const prepared=sprite(object),bounds=prepared.bounds;
     const x=position.x*TILE-bounds.x,y=position.y*TILE-bounds.y;
