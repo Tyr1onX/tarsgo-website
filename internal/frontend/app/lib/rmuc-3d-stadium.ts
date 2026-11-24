@@ -4,11 +4,36 @@ import { FIELD_HALF_X, FIELD_HALF_Z } from "./rmuc-3d-terrain.ts";
 export const STADIUM_WIDTH = 72;
 export const STADIUM_DEPTH = 54;
 
+// Small, deterministic tiles; no extra network assets. Each material is
+// shared by every instance of its architectural part.
+function surfaceTexture(kind: "steel" | "concrete") {
+  const size = 128;
+  const pixels = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const noise = ((Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663)) >>> 0) % 19;
+    const joint = kind === "concrete" && (x < 2 || y < 2);
+    const brush = kind === "steel" ? Math.round(8 * Math.sin(y * Math.PI / 4)) : 0;
+    const v = joint ? 152 : 214 + noise + brush;
+    pixels.set([v, v, v, 255], (y * size + x) * 4);
+  }
+  const texture = new THREE.DataTexture(pixels, size, size);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(kind === "steel" ? 4 : 8, kind === "steel" ? 4 : 8);
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function createStadium() {
   const stadium = new THREE.Group();
   stadium.name = "arena-stadium";
-  const steel = new THREE.MeshStandardMaterial({ color: 0x26333e, metalness: .6, roughness: .54 });
-  const wall = new THREE.MeshStandardMaterial({ color: 0x17222d, roughness: .92 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x384651, metalness: .6, roughness: .54, map: surfaceTexture("steel") });
+  const concrete = surfaceTexture("concrete");
+  const wall = new THREE.MeshStandardMaterial({ color: 0x293640, roughness: .92, map: concrete });
+  const concourse = new THREE.MeshStandardMaterial({ color: 0x485563, roughness: .94, map: concrete });
   const seat = new THREE.MeshStandardMaterial({ color: 0x37434d, roughness: .9 });
   const redSeat = new THREE.MeshStandardMaterial({ color: 0x63323b, roughness: .88 });
   const blueSeat = new THREE.MeshStandardMaterial({ color: 0x304a73, roughness: .88 });
@@ -49,8 +74,25 @@ export function createStadium() {
     const endColor = side === 1 ? red : blue;
     box(wall, 0, 8, side * 26.8, 72, 16, .6);
     box(wall, side * 35.8, 8, 0, .6, 16, 54);
-    box(steel, 0, .04, side * 17.25, 72, .1, 19.5);
-    box(steel, side * 25, .04, 0, 22, .1, 54);
+    box(concourse, 0, .04, side * 17.25, 72, .1, 19.5);
+    box(concourse, side * 25, .04, 0, 22, .1, 54);
+    // Pit pads sit beyond the field boundary, with marked parking bays and
+    // workbenches. The blue pit also houses the 2026 spare/reference vehicles.
+    const pitZ = side * 2.5;
+    box(steel, side * 20.25, .095, pitZ, 6.1, .01, 8.4);
+    for (const z of [-3.75,-1.25,1.25,3.75]) {
+      box(endColor, side * 20.25, .106, pitZ + z, 5.8, .012, .065);
+    }
+    for (const x of [17.25,20.25,23.25])
+      box(endColor, side * x, .106, pitZ, .065, .012, 7.5);
+    box(steel, side * 23.6, .53, pitZ, .7, 1.06, 7.6);
+    box(white, side * 23.55, 1.08, pitZ, .8, .06, 7.7);
+    for (const z of [-4,4]) {
+      box(steel,side*23.8,2.0,pitZ+z,.18,4,.18);
+      box(endColor,side*23.65,3.35,pitZ+z,.12,.18,1);
+    }
+    box(steel, side*23.8, 3.95, pitZ, .25,.24,8.2);
+    box(white, side*23.65,3.78,pitZ,.28,.06,7.8);
     // Long-side grandstands, aisle breaks and contrasting team blocks.
     for (let tier = 0; tier < 2; tier++) {
       for (let row = 0; row < 7; row++) {

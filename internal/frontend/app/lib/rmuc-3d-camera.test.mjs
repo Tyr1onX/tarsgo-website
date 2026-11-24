@@ -56,4 +56,7 @@ test("stadium adds high and spacious red-blue stands with bounded instance draw 
   assert.ok(instances.length <= 10);
   assert.ok(instances.some(mesh => mesh.material.color.getHex() === 0x63323b));
   assert.ok(instances.some(mesh => mesh.material.color.getHex() === 0x304a73));
+  const textures = new Set(instances.map(mesh=>mesh.material.map).filter(Boolean));
+  assert.equal(textures.size,2);
+  assert.ok([...textures].every(texture=>texture.image.width===128 && texture.image.height===128));
 });

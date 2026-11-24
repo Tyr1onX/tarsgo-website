@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { createArenaTerrain, insideField, moveOnArena, nearestDriveable, supportedHeight } from "./rmuc-3d-terrain.ts";
-import { ROBOT_PREVIEWS, createRobotPreview } from "./rmuc-3d-robots.ts";
+import { ROBOT_PLACEMENTS, createRobotPreview } from "./rmuc-3d-robots.ts";
 
 let terrain;
 before(async () => {
@@ -41,12 +41,12 @@ test("movement respects physical boundary, raised obstacles, support and other r
 });
 
 test("actual official field allows every driveable preview to move from its placement", () => {
-  const robots = ROBOT_PREVIEWS.map(entry => {
+  const robots = ROBOT_PLACEMENTS.filter(entry => entry.area === "field").map(entry => {
     const model = createRobotPreview(entry.kind);
     const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
-    return { id: entry.id, position: new THREE.Vector3(entry.x, terrain.heightAt(entry.x, entry.z) + (entry.kind === "air" ? 1.5 : 0), entry.z), radius: Math.hypot(size.x,size.z)/2, driveable: model.userData.driveable === true };
+    return { id: entry.instanceId, position: new THREE.Vector3(entry.x, terrain.heightAt(entry.x, entry.z) + (entry.kind === "air" ? 1.5 : 0), entry.z), radius: Math.hypot(size.x,size.z)/2, driveable: model.userData.driveable === true };
   });
-  assert.equal(robots.filter(r => r.driveable).length, 7);
+  assert.equal(robots.filter(r => r.driveable).length, 8);
   for (const robot of robots.filter(r => r.driveable)) {
     const p = robot.position;
     assert.notEqual(supportedHeight(terrain, p.x, p.z, robot.radius, p.y, .23), null, robot.id + " has stable ground");
