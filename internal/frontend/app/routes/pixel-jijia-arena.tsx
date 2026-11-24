@@ -87,7 +87,7 @@ export default function PixelJijiaArenaPage() {
           </>}
         </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
-          <span>HP {status.match.hp}</span><span>弹药 {status.match.ammo}</span><span>{status.match.coins} 金币</span>
+          <span>HP {status.match.hp}/{status.match.maxHp}</span>{status.match.xp!==null&&<span>Lv.{status.match.level} · {Math.floor(status.match.xp)} XP</span>}<span>弹药 {status.match.ammo}</span><span>{status.match.coins} 金币</span>
           {status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}
           {status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}
           {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}

@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -320,4 +320,59 @@ test("large rune long steps split rotation and cooling at attempt and bonus boun
  updateMatch(c,.5);for(let i=0;i<5;i++)updateMatch(d,.1);
  assert.ok(Math.abs(c.robots[0].heat-d.robots[0].heat)<1e-6);
  assert.equal(runeStatus(c,"red").buff,0);
+});
+
+test("infantry experience grants official default attributes, preserves HP delta and honors assembly cap",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0],b=m.robots[1];
+ purchaseAmmo(m,"r");updateMatch(m,6);
+ assert.ok(fireRound(m,"r"));assert.equal(r.xp,1);
+ damageTarget(m,b,{type:"robot",id:"r"});
+ for(let i=0;i<13;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,521);assert.equal(robotLevel(r),1);
+ damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,561);assert.equal(robotLevel(r),2);
+ assert.equal(r.maxHp,225);assert.equal(r.hp,205);assert.equal(r.heatLimit,48);assert.equal(r.cooling,14);
+ // Known direct attacker, level-one target: 4 XP per damage plus 50 on death.
+ for(let i=0;i<10;i++)damageTarget(m,r,{type:"robot",id:"b"});
+ assert.equal(r.xp,1411);assert.equal(robotLevel(r),3);
+ assert.equal(r.maxHp,250);
+ for(let i=0;i<86;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ // Grant additional actual source damage through repeated enemy revivals.
+ for(let i=0;i<6;i++){
+   updateMatch(m,6);
+   if(revivalStatus(m,b).canPay)reviveRobot(m,"b",true);
+   updateMatch(m,3);
+   for(let k=0;k<10;k++)damageTarget(m,r,{type:"robot",id:"b"});
+ }
+ assert.ok(r.xp>=2200);assert.equal(robotLevel(r),5);assert.equal(r.maxHp,300);
+ assert.equal(r.heatLimit,72);assert.equal(r.cooling,20);
+ // Death does not reset XP, and exchange uses the actual current level.
+ const before=r.xp;
+ for(let i=0;i<20;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(r.hp,0);assert.equal(r.xp,before);assert.equal(revivalStatus(m,r).cost,Math.ceil(m.elapsed/60)*80+100);
+});
+test("sentry damage shares experience across live infantry; heavy 42mm does not",()=>{
+ const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200},{id:"s",team:"red",heavy:false,sentry:true,maxHp:200},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
+ startMatch(m);const [r,b,r2,s,h]=m.robots;
+ damageTarget(m,s,{type:"robot",id:"b"});
+ assert.equal(r.xp,40);assert.equal(r2.xp,40);assert.equal(s.xp,0);
+ for(let i=0;i<10;i++)damageTarget(m,b,{type:"robot",id:"r2"});
+ assert.equal(r2.hp,0);
+ damageTarget(m,s,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,80);assert.equal(r2.xp,40);
+ damageTarget(m,h,{type:"robot",id:"b"});
+ assert.equal(r.xp,80);assert.equal(h.xp,0);
+});
+test("small rune shares a 1200 XP bonus budget; large rune grants 750 XP to living infantry",()=>{
+ const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200}],1,1);
+ startMatch(m);const [r,b,r2]=m.robots;
+ activateRune(m,"r");
+ for(let i=0;i<5;i++)damageTarget(m,r,{type:"rune",team:"red",arm:runeStatus(m,"red").lit[0],ring:10});
+ for(let i=0;i<30;i++)damageTarget(m,i%2?r:r2,{type:"outpost",team:"blue"});
+ assert.equal(r.xp+r2.xp,2400);assert.equal(m.sides.red.rune.xpBonusRemaining,0);
+ updateMatch(m,180);
+ const sum=r.xp+r2.xp;activateRune(m,"r");
+ for(let i=0;i<5;i++){const [a,c]=runeStatus(m,"red").lit;damageTarget(m,r,{type:"rune",team:"red",arm:a,ring:10});damageTarget(m,r,{type:"rune",team:"red",arm:c,ring:10});}
+ assert.equal(r.xp+r2.xp,sum+750);
 });
