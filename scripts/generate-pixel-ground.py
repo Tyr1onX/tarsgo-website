@@ -7,10 +7,11 @@ scripts/assets/pixel-ground-source.png; no generated rectangles replace it.
 from pathlib import Path
 import struct
 import zlib
+import math
 
 PATCH = 128
-TILE = 16
-MATERIALS = ("grass", "soil", "stone", "water")
+TILE = 32
+MATERIALS = ("grass", "brick", "stone", "deep water", "soil", "flower bed", "wood", "sand", "shallow water", "submerged stone")
 SOURCE = Path(__file__).parent / "assets/pixel-ground-source.png"
 DESTINATION = Path(__file__).resolve().parents[1] / "internal/frontend/app/assets/pixel-jijia/ground-tiles.png"
 
@@ -110,73 +111,123 @@ def shade(rgb, factor):
 
 
 def color_grade(material, rgb):
-    # Match the quieter campus-game palette while retaining image-generated detail.
-    centers = ((99, 162, 76), (215, 189, 166), (155, 161, 182), (47, 177, 192))
-    targets = ((93, 142, 92), (204, 186, 165), (153, 154, 164), (66, 158, 179))
-    contrast = (.78, .93, .92, .87)[material]
-    return tuple(max(0, min(255, round((v - center) * contrast + target)))
-                 for v, center, target in zip(rgb, centers[material], targets[material]))
+    centers = ((99,162,76),(215,189,166),(155,161,182),(47,177,192))
+    targets = ((94,145,86),(199,179,150),(166,165,160),(48,115,139))
+    contrast = (.89,.94,.89,.9)[material]
+    return tuple(max(0,min(255,round((v-center)*contrast+target))) for v,center,target in zip(rgb,centers[material],targets[material]))
 
+def clamp(rgb):
+    return tuple(max(0,min(255,round(v))) for v in rgb)
+
+def set_cluster(pixels,x,y,pattern,palette):
+    for j,row in enumerate(pattern):
+        for i,key in enumerate(row):
+            if key!=".":pixels[((y+j)%PATCH)*PATCH+(x+i)%PATCH]=palette[int(key)]
+
+def material_patch(material,base,variant):
+    # Native source pixels provide the grain and clustered tonal variation.
+    grass,brick,stone,water=base
+    if material<4:return [color_grade(material,c) for c in base[material]]
+    if material==8:return [clamp((r*.8+65,g*.66+54,b*.65+49)) for r,g,b in water]
+    if material==9:
+        return [clamp(tuple(a*.53+b*.47 for a,b in zip(color_grade(2,c),color_grade(3,d)))) for c,d in zip(stone,water)]
+    if material in (4,5,7):
+        # Soil and sand are separate authored surfaces, using real source
+        # texture luminance rather than independent per-pixel random noise.
+        centers=(124,94,65) if material!=7 else (201,181,138)
+        out=[]
+        for y in range(PATCH):
+            for x in range(PATCH):
+                r,g,b=grass[((y*2+variant*17)%PATCH)*PATCH+(x*2+variant*23)%PATCH]
+                grain=(r*.27+g*.54+b*.19-125)*(.56 if material==7 else .79)
+                out.append(clamp(tuple(c+grain for c in centers)))
+        dark,mid,light=((92,70,52),(152,115,77),(178,138,91)) if material!=7 else ((167,147,115),(214,192,149),(231,215,176))
+        for x,y in [(11,17),(39,49),(76,13),(95,81),(24,98),(61,103),(113,43),(82,60),(9,66)]:
+            x=(x+variant*17)%PATCH;y=(y+variant*11)%PATCH
+            set_cluster(out,x,y,[".22..","2110.","011..",".0..."],(dark,mid,light))
+        if material==5:
+            # Small, independently painted leaf and blossom clusters.
+            pal=((51,83,46),(81,125,58),(128,163,75),(193,136,154),(240,195,183),(246,224,158))
+            for x,y in [(17,25),(46,77),(82,30),(105,92),(29,108),(113,12)]:
+                set_cluster(out,(x+variant*19)%PATCH,(y+variant*13)%PATCH,
+                    ["..44...",".4354..","..44.2.","..1.21.",".21210.","2101..."],pal)
+        return out
+    # Planks have staggered joints, grain lines and knots, not a tinted stone grid.
+    out=[]
+    for y in range(PATCH):
+        board=y//16;dy=y%16
+        for x in range(PATCH):
+            joint=(x+(board%2)*32)%64
+            r,g,b=grass[(y%PATCH)*PATCH+(x%PATCH)]
+            grain=(r*.3+g*.5+b*.2-125)*.22
+            center=(164+((board*7+variant*3)%13)-6,125+((board*5)%9)-4,85+((board*3)%7)-3)
+            if dy==0 or joint==0:color=(97,73,54)
+            elif dy==1 or joint==1:color=(205,162,110)
+            elif dy==15:color=(124,91,64)
+            else:color=clamp(tuple(c+grain+4*math.sin((x+board*11)*.14+dy*.8) for c in center))
+            out.append(color)
+    for x,y in [(24,7),(88,27),(43,51),(108,73),(18,103),(75,121)]:
+        set_cluster(out,(x+variant*8)%PATCH,y,["...000...","..01110..",".0122210.","..01110..","...000..."],((113,80,53),(143,103,67),(185,143,94)))
+    return out
 
 def main():
-    width, height, source = read_rgb_png(SOURCE)
-    assert (width, height) == (512, 512), "Expected 512×512 original art source"
-    W, H = PATCH * 3, PATCH * len(MATERIALS) + TILE
-    atlas = bytearray(W * H * 4)
-
-    def set_pixel(x, y, rgb, alpha=255):
-        index = (y * W + x) * 4
-        atlas[index:index + 4] = bytes((*rgb, alpha))
-
-    tile_bases = []
-    for material, kind in enumerate(MATERIALS):
-        qx, qy = (material % 2) * 256, (material // 2) * 256
-        offset_x, offset_y = ((11, 17), (21, 10), (13, 15), (9, 21))[material]
-        base = make_tile(source, width, qx + 5 + offset_x, qy + 5 + offset_y)
-        tile_bases.append(base)
-        for variant in range(3):
+    width,height,source=read_rgb_png(SOURCE)
+    assert (width,height)==(512,512)
+    W=PATCH*3
+    edge_y=PATCH*len(MATERIALS)
+    H=edge_y+3*TILE
+    atlas=bytearray(W*H*4)
+    def put(x,y,rgb,alpha=255):
+        at=(y*W+x)*4;atlas[at:at+4]=bytes((*rgb,alpha))
+    source_variants=[]
+    for variant in range(3):
+        bases=[]
+        for i in range(4):
+            qx,qy=(i%2)*256,(i//2)*256
+            ox,oy=((11,17),(21,10),(13,15),(9,21))[i]
+            # Masonry joints must keep the same register across every patch.
+            # Grass and water may shift their natural motifs freely.
+            shift=0 if i in (1,2) else variant
+            if i==2: ox,oy=0,0
+            bases.append(make_tile(source,width,qx+(ox+shift*17)%53,qy+(oy+shift*19)%53))
+        source_variants.append(bases)
+    for material in range(len(MATERIALS)):
+        variants=[material_patch(material,bases,i) for i,bases in enumerate(source_variants)]
+        if material in (1,2):
+            # Preserve actual stone/brick seams while varying only the interior patina.
+            for i in range(1,3):
+                for y in range(1,PATCH-1):
+                    for x in range(1,PATCH-1):
+                        at=y*PATCH+x;rgb=variants[0][at]
+                        n=math.sin(x*.041+i)*math.sin(y*.052+i)*2.5
+                        variants[i][at]=clamp(tuple(v+n for v in rgb))
+        base=variants[0]
+        # All variants share exact periodic border pixels, including at corners.
+        for y in range(PATCH):
+            c=tuple(round((a+b)/2) for a,b in zip(base[y*PATCH],base[y*PATCH+PATCH-1]))
+            base[y*PATCH]=base[y*PATCH+PATCH-1]=c
+        for x in range(PATCH):
+            c=tuple(round((a+b)/2) for a,b in zip(base[x],base[(PATCH-1)*PATCH+x]))
+            base[x]=base[(PATCH-1)*PATCH+x]=c
+        for variant,pixels in enumerate(variants):
             for y in range(PATCH):
                 for x in range(PATCH):
-                    rgb = base[y * PATCH + x]
-                    if variant and 23 <= x < 105 and 23 <= y < 105:
-                        start_x, start_y = ((0, 0), (70, 38), (27, 50))[variant]
-                        detail = pixel(source, width, qx + start_x + x, qy + start_y + y)
-                        feather = max(0, min((x - 22) / 18, (105 - x) / 18, (y - 22) / 18, (105 - y) / 18, 1))
-                        strength = (.22 if kind in ("grass", "water") else .12) * feather
-                        rgb = tuple(round(a * (1 - strength) + b * strength) for a, b in zip(rgb, detail))
-                    set_pixel(variant * PATCH + x, material * PATCH + y, color_grade(material, rgb))
-
-    # Material edges use tonal samples from the generated art rather than painted CSS colors.
-    for material in range(1, len(MATERIALS)):
-        mid = color_grade(material, tile_bases[material][PATCH * 40 + 40])
-        dark = shade(mid, .74 if material < 3 else .68)
-        light = shade(mid, 1.13)
-        for direction in range(4):
-            left = ((material - 1) * 4 + direction) * TILE
-            top = PATCH * len(MATERIALS)
+                    i=y*PATCH+x;distance=min(x,y,PATCH-1-x,PATCH-1-y)
+                    if variant and distance<10:
+                        f=smooth(distance/10);pixels[i]=tuple(round(a*(1-f)+b*f) for a,b in zip(base[i],pixels[i]))
+                    put(variant*PATCH+x,material*PATCH+y,pixels[i])
+        if material==0:continue
+        for side in range(4):
+            idx=(material-1)*4+side;left=idx%12*TILE;top=edge_y+idx//12*TILE
             for t in range(TILE):
-                for line in range(2):
-                    if direction == 0:
-                        x, y = t, line
-                    elif direction == 1:
-                        x, y = t, TILE - 1 - line
-                    elif direction == 2:
-                        x, y = line, t
-                    else:
-                        x, y = TILE - 1 - line, t
-                    set_pixel(left + x, top + y, dark if line == 0 else light, 225 if line == 0 else 125)
-
-    raw = b"".join(b"\0" + atlas[y * W * 4:(y + 1) * W * 4] for y in range(H))
-    output = (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", W, H, 8, 6, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(raw, 9))
-        + chunk(b"IEND", b"")
-    )
-    DESTINATION.parent.mkdir(parents=True, exist_ok=True)
+                # Irregular stepped transition takes actual colour from the material.
+                thickness=3+(base[(t*11+material*19)%len(base)][0]%3)
+                for d in range(thickness):
+                    x,y=(t,d) if side==0 else (t,TILE-1-d) if side==1 else (d,t) if side==2 else (TILE-1-d,t)
+                    rgb=shade(base[((t*7)%PATCH)*PATCH+(d*13+material*9)%PATCH],.66 if d==0 else 1.1 if d==1 else .96)
+                    put(left+x,top+y,rgb,215 if d<2 else max(45,155-d*19))
+    raw=b"".join(b"\0"+atlas[y*W*4:(y+1)*W*4] for y in range(H))
+    output=b"\x89PNG\r\n\x1a\n"+chunk(b"IHDR",struct.pack(">IIBBBBB",W,H,8,6,0,0,0))+chunk(b"IDAT",zlib.compress(raw,9))+chunk(b"IEND",b"")
     DESTINATION.write_bytes(output)
-    print(f"{DESTINATION.name}: {W}×{H}, {len(output)} bytes; based on {SOURCE.name}")
-
-
-if __name__ == "__main__":
-    main()
+    print(f"{DESTINATION.name}: {W}×{H}, {len(MATERIALS)} textures, {len(output)} bytes")
+if __name__=="__main__":main()

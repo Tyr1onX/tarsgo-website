@@ -4,9 +4,10 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  groundAt, waterDepthAt, sceneryGroundValid, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
+  groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
-import { createWildlife, updateWildlife, animalAnimation, fishingTarget, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
+import { explorerAnimation, explorerFrameBox, initialExplorerAnimation, EXPLORER_ACTIONS } from "./pixel-jijia-explorer.ts";
+import { createWildlife, updateWildlife, animalAnimation, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
 import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt } from "./pixel-jijia-room.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -21,7 +22,7 @@ test("六个场景均有独立地址与可用官网入口", () => {
 });
 
 test("同一场景数据驱动地形、装饰和真实碰撞", () => {
-  assert.equal(GROUND_AREAS.length, 28);
+  assert.deepEqual([...new Set(GROUND_AREAS.map(a=>a.kind))].sort(),[1,2,3,4,5,6,7]);
   for (const area of GROUND_AREAS) {
     assert.ok(area.x >= 0 && area.y >= 0);
     assert.ok(area.x + area.width <= WORLD_WIDTH && area.y + area.height <= WORLD_HEIGHT);
@@ -36,6 +37,9 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
     assert.ok(obj.width > 0 && obj.height > 0);
     assert.ok(sceneryGroundValid(obj), obj.sprite + " @ " + obj.x + "," + obj.y);
   }
+  for (let i = 0; i < SCENERY.length; i++) for (const other of SCENERY.slice(i + 1)) {
+    assert.equal(sceneryOverlaps(SCENERY[i], other), false, `${SCENERY[i].sprite} @ ${SCENERY[i].x},${SCENERY[i].y} overlaps ${other.sprite} @ ${other.x},${other.y}`);
+  }
   assert.ok(isWalkable(SPAWN.x, SPAWN.y));
   assert.equal(isWalkable(FOUNTAIN.x, FOUNTAIN.y), false);
   const obstacle = SCENERY.find(obj => obj.sprite === "statue");
@@ -43,7 +47,7 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
   assert.equal(isWalkable(obstacle.x, obstacle.y), false);
   const arch = SCENERY.find(obj => obj.sprite === "arch");
   assert.ok(arch);
-  assert.ok(!arch.solid, "门廊必须可通行");
+  assert.equal(sceneryBlocks(arch, arch.x, arch.y), false, "门廊必须可通行");
 });
 
 test("建筑顶部和入口前的实体不会再出现可穿过的缝隙", () => {
@@ -67,9 +71,9 @@ test("桌椅、栅栏、花坛和花丛使用真实宽度脚底碰撞，门廊�
     assert.equal(sceneryBlocks(object, object.x + object.width / TILE * 0.25, object.y), true,
       `${type} 横向边缘也必须阻挡`);
   }
-  const decorative = SCENERY.find(p => p.sprite === "hydrangea" && !p.solid);
+  const decorative = SCENERY.find(p => p.sprite === "hydrangea");
   assert.ok(decorative);
-  assert.equal(isWalkable(decorative.x, decorative.y), false, "未单独配置 solid 的花丛不能穿过");
+  assert.equal(isWalkable(decorative.x, decorative.y), false, "花丛必须有一致的实体脚底");
   const arch = SCENERY.find(p => p.sprite === "arch");
   assert.ok(arch);
   assert.equal(sceneryBlocks(arch, arch.x, arch.y), false, "门廊中间是可通行的");
@@ -87,7 +91,7 @@ test("四处真实水面都能涉水、游泳、上岸，只有喷泉实体保�
     assert.equal(waterDepthAt(x,y),2);
     assert.equal(waterDepthAt(pond.x+.5,y),1);
     assert.equal(groundAt(x,y),3);
-    if(pond.shore==="natural")assert.equal(groundAt(pond.x+.5,pond.y+.5),0);
+    if(pond.shore==="natural")assert.equal(groundAt(pond.x+.5,pond.y+.5),7);
     let pos={x:pond.x-.5,y};
     const depths=new Set();
     for(let i=0;i<330;i++){pos=movePlayer(pos,1,0,1/60);depths.add(waterDepthAt(pos.x,pos.y));}
@@ -179,7 +183,7 @@ test("每张石凳有实际坐点和安全起身位置", () => {
   assert.ok(route.includes("setSeated(bench)"));
   assert.ok(route.includes("onClick={standUp}"));
   assert.ok(route.includes("canvas.dataset.seated"));
-  assert.ok(scene.includes("if (seated)"));
+  assert.ok(scene.includes("pose.seated"));
   assert.ok(scene.includes("const screenCamera = snapCamera(camera)"));
 });
 
@@ -252,8 +256,8 @@ test("静态地面、道具和角色使用同一帧像素镜头偏移", () => {
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   assert.match(scene, /const screenCamera = snapCamera\(camera\)/);
   assert.match(scene, /drawTerrain\(ctx,terrain,screenCamera,w,h\)/);
-  assert.match(scene, /drawNode\(ctx, node, atlas, sprites, seasonal, screenCamera\)/);
-  assert.match(scene, /renderExplorer\(ctx, characterSheet, player, direction, walking, traveled, screenCamera, seated, waterDepthAt\(/);
+  assert.match(scene, /drawNode\(ctx, node, atlas, sprites, seasonal, screenCamera,/);
+  assert.match(scene, /renderExplorer\(ctx, characterSheet, player, pose, screenCamera\)/);
   for (const x of [10.1, 10.49, 10.51, 10.9, 11.4]) {
     const camera = snapCamera({ x, y: 20.6 });
     const ground = 100 - camera.x;
@@ -324,7 +328,7 @@ test("机械工坊具备可通行室内、独立功能区与真实进出闭环",
   assert.ok(room.includes('id: "exit"'));
   assert.ok(room.includes("export function isRoomWalkable("));
   assert.ok(room.includes("overlapsRect(x, y, radius, w)"));
-  assert.ok(room.includes("renderExplorer(ctx, character, player, direction, walking, traveled, screenCamera)"));
+  assert.ok(room.includes("renderExplorer(ctx, character, player, pose, screenCamera)"));
   assert.ok(world.includes("walkable: (x: number, y: number) => boolean = isWalkable"));
   assert.ok(route.includes("movePlayer(previous, x, y, dt, sprinting,"));
   assert.ok(route.includes("renderRoomScene(ctx, roomTerrain, room, character"));
@@ -363,7 +367,7 @@ test("六栋公共室内采用双倍原生分辨率的独立透明组件", () =>
   const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
   const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
   assert.ok(art.includes("ROOM_ART_SCALE = 2"));
-  assert.ok(art.includes("new WeakMap<RoomObject, HTMLCanvasElement>()"));
+  assert.ok(art.includes("new WeakMap<RoomObject,PreparedSprite>()"));
   assert.ok(art.includes("getImageData("), "点击检测以透明组件像素为准");
   assert.ok(scene.includes("drawPublicRoomObject(ctx, object, screenCamera"));
   assert.ok(!route.includes("INTERIOR_ART"));
@@ -377,7 +381,7 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   const scene = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
   const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
-  assert.ok(scene.includes("if (motionAllowed) drawRoomLight("));
+  assert.ok(scene.includes("drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed)"));
   assert.ok(art.includes("if (!motion) return;"));
   assert.ok(route.includes("time, !reducedMotion.matches, climate)"));
   assert.ok(!art.includes("requestAnimationFrame("));
@@ -436,14 +440,14 @@ test("生成场景的家具碰撞与可见物件位置对应且入口可通行",
   const source = readFileSync(new URL("./pixel-jijia-room.ts", import.meta.url), "utf8");
   // Old partition walls belonged to hand-drawn geometry and would become invisible blockers.
   assert.ok(!source.includes("width: 1, height: 6 },\n    { x: 17, y: 15"));
-  for (const marker of [
-    'id: "assembly", kind: "workbench", x: 14, y: 11.5',
-    'id: "trophies", kind: "display", x: 14, y: 5.5',
-    'id: "embedded", kind: "machine", x: 13.5, y: 14.5',
-    'id: "lens-calibration", kind: "console", x: 15, y: 15',
-    'id: "welcome", kind: "reception", x: 11, y: 9',
-    'id: "planning", kind: "console", x: 14, y: 10',
-  ]) assert.ok(source.includes(marker), `室内物件未与新美术对齐：${marker}`);
+  for(const [id,key] of [["mechanical","assembly"],["honors","trophies"],["electrical","embedded"],["vision","lens-calibration"],["guild","welcome"],["ai","planning"]]){
+    const object=ROOMS[id].objects.find(o=>o.id===key);
+    assert.ok(object?.solid&&object.height>0&&object.height<object.width,id);
+  }
+  for(const [id,key] of [["honors","team-photo"],["electrical","signal-wall"],["vision","observe"],["guild","board"],["guild","journey-map"],["ai","field-log"]]){
+    const object=ROOMS[id].objects.find(o=>o.id===key);
+    assert.ok(object&&!object.solid&&object.y===5,id+":"+key);
+  }
   // Entry (18, 19.4) remains below each central solid object's footprint.
   assert.ok(source.includes('entry: { x: 18, y: 19.4 }'));
   assert.ok(source.includes('entry: { x: 18, y: 21.7 }'), "电控入口必须在工作台前方");
@@ -524,26 +528,32 @@ test("环境粒子使用统一世界坐标与现有动画循环，数量受控",
 
 test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", () => {
   const base = new URL("../../../../public/assets/pixel-jijia/", import.meta.url);
-  const image = new URL("actual-imagegen-atlas.png", base);
+  const image = new URL("campus-buildings-v3.png", base);
   assert.ok(existsSync(image), "缺少真实生成并抠图的 PNG：不能部署模拟素材");
   const png = readFileSync(image);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  const explorer = readFileSync(new URL("explorer-4dir.png", base));
+  const explorer = readFileSync(new URL("explorer-actions-v3.png", base));
   assert.deepEqual([...explorer.subarray(0, 8)], [...png.subarray(0, 8)]);
-  assert.equal(explorer.readUInt32BE(16), 160); // 4 directions × 4 frames, 40 px per frame
-  assert.equal(explorer.readUInt32BE(20), 216); // 54 px per frame
-  const { sprites } = JSON.parse(readFileSync(new URL("actual-imagegen-atlas.json", base), "utf8"));
-  for (const id of [...PLACES.map((place) => place.id), "green_tree", "pink_tree", "fountain"]) {
+  assert.equal(explorer.readUInt32BE(16), 240); // 6 frames × 40 px
+  assert.equal(explorer.readUInt32BE(20), 3672); // 17 actions × 4 directions × 54 px
+  const { sprites } = JSON.parse(readFileSync(new URL("campus-buildings-v3.json", base), "utf8"));
+  for (const id of [...PLACES.map((place) => place.id), "fountain"]) {
     assert.ok(sprites[id]?.[2] > 0 && sprites[id]?.[3] > 0, `${id} 素材缺失`);
   }
-  assert.equal(Object.keys(sprites).filter((key) => key.startsWith("terrain_")).length, 0);
+  assert.equal(Object.keys(sprites).length, PLACES.length + 1);
+  assert.equal(png.readUInt32BE(16), 1536);
+  assert.equal(png.readUInt32BE(20), 1216);
+  for (const [id, [x,y,w,h]] of Object.entries(sprites)) {
+    assert.ok(x >= 0 && y >= 0 && x+w <= 1536 && y+h <= 1216, id);
+    if (id !== "fountain") assert.ok(w >= 460 && h >= 400, id);
+  }
 });
 
 test("地面纹理由构建系统生成带指纹的资源地址，避免旧图集缓存错位", () => {
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes('import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url"'));
   assert.ok(route.includes("loadImage(groundTiles, groundTilesUrl)"));
-  assert.ok(route.includes("ground.naturalWidth !== 384 || ground.naturalHeight !== 528"));
+  assert.ok(route.includes("ground.naturalWidth !== 384 || ground.naturalHeight !== 1376"));
   assert.ok(!route.includes('loadImage(groundTiles, "/assets/pixel-jijia/ground-tiles.png")'));
 });
 
@@ -556,7 +566,7 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
   const png = readFileSync(path);
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.equal(png.readUInt32BE(16), 384); // 3 image-derived variations × 128px
-  assert.equal(png.readUInt32BE(20), 528); // 4 materials × 128px + edge sprites
+  assert.equal(png.readUInt32BE(20), 1376); // 10 materials × 128px + edge sprites
   assert.equal(png[25], 6); // RGBA for transparent transition edges
 
   const parts = [];
@@ -575,7 +585,7 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
     return [...pixels.subarray(offset, offset + 4)];
   };
 
-  for (let material = 0; material < 4; material++) {
+  for (let material = 0; material < 10; material++) {
     const row = material * 128;
     const colors = new Set();
     for (let variant = 0; variant < 3; variant++) {
@@ -598,10 +608,10 @@ test("新版地面材质纹理丰富且跨变体边缘连续，过渡贴图透�
     assert.ok(colors.size >= 40, "地面必须包含生成美术中的真实纹理细节");
   }
 
-  for (let edge = 0; edge < 12; edge++) {
-    const start = edge * 16;
+  for (let edge=0;edge<36;edge++) {
+    const start=(edge%12)*32, top=1280+Math.floor(edge/12)*32;
     const alphas = [];
-    for (let y = 512; y < 528; y++) for (let x = start; x < start + 16; x++) {
+    for (let y=top;y<top+32;y++) for(let x=start;x<start+32;x++) {
       alphas.push(rgba(x, y)[3]);
     }
     assert.ok(alphas.some(a => a === 0) && alphas.some(a => a > 0),
@@ -638,6 +648,7 @@ test("野生动物使用可通行栖息地，降水时返回庇护处，鱼留�
   for(const a of animals.filter(a=>a.species!=="fish")){
     assert.equal(a.behavior,"shelter");
     assert.ok(Math.hypot(a.x-a.home.x,a.y-a.home.y)<.12);
+    assert.ok(shelteredAt(a.x,a.y),a.id);
   }
   const positions=animals.map(({x,y})=>[x,y]);
   updateWildlife(animals,SPAWN,1/60,22,"clear",false);
@@ -650,7 +661,19 @@ test("钓鱼仅从可达的休闲水岸抛竿，鱼种属于图鉴", () => {
     assert.ok(isWalkable(pos.x,pos.y));
     const target=fishingTarget(pos);
     assert.ok(target && waterDepthAt(target.x,target.y)>0);
-    assert.ok(FISH_NAMES.includes(catchFish({target,started:2000})));
+    for (const motion of [true,false]) {
+      const animals = createWildlife();
+      const cast = beginFishing(animals,target,2000);
+      assert.ok(cast);
+      assert.equal(catchFish(animals,cast,2000),null);
+      const fish = animals.find(a => a.id===cast.fishId);
+      assert.equal(fish.species,"fish");
+      assert.equal(catchFish(animals,cast,4000),null, "不能在鱼尚未到达浮漂时收竿");
+      for (let i=1;i<=600;i++) updateWildlife(animals,pos,1/60,12,"clear",motion,cast);
+      assert.ok(fishingReady(animals,cast,12000), "实际鱼必须游到浮漂");
+      assert.ok(FISH_NAMES.includes(catchFish(animals,cast,12000)));
+      assert.ok(waterDepthAt(fish.x,fish.y)>0);
+    }
   }
   assert.equal(fishingTarget({x:9,y:60}),null);
   assert.equal(fishingTarget(FOUNTAIN),null);
@@ -687,11 +710,12 @@ test("动物原生高密度动作帧具有透明背景、丰富颜色和不同�
 test("松鼠姿态随实际位移和作息切换，减少动态时固定帧",()=>{
   const a=createWildlife().find(a=>a.species==="squirrel");
   assert.ok(a);
-  assert.equal(animalAnimation({...a,speed:1},true).pose,"run");
+  assert.equal(animalAnimation({...a,speed:1,phase:1},true).pose,"walk");
+  assert.equal(animalAnimation({...a,speed:3,behavior:"alert",behaviorAge:1},true).pose,"run");
   assert.equal(animalAnimation({...a,phase:4,speed:0},true).pose,"forage");
   assert.equal(animalAnimation({...a,behavior:"alert",speed:0},true).pose,"alert");
-  assert.equal(animalAnimation({...a,behavior:"shelter"},true).pose,"shelter");
-  assert.equal(animalAnimation({...a,behavior:"rest"},true).pose,"sleep");
+  assert.equal(animalAnimation({...a,behavior:"shelter",lift:a.perchHeight},true).pose,"shelter");
+  assert.equal(animalAnimation({...a,behavior:"rest",lift:a.perchHeight},true).pose,"sleep");
   assert.equal(animalAnimation({...a,phase:4},false).frame,0);
 });
 
@@ -705,4 +729,71 @@ test("松鼠先警觉抬头，再沿真实可通行路径逃离",()=>{
   for(let i=0;i<24;i++)updateWildlife([a],player,1/60,12,"clear",true);
   assert.ok(Math.hypot(a.x-start.x,a.y-start.y)>0);
   assert.ok(pathIsWalkable(a.home,a,true));
+});
+
+test("水面尾迹依据移动方向生成，静止后消散，雪迹随融化清除", () => {
+  const marks=[];
+  const a={x:9,y:60}, b={x:9.5,y:60}, c={x:9.5,y:60.5};
+  advanceSurfaceTrail(marks,a,b,.05,0,true);
+  assert.equal(marks[0].kind,"water");
+  assert.equal(marks[0].angle,0);
+  advanceSurfaceTrail(marks,b,c,.05,0,true);
+  assert.equal(marks[1].angle,Math.PI/2);
+  advanceSurfaceTrail(marks,c,c,2,0,true);
+  assert.equal(marks.length,0);
+  const dry={x:72,y:56},next={x:72.7,y:56};
+  advanceSurfaceTrail(marks,dry,next,.1,.8,true);
+  assert.equal(marks[0].kind,"snow");
+  advanceSurfaceTrail(marks,next,next,.1,.1,true);
+  assert.equal(marks.length,0);
+});
+
+test("人物动作由实际移动、水深、落座和钓鱼状态唯一驱动",()=>{
+  const input={direction:"right",moving:false,sprinting:false,distance:0,water:0,seated:false,fishing:null,now:1000,motion:true};
+  const idle=explorerAnimation(initialExplorerAnimation,input);
+  assert.equal(idle.action,"idle");
+  const turn=explorerAnimation(idle,{...input,direction:"left",moving:true,now:1100});
+  assert.equal(turn.action,"turn");
+  const walk=explorerAnimation(idle,{...input,moving:true,distance:1.25});
+  assert.equal(walk.action,"walk");assert.equal(walk.frame,2);
+  const run=explorerAnimation(walk,{...input,moving:true,sprinting:true,distance:1.25});
+  assert.equal(run.action,"run");assert.notDeepEqual(explorerFrameBox(run),explorerFrameBox(walk));
+  const wade=explorerAnimation(run,{...input,moving:true,water:1,now:1200});
+  assert.equal(wade.action,"wade");
+  const enter=explorerAnimation(wade,{...input,moving:true,water:2,now:1300});
+  assert.equal(enter.action,"enter");
+  const swim=explorerAnimation(enter,{...input,moving:true,water:2,now:1700});
+  assert.equal(swim.action,"swim");
+  const exit=explorerAnimation(swim,{...input,moving:true,water:1,now:1800});
+  assert.equal(exit.action,"exit");
+  const sit=explorerAnimation(idle,{...input,seated:true,now:2000});
+  assert.equal(sit.action,"sit");
+  const settled=explorerAnimation(sit,{...input,seated:true,now:2500});
+  assert.equal(settled.frame,5);
+  assert.equal(explorerAnimation(settled,{...input,now:2600}).action,"stand");
+  for(const action of ["cast","wait","bite","reel","catch"]){
+    const pose=explorerAnimation(idle,{...input,fishing:action,now:3000});
+    assert.equal(pose.action,action);
+    assert.ok(explorerFrameBox(pose)[1]+54<=EXPLORER_ACTIONS.length*4*54);
+  }
+  assert.equal(fishingPose({target:{x:9,y:60},started:2000,fishId:"fish-0-0"},false,2050),"cast");
+  assert.equal(fishingPose({target:{x:9,y:60},started:2000,fishId:"fish-0-0"},false,3000),"wait");
+  assert.equal(fishingPose({target:{x:9,y:60},started:2000,fishId:"fish-0-0"},true,5000),"bite");
+  const caught={target:{x:9,y:60},started:2000,fishId:"fish-0-0",caughtAt:5000};
+  assert.equal(fishingPose(caught,false,5100),"reel");
+  assert.equal(fishingPose(caught,false,5500),"catch");
+});
+
+test("六栋建筑每件公共家具对应独立透明美术图集区域",()=>{
+  const sprites=JSON.parse(readFileSync(new URL("../assets/pixel-jijia/room-props-v3.json",import.meta.url),"utf8"));
+  const png=readFileSync(new URL("../assets/pixel-jijia/room-props-v3.png",import.meta.url));
+  const w=png.readUInt32BE(16),h=png.readUInt32BE(20);
+  assert.equal(png[25],6);
+  for(const room of Object.values(ROOMS).filter(room=>room.id!=="study")){
+    for(const object of room.objects.filter(object=>object.kind!=="exit")){
+      const key=object.decorative?`decor-${object.kind}`:object.id;
+      const [x,y,a,b]=sprites[key]??[];
+      assert.ok(x>=0&&y>=0&&a>8&&b>8&&x+a<=w&&y+b<=h,key);
+    }
+  }
 });
