@@ -787,12 +787,16 @@ test("人物动作由实际移动、水深、落座和钓鱼状态唯一驱动",
 test("六栋建筑每件公共家具对应独立透明美术图集区域",()=>{
   const sprites=JSON.parse(readFileSync(new URL("../assets/pixel-jijia/room-props-v3.json",import.meta.url),"utf8"));
   const png=readFileSync(new URL("../assets/pixel-jijia/room-props-v3.png",import.meta.url));
-  const w=png.readUInt32BE(16),h=png.readUInt32BE(20);
+  const communitySprites=JSON.parse(readFileSync(new URL("../assets/pixel-jijia/room-community-v31.json",import.meta.url),"utf8"));
+  const communityPng=readFileSync(new URL("../assets/pixel-jijia/room-community-v31.png",import.meta.url));
   assert.equal(png[25],6);
+  assert.equal(communityPng[25],6);
   for(const room of Object.values(ROOMS).filter(room=>room.id!=="study")){
     for(const object of room.objects.filter(object=>object.kind!=="exit")){
       const key=object.decorative?`decor-${object.kind}`:object.id;
-      const [x,y,a,b]=sprites[key]??[];
+      const image=object.community?communityPng:png;
+      const w=image.readUInt32BE(16),h=image.readUInt32BE(20);
+      const [x,y,a,b]=(object.community?communitySprites:sprites)[key]??[];
       assert.ok(x>=0&&y>=0&&a>8&&b>8&&x+a<=w&&y+b<=h,key);
     }
   }

@@ -9,9 +9,11 @@ import {
 } from "~/lib/pixel-jijia-world";
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } from "~/lib/pixel-jijia-explorer";
-import { ROOMS, STUDY_ROOM, closestRoomObject, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOMS, STUDY_ROOM, closestRoomObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
 import { ROOM_ART_SCALE,preparePublicRoomArt } from "~/lib/pixel-jijia-room-art";
+import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityDiscoveryId } from "~/lib/pixel-jijia-community";
+import { CommunityObjectDetail } from "~/components/pixel-jijia-community-detail";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
@@ -20,9 +22,12 @@ import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import roomPropsUrl from "../assets/pixel-jijia/room-props-v3.png?url";
 import roomSprites from "../assets/pixel-jijia/room-props-v3.json";
+import communityPropsUrl from "../assets/pixel-jijia/room-community-v31.png?url";
+import communitySprites from "../assets/pixel-jijia/room-community-v31.json";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
+const communityObjects = Object.values(COMMUNITY_ROOM_OBJECTS).flat();
 
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
@@ -79,7 +84,8 @@ export default function PixelJijiaPage() {
   const [discoveries,setDiscoveries] = useState<string[]>([]);
   const storySites=SCENERY.filter(p=>p.story);
   const knownStories=storySites.filter(p=>discoveries.includes(p.story!.title));
-  const natureDiscoveries=discoveries.filter(name=>!storySites.some(p=>p.story!.title===name));
+  const natureDiscoveries=discoveries.filter(name=>!name.startsWith(COMMUNITY_PREFIX)&&!storySites.some(p=>p.story!.title===name));
+  const knownCommunity=communityObjects.filter(object=>discoveries.includes(communityDiscoveryId(object)));
   const groundTilesRef = useRef<HTMLImageElement | null>(null);
   const roomTerrainRef = useRef<Record<string, HTMLCanvasElement>>({});
   const transitionRef = useRef<{
@@ -128,6 +134,8 @@ export default function PixelJijiaPage() {
   const roomScale = room ? room.id !== "study" ? ROOM_ART_SCALE : 1 : WORLD_ART_SCALE;
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
+  const [roomSitting,setRoomSitting] = useState(false);
+  const roomSitOrigin = useRef<Position | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     try {
@@ -142,6 +150,26 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if(discoveries.length) localStorage.setItem("pixel-jijia-nature-log",JSON.stringify(discoveries));
   },[discoveries]);
+  const selectRoomObject = useCallback((object: RoomObject | null) => {
+    if (roomSitOrigin.current) {
+      playerRef.current = roomSitOrigin.current;
+      roomSitOrigin.current = null;
+    }
+    setRoomSitting(false);
+    keysRef.current.clear(); touchRef.current.clear();
+    sprintKeyRef.current = false; sprintTouchRef.current = false;
+    if (object?.community) recordDiscovery(communityDiscoveryId(object));
+    setSelectedRoom(object);
+  }, [recordDiscovery]);
+  const sitAtMeeting = useCallback(() => {
+    if (room?.id !== "guild" || selectedRoom?.id !== "weekly-meeting") return;
+    const chair = room.objects.find(object => object.id === "decor-2");
+    if (!chair) return;
+    roomSitOrigin.current = { ...playerRef.current };
+    playerRef.current = { x: chair.x + chair.width / 2, y: chair.y + chair.height / 2 };
+    directionRef.current = "up";
+    setRoomSitting(true);
+  }, [room, selectedRoom]);
   const interactNature = useCallback(()=>{
     if(transitionRef.current||selectedRef.current)return;
     const player=playerRef.current,cast=castRef.current;
@@ -269,6 +297,7 @@ export default function PixelJijiaPage() {
       setSeated(null);
       setRoomId(placeId);
       setSelectedRoom(null);
+      setRoomSitting(false); roomSitOrigin.current = null;
       setMapOpen(false);
       selectedRef.current = null;
       setSelected(null);
@@ -297,6 +326,7 @@ export default function PixelJijiaPage() {
         touchRef.current.clear();
         setRoomId("study");
         setSelectedRoom(null);
+      setRoomSitting(false); roomSitOrigin.current = null;
         setMapOpen(false);
         selectPlace(null);
       });
@@ -365,6 +395,7 @@ export default function PixelJijiaPage() {
         if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current);
         setRoomId(null);
         setSelectedRoom(null);
+      setRoomSitting(false); roomSitOrigin.current = null;
         setStudyGuest(false);
         if (window.location.search.includes("visit=")) window.history.replaceState(null, "", "/pixel-jijia");
         return;
@@ -375,6 +406,7 @@ export default function PixelJijiaPage() {
       const canvas = canvasRef.current;
       if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current);
       setSelectedRoom(null);
+      setRoomSitting(false); roomSitOrigin.current = null;
       setRoomId(null);
     });
   }, [roomId, transitionTo]);
@@ -415,6 +447,7 @@ export default function PixelJijiaPage() {
     const groundTiles = new Image();
     const props = new Image();
     const roomProps=new Image();
+    const communityProps=new Image();
     const loadImage = (image: HTMLImageElement, source: string) =>
       new Promise<HTMLImageElement>((resolve, reject) => {
         image.onload = () => resolve(image);
@@ -427,13 +460,14 @@ export default function PixelJijiaPage() {
       loadImage(groundTiles, groundTilesUrl),
       loadImage(props, plazaPropsUrl),
       loadImage(roomProps,roomPropsUrl),
+      loadImage(communityProps,communityPropsUrl),
       fetch("/assets/pixel-jijia/campus-buildings-v3.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, ground, environment, furniture, metadata]) => {
+      .then(([image, explorer, ground, environment, furniture, communityFurniture, metadata]) => {
         if (!active) return;
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 1376) {
           throw new Error("地面图集与场景版本不匹配");
@@ -450,7 +484,7 @@ export default function PixelJijiaPage() {
         const season=changchunClimate(new Date()).season;
         terrainRef.current = renderTerrain(ground, season);
         previewRef.current = renderWorldPreview(terrainRef.current, image, metadata.sprites, environment,season);
-        preparePublicRoomArt(furniture,Object.values(ROOMS),roomSprites);
+        preparePublicRoomArt(furniture,Object.values(ROOMS),roomSprites,communityFurniture,communitySprites);
         roomTerrainRef.current = Object.fromEntries(Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene, ground)]));
         setAssetState("ready");
       })
@@ -466,6 +500,7 @@ export default function PixelJijiaPage() {
       props.onload = null;
       props.onerror = null;
       roomProps.onload=null;roomProps.onerror=null;
+      communityProps.onload=null;communityProps.onerror=null;
     };
   }, []);
 
@@ -486,7 +521,7 @@ export default function PixelJijiaPage() {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
       if (transitionRef.current) return;
       if (event.key === "Escape") {
-        if (selectedRoom) setSelectedRoom(null);
+        if (selectedRoom) selectRoomObject(null);
         else if(castRef.current)castRef.current=null;
         else if (selectedRef.current) selectPlace(null);
         else { setMapOpen(false); setShowHelp(false); }
@@ -506,7 +541,7 @@ export default function PixelJijiaPage() {
           const object = closestRoomObject(room, playerRef.current);
           if (object && object.kind !== "exit") {
             event.preventDefault();
-            setSelectedRoom(object);
+            selectRoomObject(object);
           }
           return;
         }
@@ -546,7 +581,7 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, seated, standUp, room, selectedRoom, enterRoom, exitRoom, interactNature]);
+  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, enterRoom, exitRoom, interactNature]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
@@ -632,7 +667,7 @@ export default function PixelJijiaPage() {
       const readyNow=Boolean(castNow&&fishingReady(wildlifeRef.current,castNow,time));
       const pose=poseRef.current=explorerAnimation(poseRef.current,{
         direction:directionRef.current,moving:walking,sprinting,distance:traveled,
-        water:room?0:waterDepthAt(playerRef.current.x,playerRef.current.y),seated:Boolean(seated),
+        water:room?0:waterDepthAt(playerRef.current.x,playerRef.current.y),seated:Boolean(seated)||roomSitting,
         fishing:fishingPose(castNow,readyNow,time),now:time,motion:!reducedMotion.matches,
       });
       ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
@@ -731,7 +766,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.cameraX = cameraRef.current.x.toFixed(2);
       canvas.dataset.facing = directionRef.current;
       canvas.dataset.sprinting = String(sprinting && walking);
-      canvas.dataset.seated = String(Boolean(seated));
+      canvas.dataset.seated = String(Boolean(seated)||roomSitting);
       canvas.dataset.walkFrame = walking ? String(pose.frame) : "0";
 
       if (!room && miniCtx && time - lastMini > 100) {
@@ -771,7 +806,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom, discoveries]);
+    climate?.season, enterRoom, exitRoom, discoveries, roomSitting]);
 
   const handleMapClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -804,7 +839,7 @@ export default function PixelJijiaPage() {
     }
     if (room) {
       const object = roomObjectAt(room, { x, y });
-      if (object && object.kind !== "exit") setSelectedRoom(object);
+      if (object && object.kind !== "exit" && (!object.community || roomInteractionDistance(room, object, playerRef.current) < 2.1)) selectRoomObject(object);
       return;
     }
     const sprites = artIndexRef.current;
@@ -895,6 +930,13 @@ export default function PixelJijiaPage() {
           <summary>自然图鉴 · {natureDiscoveries.length}</summary>
           {natureDiscoveries.length?<div className="pixel-world-nature-log">{natureDiscoveries.join(" · ")}</div>:<div className="pixel-world-nature-log">观察动物或钓鱼后收录。</div>}
         </details>
+        <details className="pixel-world-map-discoveries">
+          <summary>共建图鉴 · {knownCommunity.length}/{communityObjects.length}</summary>
+          <div className="pixel-world-map-discovery-list">
+            {!knownCommunity.length && <span className="pixel-world-nature-log">探索校园中的共建物件。</span>}
+            {knownCommunity.map(object => <button key={object.id} type="button" onClick={() => { selectRoomObject(object); setMapOpen(false); }}>{object.title}</button>)}
+          </div>
+        </details>
         <div className="pixel-world-zoom">
           <button type="button" aria-label="缩小地图" onClick={() => setMapZoom(zoomRef.current - 0.1)}>−</button>
           <span>{Math.round(zoom * 100)}%</span>
@@ -950,7 +992,7 @@ export default function PixelJijiaPage() {
       </div>}
       {!selectedRoom && room && nearbyRoom && (
         <button type="button" className="pixel-world-interact"
-          onClick={() => setSelectedRoom(nearbyRoom)}>
+          onClick={() => selectRoomObject(nearbyRoom)}>
           <kbd>E</kbd> {nearbyRoom.title}
         </button>
       )}
@@ -1027,13 +1069,15 @@ export default function PixelJijiaPage() {
           )}
         </section>
       )}
-      {selectedRoom && <section className="pixel-world-detail" role="dialog"
+      {selectedRoom && <section className={`pixel-world-detail${selectedRoom.community ? " pixel-world-community-detail" : ""}`} role="dialog"
         aria-label={selectedRoom.title} aria-modal="false">
         <button type="button" className="pixel-world-detail-close" aria-label="关闭介绍"
-          onClick={() => setSelectedRoom(null)}>×</button>
-        <span className="pixel-world-detail-eyebrow">{room?.title ?? "INDOOR SPACE"}</span>
+          onClick={() => selectRoomObject(null)}>×</button>
+        <span className="pixel-world-detail-eyebrow">{selectedRoom.community ? "共建者的痕迹" : room?.title ?? "INDOOR SPACE"}</span>
         <h1>{selectedRoom.title}</h1>
-        <p>{selectedRoom.description}</p>
+        {selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom} sitting={roomSitting}
+          onSit={room?.id === "guild" && selectedRoom.id === "weekly-meeting" ? sitAtMeeting : undefined}
+          returnTo={returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia"} /> : <p>{selectedRoom.description}</p>}
         {selectedRoom.href && <Link to={selectedRoom.href} className="pixel-world-detail-link">
           {selectedRoom.action ?? "查看详情"}<span aria-hidden="true">↗</span>
         </Link>}

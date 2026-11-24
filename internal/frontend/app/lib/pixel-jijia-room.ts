@@ -1,6 +1,7 @@
 import { TILE, overlapsRect, snapCamera, type Direction, type Position } from "./pixel-jijia-world.ts";
 import { renderExplorer } from "./pixel-jijia-scene.ts";
 import type { ExplorerAnimation } from "./pixel-jijia-explorer.ts";
+import { COMMUNITY_ROOM_OBJECTS, type CommunityContribution } from "./pixel-jijia-community.ts";
 import { ROOM_ART_SCALE, drawPublicRoomObject, drawRoomLight, drawRoomWindows,drawRoomAmbient, type RoomClimate, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
 
 type Rect = Position & { width: number; height: number };
@@ -13,6 +14,8 @@ export type RoomObject = Rect & {
   decorative?: boolean;
   href?: string;
   action?: string;
+  host?: string;
+  community?: CommunityContribution;
 };
 export type RoomScene = {
   id: string;
@@ -133,8 +136,6 @@ export const ROOMS: Record<string, RoomScene> = {
         title: "招新接待台", description: "每个来到吉甲的人，都可以从这里了解不同组别的工作和训练生活。", href: "/join", action: "加入吉甲大师" },
       { id: "board", kind: "display", x: 6.2, y: 5, width: 3.5, height: 0.5,
         title: "活动公告栏", description: "展示近期活动、开放实践日和团队见面安排。" },
-      { id: "events", kind: "workbench", x: 2, y: 16.6, width: 8, height: 4.4, solid: true,
-        title: "共创交流桌", description: "不同组别的想法在这里碰撞，一次简单的讨论可能成为下一项实践项目。" },
       { id: "welcome-wall", kind: "display", x: 27, y: 18.8, width: 7, height: 2.2, solid: true,
         title: "成员故事墙", description: "从第一次参与训练到第一次走上赛场，团队由一段段共同经历组成。" },
       { id: "journey-map", kind: "display", x: 26.2, y: 5, width: 3.5, height: 0.5,
@@ -163,6 +164,8 @@ export const ROOMS: Record<string, RoomScene> = {
     ],
   },
 };
+
+for (const [roomId, objects] of Object.entries(COMMUNITY_ROOM_OBJECTS)) ROOMS[roomId].objects.push(...objects);
 
 // Decorative furniture uses the same entity geometry as interactive equipment.
 const ROOM_DECOR: Record<string, [RoomObject["kind"], number, number, number, number][]> = {
@@ -204,15 +207,28 @@ export function roomExitAt(room: RoomScene, position: Position, vertical: number
     position.y >= exit.y - 0.55 && position.y <= exit.y + exit.height - 0.4);
 }
 
+export function roomInteractionDistance(room: RoomScene, object: RoomObject, position: Position): number {
+  if (object.host) {
+    const host = room.objects.find(item => item.id === object.host)!;
+    // The physical workbench stays the only collision body; approach its
+    // accessible front at the object's own horizontal position.
+    const x = Math.max(host.x + .15, Math.min(host.x + host.width - .15, object.x + object.width / 2));
+    return Math.hypot(x - position.x, host.y + host.height - position.y);
+  }
+  const dx = Math.max(object.x - position.x, 0, position.x - object.x - object.width);
+  const dy = Math.max(object.y - position.y, 0, position.y - object.y - object.height);
+  return Math.hypot(dx, dy);
+}
+
 export function closestRoomObject(room: RoomScene, position: Position): RoomObject | null {
   let best = 2.1;
   let result: RoomObject | null = null;
   for (const object of room.objects) {
     if (object.decorative) continue;
-    const dx = Math.max(object.x - position.x, 0, position.x - object.x - object.width);
-    const dy = Math.max(object.y - position.y, 0, position.y - object.y - object.height);
-    const distance = Math.hypot(dx, dy);
-    if (distance < best) { best = distance; result = object; }
+    const distance = roomInteractionDistance(room, object, position);
+    // Close to a tabletop object, select it before its larger host.
+    const score = object.host && distance < 1.5 ? distance - 1.5 : distance;
+    if (score < best) { best = score; result = object; }
   }
   return result;
 }
@@ -324,7 +340,7 @@ export function renderRoomScene(
     drawRoomWindows(ctx, screenCamera, elapsed, motionAllowed, climate);
     drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed);
     for (const object of room.objects) {
-      if (!object.solid && object.kind !== "exit")
+      if (!object.solid && !object.host && object.kind !== "exit")
         drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
     }
   }
@@ -337,7 +353,11 @@ export function renderRoomScene(
       playerDrawn = true;
     }
     if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
-    else drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
+    else {
+      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
+      for (const child of room.objects) if (child.host === object.id)
+        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed);
+    }
   }
   if (!playerDrawn) renderExplorer(ctx, character, player, pose, screenCamera);
   if(room.id!=="study")drawRoomAmbient(ctx,room,screenCamera,climate);
