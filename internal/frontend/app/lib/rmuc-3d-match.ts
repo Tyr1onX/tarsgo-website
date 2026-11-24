@@ -1,5 +1,5 @@
 import type { Team, MechanismPose } from "./rmuc-3d-mechanisms.ts";
-import { ARENA_ZONES, zonesAtPosition, crossingContacts, type CrossingContact, type ArenaPosition, type ZoneId } from "./rmuc-3d-zones.ts";
+import { ARENA_ZONES, zonesAtPosition, withinLauncherBench, crossingContacts, type CrossingContact, type ArenaPosition, type ZoneId } from "./rmuc-3d-zones.ts";
 export type { Team };
 export const MATCH_DURATION = 420;
 const teams = ["red", "blue"] as const;
@@ -27,7 +27,7 @@ type TerrainKind="road"|"highland"|"over"|"through";
 type TerrainBuff={until:number;disabledUntil:number};
 type TerrainState={seen:string[];attempt:(CrossingContact&{tick:number;inside:boolean})|null;first:("road"|"highland"|"tunnel"|"highpoint")[];roadAt:number;effects:Partial<Record<TerrainKind,TerrainBuff>>;combinedUntil:number};
 const terrainState=():TerrainState=>({seen:[],attempt:null,first:[],roadAt:-150,effects:{},combinedUntil:0});
-export type MatchRobot = RobotSpec & { terrain:TerrainState; commandTarget:ZoneId|null; hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:false|"cooling"|"permanent"; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
+export type MatchRobot = RobotSpec & { terrain:TerrainState; commandTarget:ZoneId|null; hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:false|"cooling"|"permanent"; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher; launcherCalibrated:boolean };
 export type EnergySpawn = {id:string; team:Team; position:ArenaPosition};
 export type EnergyUnit = {id:string; team:Team; location:
   | {kind:"rack"|"ground";position:ArenaPosition}
@@ -62,7 +62,7 @@ export type Match = { coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; en
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({armor:armor(),dart:dart(),blindUntil:0,runeDisabledUntil:0,baseZoneUntil:0,outpostZoneUntil:0,tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,sentryControl:r.sentry?(r.sentryControl??"auto"):undefined,terrain:terrainState(),commandTarget:null,maxHp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,hp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?(r.sentryControl==="semi"?100:260):40,cooling:r.heavy?0:r.sentry?(r.sentryControl==="semi"?10:30):12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,sentryControl:r.sentry?(r.sentryControl??"auto"):undefined,terrain:terrainState(),commandTarget:null,maxHp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,hp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?(r.sentryControl==="semi"?100:260):40,cooling:r.heavy?0:r.sentry?(r.sentryControl==="semi"?10:30):12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready",launcherCalibrated:false})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -457,16 +457,21 @@ function advanceTechnology(m:Match,time:number,positions:ReadonlyMap<string,Aren
   }
 }
 
-export function launcherStatus(match:Match,robot:MatchRobot){
+export function launcherStatus(match:Match,robot:MatchRobot,p?:ArenaPosition){
   const s=match.sides[robot.team];
+  const atBench=match.phase==="running"&&robot.heavy&&robot.hp>0&&!weak(robot)&&!assemblyActive(match,robot)&&!!p&&withinLauncherBench(robot.team,p);
   return {state:robot.launcher,unlockIn:Math.max(0,Math.ceil(300-s.baseGap/50-2*s.controlGap/3-match.elapsed)),
-    canInstall:match.phase==="running"&&robot.heavy&&robot.launcher==="unlocked"&&robot.hp>0&&!weak(robot)&&inSupply(match,robot)};
+    canInstall:atBench&&robot.launcher==="unlocked",canRemove:atBench&&(robot.launcher==="test"||robot.launcher==="ready")};
 }
-export function installLauncher(match:Match,id:string){
+export function installLauncher(match:Match,id:string,p?:ArenaPosition){
   const robot=match.robots.find(r=>r.id===id);
-  if(!robot||!launcherStatus(match,robot).canInstall)return false;
-  // Supply polygon is a provisional proxy for the workbench interaction.
+  if(!robot||!launcherStatus(match,robot,p).canInstall)return false;
   robot.launcher="test";return true;
+}
+export function removeLauncher(match:Match,id:string,p:ArenaPosition){
+  const robot=match.robots.find(r=>r.id===id);
+  if(!robot||!launcherStatus(match,robot,p).canRemove)return false;
+  robot.launcher="unlocked";return true;
 }
 // §5.6.4.9: a single defending robot receives the shared reserve and cooling.
 function fortressActive(match:Match,r:MatchRobot){
@@ -542,7 +547,7 @@ export function fireRound(match:Match,id:string) {
   if(reserveAmmo(match,robot)>0)match.sides[robot.team].fortressSpent+=robot.heavy?10:1;else robot.ammo--;robot.cooldown=robot.heavy?.3:.18;robot.lastCombat=match.elapsed;
   match.sides[robot.team].armor.shots++;
   if(robot.heavy&&robot.launcher==="test"){
-    robot.launcher="ready";robot.hp+=600-robot.maxHp;robot.maxHp=600;robot.heatLimit=300;robot.cooling=100;
+    robot.launcher="ready";robot.launcherCalibrated=true;robot.hp+=600-robot.maxHp;robot.maxHp=600;robot.heatLimit=300;robot.cooling=100;
     return robot;
   }
   gainXp(match,robot,1);
@@ -602,7 +607,7 @@ function immune(match:Match,r:MatchRobot){
 }
 function robotDefense(match:Match,robot:MatchRobot) {
   let defense=teamDefense(match,robot.team);
-  if(robot.heavy&&robot.launcher!=="ready"&&match.elapsed<180)defense=Math.max(defense,.5);
+  if(robot.heavy&&!robot.launcherCalibrated&&match.elapsed<180)defense=Math.max(defense,.5);
   const stance=robot.stance;
   if(stance?.mode==="defense")defense=Math.max(defense,stance.enhanced?.99:stance.ticks.defense>1800?.25:.5);
   const stanceVulnerability=stance&&stance.mode!=="defense"?.25:0;

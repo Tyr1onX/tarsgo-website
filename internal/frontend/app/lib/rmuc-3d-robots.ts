@@ -502,3 +502,25 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
   scene.add(exhibit);
   return exhibit;
 }
+
+// Move the one existing preview module between its original gimbal and
+// the measured workbench pad. No second launcher mesh or hit target.
+export function bindLauncherModule(robot:THREE.Object3D,bench:THREE.Object3D,pad:{x:number;y:number;z:number}){
+  const weapon=robot.getObjectByName("weapon-pitch")!;
+  const mount=weapon.parent!;
+  const position=weapon.position.clone(),quaternion=weapon.quaternion.clone(),scale=weapon.scale.clone();
+  robot.updateWorldMatrix(true,true);
+  const benchScale=weapon.getWorldScale(new THREE.Vector3());
+  return {update(installed:boolean){
+    if(installed&&weapon.parent!==mount){
+      mount.add(weapon);weapon.position.copy(position);weapon.quaternion.copy(quaternion);weapon.scale.copy(scale);
+      weapon.updateWorldMatrix(true,true);
+    }else if(!installed&&weapon.parent!==bench){
+      bench.add(weapon);weapon.position.set(pad.x,pad.y,pad.z);weapon.rotation.set(0,pad.x>0?Math.PI/2:-Math.PI/2,0);weapon.scale.copy(benchScale);
+      weapon.updateWorldMatrix(true,true);
+      const bounds=new THREE.Box3().setFromObject(weapon,true),center=bounds.getCenter(new THREE.Vector3());
+      weapon.position.x+=pad.x-center.x;weapon.position.y+=pad.y-bounds.min.y;weapon.position.z+=pad.z-center.z;
+      weapon.updateWorldMatrix(true,true);
+    }
+  }};
+}

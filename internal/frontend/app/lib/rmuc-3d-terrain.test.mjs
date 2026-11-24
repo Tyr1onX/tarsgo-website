@@ -224,3 +224,24 @@ test("both CAD highpoint approaches support the existing infantry footprint",()=
   assert.ok(Math.abs(p.x-12.6*sign)<.02,p.toArray());
  }
 });
+
+test("actual workbench pad, two-sided approach and one transferable launcher mesh",async()=>{
+ const {launcherBench,withinLauncherBench}=await import("./rmuc-3d-zones.ts");
+ const {bindLauncherModule,aimWeapon}=await import("./rmuc-3d-robots.ts");
+ for(const team of ["red","blue"]){
+   const {pad,approach}=launcherBench(team),[x,z]=approach,sign=team==="red"?1:-1;
+   assert.ok(Math.abs(terrain.heightAt(pad.x,pad.z)-pad.y)<.002);
+   const p=new THREE.Vector3(12*sign,terrain.heightAt(12*sign,z),z);
+   moveOnArena(terrain,p,x-p.x,0,.41,.23,[]);
+   assert.ok(Math.abs(p.x-x)<.02);assert.ok(withinLauncherBench(team,p));
+   assert.equal(withinLauncherBench(team,{x:11.5*sign,y:.2,z:-5.65*sign}),false);
+   const scene=new THREE.Group(),bench=new THREE.Group(),robot=createRobotPreview("hero");robot.scale.setScalar(.5);scene.add(bench,robot);
+   const weapon=robot.getObjectByName("weapon-pitch"),mount=weapon.parent;
+   const binding=bindLauncherModule(robot,bench,pad);
+   binding.update(false);assert.equal(weapon.parent,bench);assert.equal(aimWeapon(robot,0,0),null);
+   const bounds=new THREE.Box3().setFromObject(weapon,true);assert.ok(Math.abs(bounds.min.y-pad.y)<1e-7);
+   assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).x-pad.x)<1e-7);
+   binding.update(true);assert.equal(weapon.parent,mount);assert.ok(aimWeapon(robot,0,0));
+   binding.update(false);assert.equal(weapon.parent,bench);assert.equal(bench.children.length,1);
+ }
+});

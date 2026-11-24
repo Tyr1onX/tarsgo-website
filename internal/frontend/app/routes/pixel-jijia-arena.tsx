@@ -125,7 +125,8 @@ export default function PixelJijiaArenaPage() {
           {status.match.energy?.pickup&&<button onClick={()=>controller.current?.pickup()}>拾取能量单元</button>}
           {status.match.energy?.canDrop&&<button onClick={()=>controller.current?.drop()}>释放能量单元</button>}
           {status.match.launcher?.state==="locked"&&<span>{status.match.launcher.unlockIn}s</span>}
-          {status.match.launcher?.state==="unlocked"&&<button disabled={!status.match.launcher.canInstall} onClick={()=>controller.current?.install()}>安装 42mm</button>}
+          {status.match.launcher?.state==="unlocked"&&<button disabled={!status.match.launcher.canInstall} onClick={()=>controller.current?.install()}>拾取并安装 42mm</button>}
+          {status.match.launcher?.canRemove&&<button onClick={()=>controller.current?.removeLauncher()}>拆回工作台</button>}
           <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 "+status.match.ammoCount+"发 · "+status.match.ammoCost+"金币"}</button>
           {status.match.hp<status.match.maxHp&&<button disabled={!status.match.canHeal} onClick={()=>controller.current?.heal()}>{status.match.pendingHeal>0?"回血 "+status.match.pendingHeal+"s":"回血 "+status.match.healCost+"金币"}</button>}
           <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button></>}
