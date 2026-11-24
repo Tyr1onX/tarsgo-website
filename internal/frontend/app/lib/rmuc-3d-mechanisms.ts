@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { EnergyUnit } from "./rmuc-3d-match.ts";
+import { coreFrame, type EnergyUnit, type Match } from "./rmuc-3d-match.ts";
 
 export const MECHANISM_ASSET = {
   url: "/assets/pixel-jijia/rmuc-mechanisms-51f0d28d.glb.gz",
@@ -52,7 +52,9 @@ export function installCoreGeometry(field: THREE.Object3D, parts: THREE.Group) {
     shaft.position.sub(pivot.position);
     old.parent!.add(object);
     old.removeFromParent();
-    return {object, pivot};
+    const head=object.getObjectByName("head-fixed")!;
+    const arm=object.getObjectByName("arm-and-shared")!;
+    return {object,pivot,head,arm,headRest:head.position.clone(),headRotation:head.quaternion.clone(),armRest:arm.position.clone(),pivotRest:pivot.position.clone()};
   });
   // These are the original twelve source occurrences, not copied geometry.
   // Detach them from the immutable height-field input; their initial world
@@ -69,17 +71,28 @@ export function installCoreGeometry(field: THREE.Object3D, parts: THREE.Group) {
     const position=unit.object.localToWorld(center.clone());
     return {id:unit.id,team:unit.team,position:{x:position.x,y:position.y,z:position.z}};
   });
-  function applyEnergy(states:readonly EnergyUnit[]){
+  function applyEnergy(states:readonly EnergyUnit[],match?:Match){
     const upright=group.getWorldQuaternion(new THREE.Quaternion()).invert();
     for(const {unit,position,rotation} of poses){
       const state=states.find(s=>s.id===unit.id);
       if(!state)continue;
+      const spent=state.location.kind==="spent";
+      if(unit.object.visible===spent){
+        unit.object.visible=!spent;
+        unit.object.traverse(o=>spent?o.layers.disable(0):o.layers.enable(0));
+      }
+      if(spent)continue;
       if(state.location.kind==="rack"){
         unit.object.position.copy(position);unit.object.quaternion.copy(rotation);
       }else{
+        const frame=state.location.kind==="mounted"&&match?coreFrame(match,state.location.core):null;
         unit.object.quaternion.copy(upright);
+        if(frame){
+          const axis=new THREE.Vector3(frame.axis.x,frame.axis.y,frame.axis.z);
+          unit.object.quaternion.multiply(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),axis)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),frame.twist));
+        }
         unit.object.position.copy(group.worldToLocal(new THREE.Vector3(state.location.position.x,state.location.position.y,state.location.position.z)))
-          .sub(center.clone().multiply(unit.object.scale).applyQuaternion(upright));
+          .sub(center.clone().multiply(unit.object.scale).applyQuaternion(unit.object.quaternion));
       }
     }
     group.updateMatrixWorld(true);
@@ -89,7 +102,38 @@ export function installCoreGeometry(field: THREE.Object3D, parts: THREE.Group) {
     cores[index].pivot.quaternion.setFromAxisAngle(axis, angle);
     cores[index].object.updateMatrixWorld(true);
   }
-  return {cores, units, group, energySpawns, applyEnergy, old: occurrences, rotateColumn};
+  const vec=(p:{x:number;y:number;z:number})=>new THREE.Vector3(p.x,p.y,p.z);
+  const tipLocal=new THREE.Vector3(-.6112806706969,-.7521826021449,-.675706394592);
+  const coreSockets=Object.fromEntries(cores.map((c,i)=>{
+    const position=c.object.localToWorld(tipLocal.clone());
+    const direction=axis.clone().negate().transformDirection(c.object.matrixWorld);
+    return [TEAMS[i],{position:{x:position.x,y:position.y,z:position.z},axis:{x:direction.x,y:direction.y,z:direction.z}}];
+  })) as Match["coreSockets"];
+  function applyTechnology(match:Match){
+    for(const [i,c] of cores.entries()){
+      const team=TEAMS[i],rest=coreSockets[team]!,frame=coreFrame(match,team)!;
+      if(!frame.active){
+        c.head.position.copy(c.headRest);c.head.quaternion.copy(c.headRotation);c.arm.position.copy(c.armRest);c.pivot.position.copy(c.pivotRest);c.pivot.quaternion.identity();c.object.updateMatrixWorld(true);continue;
+      }
+      const parent=c.head.parent!;
+      const restTip=parent.worldToLocal(vec(rest.position)),newTip=parent.worldToLocal(vec(frame.head));
+      const delta=newTip.clone().sub(restTip);
+      // Keep the original pedestal fixed; exact joint linkage is not available.
+      const headTurn=new THREE.Quaternion().setFromUnitVectors(vec(rest.axis).transformDirection(parent.matrixWorld.clone().invert()),vec(frame.baseAxis).transformDirection(parent.matrixWorld.clone().invert()));
+      c.head.position.copy(c.headRest).sub(restTip).applyQuaternion(headTurn).add(newTip);
+      c.head.quaternion.copy(headTurn).multiply(c.headRotation);
+      c.arm.position.copy(c.armRest).addScaledVector(delta,.5);
+      const outward=axis.clone().negate();
+      const localAxis=vec(frame.axis).transformDirection(c.object.matrixWorld.clone().invert());
+      const q=new THREE.Quaternion().setFromUnitVectors(outward,localAxis);
+      c.pivot.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(outward,frame.twist));
+      const targetBase=vec(frame.tip).addScaledVector(vec(frame.axis),-.1062);
+      c.pivot.position.copy(c.pivot.parent!.worldToLocal(targetBase));
+      c.object.updateMatrixWorld(true);
+    }
+    applyEnergy(match.energyUnits,match);
+  }
+  return {cores, units, group, energySpawns, coreSockets, applyEnergy, applyTechnology, old: occurrences, rotateColumn};
 }
 
 export type MechanismPose = {

@@ -121,8 +121,9 @@ export function aimWeaponAt(robot: THREE.Object3D, point: THREE.Vector3) {
   if (!weapon) return null;
   const delta = point.clone().sub(robot.getWorldPosition(new THREE.Vector3()));
   const distance = Math.hypot(delta.x,delta.z);
-  if (distance <= Math.abs(weapon.position.x)) return null;
-  const yaw = Math.atan2(-delta.x,-delta.z) + Math.asin(weapon.position.x/distance);
+  const lateral=weapon.position.x*robot.getWorldScale(new THREE.Vector3()).x;
+  if (distance <= Math.abs(lateral)) return null;
+  const yaw = Math.atan2(-delta.x,-delta.z) + Math.asin(lateral/distance);
   aimWeapon(robot,yaw,0);
   const pivot = weapon.getWorldPosition(new THREE.Vector3());
   const pitch = Math.atan2(point.y-pivot.y,Math.hypot(point.x-pivot.x,point.z-pivot.z));
@@ -472,6 +473,12 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
     if (!photo) throw new Error(`Missing TARS-Go 2026 reference photo: ${entry.id}`);
     const robot = createRobotPreview(entry.kind);
     robot.name = entry.instanceId;
+    // The 2026 hero is only a visual proxy. 2027 S68 requires a
+    // 600mm stowed envelope (excluding launcher); use a ~600mm horizontal
+    // preview rather than the oversized 2026 footprint that cannot climb
+    // the real assembly ramps. Preserve the original model and terrain.
+    const scale=entry.kind==="hero"&&entry.area==="field"?.5:1;
+    robot.scale.setScalar(scale);
     if (entry.team === "blue") robot.traverse(object => {
       if (object instanceof THREE.Mesh && object.material === materials.led) object.material = blueLed;
     });
@@ -480,6 +487,7 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
     const radius = Math.hypot(size.x, size.z) / 2;
     robot.userData = { ...robot.userData, sourcePhoto: photo.image.medium,
       name: photo.name, prototype: true, radius, team: entry.team, area: entry.area,
+      eyeHeight:(robot.userData.eyeHeight??1)*scale,wheelRadius:(robot.userData.wheelRadius??.12)*scale,
       driveable: entry.area === "field" && robot.userData.driveable === true };
     const ground = entry.area === "field" ? terrain.heightAt(entry.x, entry.z) : .1;
     if (!Number.isFinite(ground)) throw new Error("Robot placement outside CAD ground");

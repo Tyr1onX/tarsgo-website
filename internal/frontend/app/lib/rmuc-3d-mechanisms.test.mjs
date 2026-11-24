@@ -8,10 +8,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { installMechanisms, installCoreGeometry, CORE_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
-import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget } from "./rmuc-3d-match.ts";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel } from "./rmuc-3d-match.ts";
 import { resolveArenaShot, traceArenaShot } from "./rmuc-3d-shot.ts";
-import { createArenaTerrain, supportedHeight } from "./rmuc-3d-terrain.ts";
-import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt } from "./rmuc-3d-robots.ts";
+import { createArenaTerrain, supportedHeight, moveOnArena } from "./rmuc-3d-terrain.ts";
+import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt, addRobotPreviews } from "./rmuc-3d-robots.ts";
 
 // Node geometry tests do not render textures. Keep the actual mesh decoder.
 globalThis.self = globalThis;
@@ -122,7 +122,7 @@ test("actual technology cores preserve source placements, isolate columns and ex
     const next={x:p.x*.8,y:.2,z:p.z*.8};
     updateMatch(match,.1,new Map([[id,next]]));
     installed.applyEnergy(match.energyUnits);
-    assert.equal(location.position.y,1.3);
+    assert.ok(Math.abs(location.position.y-.87)<1e-8);
     assert.ok(mesh.localToWorld(new THREE.Vector3(0,.075,0)).distanceTo(new THREE.Vector3(location.position.x,location.position.y,location.position.z))<1e-6);
     if(id==="r"){
       assert.equal(dropEnergy(match,id,next),true);
@@ -139,6 +139,77 @@ test("actual technology cores preserve source placements, isolate columns and ex
   const reset=createMatch(roster,1,1,installed.energySpawns);
   installed.applyEnergy(reset.energyUnits);
   assert.ok(originalUnits.every((o,i)=>close(o.matrixWorld,unitMatrices[i])));
+});
+
+test("production heavy footprint follows actual CAD routes and installs all four levels through real unit/column geometry",async()=>{
+  const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(CORE_ASSET.url,CORE_ASSET.sha256)]);
+  const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(root),middle=bounds.getCenter(new THREE.Vector3());root.position.set(-middle.x,-bounds.min.y,-middle.z);root.updateMatrixWorld(true);
+  const installed=installCoreGeometry(field,parts);
+  installed.group.removeFromParent();const terrain=createArenaTerrain(root);field.add(installed.group);root.updateMatrixWorld(true);
+  const scene=new THREE.Scene();scene.add(root);
+  // Number-plate canvas texture is decorative and not needed in Node.
+  globalThis.document={createElement:()=>({getContext:()=>null})};
+  let exhibit;try{exhibit=addRobotPreviews(root,scene,terrain);}finally{delete globalThis.document;}
+  const bots=TEAMS.map(team=>exhibit.children.find(o=>o.userData.team===team&&o.userData.area==="field"&&o.name.includes("hero")));
+  const roster=bots.map(b=>({id:b.name,team:b.userData.team,heavy:true,maxHp:400}));
+  const m=createMatch(roster,1,1,installed.energySpawns,installed.coreSockets);startMatch(m);
+  const positions=new Map(bots.map(b=>[b.name,b.position]));
+  const advance=dt=>{updateMatch(m,dt,positions);installed.applyTechnology(m);};
+  const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
+  const {zonesAtPosition}=await import("./rmuc-3d-zones.ts");
+  const fixed=installed.cores.map(c=>c.object.getObjectByName("pedestal-and-shoulder"));
+  const fixedMatrices=fixed.map(o=>o.matrixWorld.clone());
+  const shaft=installed.cores.map(c=>c.object.getObjectByName("shaft"));
+  const tipLocal=new THREE.Vector3(-.6112806706969,-.7521826021449,-.675706394592);
+  const shaftMatrices=shaft.map(o=>o.matrixWorld.clone());
+  const vec=p=>new THREE.Vector3(p.x,p.y,p.z);
+  const move=(b,x,z)=>{
+    const goal=new THREE.Vector3(x,terrain.heightAt(x,z),z);
+    const radius=b.userData.radius;assert.ok(radius<.425);
+    const search=findArenaPath(terrain,b.position,goal,radius,.4,[]);
+    let step=search.next();while(!step.done)step=search.next();
+    assert.ok(step.value.length>0);
+    for(const node of step.value){moveOnArena(terrain,b.position,node.x-b.position.x,node.z-b.position.z,radius,.23,[]);assert.ok(b.position.distanceTo(node)<.016);}
+    assert.ok(b.position.distanceTo(goal)<.02,JSON.stringify({actual:b.position,goal}));
+    advance(.1);
+  };
+  for(const [i,b] of bots.entries()){
+    const team=TEAMS[i],other=TEAMS[1-i],sign=i===0?1:-1,r=m.robots[i];
+    for(const level of [1,2,3,4]){
+      if(m.elapsed<60*(level-1))advance(60*(level-1)-m.elapsed);
+      move(b,12*sign,-6.4*sign);
+      for(let j=0;j<(level===4?2:1);j++){
+        const unit=energyStatus(m,r,b.position).pickup;assert.ok(unit);assert.ok(pickupEnergy(m,r.id,b.position,unit));advance(.1);
+      }
+      move(b,1.05*sign,1.05*sign);
+      assert.ok(zonesAtPosition(b.position).includes(team+"-assembly"));
+      assert.ok(beginAssembly(m,r.id,b.position,level));advance(1);
+      for(const step of level===1?[2,6]:level===2?[2,3,6]:[2,3,4,5,6]){
+        for(const core of level===4?[team,other]:[team]){
+          const a=assemblyStatus(m,r,b.position).actions.find(a=>a.core===core&&a.step===step);assert.ok(a);
+          assert.ok(assemblyAction(m,r.id,b.position,core,step,a.angle));
+          if(step!==6){advance(step===5?1:.6);const frame=coreFrame(m,core);
+            const j=TEAMS.indexOf(core),actual=shaft[j].localToWorld(tipLocal.clone());
+            assert.ok(actual.distanceTo(vec(frame.tip))<.0005,"real column tip tracks referee frame");
+            const u=m.energyUnits.find(u=>u.location.kind==="mounted"&&u.location.owner===team&&u.location.core===core);assert.ok(u);
+            const object=installed.units.find(x=>x.id===u.id).object;
+            assert.ok(object.localToWorld(new THREE.Vector3(0,.075,0)).distanceTo(vec(u.location.position))<1e-6);
+            assert.ok(object.visible);
+            assert.ok(fixed.every((o,k)=>o.matrixWorld.equals(fixedMatrices[k])));
+          }else advance(.1);
+        }
+      }
+      assert.equal(technologyLevel(m,team),level);
+      assert.ok(shaft.every((o,k)=>o.matrixWorld.elements.every((v,j)=>Math.abs(v-shaftMatrices[k].elements[j])<1e-7)));
+    }
+  }
+  assert.equal(m.energyUnits.filter(u=>u.location.kind==="spent").length,10);
+  for(const u of m.energyUnits.filter(u=>u.location.kind==="spent")){
+    const object=installed.units.find(x=>x.id===u.id).object;assert.equal(object.visible,false);assert.ok(meshes(object).every(o=>!o.layers.isEnabled(0)));
+  }
+  installed.applyTechnology(createMatch(roster,1,1,installed.energySpawns,installed.coreSockets));
+  assert.ok(installed.units.every(u=>u.object.visible&&meshes(u.object).every(o=>o.layers.isEnabled(0))));
 });
 
 test("actual CAD outposts replace original assemblies; carrier and hit geometry rotate together", async () => {
