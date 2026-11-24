@@ -111,11 +111,21 @@ export function mountArena(
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   let matchTime: number | null = null;
+  let viewportHeight=1;
   let motionDebt=0;
   let nextBotTurn = 0;
   let botCursor = 0;
   const shotRay = new THREE.Raycaster();
-  const projectiles=createProjectileSystem(scene);
+  const projectiles=createProjectileSystem(scene,{
+    height:(x,z)=>terrain?.heightAt(x,z)??-Infinity,
+    accept:hit=>{
+      for(let node:THREE.Object3D|null=hit.object;node;node=node.parent){
+        if(node===mechanism?.parts||node===coreGeometry?.group||coreGeometry?.cores.some(c=>node===c.object)||mechanism?.dartBindings.some(b=>node===b.carriage||node===b.door))return false;
+        if(node===map||node===ground)return true;
+      }
+      return false;
+    }
+  });
   let decisionShotIndex:ShotIndex|undefined;
   const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number}>();
   const motions=new Map<Robot,ChassisMotion>();
@@ -277,6 +287,7 @@ export function mountArena(
       publish();
     } else if (controls.enabled) controls.update();
     publish();
+    projectiles.visual(camera,viewportHeight,isPlaying(mode));
     renderer.render(scene, camera);
     if(match?.phase!=="running"&&!keys.size) matchTime=null;
   }
@@ -806,7 +817,7 @@ export function mountArena(
   controls.addEventListener("change", invalidate);
   const resize = () => {
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
-    renderer.setSize(w, h);
+    viewportHeight=h;renderer.setSize(w, h);
     camera.aspect = w / h;
     if (ready && mode !== "first" && mode !== "third" && fieldBounds) {
       controls.target.copy(frameArena(camera, mode, fieldBounds));

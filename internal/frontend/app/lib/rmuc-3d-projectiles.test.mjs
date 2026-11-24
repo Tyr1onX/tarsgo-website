@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import * as T from "three";
 import {createMatch,startMatch,updateMatch} from "./rmuc-3d-match.ts";
-import {launchProjectile,advanceProjectile,ballisticAim,projectileSpeed,projectileDiameter,createProjectileSystem} from "./rmuc-3d-projectiles.ts";
+import {launchProjectile,advanceProjectile,ballisticAim,projectileSpeed,projectileDiameter,projectileVisualDiameter,RESIDUE_LIMIT,createProjectileSystem} from "./rmuc-3d-projectiles.ts";
 import {createRobotPreview,previewWeaponAt,aimWeapon} from "./rmuc-3d-robots.ts";
 import {traceArenaShot,prepareArenaShots} from "./rmuc-3d-shot.ts";
 const fixture=()=>{
@@ -51,9 +51,9 @@ test("continuous segments stop at first actual blocker or current moved target",
 test("visual pool reuses geometry and material, clears all flight and flash on reset/end",()=>{
  const {m,target,from}=fixture(),scene=new T.Scene(),owner=new T.Group(),system=createProjectileSystem(scene),aim=ballisticAim(from,target.position,25);
  assert.ok(system.fire(m,"r",from,aim.direction,owner));assert.equal(system.slotCount,1);
- const body=system.group.children[0],geometry=body.geometry,material=body.material;
- system.advance(m,.025,[target]);assert.ok(body.position.x>.6);assert.ok(system.group.children.slice(1).every(o=>o.scale.y<=.15+1e-8));
- system.clear();assert.ok(system.group.children.every(o=>!o.visible));assert.equal(system.activeCount,0);
+ const body=system.group.getObjectByName("projectile-core"),geometry=body.geometry,material=body.material;
+ system.advance(m,.025,[target]);assert.ok(body.position.x>.6);const camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(0,2,10);camera.lookAt(0,1,0);system.visual(camera,720,false);assert.ok(body.scale.x>=.017);
+ system.clear();assert.ok(system.group.children.every(o=>o.isInstancedMesh?o.count===0:!o.visible));assert.equal(system.activeCount,0);
  updateMatch(m,.3);assert.ok(system.fire(m,"r",from,aim.direction,owner));assert.equal(system.slotCount,1);assert.equal(body.geometry,geometry);assert.equal(body.material,material);
  updateMatch(m,420);system.advance(m,.025,[target]);assert.equal(system.activeCount,0);assert.equal(m.robots[1].hp,200);
  system.dispose();assert.equal(system.group.parent,null);
@@ -72,4 +72,27 @@ test("large indexed mesh block pruning preserves native exact first face and dra
   assert.equal(actual?.distance,expected?.distance);
   assert.deepEqual(geometry.drawRange,{start:0,count:Infinity});
  }
+});
+
+test("projected visibility is bounded and preserves calibre distinction",()=>{
+ assert.equal(projectileVisualDiameter(.017,1,1000,false),.017);
+ assert.ok(projectileVisualDiameter(.017,30,800,false)>.017);
+ assert.ok(projectileVisualDiameter(.042,30,800,false)>projectileVisualDiameter(.017,30,800,false));
+ assert.ok(Math.abs(projectileVisualDiameter(.017,1000,10,false)-.102)<1e-9);
+ assert.ok(Math.abs(projectileVisualDiameter(.017,1000,10,true)-.034)<1e-9);
+});
+test("only supported upward contacts leave bounded visual residue; reset clears",()=>{
+ const {m,from}=fixture(),scene=new T.Scene(),owner=new T.Group();
+ const ground=new T.Mesh(new T.PlaneGeometry(20,20),new T.MeshBasicMaterial({side:T.DoubleSide}));ground.rotation.x=-Math.PI/2;ground.updateMatrixWorld(true);
+ const system=createProjectileSystem(scene,{height:()=>0,accept:hit=>hit.object===ground});
+ for(let i=0;i<RESIDUE_LIMIT+3;i++){
+  m.robots[0].ammo=10;m.robots[0].cooldown=0;m.robots[0].thermalLock=false;m.robots[0].heat=0;
+  assert.ok(system.fire(m,"r",from,new T.Vector3(.1,-1,0),owner));system.advance(m,.06,[ground]);
+ }
+ assert.equal(system.residueCount,RESIDUE_LIMIT);assert.equal(m.robots[1].hp,200);
+ const camera=new T.PerspectiveCamera(48,1,.025,100);system.visual(camera,720,false);
+ assert.equal(system.group.children.filter(o=>o.isInstancedMesh).reduce((n,o)=>n+o.count,0),RESIDUE_LIMIT);
+ for(let i=0;i<21;i++)system.advance(m,1,[]);
+ assert.equal(system.residueCount,0);
+ system.clear();assert.ok(system.group.children.filter(o=>o.isInstancedMesh).every(o=>o.count===0));system.dispose();
 });
