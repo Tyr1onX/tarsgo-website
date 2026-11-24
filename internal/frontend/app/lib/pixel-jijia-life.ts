@@ -1,12 +1,23 @@
-import { PONDS, SCENERY, TILE, groundAt, isWalkable, pathIsWalkable, waterDepthAt, shelteredAt, type Position } from "./pixel-jijia-world.ts";
+import { PONDS, SCENERY, TILE, groundAt, isWalkable, pathIsWalkable, waterDepthAt, shelteredAt, worldHash, type Position } from "./pixel-jijia-world.ts";
 import type { WeatherKind } from "./pixel-jijia-climate.ts";
 import { animalFrame, ANIMAL_WIDTH, ANIMAL_HEIGHT, ANIMAL_FRAMES, type AnimalPose } from "./pixel-jijia-animal-art.ts";
 
 export type Species = "sparrow" | "squirrel" | "fish";
 export const SPECIES_LABEL: Record<Species,string> = { sparrow: "麻雀", squirrel: "松鼠", fish: "池鱼" };
-export type Animal = { id: string; species: Species; home: Position; x: number; y: number; phase: number; speed: number; behaviorAge: number; behavior: "active" | "shelter" | "rest" | "alert"; facing: number; lift: number; turnAge: number; fishKind?:number; perchHeight?:number };
+export type Animal = { id: string; species: Species; home: Position; x: number; y: number; phase: number; speed: number; behaviorAge: number; behavior: "active" | "shelter" | "rest" | "alert"; facing: number; lift: number; turnAge: number; fishKind?:number; perchHeight?:number; sites:Position[]; calm:number };
 const ponds = PONDS;
 const treeHomes = SCENERY.filter(p=>p.habitat);
+// Each habitat has a small set of verified destinations. Select one for
+// an entire feeding trip instead of chasing a continuously moving target.
+function forageSites(home:Position):Position[]{
+  const sites:Position[]=[home];
+  for(let i=0;i<12;i++){
+    const angle=i*Math.PI/6,radius=i%2?3.4:2.2;
+    const p={x:home.x+Math.cos(angle)*radius,y:home.y+Math.sin(angle)*radius};
+    if([0,4,5,7].includes(groundAt(p.x,p.y))&&pathIsWalkable(home,p,true))sites.push(p);
+  }
+  return sites;
+}
 export function createWildlife(): Animal[] {
   const land = treeHomes.flatMap((tree,i)=> {
     const species: Species = tree.habitat!;
@@ -14,54 +25,66 @@ export function createWildlife(): Animal[] {
       {x:tree.x+1.4,y:tree.y+.15},{x:tree.x-1.4,y:tree.y+.15},{x:tree.x,y:tree.y-1.65}]
       .find(p=>isWalkable(p.x,p.y)&&groundAt(p.x,p.y)!==3&&shelteredAt(p.x,p.y));
     if(!home)return [];
-    return [{id:species+"-"+i,species,home,x:home.x,y:home.y,phase:i*1.7,speed:0,behaviorAge:0,behavior:"active" as const,facing:1,lift:0,turnAge:10,perchHeight:tree.height*(species==="sparrow"?.47:.20)}];
+    return [{id:species+"-"+i,species,home,x:home.x,y:home.y,phase:i*1.7,speed:0,behaviorAge:0,behavior:"active" as const,facing:1,lift:0,turnAge:10,perchHeight:tree.height*(species==="sparrow"?.47:.20),sites:forageSites(home),calm:0}];
   });
-  return [...land,...ponds.flatMap((p,i)=>(p.shore==="natural"?[0,1,2]:[0,1]).map(j=> {
+  return [...land,...ponds.flatMap((p,i)=>{
     const home={x:p.x+p.width/2,y:p.y+p.height/2};
-    return {id:"fish-"+i+"-"+j,species:"fish" as const,home,x:home.x+j*.8,y:home.y,phase:j*2.1+i,speed:0,behaviorAge:0,behavior:"active" as const,facing:1,lift:0,turnAge:10,fishKind:(i+j)%3};
-  }))];
+    const sites:Position[]=[];
+    for(const u of [.25,.5,.75])for(const v of [.25,.5,.75]){
+      const target={x:p.x+p.width*u,y:p.y+p.height*v};
+      if(waterDepthAt(target.x,target.y)===2)sites.push(target);
+    }
+    return (p.shore==="natural"?[0,1,2]:[0,1]).map(j=>({
+      id:"fish-"+i+"-"+j,species:"fish" as const,home,x:home.x+j*.8,y:home.y,phase:j*2.1+i,speed:0,behaviorAge:0,behavior:"active" as const,facing:1,lift:0,turnAge:10,fishKind:(i+j)%3,sites,calm:0
+    }));
+  })];
 }
 
-export function updateWildlife(animals: Animal[], player: Position, dt: number, hour: number, weather: WeatherKind|null, motion: boolean, cast: FishingCast|null = null) {
+export function updateWildlife(animals: Animal[], player: Position, dt: number, hour: number, weather: WeatherKind|null, motion: boolean, cast: FishingCast|null = null, playerMoving=true) {
   for (const a of animals) {
     const aquatic=a.species==="fish", bird=a.species==="sparrow";
     const shelter=!aquatic&&(weather==="rain"||weather==="storm"||weather==="snow");
-    const rest=!aquatic&&(hour<6||hour>=19);
-    const distance=Math.hypot(a.x-player.x,a.y-player.y);
+    const rest=!aquatic&&(hour<(bird?5.5:6.5)||hour>=(bird?18.8:19.5));
+    const distance=Math.hypot(a.x-player.x,a.y-player.y),radius=aquatic?1.1:bird?2.2:1.7;
+    // A quiet observer is not a perpetual threat. Movement resets the
+    // habituation window; weather and night still take precedence.
+    a.calm=playerMoving||Math.hypot(a.home.x-player.x,a.home.y-player.y)>7?0:Math.min(5,a.calm+dt);
+    const alarm=distance<radius&&a.calm<(bird?2.8:1.9);
     a.turnAge+=dt;
     const bait = aquatic && cast?.fishId === a.id && cast.caughtAt===undefined ? cast.target : null;
-    const behavior=bait?"active":shelter?"shelter":rest?"rest":distance<1.7?"alert":"active";
+    const behavior=bait?"active":shelter?"shelter":rest?"rest":alarm?"alert":"active";
     a.behaviorAge=behavior===a.behavior?a.behaviorAge+dt:0;
     a.behavior=behavior;
     a.speed=0;
     if (!motion && !bait) continue;
     a.phase+=dt*(aquatic?.48:bird?.65:.36);
-    const homeDistance=Math.hypot(a.x-a.home.x,a.y-a.home.y);
+    const homeDistance=Math.hypot(a.x-a.home.x,a.y-a.home.y),cycle=a.phase%5.8;
     const wantedLift=aquatic?0:bird?(shelter||rest)?homeDistance<.3?(a.perchHeight??23):14:behavior==="alert"&&a.behaviorAge>.16?20:0:(shelter||rest)&&homeDistance<.18?(a.perchHeight??14):0;
     a.lift+=Math.max(-dt*60,Math.min(dt*60,wantedLift-a.lift));
     let target:Position;
     if (bait) {
       target = bait;
     } else if (shelter||rest) {
-      // Tree base/nearby ground is the sheltered end of the habitat.
       target=a.home;
     } else if(a.behavior==="alert") {
-      // A brief look-up precedes a dash or take-off, rather than instant motion.
       if(!aquatic && a.behaviorAge<(bird?.16:.32))continue;
       const dx=a.x-player.x,dy=a.y-player.y, len=Math.max(.2,Math.hypot(dx,dy));
       target={x:a.x+dx/len*2,y:a.y+dy/len*2};
     } else {
-      // Alternate travel and stillness; ground animals do not slide continuously.
-      if(!aquatic && a.phase%5.8>3.4)continue;
-      target={x:a.home.x+Math.sin(a.phase)*(aquatic?2.2:2.7),
-        y:a.home.y+Math.cos(a.phase*.81)*(aquatic?2:2.1)+(aquatic?0:1.8)};
+      // Feeding, grooming and scanning happen at a destination, with a
+      // different trip chosen next cycle. Fish pause near a new depth region.
+      if(cycle>3.4)continue;
+      const trip=Math.floor(a.phase/5.8),seed=worldHash(Math.round(a.home.x*10)+trip,Math.round(a.home.y*10)+(a.fishKind??0));
+      target=a.sites[aquatic?seed%a.sites.length:1+seed%Math.max(1,a.sites.length-1)]??a.home;
+      if(!aquatic&&cycle<1.5)target=a.home;
+      // A blocked direct step can be retried along the known home-to-site route.
+      else if(!aquatic&&!pathIsWalkable(a,target,true))target=a.home;
     }
     const dx=target.x-a.x,dy=target.y-a.y,len=Math.hypot(dx,dy);
     if(len<.03)continue;
-    const step=Math.min(len,dt*(a.behavior==="alert"?(aquatic?2.3:bird?5:3.2):aquatic?(bait?1.9:.85):1.65));
+    const step=Math.min(len,dt*(a.behavior==="alert"?(aquatic?2.3:bird?5:3.2):aquatic?(bait?1.9:1.15):1.65));
     const oldX=a.x,oldY=a.y;
     const x=a.x+dx/len*step,y=a.y+dy/len*step;
-    // Fish remain in their pond; land animals never cross buildings or water.
     const valid=(px:number,py:number)=>aquatic?waterDepthAt(px,py)>0:
       Math.hypot(px-a.home.x,py-a.home.y)<5&&pathIsWalkable(a.home,{x:px,y:py},true)&&pathIsWalkable({x:a.x,y:a.y},{x:px,y:py},true);
     if (valid(x,a.y)) a.x=x;
@@ -70,6 +93,7 @@ export function updateWildlife(animals: Animal[], player: Position, dt: number, 
     if(Math.abs(a.x-oldX)>.001){const facing=a.x>oldX?1:-1;if(facing!==a.facing)a.turnAge=0;a.facing=facing;}
   }
 }
+
 export function closestAnimal(animals: Animal[], position: Position): Animal|null {
   return animals.filter(a=>Math.hypot(a.x-position.x,a.y-position.y)<2.7)
     .sort((a,b)=>Math.hypot(a.x-position.x,a.y-position.y)-Math.hypot(b.x-position.x,b.y-position.y))[0]??null;
@@ -122,7 +146,7 @@ export function animalAnimation(a:Animal,motion:boolean):{pose:AnimalPose;frame:
   const cycle=a.phase%5.8;
   let pose:AnimalPose,lift=a.lift,rate=4;
   if(a.species==="fish"){
-    pose=a.behavior==="alert"?"dart":a.turnAge<.23?"turn":cycle>5.2?"surface":"swim";
+    pose=a.behavior==="alert"?"dart":a.turnAge<.23?"turn":cycle>4.85&&cycle<5.35?"surface":"swim";
     rate=pose==="dart"?19:10;
   }else if(a.species==="sparrow"){
     if(returning&&atHome&&Math.abs(lift-(a.perchHeight??23))<1){pose=a.behavior==="rest"?"sleep":"perch";rate=2;}
@@ -162,9 +186,10 @@ export function drawAnimal(ctx: CanvasRenderingContext2D,a: Animal,camera:Positi
     ctx.fillStyle="rgba(39,53,40,.18)";ctx.beginPath();
     ctx.ellipse(x,y, a.species==="squirrel"?7:5,2,0,0,Math.PI*2);ctx.fill();
   }
-  if(aquatic&&pose==="surface"){
+  if(aquatic&&pose==="surface"&&motion){
     ctx.strokeStyle="rgba(208,237,218,.4)";ctx.lineWidth=.6;
-    ctx.beginPath();ctx.ellipse(x,y-7,7+frame*.45,2+frame*.13,0,0,Math.PI*2);ctx.stroke();
+    const age=(a.phase%5.8-4.85)/.5;
+    ctx.globalAlpha=(1-age)*.42;ctx.beginPath();ctx.ellipse(x,y-7,3+age*9,1+age*3,0,0,Math.PI*2);ctx.stroke();
   }
   ctx.translate(x,y-lift);ctx.scale(a.facing,1);
   ctx.imageSmoothingEnabled=false;

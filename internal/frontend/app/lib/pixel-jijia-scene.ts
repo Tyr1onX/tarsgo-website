@@ -305,8 +305,27 @@ function drawEaveDrips(ctx:CanvasRenderingContext2D,node:{x:number;y:number;valu
   }
   ctx.restore();
 }
+export function flowerVisit(seed:number,time:number):number|null{
+  const period=26000+seed%15000,phase=(time+seed%period)%period;
+  return phase<6800?phase/6800:null;
+}
+function drawFlowerVisitor(ctx:CanvasRenderingContext2D,node:{x:number;y:number;value:Scenery},b:{x:number;y:number;width:number;height:number},camera:Position,time:number,wind:number){
+  if(!time||Math.abs(wind)>12)return;
+  const seed=hash(node.x,node.y);
+  // At most a single visitor per selected bed, with long quiet gaps.
+  if(seed%3!==0)return;
+  const t=flowerVisit(seed,time);if(t===null)return;
+  const travel=Math.max(0,Math.min(1,(t-.18)/.64));
+  const x=Math.round(b.x-camera.x+b.width*(.24+travel*.52)+Math.sin(t*9)*2+wind*.12);
+  const y=Math.round(b.y-camera.y+b.height*.27-Math.sin(travel*Math.PI)*10+Math.sin(t*13)*2);
+  const wing=Math.floor(time/115)%2;
+  ctx.fillStyle="#6b5d49";ctx.fillRect(x,y,1,3);
+  ctx.fillStyle=seed%2?"#e4c98a":"#e0b4a0";
+  ctx.fillRect(x-1-wing,y-1,1+wing,2);ctx.fillRect(x+1,y-1,1+wing,2);
+  ctx.fillStyle="#f3e3b9";ctx.fillRect(x-1-wing,y,1,1);ctx.fillRect(x+1+wing,y,1,1);
+}
 function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageElement,
-  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity,wind=0,night=0,wet=0,warmNight=false){
+  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity,wind=0,night=0,wet=0,insects:"day"|"night"|null=null){
   const b=node.kind==="building"?buildingBounds(node.value,sprites):
     node.kind==="prop"?{x:point(node.x)-node.value.width/2,y:point(node.y)-node.value.height,width:node.value.width,height:node.value.height}:
     fountainBounds();
@@ -331,7 +350,7 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
       const brightness=nightLight(night,(hash(node.x,node.y)%100)/100);
       const xx=point(node.x)-camera.x,yy=point(node.y)-node.value.height*.72-camera.y;
       ctx.fillStyle=`rgba(255,231,165,${brightness})`;ctx.fillRect(Math.round(xx-2),Math.round(yy-2),4,5);
-      if(time&&warmNight){
+      if(time&&insects==="night"){
         const seed=hash(node.x,node.y),phase=(time/(9200+seed%2800)+seed%97/97)%1;
         if(phase<.32){
           const t=phase/.32;
@@ -341,6 +360,8 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
         }
       }
     }
+    if(insects==="day"&&(node.value.sprite==="hydrangea"||node.value.sprite==="planter"))
+      drawFlowerVisitor(ctx,node,b,camera,time,wind);
     const active=age>=0&&age<1500;
     if(node.value.sprite==="arch"){
       // The little brass chime hangs inside the existing arch, not in a new collision layer.
@@ -507,7 +528,7 @@ function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:Spr
   }
   if (!waterDepthAt(player.x, player.y)) {
     const box=explorerFrameBox(pose);
-    const mask=silhouette(character,box,`explorer:${pose.action}:${pose.direction}:${pose.frame}`);
+    const mask=silhouette(character,box,`explorer:${box[0]}:${box[1]}`);
     const h=pose.seated?35:EXPLORER_FRAME_HEIGHT;
     const dx = -c.sunX * h * length, dy = -c.sunY * h * length;
     ctx.save();
@@ -518,8 +539,17 @@ function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:Spr
   }
   ctx.restore();
 }
+// Floating leaves drift in the authored water footprint, not in an
+// independent particle pool. A bounded path cannot cross the shore.
+export function floatingLeaf(pond:{x:number;y:number;width:number;height:number},index:number,time:number,wind:number){
+  const seed=hash(pond.x+index,pond.y),t=time/1000;
+  const x=pond.x+pond.width*(.5+.23*Math.sin(t*.038+seed%29+index*2.1))+
+    Math.max(-.35,Math.min(.35,wind*.015));
+  const y=pond.y+pond.height*(.5+.23*Math.cos(t*.029+seed%17+index*1.7));
+  return {x,y,turn:Math.floor(t*.6+seed%5)%4};
+}
 function drawWater(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number,marks:SurfaceMark[],
-  time:number,motion:boolean,climate:OutdoorClimate|null){
+  time:number,motion:boolean,climate:OutdoorClimate|null,wind:number){
   const weather=climate?.weather??null;
   const visible=waterCells.filter(c=>c.x*TILE+TILE>=camera.x&&c.y*TILE+TILE>=camera.y&&
     c.x*TILE<camera.x+w&&c.y*TILE<camera.y+h);
@@ -539,11 +569,33 @@ function drawWater(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:numbe
     const yy=y+2+(c.seed%9);
     ctx.fillRect(x+dx-2,yy,3,.5);
     ctx.fillRect(x+dx,yy-.5,3.5,.5);
-    if(sunny>.15&&c.seed%7===0){ctx.globalAlpha=.14*sunny*Math.sin(phase*Math.PI);ctx.fillRect(x+dx-4,yy+2,7,.7);}
+    if(sunny>.035&&climate&&c.seed%7===0){
+      // Specular bands lean toward the current solar azimuth, with the
+      // same surface phase as the surrounding water.
+      const length=3+5*(1-sunny),offset=climate.sunX*3,tilt=climate.sunY;
+      ctx.globalAlpha=.19*sunny*Math.sin(phase*Math.PI);
+      for(let i=0;i<3;i++)ctx.fillRect(Math.round(x+dx+offset-length/2+i*2),
+        Math.round(yy+2+tilt*i*.7),Math.max(1,length/3),.5);
+    }
     if(rain&&motion&&c.seed%4===0){
       const k=(t*1.2+c.seed%37/37)%1;
       ctx.globalAlpha=.32*(1-k);ctx.strokeStyle="#d3ece3";ctx.lineWidth=.5;
       ctx.beginPath();ctx.ellipse(x+8,y+9,1+5*k,.5+2.3*k,0,0,Math.PI*2);ctx.stroke();
+    }
+  }
+  if(climate?.season==="autumn"&&(climate.temperature??0)>0){
+    ctx.globalAlpha=.85;
+    for(const pond of PONDS){
+      if(pond.x*TILE>camera.x+w||(pond.x+pond.width)*TILE<camera.x||
+         pond.y*TILE>camera.y+h||(pond.y+pond.height)*TILE<camera.y)continue;
+      for(let i=0;i<(pond.shore==="natural"?3:1);i++){
+        const leaf=floatingLeaf(pond,i,motion?time:0,motion?wind:0);
+        if(!waterDepthAt(leaf.x,leaf.y))continue;
+        const x=point(leaf.x)-camera.x,y=point(leaf.y)-camera.y;
+        ctx.fillStyle="#b88b48";ctx.fillRect(x-2,y,4,1.5);
+        ctx.fillStyle="#d4ae69";ctx.fillRect(x-1,y-1,2,1);
+        ctx.fillStyle="#8d6940";ctx.fillRect(x+(leaf.turn<2?1:-2),y+.5,1,1.5);
+      }
     }
   }
   for (const mark of marks) {
@@ -667,25 +719,33 @@ function drawGroundLights(ctx:CanvasRenderingContext2D,camera:Position,night:num
     }
   }
 }
-function drawAtmosphere(ctx:CanvasRenderingContext2D,camera:Position,c:OutdoorClimate,w:number,h:number){
+export function morningDew(c:Pick<OutdoorClimate,"hour"|"minute"|"temperature"|"weather"|"sunHeight"|"sunX">):number{
+  if((c.temperature??0)<=0||(c.weather!=="clear"&&c.weather!=="cloudy")||c.sunX<=0)return 0;
+  const hour=c.hour+c.minute/60;
+  if(hour<4||hour>=9)return 0;
+  return Math.max(0,Math.min(1,(hour-4)*2,(9-hour)/2,1-c.sunHeight));
+}
+function drawDew(ctx:CanvasRenderingContext2D,camera:Position,c:OutdoorClimate,w:number,h:number){
+  const dew=morningDew(c);if(dew<.02)return;
+  ctx.save();ctx.globalAlpha=dew*.62;ctx.fillStyle="#d9e5c7";
+  const sx=Math.max(0,Math.floor(camera.x/TILE)),sy=Math.max(0,Math.floor(camera.y/TILE));
+  const ex=Math.min(WORLD_WIDTH,Math.ceil((camera.x+w)/TILE)),ey=Math.min(WORLD_HEIGHT,Math.ceil((camera.y+h)/TILE));
+  for(let y=sy;y<ey;y++)for(let x=sx;x<ex;x++){
+    const seed=hash(x,y);
+    if(seed%19!==0||groundAt(x,y)!==0)continue;
+    ctx.fillRect(x*TILE+seed%11-camera.x,y*TILE+3+(seed>>>5)%9-camera.y,1,.5);
+  }
+  ctx.restore();
+}
+function drawAtmosphere(ctx:CanvasRenderingContext2D,c:OutdoorClimate,w:number,h:number){
   const shade=c.weather==="fog"?"rgba(192,207,208,.22)":c.weather==="storm"?"rgba(46,58,83,.20)":c.weather==="snow"?"rgba(214,230,235,.10)":c.weather&&c.weather!=="clear"?"rgba(76,96,108,.11)":null;
   if(shade){ctx.fillStyle=shade;ctx.fillRect(0,0,w,h);}
-  if(c.weather==="clear"&&c.sunHeight>0&&c.sunHeight<.30){ctx.fillStyle=`rgba(242,174,100,${(.30-c.sunHeight)*.35})`;ctx.fillRect(0,0,w,h);}
-  if(c.night){ctx.fillStyle=`rgba(13,29,55,${c.night})`;ctx.fillRect(0,0,w,h);}
-  if(c.weather==="clear"&&c.sunHeight>.08&&c.sunHeight<.82){
-    // Canopy-filtered shafts projected along the current light direction.
-    const dx=-c.sunX*125,dy=-c.sunY*125;
-    for(const p of SCENERY.filter(isTree)){
-      const x=p.x*TILE-camera.x,y=p.y*TILE-p.height*.62-camera.y;
-      if(x<-180||x>w+180||y<-180||y>h+180)continue;
-      for(let i=0;i<2;i++){
-        const xx=x+(i-0.5)*18,yy=y+4*i;
-        const g=ctx.createLinearGradient(xx,yy,xx+dx,yy+dy);
-        g.addColorStop(0,"rgba(255,238,185,.03)");g.addColorStop(.24,"rgba(255,238,185,.13)");g.addColorStop(1,"rgba(255,238,185,0)");
-        ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(xx-2,yy);ctx.lineTo(xx+2,yy);ctx.lineTo(xx+dx+11,yy+dy);ctx.lineTo(xx+dx-11,yy+dy);ctx.closePath();ctx.fill();
-      }
-    }
+  if(c.weather==="clear"&&c.sunHeight>0&&c.sunHeight<.30){
+    const color=c.sunX>0?"221,214,168":"242,174,100";
+    ctx.fillStyle=`rgba(${color},${(.30-c.sunHeight)*.35})`;ctx.fillRect(0,0,w,h);
   }
+  if(c.night){ctx.fillStyle=`rgba(13,29,55,${c.night})`;ctx.fillRect(0,0,w,h);}
+
 }
 
 export function renderScene(
@@ -697,11 +757,14 @@ export function renderScene(
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
   drawTerrain(ctx,terrain,screenCamera,w,h);
-  drawWater(ctx,screenCamera,w,h,marks,time,motion,climate);
-  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
+  drawWater(ctx,screenCamera,w,h,marks,time,motion,climate,wind);
+  if(climate){drawDew(ctx,screenCamera,climate,w,h);drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land=animals.filter(a=>a.species!=="fish").sort((a,b)=>a.y-b.y);
   const seasonal=seasonalProps(props,climate?.season??"summer");
+  const insects=motion&&climate&&(climate.temperature??0)>12&&
+    (climate.weather==="clear"||climate.weather==="cloudy")?
+    climate.night>.2?"night":climate.hour>=7&&climate.hour<18&&climate.season!=="winter"&&(climate.temperature??0)>15?"day":null:null;
   let playerDrawn = false,index=0;
   const drawPlayer=()=>{
     renderExplorer(ctx, characterSheet, player, pose, screenCamera);
@@ -722,11 +785,11 @@ export function renderScene(
     }
     if (!playerDrawn && node.y > seatDepth) {drawPlayer();playerDrawn = true;}
     drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity,wind,climate?.night??0,(climate?.temperature??0)>0?surface.wet:0,
-      Boolean(climate&&climate.night>.2&&(climate.temperature??0)>12&&(climate.weather==="clear"||climate.weather==="cloudy")));
+      insects);
   }
   while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();
-  if(climate)drawAtmosphere(ctx,screenCamera,climate,w,h);
+  if(climate)drawAtmosphere(ctx,climate,w,h);
   if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
 }
 
