@@ -156,3 +156,71 @@ test("path search can route around an occupied waypoint",async()=>{
  assert.ok(step.value.some(p=>Math.abs(p.z)>=.9));
  for(const node of step.value){moveOnArena(floor,start,node.x-start.x,node.z-start.z,radius,.23,[other]);assert.ok(start.distanceTo(node)<.016);}
 });
+
+import {createMatch,startMatch,updateMatch,terrainStatus,ammoOffer,purchaseAmmo,damageTarget,selectDart,openDart,launchDart} from "./rmuc-3d-match.ts";
+const terrainMatch=()=>{const m=createMatch([{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}],1,1);startMatch(m);return m};
+const stepAt=(m,x,z,dt=.1,y=terrain.heightAt(x,z),id="r")=>updateMatch(m,dt,new Map([[id,{x,y,z}]]));
+test("real CAD movement climbs highpoint and crosses road/highland using existing controls",()=>{
+ for(const [from,to,kind] of [[[9,4.65],[12.6,4.65],"highpoint"],[[5.7,-5.0],[5.7,-5.9],"road"],[[5.3,0],[3.23,0],"highland"]]){
+  const m=terrainMatch(),r=m.robots[0],p=new THREE.Vector3(from[0],terrain.heightAt(...from),from[1]);
+  stepAt(m,p.x,p.z);
+  for(let i=0;i<100;i++){
+   const dx=to[0]-p.x,dz=to[1]-p.z,d=Math.hypot(dx,dz);
+   if(d<.02)break;
+   const n=Math.min(.12,d);
+   moveOnArena(terrain,p,dx*n/d,dz*n/d,.41,.23,[]);
+   stepAt(m,p.x,p.z,.1,p.y);
+  }
+  assert.ok(Math.hypot(p.x-to[0],p.z-to[1])<.03,kind+" stopped at "+p.toArray());
+  assert.ok(terrainStatus(m,r).first.includes(kind),kind+" crossing not granted");
+  assert.equal(r.xp,300);
+  if(kind==="highpoint"){assert.equal(ammoOffer(m,r).local,true);assert.ok(purchaseAmmo(m,r.id));assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"r"}),10);}
+ }
+});
+test("crossing order, timeout, cooldown, first experience and tunnel combination",()=>{
+ const m=terrainMatch(),r=m.robots[0];
+ stepAt(m,5.7,-5.9);assert.equal(r.xp,0);
+ stepAt(m,5.7,-5);stepAt(m,7,-4,3.1);stepAt(m,5.7,-5.9);assert.equal(r.xp,0);
+ stepAt(m,5.7,-5);stepAt(m,5.7,-5.9);assert.equal(r.xp,300);assert.equal(terrainStatus(m,r).defense,.25);
+ const until=r.terrain.effects.road.until;
+ stepAt(m,5.7,-5);stepAt(m,5.7,-5.9);assert.equal(r.terrain.effects.road.until,until);
+ stepAt(m,-1.5,-6,.1,.145);stepAt(m,-.95,-6,.1,.145);stepAt(m,-.5,-6,.1,.145);
+ assert.equal(r.xp,600);assert.equal(terrainStatus(m,r).cooling,1.5);assert.equal(terrainStatus(m,r).defense,.5);
+ stepAt(m,7,-4,6);assert.equal(terrainStatus(m,r).defense,0);assert.equal(terrainStatus(m,r).cooling,1.5);
+ stepAt(m,5.3,0);stepAt(m,3.23,0);assert.equal(r.xp,900);assert.equal(terrainStatus(m,r).defense,.5);
+});
+test("enemy highpoint does not grant rewards; leaving own highpoint expires activation",()=>{
+ const m=terrainMatch(),r=m.robots[0];
+ stepAt(m,-12.6,-4.65);assert.equal(r.xp,0);assert.equal(ammoOffer(m,r).local,false);
+ stepAt(m,12.6,4.65);assert.equal(r.xp,300);assert.equal(terrainStatus(m,r).highpoint,true);
+ stepAt(m,9,4.65,2.1);assert.equal(terrainStatus(m,r).highpoint,false);
+ stepAt(m,12.6,4.65);assert.equal(r.xp,300);
+});
+test("virtual dart disables an existing crossing buff and it resumes only before original expiry",()=>{
+ const m=terrainMatch(),r=m.robots[0];updateMatch(m,30);
+ assert.ok(selectDart(m,"blue","randomFixed"));assert.ok(openDart(m,"blue"));updateMatch(m,7);
+ stepAt(m,5.3,0);stepAt(m,3.23,0);
+ assert.equal(terrainStatus(m,r).defense,.25);assert.ok(launchDart(m,"blue"));updateMatch(m,2.5);
+ assert.equal(terrainStatus(m,r).defense,0);updateMatch(m,10);assert.equal(terrainStatus(m,r).defense,.25);
+ updateMatch(m,20);assert.equal(terrainStatus(m,r).defense,0);
+});
+
+test("intervening card cancels sequence; mobile dart clears active effects, reset clears first awards",()=>{
+ const m=terrainMatch(),r=m.robots[0];updateMatch(m,30);
+ assert.ok(selectDart(m,"blue","randomMoving"));assert.ok(openDart(m,"blue"));updateMatch(m,7);
+ stepAt(m,5.7,-5);stepAt(m,12.6,4.65);stepAt(m,5.7,-5.9);assert.equal(r.xp,300);
+ stepAt(m,5.3,0);stepAt(m,3.23,0);assert.equal(r.xp,600);
+ assert.equal(terrainStatus(m,r).defense,.25);
+ assert.ok(launchDart(m,"blue"));updateMatch(m,2.5);assert.equal(terrainStatus(m,r).defense,0);
+ assert.deepEqual(terrainStatus(m,r).first,["highpoint","highland"]);
+ for(let i=0;i<20&&r.hp>0;i++)damageTarget(m,m.robots[1],{type:"robot",id:r.id});
+ assert.equal(r.hp,0);assert.deepEqual(terrainStatus(m,r).active,[]);
+ assert.deepEqual(terrainStatus(terrainMatch(),terrainMatch().robots[0]).first,[]);
+});
+test("both CAD highpoint approaches support the existing infantry footprint",()=>{
+ for(const radius of [.410,.595,.622,.709])for(const sign of [-1,1]){
+  const p=new THREE.Vector3(9*sign,terrain.heightAt(9*sign,4.65*sign),4.65*sign);
+  moveOnArena(terrain,p,3.6*sign,0,radius,.23,[]);
+  assert.ok(Math.abs(p.x-12.6*sign)<.02,p.toArray());
+ }
+});
