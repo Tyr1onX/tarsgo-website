@@ -12,10 +12,10 @@ import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } fro
 import { ROOMS, STUDY_ROOM, closestRoomObject, seatPlacement, seatDepth, meetingChair, meetingSeat, roomInteractable, type SeatObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
 import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds } from "~/lib/pixel-jijia-room-art";
-import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, type CommunityCredit, communityDiscoveryId } from "~/lib/pixel-jijia-community";
+import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityCreditRole, communityDiscoveryId } from "~/lib/pixel-jijia-community";
 import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
 import { apiRequest } from "~/lib/api-client";
-import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, subscribePermissionChange, type AuthUser } from "~/lib/auth-client";
+import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
@@ -129,7 +129,6 @@ export default function PixelJijiaPage() {
   const [muted, setMuted] = useState(false);
   useEffect(()=>()=>audioRef.current?.pause(),[]);
   const [studyEditing, setStudyEditing] = useState(false);
-  const [creditNames, setCreditNames] = useState<Record<number,CommunityCredit>>({});
   const [catalogueDetail, setCatalogueDetail] = useState<RoomObject | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const studyAccessRef = useRef<{ownerId:number;controller:AbortController}|null>(null);
@@ -178,33 +177,12 @@ export default function PixelJijiaPage() {
     targetRef.current=null;setMapOpen(false);
   }, [resetStudy,clearInput]);
   useEffect(() => {
-    let active = true, request:AbortController|undefined, identity:string|undefined;
-    const ids=new Set(communityObjects.flatMap(o=>o.community.sources.map(s=>s.comment)));
-    const load=(user:AuthUser|null)=>{
-      const next=user?String(user.id)+":"+user.role.id:"anonymous";
-      if(!active||identity===next)return;
-      identity=next;request?.abort();setCreditNames({});
-      if(!user)return;
-      const controller=request=new AbortController();
-      void apiRequest<{comments:({id:number;isDeleted:boolean}&CommunityCredit)[]}>("/api/community/posts/28",{cache:"no-store",signal:controller.signal})
-        .then(data=>{if(active&&!controller.signal.aborted)setCreditNames(Object.fromEntries(data.comments.filter(c=>ids.has(c.id)&&!c.isDeleted).map(c=>[c.id,{authorId:c.authorId,authorName:c.authorName}])));})
-        .catch(()=>{});
-    };
-    const refresh=()=>{
-      load(null);
-      void getCurrentUser({force:true}).then(()=>load(getCachedCurrentUser()),()=>load(getCachedCurrentUser()));
-    };
     const onAuth=(user:AuthUser|null)=>{
       if(studyAccessRef.current&&studyAccessRef.current.ownerId!==user?.id)invalidateOwnerStudy();
-      load(user);
     };
     const unsubscribe=subscribeAuthStateChange(onAuth);
-    const unsubscribeSession=subscribeAccountSessionChange(()=>{invalidateOwnerStudy();refresh();});
-    const unsubscribePermission=subscribePermissionChange(userId=>{
-      if(userId===null||getCachedCurrentUser()?.id===userId)refresh();
-    });
-    void getCurrentUser().then(()=>onAuth(getCachedCurrentUser()),()=>onAuth(getCachedCurrentUser()));
-    return()=>{active=false;request?.abort();unsubscribe();unsubscribeSession();unsubscribePermission();studyAccessRef.current?.controller.abort();};
+    const unsubscribeSession=subscribeAccountSessionChange(invalidateOwnerStudy);
+    return()=>{unsubscribe();unsubscribeSession();studyAccessRef.current?.controller.abort();};
   }, [invalidateOwnerStudy]);
   const standUp = useCallback(() => {
     if (!seated) return;
@@ -622,7 +600,7 @@ export default function PixelJijiaPage() {
       }
     }
     selectRoomObject(object);
-  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, creditNames, muted]);
+  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, muted]);
   const interactFeature = useCallback((feature: Feature) => {
     if (room || transitionRef.current || waterDepthAt(playerRef.current.x, playerRef.current.y)) return;
     if ("href" in feature) {
@@ -1231,7 +1209,7 @@ export default function PixelJijiaPage() {
       </div>}
       {naturePrompt==="等待鱼咬钩" && !natureNotice && <div className="pixel-world-nature-notice" role="status">等待鱼咬钩</div>}
       {natureNotice&&<div className="pixel-world-nature-notice" role="status">{typeof natureNotice==="string"?natureNotice:<>
-        发现共建彩蛋 · {natureNotice.title}{[...new Map(natureNotice.community?.sources.filter(s=>s.role==="suggestion"&&creditNames[s.comment]).map(s=>{const c=creditNames[s.comment];return [c.authorId,c.authorName] as const})).entries()].map(([id,name])=><span key={id}> · {name}</span>)}
+        发现共建彩蛋 · {natureNotice.title}{natureNotice.community?.sources.map((source,index)=>source.authorName&&<span key={source.comment}> · {communityCreditRole(natureNotice.community!.sources,index)}：{source.authorName}</span>)}
       </>}</div>}
       {mobile && !studyEditing && !menuOpen && !mapOpen && !selected && !selectedRoom && !catalogueDetail && (seated || nearbyRoom || nearby || (naturePrompt && naturePrompt!=="等待鱼咬钩")) &&
         <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
@@ -1255,7 +1233,7 @@ export default function PixelJijiaPage() {
           onClick={() => selectRoomObject(null)}>×</button>
         <div className="pixel-world-detail-content">
         <h1>{selectedRoom.title}</h1>
-        {selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom} names={creditNames}
+        {selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom}
           returnTo={returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia"} /> : null}
         {selectedRoom.href && <Link to={selectedRoom.href} className="pixel-world-detail-link">
           {selectedRoom.action ?? "查看详情"}<span aria-hidden="true">↗</span>
@@ -1263,7 +1241,7 @@ export default function PixelJijiaPage() {
       </div></section>}
       {catalogueDetail && <section ref={dialogRef} className="pixel-world-detail pixel-world-community-detail" role="dialog" aria-label={catalogueDetail.title}>
         <button className="pixel-world-detail-close" type="button" aria-label="关闭图鉴" onClick={()=>setCatalogueDetail(null)}>×</button>
-        <div className="pixel-world-detail-content"><h1>{catalogueDetail.title}</h1><CommunityCredits object={catalogueDetail} names={creditNames}/></div>
+        <div className="pixel-world-detail-content"><h1>{catalogueDetail.title}</h1><CommunityCredits object={catalogueDetail}/></div>
       </section>}
     </main>
   );

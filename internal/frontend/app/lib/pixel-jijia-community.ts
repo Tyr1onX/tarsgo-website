@@ -1,21 +1,25 @@
 import type { RoomObject } from "./pixel-jijia-room.ts";
 
-// The community post is member-only. Source links retain its existing
-// authorization boundary; no account IDs, real names or private media are
-// embedded in the publicly accessible campus bundle.
+// Source links retain the community's authorization boundary.
+// Set authorName only with the contributor's confirmed public attribution consent.
 export type CommunitySource = {
   comment: number;
   date: string;
   role: "suggestion" | "support" | "reply";
+  authorName?: string;
 };
 export type CommunityInteraction = "smoke" | "burst" | "cable" | "old-capacitor" | "glow" | "tools" | "assembly" | "drive" | "terminal" | "silverwolf" | "memoir" | "memory" | "meeting" | "senior" | "laugh" | "poster-laugh";
-export type CommunityCredit = { authorId: number; authorName: string };
+export function communityCreditRole(sources: readonly CommunitySource[], index: number) {
+  const role = sources[index].role;
+  if (role === "suggestion") return sources.slice(0,index).some(s=>s.role==="suggestion") ? "共同提出者" : "提出者";
+  return role === "support" ? "支持者" : "跟帖者";
+}
 export type CommunityContribution = {
   sources: readonly CommunitySource[];
   interaction?: CommunityInteraction;
 };
-const suggestion = (comment: number, day: number): CommunitySource => ({ comment, date: `2026.11.${String(day).padStart(2, "0")}`, role: "suggestion" });
-const reply = (comment: number, day: number, role: "support" | "reply"): CommunitySource => ({ ...suggestion(comment, day), role });
+const suggestion = (comment: number, day: number, authorName?: string): CommunitySource => ({ comment, date: `2026.11.${String(day).padStart(2, "0")}`, role: "suggestion", ...(authorName ? {authorName} : {}) });
+const reply = (comment: number, day: number, role: "support" | "reply", authorName?: string): CommunitySource => ({ ...suggestion(comment, day, authorName), role });
 export const communitySourceHref = (source: CommunitySource) => `/dashboard/community/28#community-comment-${source.comment}`;
 export const COMMUNITY_PREFIX = "community:";
 export const communityDiscoveryId = (object: RoomObject) => COMMUNITY_PREFIX + object.id;
