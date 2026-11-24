@@ -18,14 +18,54 @@ function returnToRest(angle:number,direction:number,dt:number){
 type Revival = {state:"dead"; progressTicks:number; required:number} | {state:"revived"; mode:"read"|"paid"; at:number; weak:boolean; immuneUntil:number};
 type Launcher = "locked"|"unlocked"|"test"|"ready";
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; launcher:Launcher };
+export type MatchRobot = RobotSpec & { hp:number; xp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; launcher:Launcher };
 export type Territory = { controller:Team; full:boolean; progress:number };
-type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; buff:number; runeHits:number[] };
+type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
+type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
 export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
-  const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,buff:0,runeHits:[]});
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
+  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+}
+// V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
+const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
+const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
+// Table 5-12 caps infantry at level 5 until real level-two assembly.
+// The timed 42mm fallback does not grant assembly rewards.
+const levelFromXp=(xp:number)=>Math.min(5,XP_LEVELS.filter(x=>xp>=x).length);
+export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
+const roundedXp=(value:number)=>Math.round(value*10)/10;
+function gainXp(match:Match,r:MatchRobot,amount:number){
+  if(!infantry(r)||r.hp<=0||amount<=0)return;
+  const rune=match.sides[r.team].rune;
+  const bonus=rune.activatedUntil>match.elapsed?Math.min(amount,rune.xpBonusRemaining):0;
+  rune.xpBonusRemaining=roundedXp(rune.xpBonusRemaining-bonus);
+  const previous=robotLevel(r);
+  r.xp=roundedXp(r.xp+amount+bonus);
+  const level=robotLevel(r);
+  if(level===previous)return;
+  const hp=[200,225,250,275,300,325,350,375,400,400][level-1];
+  r.hp=Math.min(hp,r.hp+hp-r.maxHp);r.maxHp=hp;
+  r.heatLimit=level===10?120:40+(level-1)*8;
+  r.cooling=12+(level-1)*2;
+}
+function liveInfantry(match:Match,team:Team){
+  return match.robots.filter(r=>r.team===team&&infantry(r)&&r.hp>0);
+}
+function shareXp(match:Match,team:Team,amount:number){
+  const eligible=liveInfantry(match,team);
+  for(const r of eligible)gainXp(match,r,roundedXp(amount/eligible.length));
+}
+function attackXp(match:Match,shooter:MatchRobot,amount:number,enemy?:MatchRobot){
+  if(amount<=0)return;
+  const recipients=infantry(shooter)?[shooter]:shooter.heavy?[]:liveInfantry(match,shooter.team);
+  if(!recipients.length)return;
+  const attackerLevel=levelFromXp(recipients.reduce((sum,r)=>sum+r.xp,0)/recipients.length);
+  const victimLevel=enemy?robotLevel(enemy):1;
+  const kill=enemy?.hp===0?50*victimLevel*(1+.2*Math.max(0,victimLevel-attackerLevel)):0;
+  for(const r of recipients)gainXp(match,r,roundedXp(amount/recipients.length));
+  if(kill)for(const r of recipients)gainXp(match,r,roundedXp(kill/recipients.length));
 }
 export function startMatch(match: Match) {
   if(match.phase==="ready") match.phase="running";
@@ -93,6 +133,7 @@ export function fireRound(match:Match,id:string) {
     robot.launcher="ready";robot.hp+=600-robot.maxHp;robot.maxHp=600;robot.heatLimit=300;robot.cooling=100;
     return robot;
   }
+  gainXp(match,robot,1);
   robot.heat+=robot.heavy?100:10;
   if(robot.heat>robot.heatLimit)robot.thermalLock=true;
   return robot;
@@ -118,8 +159,7 @@ function rebuildOutpost(side:Side,team:Team){
 export function revivalStatus(match:Match,robot:MatchRobot) {
   const r=robot.revival;
   const required=r?.state==="dead"?r.required/logistics(match,robot.team):0;
-  // All simulated robots currently use level 1; level progression is not yet implemented.
-  const cost=Math.ceil(match.elapsed/60)*80+20;
+  const cost=Math.ceil(match.elapsed/60)*80+robotLevel(robot)*20;
   return {dead:robot.hp===0,weak:!!weak(robot),immune:immune(match,robot),cost,
     progress:r?.state==="dead"?Math.min(1,r.progressTicks/10/required):0,
     canConfirm:match.phase==="running"&&r?.state==="dead"&&r.progressTicks>=required*10-1e-8,
@@ -142,7 +182,7 @@ function immune(match:Match,r:MatchRobot){
     (r.heavy&&inSupply(match,r)&&!weak(r)));
 }
 function robotDefense(match:Match,robot:MatchRobot) {
-  let defense=match.sides[robot.team].buff>0?.25:0;
+  let defense=match.sides[robot.team].rune.defense;
   if(robot.heavy&&robot.launcher!=="ready"&&match.elapsed<180)defense=Math.max(defense,.5);
   if(weak(robot))return 1-defense;
   if(activeZone(match,robot,`${robot.team}-base`))defense=Math.max(defense,.5);
@@ -229,23 +269,93 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   }
 }
 
-export type Target = {type:"robot";id:string}|{type:"outpost"|"base";team:Team}|{type:"rune";arm:number};
+// §5.6.3: two independent team attempts share the physical rotation axis.
+const runeAvailable=(m:Match,r:Rune)=>m.elapsed<180?1+Number(m.elapsed>=90)-r.usedSmall:1+Number(m.elapsed>=255)+Number(m.elapsed>=330)-r.usedLarge;
+const chooseArms=(n:number,excluded:number[]=[]):number[]=>{
+  const pool=[0,1,2,3,4].filter(i=>!excluded.includes(i)),result:number[]=[];
+  while(result.length<n&&pool.length)result.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  return result;
+};
+export function runeStatus(m:Match,team:Team){
+  const r=m.sides[team].rune;
+  return {available:runeAvailable(m,r),active:r.attempt!==null,lit:r.attempt?.lit??[],groups:r.attempt?.groups??0,large:m.elapsed>=180,buff:Math.max(0,r.activatedUntil-m.elapsed),attack:r.attack,defense:r.defense,cooling:r.cooling};
+}
+export function runeLights(m:Match,team:Team){
+  const r=m.sides[team].rune;
+  if(r.activatedUntil>m.elapsed)return [0,1,2,3,4];
+  return [...(r.attempt?.completed??[]),...(r.attempt?.lit??[])];
+}
+export function activateRune(m:Match,id:string){
+  const robot=m.robots.find(r=>r.id===id);
+  if(m.phase!=="running"||!robot||robot.heavy||robot.hp<=0||weak(robot))return false;
+  const r=m.sides[robot.team].rune;
+  if(r.attempt||r.activatedUntil>m.elapsed||runeAvailable(m,r)<=0)return false;
+  const large=m.elapsed>=180;
+  if(large)r.usedLarge++;else r.usedSmall++;
+  r.attempt={large,end:m.elapsed+20,deadline:m.elapsed+2.5,lit:chooseArms(large?2:1),groups:0,rings:[],second:false,a:.780+Math.random()*(1.045-.780),w:1.884+Math.random()*(2-1.884)};
+  return true;
+}
+function resetRuneAttempt(r:Rune,at:number){
+  const a=r.attempt!;
+  a.groups=0;a.rings=[];a.completed=[];a.lit=chooseArms(a.large?2:1);a.second=false;a.deadline=at+2.5;
+}
+function finishRune(match:Match,team:Team,at:number){
+  const r=match.sides[team].rune,a=r.attempt!;
+  if(a.large){
+    const mean=a.rings.reduce((sum,n)=>sum+n,0)/a.rings.length;
+    r.attack=mean<=7?1.5:mean<=9?2:3;
+    r.defense=mean>9?.5:.25;
+    r.cooling=mean<=3?1:mean<=8?2:mean<=9?3:5;
+    r.activatedUntil=at+([30,35,40,45,50,60][a.rings.length-5]??30);
+    r.largeWins++;r.xpBonusRemaining=0;shareXp(match,team,750);
+  }else{r.attack=1;r.defense=.25;r.cooling=1;r.activatedUntil=at+45;r.xpBonusRemaining=1200;}
+  r.attempt=null;
+}
+function advanceRune(match:Match,team:Team,at:number){
+  const r=match.sides[team].rune,a=r.attempt;
+  if(a&&at>=a.end){r.attempt=null;}
+  else if(a&&at>=a.deadline){
+    if(a.second){
+      if(a.groups===5)finishRune(match,team,a.deadline);
+      else{a.second=false;a.lit=chooseArms(2);a.deadline=at+2.5;}
+    }else resetRuneAttempt(r,at);
+  }
+  if(r.activatedUntil<=at){r.attack=1;r.defense=0;r.cooling=1;r.xpBonusRemaining=0;}
+}
+function hitRune(m:Match,shooter:MatchRobot,target:Extract<Target,{type:"rune"}>){
+  if(shooter.heavy||target.team!==shooter.team)return;
+  const r=m.sides[shooter.team].rune,a=r.attempt;
+  if(!a||m.elapsed>=a.end)return;
+  if(a.large&&target.ring<(r.largeWins>=2?7:r.largeWins===1?4:1))return;
+  if(!a.lit.includes(target.arm)){resetRuneAttempt(r,m.elapsed);return;}
+  if(!a.large){
+    a.rings.push(target.ring);a.groups++;
+    if(a.groups===5){finishRune(m,shooter.team,m.elapsed);return;}
+    // Small rune lights each of the five arms exactly once.
+    const completed=a.completed??[];
+    completed.push(target.arm);a.completed=completed;
+    a.lit=chooseArms(1,completed);a.deadline=m.elapsed+2.5;
+  }else if(!a.second){
+    a.groups++;a.rings.push(target.ring);a.lit=a.lit.filter(i=>i!==target.arm);a.second=true;a.deadline=m.elapsed+1;
+  }else{
+    a.rings.push(target.ring);
+    if(a.groups===5){finishRune(m,shooter.team,m.elapsed);return;}
+    a.second=false;a.lit=chooseArms(2);a.deadline=m.elapsed+2.5;
+  }
+}
+
+export type Target = {type:"robot";id:string}|{type:"outpost"|"base";team:Team}|{type:"rune";team:Team;arm:number;ring:number};
 export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   if(match.phase!=="running") return 0;
   const side=match.sides[shooter.team];
-  if(target.type==="rune") {
-    if(shooter.heavy)return 0;
-    // Training-only activation: distinct moving arms, not certified ring scoring.
-    if(side.buff<=0&&!side.runeHits.includes(target.arm))side.runeHits.push(target.arm);
-    if(side.runeHits.length>=5){side.buff=30;side.runeHits=[];}
-    return 0;
-  }
+  if(target.type==="rune"){hitRune(match,shooter,target);return 0;}
   if(target.type==="robot"){
     const enemy=match.robots.find(r=>r.id===target.id);
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0||immune(match,enemy))return 0;
-    const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*robotDefense(match,enemy))));
+    const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*side.rune.attack*robotDefense(match,enemy))));
     enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
     if(enemy.hp===0){enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
+    attackXp(match,shooter,amount*4,enemy);
     return amount;
   }
   const enemy=match.sides[target.team];
@@ -254,8 +364,9 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   // The remaining whole-base hit tag is a training approximation; do not
   // allow shots through closed housing until the source detectors are bound.
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
-  const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*(match.sides[owner].buff>0?.75:1)));
+  const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*side.rune.attack*(1-match.sides[owner].rune.defense)));
   enemy[target.type]-=amount;side.damage+=amount;
+  attackXp(match,shooter,target.type==="outpost"?amount*2:Math.ceil(amount/2));
   if(target.type==="outpost"&&amount>0&&enemy.outpost===0){
     enemy.stopped=true;
     const area=enemy.outpostArea;
@@ -266,14 +377,29 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
 }
 export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
   if(match.phase!=="running")return;
-  dt=Math.max(0,Math.min(dt,MATCH_DURATION-match.elapsed));
+  const end=Math.min(MATCH_DURATION,match.elapsed+Math.max(0,dt));
+  // Stop at rune state boundaries: cooling and shared-axis speed must not
+  // continue using an expired bonus/attempt during a long frame or a replay.
+  do{
+    let next=end;
+    for(const team of teams){
+      const rune=match.sides[team].rune;
+      for(const at of [rune.attempt?.end,rune.attempt?.deadline,rune.activatedUntil]){
+        if(at!==undefined&&at>match.elapsed&&at<next)next=at;
+      }
+    }
+    advanceMatch(match,next-match.elapsed,positions);
+  }while(match.phase==="running"&&match.elapsed<end);
+}
+function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPosition>){
+
   const before=match.elapsed;match.elapsed+=dt;
   for(const second of [61,121,181,241,301,361]) if(before<second&&match.elapsed>=second)
     for(const team of teams)match.sides[team].coins+=second===361?300:100;
   const coolingTicks=Math.floor((match.elapsed+1e-8)*10)-Math.floor((before+1e-8)*10);
   for(const r of match.robots){
-    r.cooldown=Math.max(0,r.cooldown-dt);
-    r.heat=Math.max(0,r.heat-coolingTicks*r.cooling/10);
+    r.cooldown=r.cooldown-dt>1e-8?r.cooldown-dt:0;
+    r.heat=Math.max(0,r.heat-coolingTicks*r.cooling*match.sides[r.team].rune.cooling/10);
     if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
     if(r.pendingAmmoAt!==null&&match.elapsed>=r.pendingAmmoAt){
       if(r.hp>0)r.ammo+=r.heavy?10:100;
@@ -284,7 +410,13 @@ export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string
       r.pendingHealAt=null;
     }
   }
-  match.pose.runeAngle+=match.direction*Math.PI/3*dt;
+  // Shared axis: large active uses a single legal speed curve;
+  // identical phase for both sides, rather than physically impossible independent rotors.
+  const active=teams.map(t=>match.sides[t].rune.attempt).find(a=>a?.large);
+  if(active){
+    const start=active.end-20,a=active.a,w=active.w,b=2.09-a;
+    match.pose.runeAngle+=match.direction*(b*dt+a/w*(Math.cos(w*(before-start))-Math.cos(w*(match.elapsed-start))));
+  }else match.pose.runeAngle+=match.direction*Math.PI/3*dt;
   const coverOpened:Partial<Record<Team,number>>={};
   if(coolingTicks>0){
     const raw=new Map([...positions].map(([id,p])=>[id,zonesAtPosition(p)]));
@@ -296,7 +428,7 @@ export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string
     side.baseGap=Math.max(side.baseGap,enemy.base-side.base);
     side.controlGap=Math.max(side.controlGap,(enemy.controlTicks-side.controlTicks)/10);
     for(const r of match.robots)if(r.team===team&&r.heavy&&r.launcher==="locked"&&match.elapsed>=300-side.baseGap/50-2*side.controlGap/3)r.launcher="unlocked";
-    side.buff=Math.max(0,side.buff-dt);
+    advanceRune(match,team,match.elapsed);
     const coverDt=side.cover?match.elapsed-Math.max(before,coverOpened[team]??before):0;
     match.pose.cover[team]=Math.min(1,match.pose.cover[team]+coverDt);
   }

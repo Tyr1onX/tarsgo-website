@@ -220,9 +220,18 @@ export default function FormConfigPage() {
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
   const [summary, setSummary] = useState<RegistrationFormSummary | null>(null);
   const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState("");
+  const [listRevision, setListRevision] = useState(0);
   const visibleForms = useMemo(
-    () => forms.filter((form) => listView === "history" ? form.status === 2 : form.status !== 2),
-    [forms, listView],
+    () => {
+      const query = keyword.trim().toLowerCase();
+      return forms.filter((form) =>
+        (listView === "history" ? form.status === 2 : form.status !== 2) &&
+        (statusFilter === "" || form.status === Number(statusFilter)) &&
+        (!query || form.title.toLowerCase().includes(query) || (form.description ?? "").toLowerCase().includes(query))
+      );
+    },
+    [forms, listView, keyword, statusFilter],
   );
 
   /* ---- drawer state ---- */
@@ -232,6 +241,8 @@ export default function FormConfigPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editor, setEditor] = useState<FormEditorState | null>(null);
   const [saving, setSaving] = useState(false);
+  const savedEditorRef = useRef("");
+  const editorDirty = editor !== null && JSON.stringify(editor) !== savedEditorRef.current;
   const drawerPanelRef = useRef<HTMLElement | null>(null);
   const drawerCloseTimerRef = useRef<number | null>(null);
 
@@ -254,7 +265,7 @@ export default function FormConfigPage() {
   const previewPanelRef = useRef<HTMLElement | null>(null);
   const previewCloseTimerRef = useRef<number | null>(null);
 
-  useModalAccessibility(drawerOpen && !drawerClosing, drawerPanelRef, () => closeDrawer());
+  useModalAccessibility(drawerOpen && !drawerClosing, drawerPanelRef, requestCloseDrawer);
   useModalAccessibility(previewOpen && !previewClosing, previewPanelRef, () => closePreview());
 
   const canCreateOrSave = currentUser.role.name !== "user";
@@ -269,17 +280,16 @@ export default function FormConfigPage() {
     async function loadForms() {
       try {
         setLoadingList(true);
-        const response = await listAdminRegistrationForms({
-          keyword,
-          status: statusFilter === "" ? "" : Number(statusFilter),
-        });
+        setListError("");
+        const response = await listAdminRegistrationForms();
         if (!cancelled) {
           setForms(response.items);
           setSummary(response.summary);
         }
       } catch (error) {
         if (!cancelled) {
-          handlePageError(error, navigate, setFlash);
+          if (shouldRedirectToLogin(error)) navigate("/login", { replace: true });
+          else setListError(getErrorMessage(error));
         }
       } finally {
         if (!cancelled) {
@@ -292,7 +302,7 @@ export default function FormConfigPage() {
     return () => {
       cancelled = true;
     };
-  }, [keyword, navigate, statusFilter]);
+  }, [listRevision, navigate]);
 
   /* Load detail when drawer opens */
   useEffect(() => {
@@ -309,6 +319,7 @@ export default function FormConfigPage() {
         const detail = await getAdminRegistrationForm(formId);
         if (!cancelled) {
           const next = toEditorState(detail);
+          savedEditorRef.current = JSON.stringify(next);
           setEditor(next);
         }
       } catch (error) {
@@ -414,6 +425,11 @@ export default function FormConfigPage() {
     setEditor(null);
   }
 
+  function requestCloseDrawer() {
+    if (saving || (editorDirty && !window.confirm("报名表尚未保存，确定放弃修改吗？"))) return;
+    closeDrawer();
+  }
+
   function closeDrawer(immediate = false) {
     if (immediate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       finishCloseDrawer();
@@ -483,44 +499,19 @@ export default function FormConfigPage() {
   function updateEditor(
     updater: (current: FormEditorState) => FormEditorState,
   ) {
-    setEditor((current) => (current ? updater(current) : current));
-  }
-
-  /* ================================================================ */
-  /*  List refresh                                                    */
-  /* ================================================================ */
-
-  async function refreshForms(_preferredId?: number | null) {
-    const response = await listAdminRegistrationForms({
-      keyword,
-      status: statusFilter === "" ? "" : Number(statusFilter),
-    });
-    setForms(response.items);
-    setSummary(response.summary);
-  }
-
-  /* ================================================================ */
-  /*  Handlers                                                        */
-  /* ================================================================ */
-
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    /* keyword / statusFilter are already reactive, no extra action needed */
+    if (!saving) setEditor((current) => (current ? updater(current) : current));
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editor || !canCreateOrSave) {
+    if (!editor || !canCreateOrSave || saving || !editorDirty) {
       return;
     }
 
     try {
       setSaving(true);
-      const detail = await updateAdminRegistrationForm(
-        editor.id,
-        buildUpdatePayload(editor),
-      );
-      await refreshForms(detail.id);
+      await updateAdminRegistrationForm(editor.id, buildUpdatePayload(editor));
+      setListRevision((value) => value + 1);
       closeDrawer();
       setFlash({ type: "success", message: "报名表已保存。" });
     } catch (error) {
@@ -530,9 +521,17 @@ export default function FormConfigPage() {
     }
   }
 
+  function requestCloseCreate() {
+    if (creating) return;
+    if (Object.values(createState).some((value) => value.trim()) &&
+      !window.confirm("报名表尚未创建，确定放弃填写的内容吗？")) return;
+    setCreateOpen(false);
+    setCreateState(defaultCreateState);
+  }
+
   async function handleCreateForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canCreateOrSave) {
+    if (!canCreateOrSave || creating || !createState.title.trim()) {
       return;
     }
 
@@ -549,7 +548,7 @@ export default function FormConfigPage() {
 
       setCreateOpen(false);
       setCreateState(defaultCreateState);
-      await refreshForms(detail.id);
+      setListRevision((value) => value + 1);
       setFlash({ type: "success", message: "报名表创建成功。" });
       openDrawer(detail.id);
     } catch (error) {
@@ -575,7 +574,7 @@ export default function FormConfigPage() {
   return (
     <div className="space-y-6">
       {/* ---- Page header ---- */}
-      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg-primary">
             表单配置
@@ -605,7 +604,7 @@ export default function FormConfigPage() {
       ) : null}
 
       {/* ---- Stat cards ---- */}
-      <div className="motion-fade-up grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" style={{ animationDelay: "80ms" }}>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="全部表单"
           value={summary?.total ?? null}
@@ -625,7 +624,7 @@ export default function FormConfigPage() {
       </div>
 
       {/* ---- Current / archived list ---- */}
-      <section className="motion-fade-up flex flex-wrap items-center justify-between gap-3" aria-label="当前和历史届次">
+      <section className="flex flex-wrap items-center justify-between gap-3" aria-label="当前和历史届次">
         <div className="flex flex-wrap gap-2" role="group" aria-label="查看届次范围">
           <button
             type="button"
@@ -640,21 +639,13 @@ export default function FormConfigPage() {
             onClick={() => { setListView("history"); setStatusFilter(""); }}
           >历史届次（{summary?.closed ?? "—"}）</button>
         </div>
-        <p className="text-xs text-fg-dim">
-          {listView === "current"
-            ? "本届招新全部结束后，请将报名表设为已关闭；历史记录不会被删除。"
-            : "已关闭届次保留报名数据，可查看详情和导出记录。"}
-        </p>
+
       </section>
 
       {listView === "history" && currentUser.role.name === "super_admin" ? <RecruitmentRecords /> : null}
 
       {/* ---- Filter bar ---- */}
-      <form
-        onSubmit={handleSearchSubmit}
-        className="motion-fade-up glass-panel rounded-2xl p-5"
-        style={{ animationDelay: "140ms" }}
-      >
+      <div role="search" aria-label="筛选报名表" className="glass-panel rounded-2xl p-5">
         <div className="mb-4 flex items-center gap-2 border-b border-[var(--admin-border-subtle)] pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
           <span className="text-xs font-medium uppercase tracking-wider text-fg-dim">
@@ -689,19 +680,21 @@ export default function FormConfigPage() {
                 setKeyword("");
                 setStatusFilter("");
               }}
-              className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
+              disabled={!keyword && !statusFilter}
+              className="admin-button admin-button--secondary"
             >
               重置
             </button>
           </div>
         </div>
-      </form>
+      </div>
 
       {/* ---- Table ---- */}
-      <div
-        className="motion-fade-up glass-panel overflow-hidden rounded-2xl"
-        style={{ animationDelay: "200ms" }}
-      >
+      <div className="glass-panel overflow-hidden rounded-2xl" aria-busy={loadingList}>
+        {listError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm text-[var(--admin-danger)]">
+          <span>{summary ? "列表未能更新：" : ""}{listError}</span>
+          <button type="button" className="admin-button admin-button--secondary admin-button--small" onClick={() => setListRevision((value) => value + 1)}>重试</button>
+        </div> : null}
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[1160px] text-sm">
             <thead className="bg-[var(--admin-hover-overlay)] text-left text-xs tracking-wider text-fg-dim">
@@ -715,15 +708,13 @@ export default function FormConfigPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
-              {loadingList ? (
+              {loadingList && summary === null ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center">
                     <BrandLoader label="正在加载表单列表" />
                   </td>
                 </tr>
-              ) : summary === null ? (
-                <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-fg-dim">报名表加载失败，请刷新后重试。</td></tr>
-              ) : visibleForms.length === 0 ? (
+              ) : summary === null ? null : visibleForms.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -806,11 +797,9 @@ export default function FormConfigPage() {
         </div>
 
         <div className="md:hidden">
-          {loadingList ? (
+          {loadingList && summary === null ? (
             <BrandLoader label="正在加载表单列表" />
-          ) : summary === null ? (
-            <div className="px-5 py-10 text-center text-sm text-fg-dim">报名表加载失败，请刷新后重试。</div>
-          ) : visibleForms.length === 0 ? (
+          ) : summary === null ? null : visibleForms.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-fg-dim">
               {listView === "history" ? "还没有已关闭的历史届次。" : "当前没有匹配的草稿或已发布报名表。"}
             </div>
@@ -891,27 +880,14 @@ export default function FormConfigPage() {
       <ModalShell
         open={createOpen}
         title="新建报名表"
-        description="创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
         bodyClassName="px-4 py-4 sm:px-6 sm:py-5"
-        onClose={() => {
-          if (creating) {
-            return;
-          }
-          setCreateOpen(false);
-          setCreateState(defaultCreateState);
-        }}
+        onClose={requestCloseCreate}
         footer={(
           <div className="flex flex-wrap justify-end gap-3">
             <button
               type="button"
               form="create-registration-form"
-              onClick={() => {
-                if (creating) {
-                  return;
-                }
-                setCreateOpen(false);
-                setCreateState(defaultCreateState);
-              }}
+              onClick={requestCloseCreate}
               disabled={creating}
               className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
             >
@@ -920,19 +896,22 @@ export default function FormConfigPage() {
             <button
               type="submit"
               form="create-registration-form"
-              disabled={creating}
+              disabled={creating || !createState.title.trim()}
               className="admin-button admin-button--primary"
             >
-              {creating ? "创建中..." : "创建草稿"}
+              {creating ? "创建中…" : "创建草稿"}
             </button>
           </div>
         )}
       >
-            <form id="create-registration-form" className="space-y-5" onSubmit={handleCreateForm}>
+            <form id="create-registration-form" onSubmit={handleCreateForm}>
+              <fieldset disabled={creating} className="min-w-0 space-y-5">
               <div>
                 <FieldLabel label="报名表标题" />
                 <input
                   type="text"
+                  required
+                  aria-label="报名表标题"
                   value={createState.title}
                   onChange={(event) =>
                     setCreateState((current) => ({
@@ -985,6 +964,7 @@ export default function FormConfigPage() {
                 创建后会自动附带"姓名 / 手机号 / 邮箱 / 意向组"四个系统字段，并以草稿状态保存。
               </div>
 
+              </fieldset>
             </form>
       </ModalShell>
 
@@ -994,7 +974,7 @@ export default function FormConfigPage() {
           <div className="registration-drawer fixed inset-0 z-40" data-state={drawerClosing ? "closed" : "open"} inert={drawerClosing} aria-hidden={drawerClosing}>
             <div
               className="registration-drawer__backdrop absolute inset-0 bg-black/70 backdrop-blur-sm"
-              onClick={() => closeDrawer()}
+              onClick={requestCloseDrawer}
             />
             <aside
               ref={drawerPanelRef}
@@ -1012,7 +992,8 @@ export default function FormConfigPage() {
                   </h2>
                   <button
                     type="button"
-                    onClick={() => closeDrawer()}
+                    onClick={requestCloseDrawer}
+                    disabled={saving}
                     title="关闭"
                     aria-label="关闭"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-[var(--admin-hover-overlay)] hover:text-fg-primary"
@@ -1054,6 +1035,7 @@ export default function FormConfigPage() {
                     className="space-y-5 p-6"
                     onSubmit={handleSave}
                   >
+                    <fieldset disabled={saving} className="min-w-0 space-y-5">
                     {/* Basic settings */}
                     <DrawerSection icon={settings} title="基础设置">
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -1061,6 +1043,8 @@ export default function FormConfigPage() {
                           <FieldLabel label="报名表标题" />
                           <input
                             type="text"
+                            required
+                            aria-label="报名表标题"
                             value={editor.title}
                             onChange={(event) =>
                               updateEditor((c) => ({
@@ -1181,6 +1165,7 @@ export default function FormConfigPage() {
                         }
                       />
                     </DrawerSection>
+                    </fieldset>
                   </form>
                 )}
               </div>
@@ -1191,7 +1176,8 @@ export default function FormConfigPage() {
                   <div className="flex items-center justify-end gap-3">
                     <button
                       type="button"
-                      onClick={() => closeDrawer()}
+                      onClick={requestCloseDrawer}
+                      disabled={saving}
                       className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
                     >
                       取消
@@ -1199,7 +1185,7 @@ export default function FormConfigPage() {
                     <button
                       type="submit"
                       form="form-editor"
-                      disabled={saving || !canCreateOrSave}
+                      disabled={saving || !canCreateOrSave || !editorDirty}
                       className="admin-button admin-button--primary"
                     >
                       {saving ? (

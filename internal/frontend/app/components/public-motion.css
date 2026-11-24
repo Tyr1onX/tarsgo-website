@@ -202,14 +202,14 @@
 
 /* 2. /robots stagger card reveal & zoomable dialog image */
 .robot-gallery__card {
-  animation: public-stagger-in 340ms var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
-  animation-delay: calc(var(--card-idx, 0) * 35ms);
+  animation: public-stagger-in var(--motion-duration-fast, 160ms) var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  animation-delay: min(calc(var(--card-idx, 0) * 20ms), 100ms);
 }
 
 @keyframes public-stagger-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translate3d(0, 6px, 0);
   }
   to {
     opacity: 1;
@@ -351,7 +351,7 @@
 
 /* 5. /join panel transition */
 .join-group-panel--animated {
-  animation: public-stagger-in 260ms var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  animation: public-stagger-in var(--motion-duration-fast, 160ms) var(--motion-ease-standard, cubic-bezier(0.22, 1, 0.36, 1)) both;
 }
 
 /* 6. /micro-specialties active nav spy + clickable photo */

@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -33,14 +33,37 @@ test("17mm referee heat, remote exchange and pre-assembly heavy restrictions",()
  updateMatch(m,5);assert.equal(r.heat,0);assert.equal(r.thermalLock,false);assert.equal(purchaseAmmo(m,"r"),true);
  damageTarget(m,s,{type:"robot",id:"b"});assert.equal(purchaseAmmo(m,"b"),false);
 });
-test("distinct arm hits grant a timed training buff; repeated hits do not",()=>{
- const m=createMatch(roster);startMatch(m);
- const r=m.robots[0];for(let i=0;i<5;i++)damageTarget(m,r,{type:"rune",arm:0});
- assert.equal(m.sides.red.buff,0);
- for(let i=1;i<5;i++)damageTarget(m,r,{type:"rune",arm:i});
- assert.equal(m.sides.red.buff,30);
+test("small rune requires activation and five successive lit arms, expires and replenishes",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);const r=m.robots[0];
+ const hit=(team,arm,ring=10)=>damageTarget(m,r,{type:"rune",team,arm,ring});
+ hit("red",0);assert.equal(runeStatus(m,"red").groups,0);
+ assert.equal(activateRune(m,"r"),true);assert.equal(activateRune(m,"r"),false);
+ let lit=runeStatus(m,"red").lit[0];
+ hit("blue",lit);assert.equal(runeStatus(m,"red").groups,0);
+ hit("red",lit);assert.equal(runeStatus(m,"red").groups,1);
+ updateMatch(m,2.5);assert.equal(runeStatus(m,"red").groups,0);
+ const seen=new Set();
+ for(let i=0;i<5;i++){lit=runeStatus(m,"red").lit[0];assert.ok(!seen.has(lit));seen.add(lit);hit("red",lit);}
+ assert.equal(runeStatus(m,"red").buff,45);
  assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"r"}),15);
- updateMatch(m,31);assert.equal(m.sides.red.buff,0);
+ updateMatch(m,45);assert.equal(runeStatus(m,"red").buff,0);
+ assert.equal(activateRune(m,"r"),false);updateMatch(m,90-m.elapsed);
+ assert.equal(activateRune(m,"r"),true);updateMatch(m,20);assert.equal(runeStatus(m,"red").active,false);
+});
+test("large rune pairs, ring-dependent buffs and reduced detection on later activations",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,180);const r=m.robots[0];
+ const hit=(arm,ring=10)=>damageTarget(m,r,{type:"rune",team:"red",arm,ring});
+ assert.equal(activateRune(m,"r"),true);
+ for(let i=0;i<5;i++){const [first,second]=runeStatus(m,"red").lit;hit(first);hit(second);}
+ const status=runeStatus(m,"red");assert.equal(status.buff,60);assert.equal(status.attack,3);assert.equal(status.defense,.5);assert.equal(status.cooling,5);
+ assert.equal(damageTarget(m,r,{type:"robot",id:"b"}),60);
+ updateMatch(m,75);assert.equal(activateRune(m,"r"),true);
+ hit(runeStatus(m,"red").lit[0],3);assert.equal(runeStatus(m,"red").groups,0);
+ for(let i=0;i<5;i++){hit(runeStatus(m,"red").lit[0],4);updateMatch(m,1);}
+ assert.equal(runeStatus(m,"red").buff,30);assert.equal(runeStatus(m,"red").attack,1.5);assert.equal(runeStatus(m,"red").cooling,2);
+ updateMatch(m,70);assert.equal(activateRune(m,"r"),true);
+ hit(runeStatus(m,"red").lit[0],6);assert.equal(runeStatus(m,"red").groups,0);
+ hit(runeStatus(m,"red").lit[0],7);assert.equal(runeStatus(m,"red").groups,1);
 });
 test("formal territory: protected base, destroy and rebuild, fortress hold, and settlement",()=>{
  const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,5);
@@ -122,7 +145,7 @@ test("real source assemblies match static CAD bounds and rotate independently",a
  assert.ok(installed.banks[0].position.equals(p));assert.ok(installed.banks[0].quaternion.angleTo(q)>.9);
  assert.ok(installed.covers[0].object.position.distanceTo(c)>.15);
  assert.ok(parts.getObjectByName("rune-assembly").quaternion.equals(fixed));
- for(const bank of ["a","b"])for(let i=0;i<5;i++)assert.ok(parts.getObjectByName("rune-arm-"+bank+"-"+i).userData.target);
+ for(const bank of ["a","b"])for(let i=0;i<5;i++)assert.ok(parts.getObjectByName("rune-arm-"+bank+"-"+i).userData.runeDetector);
  installed.apply({runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}});
  assert.ok(installed.covers[0].object.position.equals(c));
 });
@@ -262,4 +285,94 @@ test("heavy timed unlock uses historical opposing base and control advantages",(
  updateMatch(m,10);assert.equal(launcherStatus(m,h).unlockIn,250);
  m.sides.red.base=10000;updateMatch(m,249.9);assert.equal(h.launcher,"locked");
  updateMatch(m,.1);assert.equal(h.launcher,"unlocked");
+});
+
+
+test("rune lights follow completed small arms, activation and expiry",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);const r=m.robots[0];
+ assert.deepEqual(runeLights(m,"red"),[]);
+ activateRune(m,"r");
+ for(let i=0;i<5;i++){
+  const arm=runeStatus(m,"red").lit[0];
+  damageTarget(m,r,{type:"rune",team:"red",arm,ring:10});
+  assert.equal(new Set(runeLights(m,"red")).size,Math.min(5,i+2));
+ }
+ assert.equal(runeStatus(m,"red").buff,45);
+ assert.deepEqual(runeLights(m,"red"),[0,1,2,3,4]);
+ assert.deepEqual(runeLights(m,"blue"),[]);
+ updateMatch(m,45);
+ assert.deepEqual(runeLights(m,"red"),[]);
+});
+test("large rune long steps split rotation and cooling at attempt and bonus boundaries",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,180);activateRune(m,"r");
+ const a=structuredClone(m),b=structuredClone(m);
+ updateMatch(a,21);for(let i=0;i<210;i++)updateMatch(b,.1);
+ assert.equal(runeStatus(a,"red").active,false);
+ assert.equal(runeStatus(b,"red").active,false);
+ assert.ok(Math.abs(a.pose.runeAngle-b.pose.runeAngle)<1e-6);
+ const r=m.robots[0];
+ for(let i=0;i<5;i++){const [first,second]=runeStatus(m,"red").lit;
+  damageTarget(m,r,{type:"rune",team:"red",arm:first,ring:10});
+  damageTarget(m,r,{type:"rune",team:"red",arm:second,ring:10});
+ }
+ updateMatch(m,59.9);r.heat=40;
+ const c=structuredClone(m),d=structuredClone(m);
+ updateMatch(c,.5);for(let i=0;i<5;i++)updateMatch(d,.1);
+ assert.ok(Math.abs(c.robots[0].heat-d.robots[0].heat)<1e-6);
+ assert.equal(runeStatus(c,"red").buff,0);
+});
+
+test("infantry experience grants official default attributes, preserves HP delta and honors assembly cap",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0],b=m.robots[1];
+ purchaseAmmo(m,"r");updateMatch(m,6);
+ assert.ok(fireRound(m,"r"));assert.equal(r.xp,1);
+ damageTarget(m,b,{type:"robot",id:"r"});
+ for(let i=0;i<13;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,521);assert.equal(robotLevel(r),1);
+ damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,561);assert.equal(robotLevel(r),2);
+ assert.equal(r.maxHp,225);assert.equal(r.hp,205);assert.equal(r.heatLimit,48);assert.equal(r.cooling,14);
+ // Known direct attacker, level-one target: 4 XP per damage plus 50 on death.
+ for(let i=0;i<10;i++)damageTarget(m,r,{type:"robot",id:"b"});
+ assert.equal(r.xp,1411);assert.equal(robotLevel(r),3);
+ assert.equal(r.maxHp,250);
+ for(let i=0;i<86;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ // Grant additional actual source damage through repeated enemy revivals.
+ for(let i=0;i<6;i++){
+   updateMatch(m,6);
+   if(revivalStatus(m,b).canPay)reviveRobot(m,"b",true);
+   updateMatch(m,3);
+   for(let k=0;k<10;k++)damageTarget(m,r,{type:"robot",id:"b"});
+ }
+ assert.ok(r.xp>=2200);assert.equal(robotLevel(r),5);assert.equal(r.maxHp,300);
+ assert.equal(r.heatLimit,72);assert.equal(r.cooling,20);
+ // Death does not reset XP, and exchange uses the actual current level.
+ const before=r.xp;
+ for(let i=0;i<20;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(r.hp,0);assert.equal(r.xp,before);assert.equal(revivalStatus(m,r).cost,Math.ceil(m.elapsed/60)*80+100);
+});
+test("sentry damage shares experience across live infantry; heavy 42mm does not",()=>{
+ const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200},{id:"s",team:"red",heavy:false,sentry:true,maxHp:200},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
+ startMatch(m);const [r,b,r2,s,h]=m.robots;
+ damageTarget(m,s,{type:"robot",id:"b"});
+ assert.equal(r.xp,40);assert.equal(r2.xp,40);assert.equal(s.xp,0);
+ for(let i=0;i<10;i++)damageTarget(m,b,{type:"robot",id:"r2"});
+ assert.equal(r2.hp,0);
+ damageTarget(m,s,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,80);assert.equal(r2.xp,40);
+ damageTarget(m,h,{type:"robot",id:"b"});
+ assert.equal(r.xp,80);assert.equal(h.xp,0);
+});
+test("small rune shares a 1200 XP bonus budget; large rune grants 750 XP to living infantry",()=>{
+ const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200}],1,1);
+ startMatch(m);const [r,b,r2]=m.robots;
+ activateRune(m,"r");
+ for(let i=0;i<5;i++)damageTarget(m,r,{type:"rune",team:"red",arm:runeStatus(m,"red").lit[0],ring:10});
+ for(let i=0;i<30;i++)damageTarget(m,i%2?r:r2,{type:"outpost",team:"blue"});
+ assert.equal(r.xp+r2.xp,2400);assert.equal(m.sides.red.rune.xpBonusRemaining,0);
+ updateMatch(m,180);
+ const sum=r.xp+r2.xp;activateRune(m,"r");
+ for(let i=0;i<5;i++){const [a,c]=runeStatus(m,"red").lit;damageTarget(m,r,{type:"rune",team:"red",arm:a,ring:10});damageTarget(m,r,{type:"rune",team:"red",arm:c,ring:10});}
+ assert.equal(r.xp+r2.xp,sum+750);
 });

@@ -131,7 +131,7 @@ export function PublicPhotoLightbox({
     >
       {photo && activeIndex !== null ? (
         <>
-          <button type="button" className="public-lightbox__scrim" aria-label="关闭图片预览" onClick={() => dialogRef.current?.close()} />
+          <button type="button" className="public-lightbox__scrim" tabIndex={-1} aria-label="关闭图片预览" onClick={() => dialogRef.current?.close()} />
           <div className="public-lightbox__toolbar">
             {photos.length > 1 ? (
               <span className="public-lightbox__pill">

@@ -99,10 +99,7 @@ html {
   --hero-accent: #E0C790;
   --motion-duration-press: 90ms;
   --motion-duration-fast: 160ms;
-  --motion-duration-base: 360ms;
-  --motion-duration-slow: 720ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (min-width: 1920px) {
@@ -175,23 +172,6 @@ html[data-theme-transition] :is(
   ) {
     transition-duration: 0.01ms !important;
   }
-}
-
-@keyframes fade-up-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 24px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-.motion-fade-up {
-  animation: fade-up-in var(--motion-duration-slow) var(--motion-ease-standard)
-    both;
 }
 
 .motion-overlay {
@@ -1153,6 +1133,7 @@ html[data-theme-transition] :is(
 .home-visual-card--arena { background: #26394c; }
 .home-visual-card--community { background: #192823; }
 .home-visual-card--salon { background: #1a201d; }
+.home-visual-card--design-lab { grid-column: 1 / -1; grid-row: auto; min-height: 12rem; }
 
 .home-visual-card-preview {
   position: absolute;

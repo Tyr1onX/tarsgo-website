@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
 import { BrandLoader } from "~/components/brand-loader";
@@ -98,7 +98,10 @@ export default function TrainingAssessmentRoute() {
   const [groupId, setGroupId] = useState(0);
   const [snapshot, setSnapshot] = useState<TrainingSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [memberId, setMemberId] = useState(0);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const overviewPosition = useRef<{ userId: number; scrollY: number } | null>(null);
   const [memberQuery, setMemberQuery] = useState("");
   const [assessmentKey, setAssessmentKey] = useState("");
   const [showAllMembers, setShowAllMembers] = useState(true);
@@ -116,7 +119,7 @@ export default function TrainingAssessmentRoute() {
   useEffect(() => {
     setShowAllMembers(true);
     setPage(1);
-    if (!groupId) { setSnapshot(null); return; }
+    if (!groupId) { setSnapshot(null); setLoading(false); return; }
     let active = true;
     setSnapshot(null);
     setLoading(true);
@@ -126,7 +129,7 @@ export default function TrainingAssessmentRoute() {
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "读取失败"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [groupId, currentUser.id]);
+  }, [groupId, currentUser.id, retryCount]);
 
   const selectedGroupName = assignmentGroups.find((group) => group.groupId === groupId)?.name ?? "";
   const isMechanicalGroup = selectedGroupName === MECHANICAL_TRAINING_GROUP_NAME;
@@ -151,7 +154,13 @@ export default function TrainingAssessmentRoute() {
   const dimensions = snapshot?.dimensions ?? [];
 
   function changeGroup(nextGroupId: number) {
-    if (nextGroupId === groupId) return;
+    if (busy || nextGroupId === groupId || !confirmDiscardRatings()) return;
+    setSnapshot(null);
+    setLoading(true);
+    setError("");
+    setShowAllMembers(true);
+    setDimensionName("");
+    overviewPosition.current = null;
     setGroupId(nextGroupId);
     setMemberId(0);
     setMemberQuery("");
@@ -161,12 +170,26 @@ export default function TrainingAssessmentRoute() {
   }
 
   function selectMember(userId: number) {
+    if (busy) return;
+    overviewPosition.current = { userId, scrollY: window.scrollY };
     setMemberId(userId);
     setNotice("");
-    window.scrollTo(0, 0);
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const position = overviewPosition.current;
+    if (!position) return;
+    if (selectedMemberId) {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      backButtonRef.current?.focus({ preventScroll: true });
+    } else {
+      overviewPosition.current = null;
+      window.scrollTo({ top: position.scrollY, behavior: "instant" });
+      document.getElementById(`assessment-member-${position.userId}`)?.focus({ preventScroll: true });
+    }
+  }, [selectedMemberId]);
+
+  useLayoutEffect(() => {
     const ratings: Record<number, CapabilityRatingInput> = {};
     for (const dimension of dimensions) {
       const previous = snapshot?.ratings.find((value) => value.dimensionId === dimension.id && value.userId === selectedMemberId);
@@ -178,6 +201,16 @@ export default function TrainingAssessmentRoute() {
   const savedRatings = dimensions.map((dimension) => snapshot?.ratings.find((rating) =>
     rating.userId === selectedMemberId && rating.dimensionId === dimension.id,
   ));
+  const ratingsDirty = !!selectedMemberId && dimensions.some((dimension, index) => {
+    const draft = draftRatings[dimension.id];
+    const saved = savedRatings[index];
+    return draft !== undefined && (draft.score !== (saved?.score ?? null) || (draft.score === null ? "" : draft.note.trim()) !== (saved?.note ?? ""));
+  });
+
+  function confirmDiscardRatings() {
+    return !ratingsDirty || window.confirm("评价尚未保存，确定放弃修改吗？");
+  }
+
   const radarScores = savedRatings.map((rating) => rating?.score ?? null);
   const radarReady = dimensions.length >= 3 && radarScores.some((score) => score !== null);
   const trainingSkills = useMemo(() => isMechanicalGroup && trainingSnapshot && selectedMemberId
@@ -189,7 +222,7 @@ export default function TrainingAssessmentRoute() {
 
   async function addDimension(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!dimensionName.trim()) return;
+    if (busy || !dimensionName.trim()) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await trainingAssessmentClient.addDimension(groupId, dimensionName.trim());
@@ -201,7 +234,7 @@ export default function TrainingAssessmentRoute() {
   }
 
   async function deleteDimension(id: number, name: string) {
-    if (!window.confirm(`确定删除“${name}”及其所有成员评分吗？`)) return;
+    if (busy || !window.confirm(`确定删除“${name}”及其所有成员评分吗？`)) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await trainingAssessmentClient.removeDimension(groupId, id);
@@ -213,7 +246,7 @@ export default function TrainingAssessmentRoute() {
 
   async function saveRatings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedMemberId) return;
+    if (busy || !selectedMemberId || !ratingsDirty) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await trainingAssessmentClient.saveRatings(groupId, selectedMemberId, dimensions.map((dimension) =>
@@ -233,14 +266,14 @@ export default function TrainingAssessmentRoute() {
         {groupsLoading ? <BrandLoader size="sm" label="正在加载组别" /> : assignmentGroups.length > 1 ?
           <div className="w-full min-w-0 sm:w-auto">
             {assignmentGroups.length <= 5 ? <div className="hidden flex-wrap gap-1 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface)] p-1 sm:flex" role="group" aria-label="技术组">
-              {assignmentGroups.map((group) => <button key={group.groupId} type="button" aria-pressed={groupId === group.groupId}
+              {assignmentGroups.map((group) => <button key={group.groupId} type="button" aria-pressed={groupId === group.groupId} disabled={busy}
                 className={"rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 " + (groupId === group.groupId
                   ? "bg-[var(--admin-surface-subtle)] text-[var(--admin-text)] shadow-sm"
                   : "text-[var(--admin-muted)] hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]")}
                 onClick={() => changeGroup(group.groupId)}>{group.name}</button>)}
             </div> : null}
             <div className={assignmentGroups.length <= 5 ? "sm:hidden" : "sm:w-48"}>
-              <select className="admin-field" aria-label="技术组"
+              <select className="admin-field" aria-label="技术组" disabled={busy}
                 value={groupId} onChange={(event) => changeGroup(Number(event.target.value))}>
                 {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
               </select>
@@ -248,13 +281,16 @@ export default function TrainingAssessmentRoute() {
           </div> : <span className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0]?.name ?? ""}</span>}
       </header>
       {groupsError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{groupsError}</p> : null}
-      {error ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{error}</p> : null}
+      {error ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-[var(--admin-danger)]">
+        <span>{error}</span>
+        {!snapshot && groupId && !loading ? <button type="button" className="admin-button admin-button--secondary admin-button--small" onClick={() => setRetryCount((value) => value + 1)}>重试</button> : null}
+      </div> : null}
       {notice ? <p role="status" className="text-sm text-[var(--admin-text)]">{notice}</p> : null}
       {loading && !snapshot ? <AssessmentSkeleton /> : null}
       {snapshot ? selectedMember ? (
         <section className="admin-panel space-y-5 p-5">
-          <button type="button" className="admin-button admin-button--quiet admin-button--small"
-            onClick={() => { setMemberId(0); window.scrollTo(0, 0); }}>返回成绩总览</button>
+          <button type="button" ref={backButtonRef} className="admin-button admin-button--quiet admin-button--small"
+            disabled={busy} onClick={() => { if (confirmDiscardRatings()) { setMemberId(0); setNotice(""); } }}>返回成绩总览</button>
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="text-xl font-semibold">{selectedMember.name}</h2>
             <span className="text-sm text-[var(--admin-muted)]">成员 #{selectedMember.userId}</span>
@@ -324,18 +360,18 @@ export default function TrainingAssessmentRoute() {
                   <form className="mt-4 space-y-3" onSubmit={(event) => void saveRatings(event)}>
                     {dimensions.map((dimension) => <div key={dimension.id} className="grid gap-2 border-t border-[var(--admin-border-subtle)] pt-3 md:grid-cols-[minmax(0,1fr)_10rem_1.5fr] md:items-center">
                       <label className="text-sm font-medium" htmlFor={`capability-${dimension.id}`}>{dimension.name}</label>
-                      <select className="admin-field" id={`capability-${dimension.id}`} value={draftRatings[dimension.id]?.score ?? ""} onChange={(event) => setDraftRatings((previous) => ({
+                      <select className="admin-field" id={`capability-${dimension.id}`} disabled={busy} value={draftRatings[dimension.id]?.score ?? ""} onChange={(event) => setDraftRatings((previous) => ({
                         ...previous, [dimension.id]: { dimensionId: dimension.id, score: event.target.value === "" ? null : Number(event.target.value), note: previous[dimension.id]?.note ?? "" },
                       }))}>
                         <option value="">未评价</option>
                         {LEVELS.map((label, level) => <option key={level} value={level}>{label}</option>)}
                       </select>
-                      <input className="admin-field" aria-label={`${dimension.name}评价依据`} maxLength={500} placeholder="评价依据"
+                      <input className="admin-field" aria-label={`${dimension.name}评价依据`} maxLength={500} placeholder="评价依据" disabled={busy || draftRatings[dimension.id]?.score == null}
                         value={draftRatings[dimension.id]?.note ?? ""} onChange={(event) => setDraftRatings((previous) => ({
                           ...previous, [dimension.id]: { dimensionId: dimension.id, score: previous[dimension.id]?.score ?? null, note: event.target.value },
                         }))} />
                     </div>)}
-                    <button type="submit" className="admin-button admin-button--primary" disabled={busy}>保存成员评价</button>
+                    <button type="submit" className="admin-button admin-button--primary" disabled={busy || !ratingsDirty}>{busy ? "保存中…" : "保存成员评价"}</button>
                   </form>
                 </details> : null}
           </section> : null}
@@ -348,7 +384,7 @@ export default function TrainingAssessmentRoute() {
                 <h2 className="text-lg font-semibold">考核概览</h2>
                 <span className="text-xs text-[var(--admin-muted)]">{rawSummaries.length} 次考核</span>
               </div>
-              {selectedAssessment ? <label className="block w-full min-w-0 sm:w-72">
+              {selectedAssessment && summaries.length === 1 ? <span className="text-sm font-medium">{selectedAssessment.name}</span> : selectedAssessment ? <label className="block w-full min-w-0 sm:w-72">
                 <span className="sr-only">选择考核</span>
                 <select className="admin-field" value={selectedAssessment.key}
                   onChange={(event) => { setAssessmentKey(event.target.value); setShowAllMembers(true); setPage(1); }}>
@@ -387,7 +423,7 @@ export default function TrainingAssessmentRoute() {
                 <h2 className="text-lg font-semibold">成绩排名</h2>
                 {selectedAssessment ? <span className="text-xs text-[var(--admin-muted)]">{visibleRows.length} 人</span> : null}
               </div>
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              {selectedAssessment ? <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <div className="inline-flex shrink-0 gap-1 rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-1" role="group" aria-label="成员范围">
                   {([{ value: false, label: selectedAssessment?.source === "assignment" ? "已提交或计分" : selectedAssessment?.source === "training" ? "有成绩" : "有排名" }, { value: true, label: "本期参训" }] as const)
                     .map((option) => <button key={String(option.value)} type="button" aria-pressed={showAllMembers === option.value}
@@ -400,7 +436,7 @@ export default function TrainingAssessmentRoute() {
                   <input type="search" className="admin-field" aria-label="搜索成员" placeholder="搜索姓名或编号"
                     value={memberQuery} onChange={(event) => { setMemberQuery(event.target.value); setPage(1); }} />
                 </div>
-              </div>
+              </div> : null}
             </div>
             {pageRows.length ? <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
@@ -418,8 +454,8 @@ export default function TrainingAssessmentRoute() {
                     return <tr key={member.userId} className="border-b border-[var(--admin-border-subtle)]">
                       <td className="px-2 py-3 tabular-nums">{result.rank === null ? "—" : `#${result.rank}`}</td>
                       <th scope="row" className="px-2 py-3 text-left">
-                        <button type="button" className="rounded-md text-left font-semibold text-[var(--admin-accent-text)] hover:underline focus-visible:outline-2"
-                          onClick={() => selectMember(member.userId)}>{member.name}</button>
+                        <button type="button" id={`assessment-member-${member.userId}`} className="rounded-md text-left font-semibold text-[var(--admin-accent-text)] hover:underline focus-visible:outline-2"
+                          disabled={busy} onClick={() => selectMember(member.userId)}>{member.name}</button>
                         <span className="ml-2 text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span>
                       </th>
                       <td className="px-2 py-3 text-right font-semibold tabular-nums">
@@ -450,7 +486,7 @@ export default function TrainingAssessmentRoute() {
                   <summary className="cursor-pointer text-sm font-medium">设置人工评价维度</summary>
                   <div className="mt-4 space-y-3">
                     <form className="flex flex-wrap gap-2" onSubmit={(event) => void addDimension(event)}>
-                      <input className="admin-field min-w-40 flex-1" aria-label="新增能力维度" maxLength={100} value={dimensionName}
+                      <input className="admin-field min-w-40 flex-1" aria-label="新增能力维度" placeholder="维度名称" maxLength={100} value={dimensionName}
                         onChange={(event) => setDimensionName(event.target.value)} disabled={busy || dimensions.length >= 8} />
                       <button type="submit" className="admin-button admin-button--secondary"
                         disabled={busy || !dimensionName.trim() || dimensions.length >= 8}>添加维度</button>
