@@ -6,7 +6,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
@@ -39,6 +39,8 @@ export interface ArenaController {
   dartOpen:()=>void;
   dartFire:()=>void;
   stance: (mode:SentryMode,enhanced:boolean) => void;
+  sentryControl:(mode:SentryControl)=>void;
+  sentryMark:(kind: "supply"|"outpost"|"central"|"highpoint")=>void;
   performance:(value:InfantryPerformance)=>void;
   reset: () => void;
   input: (key: string, pressed: boolean) => void;
@@ -127,6 +129,7 @@ export function mountArena(
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
+  const manualRobot=()=>activeRobot()?.sentryControl==="auto"?null:driving;
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   function publish() {
     const vehicle = activeRobot();
@@ -136,18 +139,18 @@ export function mountArena(
       return {base:side.base,outpost:side.outpost,outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
         outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
     };
-    const offer=match&&vehicle?ammoOffer(match,vehicle):null;
+    const offer=match&&vehicle?ammoOffer(match,vehicle,true):null;
     const rune=match&&vehicle?runeStatus(match,vehicle.team):null;
     const power=match&&vehicle?chassisStatus(match,vehicle):null;
     const stance=match&&vehicle?sentryStatus(match,vehicle):null;
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
-        canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle),canFire:!!vehicle&&canFire(match,vehicle),
+        canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
         pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
-        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,level:vehicle?robotLevel(vehicle,match):1,xp:vehicle&&!vehicle.heavy&&!vehicle.sentry?vehicle.xp:null,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle):null,energy:vehicle?.heavy&&driving?energyStatus(match,vehicle,driving.position):null,technology:vehicle&&driving?assemblyStatus(match,vehicle,driving.position):null,dart:vehicle?dartStatus(match,vehicle.team):null,armor:vehicle?armorStatus(match,vehicle.team):null,terrain:vehicle?terrainStatus(match,vehicle):null} : undefined };
+        healCost:remoteHealthCost(match)+(vehicle?sentryCommandCost(vehicle):0),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle,true),maxHp:vehicle?.maxHp??0,level:vehicle?robotLevel(vehicle,match):1,xp:vehicle&&!vehicle.heavy&&!vehicle.sentry?vehicle.xp:null,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle,true):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle):null,energy:vehicle?.heavy&&driving?energyStatus(match,vehicle,driving.position):null,technology:vehicle&&driving?assemblyStatus(match,vehicle,driving.position):null,dart:vehicle?dartStatus(match,vehicle.team):null,armor:vehicle?armorStatus(match,vehicle.team):null,terrain:vehicle?terrainStatus(match,vehicle):null} : undefined };
     const signature = JSON.stringify(status);
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
   }
@@ -167,7 +170,7 @@ export function mountArena(
     lookDirection(look, forward);
     eye.copy(target).y += driving?.eyeHeight ?? 1.6;
     camera.up.set(0, 1, 0);
-    if (driving) {
+    if (driving&&manualRobot()) {
       const sight = aimWeapon(driving.object, yaw, look.pitch);
       if (sight) { eye.copy(sight.origin); forward.copy(sight.direction); }
       else driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
@@ -199,7 +202,7 @@ export function mountArena(
       }
       const searchBudget=performance.now()+4;
       for(const [bot,route] of botPaths){
-        if(bot===driving||match.robots.find(r=>r.id===bot.object.name)?.hp===0){botPaths.delete(bot);continue;}
+        if(bot===manualRobot()||match.robots.find(r=>r.id===bot.object.name)?.hp===0){botPaths.delete(bot);continue;}
         if(!route.search)continue;
         do{
           const step=route.search.next();
@@ -226,7 +229,7 @@ export function mountArena(
       const { yaw } = look;
       const vehicle=activeRobot();
       const boost=keys.has("ShiftLeft")||keys.has("ShiftRight");
-      const speed=match&&vehicle?driveSpeed(match,vehicle,f||r?boost?2:1:0):boost?3.6:2.2;
+      const speed=vehicle?.sentryControl==="auto"?0:match&&vehicle?driveSpeed(match,vehicle,f||r?boost?2:1:0):boost?3.6:2.2;
       if ((f || r)&&speed>0) {
         const target = driving?.position ?? explorer;
         const radius = driving?.radius ?? PLAYER_RADIUS;
@@ -294,13 +297,13 @@ export function mountArena(
     publish();invalidate();
   }
   function revive(paid:boolean) {
-    if(match&&driving){reviveRobot(match,driving.object.name,paid);publish();invalidate();}
+    if(match&&driving){reviveRobot(match,driving.object.name,paid,true);publish();invalidate();}
   }
   function heal() {
-    if(match&&driving){purchaseHealth(match,driving.object.name);publish();invalidate();}
+    if(match&&driving){purchaseHealth(match,driving.object.name,true);publish();invalidate();}
   }
   function buy() {
-    if(match&&driving){purchaseAmmo(match,driving.object.name);publish();invalidate();}
+    if(match&&driving){purchaseAmmo(match,driving.object.name,true);publish();invalidate();}
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
@@ -339,7 +342,7 @@ export function mountArena(
     if(match&&driving){installLauncher(match,driving.object.name);publish();invalidate();}
   }
   function fire() {
-    if(!ready||paused||!isPlaying(mode)||!driving||!match||!map)return;
+    if(!ready||paused||!isPlaying(mode)||!driving||!manualRobot()||!match||!map)return;
     syncCamera();
     const shot = aimWeapon(driving.object,look.yaw,look.pitch);
     if (shot) shoot(driving,shot.origin,shot.direction);
@@ -353,7 +356,7 @@ export function mountArena(
   function updateBots() {
     if(!match||!terrain||!mechanism)return;
     const field=robots.filter(r=>r.object.userData.area==="field");
-    const available=field.filter(bot=>bot!==driving);
+    const available=field.filter(bot=>bot!==manualRobot());
     const bot=available[botCursor++%available.length];
     if(!bot)return;
     const state=match.robots.find(m=>m.id===bot.object.name)!;
@@ -408,7 +411,7 @@ export function mountArena(
     }
     const needAmmo=armed&&state.ammo+reserveAmmo(match,state)===0&&state.pendingAmmoAt===null;
     const fortressReady=match.elapsed>=180&&controlsOutpost(match,enemyTeam,state.team)&&!enemySide.cover;
-    const assault=fortressReady?active.filter(r=>r!==driving&&r.object.userData.team===state.team)
+    const assault=fortressReady?active.filter(r=>r!==manualRobot()&&r.object.userData.team===state.team)
       .filter(r=>{const m=match!.robots.find(m=>m.id===r.object.name)!;return !m.heavy&&!revivalStatus(match!,m).weak&&(m.fortressHold>0||m.hp>=m.maxHp*.55);})
       .sort((a,b)=>Number((match!.robots.find(m=>m.id===b.object.name)?.fortressHold??0)>0)-Number((match!.robots.find(m=>m.id===a.object.name)?.fortressHold??0)>0)||a.radius-b.radius)[0]:undefined;
     const assaultDuty=bot===assault;
@@ -490,8 +493,8 @@ export function mountArena(
     // One available infantry per team handles rune attempts. Do not spend
     // an activation until its actual muzzle has an unobstructed detector.
     const rune=runeStatus(match,state.team);
-    const runeBot=active.find(r=>r!==driving&&r.object.userData.team===state.team&&r.object.name.includes("infantry-04"))
-      ??active.find(r=>r!==driving&&r.object.userData.team===state.team&&r.object.name.includes("infantry"));
+    const runeBot=active.find(r=>r!==manualRobot()&&r.object.userData.team===state.team&&r.object.name.includes("infantry-04"))
+      ??active.find(r=>r!==manualRobot()&&r.object.userData.team===state.team&&r.object.name.includes("infantry"));
     let runeDuty=false;
     if(bot===runeBot&&!assaultDuty&&!recovering&&!needAmmo&&state.ammo>=(rune.active?1:5)&&!rune.buff&&(rune.active||rune.available>0)){
       const bank=state.team==="red"?"a":"b";
@@ -534,6 +537,11 @@ export function mountArena(
           if(runeDuty)break;
         }
       }
+    }
+    if(state.commandTarget){
+      const zone=ARENA_ZONES.find(z=>z.id===state.commandTarget);
+      if(zone&&zonesAtPosition(bot.position).includes(zone.id))state.commandTarget=null;
+      else if(zone&&!recovering&&!assaultDuty)goal=zoneGoal(zone.team,zone.kind);
     }
     if(!technologyDuty&&!runeDuty&&canFire(match,state)&&!revival.weak){
       const candidates:THREE.Vector3[]=[];
@@ -808,7 +816,9 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
+    sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
     armorFortify:(x,y)=>{const r=activeRobot();if(match&&r){const c=recommendedArmorCenter(match,r.team);fortifyArmor(match,r.team,{x:x??c.x,y:y??c.y});}publish();invalidate();},
     dartSelect:value=>{const r=activeRobot();if(match&&r)selectDart(match,r.team,value);publish();invalidate();},
     dartOpen:()=>{const r=activeRobot();if(match&&r)openDart(match,r.team);publish();invalidate();},
