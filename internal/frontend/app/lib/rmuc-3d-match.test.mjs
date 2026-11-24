@@ -376,3 +376,31 @@ test("small rune shares a 1200 XP bonus budget; large rune grants 750 XP to livi
  for(let i=0;i<5;i++){const [a,c]=runeStatus(m,"red").lit;damageTarget(m,r,{type:"rune",team:"red",arm:a,ring:10});damageTarget(m,r,{type:"rune",team:"red",arm:c,ring:10});}
  assert.equal(r.xp+r2.xp,sum+750);
 });
+
+test("defending fortress grants exclusive reserve, priority consumption and damage-dependent cooling",()=>{
+ const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200}],1,1);
+ startMatch(m);
+ const [r,b,r2]=m.robots;
+ const fort={x:7.43,y:.45,z:0};
+ m.sides.red.outpostArea.controller="blue";
+ const positions=new Map([["r2",fort]]);
+ updateMatch(m,.1,positions);
+ positions.set("r",fort);updateMatch(m,.1,positions);
+ assert.equal(m.sides.red.fortressHolder,"r2");
+ assert.equal(damageTarget(m,b,{type:"robot",id:"r2"}),10);
+ assert.equal(damageTarget(m,b,{type:"robot",id:"r"}),20);
+ assert.ok(fireRound(m,"r2"));assert.equal(r2.ammo,0);
+ assert.equal(m.sides.red.fortressSpent,1);
+ assert.equal(fireRound(m,"r"),null);
+ m.sides.red.base=7600; // synthetic referee test, not a physical hit
+ r2.heat=40;
+ updateMatch(m,1,positions);
+ assert.ok(Math.abs(r2.heat-0)<1e-7);
+ positions.delete("r2");updateMatch(m,2,positions);
+ assert.equal(m.sides.red.fortressHolder,"r");
+ assert.ok(fireRound(m,"r"));
+ assert.equal(m.sides.red.fortressSpent,2);
+ m.sides.red.outpostArea.controller="red";
+ updateMatch(m,.1,positions);
+ assert.equal(m.sides.red.fortressHolder,null);
+});
