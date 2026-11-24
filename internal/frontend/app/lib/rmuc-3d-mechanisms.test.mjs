@@ -332,3 +332,37 @@ test("base shells block actual muzzle shots without scoring arbitrary surfaces",
   }
  }
 });
+
+test("nearest rigid CAD bounds pruning preserves exact ray intersections",async()=>{
+  const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+  const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(root),center=bounds.getCenter(new THREE.Vector3());
+  root.position.set(-center.x,-bounds.min.y,-center.z);root.updateMatrixWorld(true);
+  const mechanisms=installMechanisms(field,parts);
+  const pose={runeAngle:.63,outpostAngle:{red:.7,blue:1.6},cover:{red:1,blue:0}};
+  mechanisms.apply(pose);
+  const terrain=createArenaTerrain(root);
+  const scene=new THREE.Scene();scene.add(root);
+  const robots=ROBOT_PLACEMENTS.filter(r=>r.area==="field").map(r=>{
+    const robot=createRobotPreview(r.kind);robot.position.set(r.x,terrain.heightAt(r.x,r.z),r.z);scene.add(robot);return robot;
+  });
+  scene.updateMatrixWorld(true);
+  for(const mesh of meshes(scene))mesh.geometry.computeBoundingBox();
+  const original=new THREE.Raycaster(),optimized=new THREE.Raycaster();
+  const targets=[...robots.map(r=>r.position.clone().add(new THREE.Vector3(0,.4,0))),...TEAMS.flatMap(t=>[0,1,2].map(i=>new THREE.Box3().setFromObject(parts.getObjectByName(t+"-outpost-armor-"+i)).getCenter(new THREE.Vector3()))),new THREE.Vector3(0,20,0)];
+  const originalTimes=[],optimizedTimes=[];
+  for(const shooter of robots)for(const point of targets){
+    const aim=aimWeaponAt(shooter,point);
+    if(!aim)continue;
+    scene.updateMatrixWorld(true);
+    const roots=[root,...robots.filter(r=>r!==shooter)];
+    original.set(aim.origin,aim.direction);original.near=0;original.far=35;
+    let start=performance.now();const expected=original.intersectObjects(roots,true)[0];originalTimes.push(performance.now()-start);
+    start=performance.now();const actual=traceArenaShot(optimized,roots,aim.origin,aim.direction);optimizedTimes.push(performance.now()-start);
+    assert.equal(actual?.object,expected?.object);
+    if(expected){assert.ok(Math.abs(actual.distance-expected.distance)<1e-8);assert.ok(actual.point.distanceTo(expected.point)<1e-8);}
+  }
+  assert.ok(originalTimes.length>=80);
+  const p95=a=>a.sort((x,y)=>x-y)[Math.floor(a.length*.95)].toFixed(3);
+  console.log("actual CAD/robot rays",originalTimes.length,"original P95",p95(originalTimes),"pruned P95",p95(optimizedTimes));
+});
