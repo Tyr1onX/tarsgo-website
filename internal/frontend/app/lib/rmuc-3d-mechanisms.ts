@@ -22,6 +22,27 @@ export type MechanismPose = {
   cover: Record<Team, number>;
 };
 
+// Centers of the ten 308 mm circular STEP faces, measured in product-local
+// metres. Detection is the official 300 mm disk; CAD front skin is ~1.7 mm
+// ahead of the analytical face. The skin still blocks unrelated shots.
+const RUNE_CENTERS = [
+  [[-.410530,-.322195,-.472098],[-.500127,-.559595,.308848],[-.265558,.061927,.791500],[-.030989,.683448,.308848],[-.120586,.446048,-.472098]],
+  [[.185999,-.547332,-.472098],[.475943,.220911,-.472098],[.565540,.458311,.308848],[.330971,-.163210,.791500],[.096402,-.784732,.308848]]
+] as const;
+const RUNE_AXIS=new THREE.Vector3(.9355854080889134,-.35310047319580506,0);
+export function runeHit(arm:THREE.Object3D,point:THREE.Vector3,direction:THREE.Vector3){
+  const detector=arm.userData.runeDetector as {team:Team;arm:number;center:THREE.Vector3;normal:THREE.Vector3}|undefined;
+  if(!detector)return undefined;
+  const normal=detector.normal.clone().transformDirection(arm.matrixWorld);
+  if(direction.dot(normal)>=0)return undefined;
+  const delta=arm.worldToLocal(point.clone()).sub(detector.center);
+  const depth=delta.dot(detector.normal);
+  if(Math.abs(depth)>.003)return undefined;
+  const radius=delta.addScaledVector(detector.normal,-depth).length();
+  if(radius>.15)return undefined;
+  return {type:"rune" as const,team:detector.team,arm:detector.arm,ring:Math.max(1,10-Math.floor(Math.round(radius*1000)/15))};
+}
+
 export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
   const find = (name: string) => {
     const object = parts.getObjectByName(name);
@@ -54,12 +75,27 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
       return { team, object, rest: object.position.clone(), local };
     });
   });
-  const runeAxis = new THREE.Vector3(.9355854080889134, -.35310047319580506, 0);
+  const runeAxis = RUNE_AXIS;
   const rotorAxis = new THREE.Vector3(0, 1, 0);
   for (const team of TEAMS) for (let i = 0; i < 3; i++)
     find(team + "-outpost-armor-" + i).userData.target = { type: "outpost", team };
-  for (const [bankIndex, bank] of ["a","b"].entries()) for(let i=0;i<5;i++)
-    find("rune-arm-"+bank+"-"+i).userData.target={type:"rune",arm:bankIndex*5+i};
+  const runeArms = ["a","b"].flatMap((bank,bankIndex)=>RUNE_CENTERS[bankIndex].map((center,i)=>{
+    const object=find("rune-arm-"+bank+"-"+i),team=TEAMS[bankIndex];
+    object.userData.runeDetector={team,arm:i,center:new THREE.Vector3(...center),normal:RUNE_AXIS.clone().multiplyScalar(bankIndex===0?-1:1)};
+    const lights:THREE.MeshStandardMaterial[]=[];
+    object.traverse(node=>{
+      if(!(node instanceof THREE.Mesh)||!(node.material instanceof THREE.MeshStandardMaterial))return;
+      const m=node.material;
+      if(team==="red"?m.color.r<.9||m.color.b>.1:m.color.b<.9||m.color.r>.1)return;
+      node.material=m.clone();lights.push(node.material as THREE.MeshStandardMaterial);
+    });
+    return {team,i,lights};
+  }));
+  function setRuneLights(red:readonly number[],blue:readonly number[]){
+    for(const a of runeArms)for(const m of a.lights){
+      m.emissive.copy(m.color);m.emissiveIntensity=(a.team==="red"?red:blue).includes(a.i)?1.5:0;
+    }
+  }
   for(const team of TEAMS) find(team+"-base-assembly").userData.target={type:"base",team};
   // Preserve fixed original collision envelope for locomotion; only new
   // source meshes participate in visible scene and projectile queries.
@@ -73,5 +109,5 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
       object.position.copy(rest).addScaledVector(local, pose.cover[team]);
     parts.updateMatrixWorld(true);
   }
-  return { parts, old, apply, rotors, banks, covers };
+  return { parts, old, apply, rotors, banks, covers, setRuneLights };
 }
