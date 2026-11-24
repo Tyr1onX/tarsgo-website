@@ -383,7 +383,8 @@ export function renderRoomScene(
   const width = room.width * TILE, height = room.height * TILE;
   ctx.fillStyle = "#172d35";
   const scale = room.id === "study" ? 1 : ROOM_ART_SCALE;
-  ctx.fillRect(0, 0, ctx.canvas.width / scale, ctx.canvas.height / scale);
+  const viewWidth=ctx.canvas.width/scale,viewHeight=ctx.canvas.height/scale;
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(terrain, -screenCamera.x, -screenCamera.y, width, height);
 
@@ -395,7 +396,7 @@ export function renderRoomScene(
     drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed);
     for (const object of room.objects) {
       if (!object.solid && !object.host && object.kind !== "exit")
-        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id));
+        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight);
     }
   }
   let playerDrawn = false;
@@ -408,9 +409,9 @@ export function renderRoomScene(
     }
     if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
     else {
-      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id));
+      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight);
       for (const child of room.objects) if (child.host === object.id)
-        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed, effects?.get(child.id));
+        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed, effects?.get(child.id),viewWidth,viewHeight);
     }
   }
   if (!playerDrawn) renderExplorer(ctx, character, player, pose, screenCamera);

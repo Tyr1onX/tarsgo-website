@@ -281,8 +281,32 @@ function drawBentProp(ctx:CanvasRenderingContext2D,image:CanvasImageSource,sx:nu
     ctx.drawImage(image,sx,sy+top,PROP_CELL,bottom-top,x+Math.sign(shift)*(bands-1-i),y+dy,w,end-dy);
   }
 }
+function propBend(node:{x:number;y:number;value:Scenery},time:number,wind:number):number{
+  const tree=isTree(node.value);
+  if(!time||(!tree&&node.value.sprite!=="hydrangea"&&node.value.sprite!=="planter"))return 0;
+  return Math.round(wind*(tree?.13:.07)*(.65+.35*Math.sin(time/(1000+hash(node.x,node.y)%650)+node.x+node.y)));
+}
+function drawEaveDrips(ctx:CanvasRenderingContext2D,node:{x:number;y:number;value:Place},b:{x:number;y:number;width:number;height:number},
+  camera:Position,time:number,wet:number){
+  if(!time||wet<.22)return;
+  const ground=point(node.y)-camera.y+5;
+  ctx.save();ctx.fillStyle="#b7d8dc";ctx.strokeStyle="#cce4e3";ctx.lineWidth=.5;
+  for(let i=0;i<2;i++){
+    const x=b.x-camera.x+b.width*(i?.95:.05),phase=(time/(1450+hash(node.x+i,node.y)%450)+i*.43)%1;
+    const strength=Math.min(.65,(wet-.22)*.9);
+    if(phase<.75){
+      const progress=phase/.75;
+      ctx.globalAlpha=strength;ctx.fillRect(Math.round(x),Math.round(ground-(1-progress*progress)*b.height*.25),1,3);
+    }else{
+      const age=(phase-.75)*4;
+      ctx.globalAlpha=strength*(1-age);
+      ctx.beginPath();ctx.ellipse(x,ground,1+age*5,.5+age*2,0,0,Math.PI*2);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageElement,
-  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity,wind=0,night=0){
+  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity,wind=0,night=0,wet=0,warmNight=false){
   const b=node.kind==="building"?buildingBounds(node.value,sprites):
     node.kind==="prop"?{x:point(node.x)-node.value.width/2,y:point(node.y)-node.value.height,width:node.value.width,height:node.value.height}:
     fountainBounds();
@@ -291,6 +315,7 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
   if(node.kind==="building"){
     building(ctx,atlas,sprites,node.value,camera);
     drawWindowLight(ctx,node.value,b,camera,night);
+    drawEaveDrips(ctx,node,b,camera,time,wet);
   }
   else if(node.kind==="prop"){
     const tree=isTree(node.value);
@@ -298,7 +323,7 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
     if(time&&(tree||node.value.sprite==="hydrangea"||node.value.sprite==="planter")){
       const cell=PROP_CELLS[node.value.sprite],sx=cell%4*PROP_CELL,sy=Math.floor(cell/4)*PROP_CELL;
       const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
-      shift=Math.round(wind*(tree?.13:.07)*(.65+.35*Math.sin(time/(1000+hash(node.x,node.y)%650)+node.x+node.y)));
+      shift=propBend(node,time,wind);
       drawBentProp(ctx,props,sx,sy,x,y,b.width,b.height,shift);
     }else decoration(ctx,props,node.value,camera);
     const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
@@ -306,6 +331,15 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
       const brightness=nightLight(night,(hash(node.x,node.y)%100)/100);
       const xx=point(node.x)-camera.x,yy=point(node.y)-node.value.height*.72-camera.y;
       ctx.fillStyle=`rgba(255,231,165,${brightness})`;ctx.fillRect(Math.round(xx-2),Math.round(yy-2),4,5);
+      if(time&&warmNight){
+        const seed=hash(node.x,node.y),phase=(time/(9200+seed%2800)+seed%97/97)%1;
+        if(phase<.32){
+          const t=phase/.32;
+          ctx.save();ctx.globalAlpha=.55*Math.sin(t*Math.PI);ctx.fillStyle="#efe9a6";
+          ctx.fillRect(Math.round(xx+Math.sin(t*6+seed%7)*13),Math.round(yy+8+Math.sin(t*9)*6),1.5,1.5);
+          ctx.restore();
+        }
+      }
     }
     const active=age>=0&&age<1500;
     if(node.value.sprite==="arch"){
@@ -449,7 +483,7 @@ function silhouette(image:HTMLImageElement,box:SpriteBox,key:string){
 }
 const isTree=(p:Scenery)=>["oak","lime_tree","cherry"].includes(p.sprite);
 function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:SpriteIndex,props:HTMLImageElement,camera:Position,c:OutdoorClimate,width:number,height:number,
-  character:HTMLImageElement,player:Position,pose:ExplorerAnimation){
+  character:HTMLImageElement,player:Position,pose:ExplorerAnimation,time:number,wind:number){
   if(c.sunHeight<=.035||c.weather==="fog"||c.weather==="rain"||c.weather==="storm"||c.weather==="snow")return;
   const strength=c.weather==="clear"?.28:.075;
   const length=Math.min(1.25,.32/Math.max(.2,c.sunHeight));
@@ -465,7 +499,11 @@ function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:Spr
     const mask=silhouette(build?atlas:props,box,build?(object as Place).id:(object as Scenery).sprite);
     const dx=-c.sunX*h*length,dy=-c.sunY*h*length;
     ctx.save();ctx.transform(w/mask.width*.84,0,-dx/mask.height,-dy/mask.height,x-w*.42+dx,y+dy);
-    ctx.drawImage(mask,0,0);ctx.restore();
+    if(node.kind==="prop"&&isTree(node.value)){
+      const shift=Math.round(propBend(node,time,wind)*PROP_CELL/node.value.width);
+      drawBentProp(ctx,mask,0,0,0,0,mask.width,mask.height,shift);
+    }else ctx.drawImage(mask,0,0);
+    ctx.restore();
   }
   if (!waterDepthAt(player.x, player.y)) {
     const box=explorerFrameBox(pose);
@@ -660,7 +698,7 @@ export function renderScene(
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
   drawTerrain(ctx,terrain,screenCamera,w,h);
   drawWater(ctx,screenCamera,w,h,marks,time,motion,climate);
-  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
+  if(climate){drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land=animals.filter(a=>a.species!=="fish").sort((a,b)=>a.y-b.y);
   const seasonal=seasonalProps(props,climate?.season??"summer");
@@ -683,7 +721,8 @@ export function renderScene(
       const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
     }
     if (!playerDrawn && node.y > seatDepth) {drawPlayer();playerDrawn = true;}
-    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity,wind,climate?.night??0);
+    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity,wind,climate?.night??0,(climate?.temperature??0)>0?surface.wet:0,
+      Boolean(climate&&climate.night>.2&&(climate.temperature??0)>12&&(climate.weather==="clear"||climate.weather==="cloudy")));
   }
   while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();

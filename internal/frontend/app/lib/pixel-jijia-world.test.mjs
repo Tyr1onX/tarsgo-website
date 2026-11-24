@@ -541,7 +541,7 @@ test("场景使用经抠图的真实生成素材，而不是 Canvas 模拟图", 
   const explorer = readFileSync(new URL("explorer-actions-v3.png", base));
   assert.deepEqual([...explorer.subarray(0, 8)], [...png.subarray(0, 8)]);
   assert.equal(explorer.readUInt32BE(16), 240); // 6 frames × 40 px
-  assert.equal(explorer.readUInt32BE(20), 3672); // 17 actions × 4 directions × 54 px
+  assert.equal(explorer.readUInt32BE(20), EXPLORER_ACTIONS.length*4*54);
   const { sprites } = JSON.parse(readFileSync(new URL("campus-buildings-v3.json", base), "utf8"));
   for (const id of [...PLACES.map((place) => place.id), "fountain"]) {
     assert.ok(sprites[id]?.[2] > 0 && sprites[id]?.[3] > 0, `${id} 素材缺失`);

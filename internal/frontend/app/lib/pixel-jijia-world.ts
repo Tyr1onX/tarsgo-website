@@ -397,6 +397,11 @@ export function benchSeat(bench: Scenery): Position {
   return { x: bench.x, y: bench.y - 4 / TILE };
 }
 
+export function directionToward(position:Position,target:Position,fallback:Direction):Direction {
+  const dx=target.x-position.x,dy=target.y-position.y;
+  if(Math.abs(dx)+Math.abs(dy)<.01)return fallback;
+  return Math.abs(dx)>Math.abs(dy)?dx>0?"right":"left":dy>0?"down":"up";
+}
 export function facingScore(position:Position, target:Position, facing?:Direction) {
   const dx=target.x-position.x,dy=target.y-position.y;
   return (facing==="up"?-dy:facing==="down"?dy:facing==="left"?-dx:facing==="right"?dx:0)>0?.35:0;

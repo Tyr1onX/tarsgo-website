@@ -4,14 +4,15 @@ import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-n
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, outdoorDoorAt, snapCamera, advanceSurfaceTrail,
+  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
   type SurfaceMark, type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } from "~/lib/pixel-jijia-explorer";
 import { ROOMS, STUDY_ROOM, closestRoomObject, seatPlacement, seatDepth, meetingChair, meetingSeat, roomInteractable, type SeatObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
-import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds } from "~/lib/pixel-jijia-room-art";
+import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds, hasEquipmentBehavior, equipmentProgress } from "~/lib/pixel-jijia-room-art";
+import { PixelWorldAudio, footstepMaterial, distanceVolume, type LocalSound } from "~/lib/pixel-jijia-audio";
 import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityCreditRole, communityDiscoveryId } from "~/lib/pixel-jijia-community";
 import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
 import { apiRequest } from "~/lib/api-client";
@@ -127,8 +128,20 @@ export default function PixelJijiaPage() {
   const [seated, setSeated] = useState<{ object:SeatObject; exit: Position } | null>(null);
   const effectsRef = useRef(new Map<string,number>());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const worldAudioRef=useRef<PixelWorldAudio|null>(null);
   const [muted, setMuted] = useState(false);
-  useEffect(()=>()=>audioRef.current?.pause(),[]);
+  const mutedRef=useRef(false);
+  useEffect(()=>{
+    const unlock=(event:Event)=>{
+      if(!event.isTrusted||mutedRef.current||document.hidden)return;
+      (worldAudioRef.current??=new PixelWorldAudio()).unlock();
+    };
+    window.addEventListener("keydown",unlock,true);window.addEventListener("pointerdown",unlock,true);
+    return ()=>{
+      window.removeEventListener("keydown",unlock,true);window.removeEventListener("pointerdown",unlock,true);
+      audioRef.current?.pause();worldAudioRef.current?.dispose();worldAudioRef.current=null;
+    };
+  },[]);
   const [studyEditing, setStudyEditing] = useState(false);
   const [catalogueDetail, setCatalogueDetail] = useState<RoomObject | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -210,9 +223,9 @@ export default function PixelJijiaPage() {
     }
     const target=fishingTarget(player);
     if(target){castRef.current=beginFishing(wildlifeRef.current,target,performance.now());
-      const dx=target.x-player.x,dy=target.y-player.y;directionRef.current=Math.abs(dx)>Math.abs(dy)?dx>0?"right":"left":dy>0?"down":"up";return;}
+      directionRef.current=directionToward(player,target,directionRef.current);return;}
     const animal=closestAnimal(wildlifeRef.current,player);
-    if(animal){poseRef.current={...poseRef.current,action:"observe",since:performance.now()};recordDiscovery(SPECIES_LABEL[animal.species],"已观察："+SPECIES_LABEL[animal.species]);}
+    if(animal){directionRef.current=directionToward(player,animal,directionRef.current);poseRef.current={...poseRef.current,action:"observe",since:performance.now()};recordDiscovery(SPECIES_LABEL[animal.species],"已观察："+SPECIES_LABEL[animal.species]);}
   },[recordDiscovery]);
 
   useEffect(() => {
@@ -585,6 +598,11 @@ export default function PixelJijiaPage() {
       if(meeting&&meetingSeat(room,object))object=meeting;
       else {if(!sit(object))distanceNotice();return;}
     }
+    directionRef.current=directionToward(playerRef.current,{x:object.x+object.width/2,y:object.y+object.height/2},directionRef.current);
+    poseRef.current={...poseRef.current,action:"idle",frame:0,since:performance.now()};
+    const now=performance.now();
+    if(hasEquipmentBehavior(object.id)&&equipmentProgress(object.id,now,effectsRef.current.get(object.id))<0)
+      effectsRef.current.set(object.id,now);
     if (object.community) {
       const action=object.community.interaction;
       if(action==="meeting"){
@@ -615,6 +633,8 @@ export default function PixelJijiaPage() {
       if(feature.sprite==="bench"){if(!sit(feature))distanceNotice();return;}
       if(feature.story){
         const now=performance.now();
+        directionRef.current=directionToward(playerRef.current,feature,directionRef.current);
+        poseRef.current={...poseRef.current,action:"idle",frame:0,since:now};
         if(feature.story.action&&now-(effectsRef.current.get(feature.story.title)??-Infinity)<1500)return;
         effectsRef.current.set(feature.story.title,now);
         if(feature.sprite==="arch")playSound("chime");
@@ -704,7 +724,7 @@ export default function PixelJijiaPage() {
       if (dir) keysRef.current.delete(dir);
     };
     const stop = () => {
-      clearInput();audioRef.current?.pause();
+      clearInput();audioRef.current?.pause();worldAudioRef.current?.silence();
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -731,7 +751,7 @@ export default function PixelJijiaPage() {
     const miniCtx = minimap?.getContext("2d");
     if (!ctx) return;
     let frame = 0, lastTime = 0, traveled = 0, lastMini = 0;
-    let lastDust = 0, lastFountain = 0, lastPetal = 0, lastWeather = 0;
+    let stepDistance=0,lastAudio=0,lastFountain=0,lastPetal=0,lastWeather=0;
     const particles: PixelParticle[] = [];
     const leafTrees = SCENERY.filter(item => item.sprite === "cherry" || item.sprite === "oak" || item.sprite === "lime_tree");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -772,7 +792,7 @@ export default function PixelJijiaPage() {
       const touch = joystick.current;
       const x = touch ? touch.x : held("right") - held("left");
       const y = touch ? touch.y : held("down") - held("up");
-      let walking = false;
+      let walking = false,stepped=false;
       const sprinting = touch ? touch.running : sprintKeyRef.current;
 
       const previous = playerRef.current;
@@ -783,7 +803,11 @@ export default function PixelJijiaPage() {
         playerRef.current = next;
         directionRef.current = Math.abs(x) >= Math.abs(y) ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
         walking = distance > 0.0001;
-        if (walking) { traveled += distance; castRef.current=null; }
+        if (walking) {
+          traveled += distance;castRef.current=null;stepDistance+=distance;
+          const stride=sprinting?2.35:1.9;
+          if(stepDistance>=stride){stepDistance-=stride;stepped=true;}
+        }
         // The door is a spatial threshold: walking into it changes scenes directly.
         // The room entry is placed behind its exit, so holding a direction is safe.
         const door = room ? null : outdoorDoorAt(next, y);
@@ -795,6 +819,33 @@ export default function PixelJijiaPage() {
             frame = requestAnimationFrame(tick);
             return;
           }
+        }
+      }
+      if(!walking)stepDistance=0;
+      const foot=playerRef.current,audio=worldAudioRef.current;
+      const material=stepped?footstepMaterial(room?.id??null,groundAt(foot.x,foot.y),surfaceRef.current.wet,surfaceRef.current.snow):null;
+      if(audio?.running&&!mutedRef.current&&!document.hidden){
+        if(material)audio.step(material,sprinting);
+        if(time-lastAudio>=120){
+          lastAudio=time;
+          let kind:LocalSound="none",volume=0;
+          if(room){
+            for(const o of room.objects){
+              if(equipmentProgress(o.id,time,effectsRef.current.get(o.id))<0)continue;
+              const gain=distanceVolume(Math.hypot(foot.x-o.x-o.width/2,foot.y-o.y-o.height),9)*.095;
+              if(gain>volume){volume=gain;kind="device";}
+            }
+          }else{
+            if((climate?.temperature??0)>0){
+              volume=distanceVolume(Math.hypot(foot.x-FOUNTAIN.x,foot.y-FOUNTAIN.y),17)*.12;
+              if(volume>0)kind="fountain";
+            }
+            for(const o of leafTrees){
+              const gain=distanceVolume(Math.hypot(foot.x-o.x,foot.y-o.y),8)*(.028+Math.abs(wind)*.003);
+              if(gain>volume){volume=gain;kind="trees";}
+            }
+          }
+          audio.update(climate?.weather??null,Boolean(room),wind,kind,volume);
         }
       }
       const viewWidth = canvas.width / roomScale, viewHeight = canvas.height / roomScale;
@@ -814,6 +865,7 @@ export default function PixelJijiaPage() {
         direction:directionRef.current,moving:walking,sprinting,distance:traveled,
         water:room?0:waterDepthAt(playerRef.current.x,playerRef.current.y),seated:Boolean(seated),
         fishing:fishingPose(castNow,readyNow,time),now:time,motion:!reducedMotion.matches,
+        idleAllowed:!x&&!y&&!selectedRef.current&&!selectedRoom&&!menuOpen&&!mapOpen&&!catalogueDetail&&!transitionRef.current,
       });
       ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
       ctx.clearRect(0, 0, viewWidth, viewHeight);
@@ -834,13 +886,9 @@ export default function PixelJijiaPage() {
       if (reducedMotion.matches || room) {
         particles.length = 0;
       } else {
-        if (walking && sprinting && !waterDepthAt(playerRef.current.x,playerRef.current.y) && climate?.weather !== "rain" && climate?.weather !== "storm" && climate?.weather !== "snow" && time - lastDust > 110) {
-          const foot = playerRef.current;
-          const surface = groundAt(foot.x,foot.y);
-          emit({ x: foot.x * TILE + (Math.random() - 0.5) * 12, y: foot.y * TILE - 3,
-            vx: (Math.random() - 0.5) * 14, vy: -8, age: 0, ttl: 0.38,
-            color: surface === 0 ? "#c4d69c" : "#e5d9bd", size: 2 });
-          lastDust = time;
+        if (stepped&&material&&material!=="water"&&material!=="wet"&&material!=="snow"&&(sprinting||material==="grass"||material==="soil")) {
+          emit({x:foot.x*TILE+(Math.random()-.5)*8,y:foot.y*TILE-2,vx:(Math.random()-.5)*12,vy:-6,
+            age:0,ttl:.32,color:material==="grass"?"#c4d69c":material==="wood"?"#c3a47d":"#e5d9bd",size:sprinting?2:1});
         }
         if ((climate?.temperature ?? 0) > 0 && time - lastFountain > 220 &&
             Math.hypot(playerRef.current.x - FOUNTAIN.x, playerRef.current.y - FOUNTAIN.y) < 19) {
@@ -1129,7 +1177,11 @@ export default function PixelJijiaPage() {
           )}
           <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
             onClick={() => { clearInput(); setShowHelp(open => !open); setMenuOpen(false); }} aria-label="操作帮助">{mobile ? "操作帮助" : "?"}</button>
-          <button type="button" className="pixel-world-tool" aria-pressed={muted} onClick={()=>{setMuted(!muted);if(!muted)audioRef.current?.pause();}}>音效 {muted?"关":"开"}</button>
+          <button type="button" className="pixel-world-tool" aria-pressed={muted} onClick={event=>{
+            const next=!muted;mutedRef.current=next;setMuted(next);
+            if(next){audioRef.current?.pause();worldAudioRef.current?.silence();}
+            else if(event.nativeEvent.isTrusted)(worldAudioRef.current??=new PixelWorldAudio()).unlock();
+          }}>音效 {muted?"关":"开"}</button>
           {mobile && weatherControls}
           <Link to={returnTo === "/pixel-jijia" ? "/" : returnTo} className="pixel-world-return">{experienceReturnLabel(returnTo === "/pixel-jijia" ? "/" : returnTo)}</Link>
         </div>}
