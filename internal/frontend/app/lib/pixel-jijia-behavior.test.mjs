@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { equipmentProgress,equipmentPose,hasEquipmentBehavior } from "./pixel-jijia-room-art.ts";
+import { explorerAnimation,initialExplorerAnimation,explorerFrameBox,EXPLORER_ACTIONS } from "./pixel-jijia-explorer.ts";
+import { footstepMaterial,distanceVolume } from "./pixel-jijia-audio.ts";
+import { directionToward } from "./pixel-jijia-world.ts";
+
+test("机械臂和机器人由有限工作过程驱动，停止后回到原位",()=>{
+  assert.ok(hasEquipmentBehavior("machine")&&hasEquipmentBehavior("test-robot"));
+  assert.equal(equipmentProgress("chair",1000),-1);
+  assert.equal(equipmentProgress("machine",1000,1000),0);
+  assert.equal(equipmentPose("machine",0),0);
+  assert.equal(equipmentPose("machine",.5),8);
+  assert.equal(equipmentPose("machine",.99),0);
+  assert.equal(equipmentProgress("machine",7600,1000),-1);
+  assert.equal(equipmentProgress("machine",8000,1000),-1);
+  assert.equal(equipmentPose("test-robot",-1),0);
+  assert.equal(equipmentPose("test-robot",0),2);
+  assert.equal(equipmentPose("test-robot",.15),3);
+  assert.equal(equipmentPose("test-robot",.25),4);
+  assert.equal(equipmentPose("test-robot",.5),1);
+  assert.equal(equipmentPose("test-robot",.99),2);
+  const phases=Array.from({length:60},(_,i)=>equipmentProgress("machine",i*1000));
+  assert.ok(phases.some(v=>v<0)&&phases.some(v=>v>=0));
+  assert.notDeepEqual(phases,Array.from({length:60},(_,i)=>equipmentProgress("test-robot",i*1000)));
+});
+test("长待机和坐姿微动作使用现有状态机，可立即被操作或减少动态打断",()=>{
+  const base={direction:"down",moving:false,sprinting:false,distance:0,water:0,seated:false,fishing:null,motion:true,now:25000};
+  const stretch=explorerAnimation(initialExplorerAnimation,base);
+  assert.equal(stretch.action,"stretch");
+  const middle=explorerAnimation(stretch,{...base,now:25600});
+  assert.equal(middle.action,"stretch");assert.equal(middle.frame,3);
+  assert.equal(explorerAnimation(middle,{...base,now:25620,moving:true}).action,"walk");
+  assert.equal(explorerAnimation(middle,{...base,now:25620,idleAllowed:false}).action,"idle");
+  assert.equal(explorerAnimation(middle,{...base,now:25620,motion:false}).action,"idle");
+  assert.equal(explorerAnimation(middle,{...base,now:25620,fishing:"cast"}).action,"cast");
+  const seated=explorerAnimation(initialExplorerAnimation,{...base,seated:true,now:1000});
+  const rest=explorerAnimation(seated,{...base,seated:true,now:12000});
+  assert.equal(rest.action,"sit-rest");
+  assert.equal(explorerAnimation(rest,{...base,now:12100,seated:false}).action,"stand");
+  const settled=explorerAnimation(rest,{...base,now:13000,seated:true});
+  assert.equal(settled.action,"sit");assert.equal(settled.frame,5);
+  for(const pose of [stretch,middle,rest,settled])assert.ok(explorerFrameBox(pose)[1]+54<=EXPLORER_ACTIONS.length*4*54);
+  assert.equal(directionToward({x:4,y:4},{x:8,y:5},"up"),"right");
+  assert.equal(directionToward({x:4,y:4},{x:4,y:4},"up"),"up");
+});
+test("脚步材质与空间音量使用当前地面和距离",()=>{
+  assert.equal(footstepMaterial(null,0,0,0),"grass");
+  assert.equal(footstepMaterial(null,2,0,0),"stone");
+  assert.equal(footstepMaterial(null,6,0,0),"wood");
+  assert.equal(footstepMaterial(null,7,0,0),"soil");
+  assert.equal(footstepMaterial(null,2,.7,0),"wet");
+  assert.equal(footstepMaterial(null,2,0,.8),"snow");
+  assert.equal(footstepMaterial(null,3,.8,.8),"water");
+  assert.equal(footstepMaterial("guild",2,.8,.8),"wood");
+  assert.equal(footstepMaterial("mechanical",0,.8,.8),"stone");
+  assert.equal(distanceVolume(0,10),1);assert.equal(distanceVolume(5,10),.25);assert.equal(distanceVolume(20,10),0);
+});
