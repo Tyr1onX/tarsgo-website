@@ -25,10 +25,10 @@ binary = raw[28 + length:]
 # Replace the old fused upper cluster with disjoint source-derived fixed
 # and moving surfaces. Both occurrences share these two mesh definitions.
 raw2 = corrected.read_bytes()
-assert hashlib.sha256(raw2).hexdigest() == "6ce647b6262b040b8b816fb4eb1a8095626a6269d72423b76010ce79af5ce75f"
+assert hashlib.sha256(raw2).hexdigest() == "cb1e05db459284bf7817eca7f84eb2208ffc72bacff8dc675e06212fc5706b97"
 length2 = struct.unpack_from("<I", raw2, 12)[0]
 fix = json.loads(raw2[20:20 + length2])
-assert [n.get("name") for n in fix["nodes"]] == ["outpost-corrected-parts", "upper-cluster", "carrier"]
+assert [n.get("name") for n in fix["nodes"]] == ["outpost-corrected-parts", "upper-cluster", "carrier-frame", "armor-0", "armor-1", "armor-2"]
 assert not any(fix.get(k) for k in ("textures", "images", "extensionsUsed"))
 assert len(binary) % 4 == 0
 offsets = {k: len(doc[k]) for k in ("bufferViews", "accessors", "materials", "meshes")}
@@ -46,7 +46,7 @@ for k in offsets:
     doc[k].extend(fix[k])
 binary += raw2[28 + length2:]
 doc["buffers"][0]["byteLength"] = len(binary)
-fixed_mesh, carrier_mesh = [fix["nodes"][i]["mesh"] + offsets["meshes"] for i in (1, 2)]
+fixed_mesh, carrier_mesh, *armor_meshes = [fix["nodes"][i]["mesh"] + offsets["meshes"] for i in range(1, 6)]
 nodes = doc["nodes"]
 selected = []
 
@@ -104,7 +104,12 @@ for side, parent, product, fixed, upper, rotor in [
         named(module, f"{side}-outpost-module-{i}")
     carrier = node(mesh=carrier_mesh)
     named(carrier, side + "-outpost-carrier")
-    pivot(rotor, side + "-outpost-rotor", [-.009437883451525,1.1374399976,-.0010455166794], children + [carrier])
+    plates = []
+    for i, mesh in enumerate(armor_meshes):
+        plate = node(mesh=mesh)
+        named(plate, f"{side}-outpost-armor-{i}")
+        plates.append(plate)
+    pivot(rotor, side + "-outpost-rotor", [-.009437883451525,1.1374399976,-.0010455166794], children + [carrier] + plates)
 
 original(2045, "rune")
 named(2045, "rune-assembly")

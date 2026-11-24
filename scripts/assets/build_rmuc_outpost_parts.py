@@ -36,6 +36,29 @@ with tempfile.TemporaryDirectory() as directory:
         for rec, path in zip(records, paths):
             mask, rewritten = splitter.closure_products([doc.index.r(rec["export_product_id"])])
             splitter.write_closure(mask, rewritten, path)
+    # The three planar detection faces are original STEP faces, not proxies.
+    # #2059823 is the recessed detector in the reviewed module-0 cover;
+    # #2032941 and #2039671 are its two equal-size, 120-degree counterparts.
+    # Figure 4-34 and §5.1.1 of the official RMUC 2027 V1.0.0 rulebook
+    # distinguish the middle armor detection surfaces from the housing.
+    armor_faces = [2059823, 2032941, 2039671]
+    carrier = records[1]
+    body = carrier["export_body_ids"]["2101579"]
+    carrier_faces = set(carrier["face_ids"])
+    assert set(armor_faces) <= carrier_faces
+    parts = [("carrier-frame", sorted(carrier_faces - set(armor_faces)))]
+    parts += [(f"armor-{i}", [face]) for i, face in enumerate(armor_faces)]
+    with CadDocument.from_step(paths[1], workers=1, intern_layers=True) as doc:
+        splitter = Splitter(doc.index, doc.model)
+        for name, faces in parts:
+            path = Path(directory) / (name + ".step")
+            mask, rewritten = splitter.closure_products(
+                [doc.index.r(carrier["export_product_id"])], face_ids_by_body={body: faces}
+            )
+            splitter.write_closure(mask, rewritten, path)
+            with CadDocument.from_step(path, workers=1) as part:
+                assert {int(part.index.ids[f]) for f in part.model.body_faces(part.index.r(body))} == set(faces)
+    paths = [paths[0], *[Path(directory) / (name + ".step") for name, _ in parts]]
     for path in paths:
         doc, reader, error = read_part(str(path))
         assert not error, error
