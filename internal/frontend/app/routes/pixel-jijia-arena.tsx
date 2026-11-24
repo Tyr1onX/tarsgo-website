@@ -90,6 +90,7 @@ export default function PixelJijiaArenaPage() {
           <span>HP {status.match.hp}/{status.match.maxHp}</span>{status.match.xp!==null&&<span>Lv.{status.match.level} · {Math.floor(status.match.xp)} XP</span>}<span>弹药 {status.match.ammo}{status.match.reserve>0&&` + ${status.match.reserve} 储备`}</span><span>{status.match.coins} 金币</span>
           {status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}
           {status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}
+          {status.match.power&&<span>{status.match.power.locked>0?"底盘断电 "+status.match.power.locked+"s":"缓冲 "+status.match.power.buffer+"/60J · "+status.match.power.limit+"W"}</span>}
           {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}
           {status.match.revival?.dead?<><span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
           {status.match.rune&&<button disabled={status.match.rune.active||status.match.rune.buff>0||status.match.rune.available<=0||!!status.match.revival?.weak} onClick={()=>controller.current?.rune()}>{status.match.rune.active?"机关 "+status.match.rune.groups+"/5":(status.match.rune.large?"大":"小")+"能量机关 "+status.match.rune.available}</button>}
@@ -133,7 +134,7 @@ export default function PixelJijiaArenaPage() {
             <dt>单击画面 / 鼠标</dt><dd>锁定并转向</dd>
             <dt>拖动 / 方向键</dt><dd>转向</dd>
             <dt>自由视角</dt><dd>拖动旋转、右键平移、滚轮缩放</dd>
-            <dt>Shift</dt><dd>加速行走</dd>
+            <dt>Shift</dt><dd>加速行走 / 底盘超功率训练</dd>
             <dt>E</dt><dd>接管 / 退出机器人</dd>
             <dt>左键 / 空格</dt><dd>开火</dd>
             <dt>B</dt><dd>远程补弹</dd>
