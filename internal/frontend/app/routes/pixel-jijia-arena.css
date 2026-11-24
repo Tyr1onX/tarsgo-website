@@ -130,3 +130,10 @@
   .rmul3d-roster { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .rmul3d-robot-id svg { display:block; width:14px; }
 }
+
+.rmul3d-minimap {position:absolute;left:10px;top:34%;width:min(230px,32vw);background:#0b111ce8;border:1px solid #60708080;padding:4px;border-radius:5px;font-size:10px;}
+.rmul3d-minimap svg {width:100%;display:block}
+.rmul3d-map-head {display:flex;align-items:center;justify-content:space-between;gap:4px}
+.rmul3d-map-head select {max-width:100%;font:inherit;color:inherit;background:#202b35;border:0}
+@media(max-width:600px) and (orientation:portrait){.rmul3d-minimap {top:36%;width:40vw;max-width:160px}}
+@media(orientation:landscape) and (max-height:500px){.rmul3d-minimap {top:30%;width:22vw;max-width:170px}}
