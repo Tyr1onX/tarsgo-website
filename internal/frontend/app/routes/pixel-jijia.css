@@ -236,7 +236,7 @@
 .pixel-world-interact:hover { background: #ffe2a0; }
 .pixel-world-interact kbd { padding: 2px 7px; background: #2c3c3c; color: #f8e7bc; font-size: 12px; border: 1px solid #a7ab98; }
 .pixel-world-interact span { margin-left: 10px; }
-.pixel-world-dpad { display: none; }
+
 
 .pixel-world-detail {
   position: absolute;
@@ -298,74 +298,6 @@
 .pixel-world-detail-secondary-link { display: block; margin-top: 15px; color: #d8e5d9; font-size: 13px; text-align: center; text-decoration: underline; }
 .pixel-world :is(button, a, select):focus-visible { outline: 3px solid #fff4bf; outline-offset: 3px; }
 
-@media (max-width: 700px) {
-  .pixel-world-header { top: 10px; left: 10px; right: 10px; gap: 5px; }
-  .pixel-world-climate { left: 10px; top: 53px; gap: 4px; font-size: 10px; padding: 5px; }
-  .pixel-world-weather-line, .pixel-world-weather-controls { gap: 5px; }
-  .pixel-world-weather-controls select { min-height: 26px; }
-  .pixel-world-room-name { top: 122px; max-width: calc(100vw - 40px); }
-  .pixel-world-top-actions { gap: 4px; }
-  .pixel-world-tool, .pixel-world-return { min-height: 34px; padding: 5px 7px; font-size: 11px; }
-  .pixel-world-tool kbd { display: none; }
-  .pixel-world-map-panel { top: 53px; right: 10px; width: 160px; padding: 4px; }
-  .pixel-world-map-panel.is-open {
-    width: min(360px, calc(100vw - 20px));
-    max-height: calc(100dvh - 65px);
-    padding: 7px;
-  }
-  .pixel-world-map-caption { padding: 2px 1px 5px; font-size: 10px; }
-  .pixel-world-map-caption span:last-child { font-size: 8px; }
-  .pixel-world-zoom { margin-top: 4px; font-size: 10px; }
-  .pixel-world-zoom button { width: 30px; height: 26px; }
-  .pixel-world-guide { bottom: 210px; width: calc(100% - 32px); white-space: normal; text-align: center; }
-  .pixel-world-interact { bottom: 183px; left: auto; right: 13px; transform: none; max-width: calc(100% - 158px); padding: 0 9px; min-height: 38px; font-size: 12px; gap: 5px; }
-
-  .pixel-world-dpad {
-    position: absolute;
-    z-index: 3;
-    bottom: 77px;
-    left: 17px;
-    display: grid;
-    grid-template: repeat(3, 48px) / repeat(3, 48px);
-    gap: 3px;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: none;
-  }
-  .pixel-world-dir {
-    display: grid;
-    place-items: center;
-    border: 2px solid #e6d7b7c2;
-    border-radius: 6px;
-    background: #243f42e8;
-    color: #ffe3a0;
-    font-size: 16px;
-    touch-action: none;
-    box-shadow: inset 0 1px 0 #b9cbb06b;
-  }
-  .pixel-world-sprint {
-    grid-area: 1 / 3;
-    display: grid;
-    place-items: center;
-    border: 2px solid #edcd83;
-    border-radius: 6px;
-    background: #70583bdf;
-    color: #fff1c8;
-    font-size: 16px;
-    font-weight: 850;
-    touch-action: none;
-    user-select: none;
-  }
-  .pixel-world-sprint:active { background: #f1ca76; color: #3d3325; }
-  .pixel-world-dir:active { background: #e0b66e; color: #283e3d; }
-  .pixel-world-dir--up { grid-area: 1 / 2; }
-  .pixel-world-dir--left { grid-area: 2 / 1; }
-  .pixel-world-dir--down { grid-area: 2 / 2; }
-  .pixel-world-dir--right { grid-area: 2 / 3; }
-  .pixel-world-detail { right: 12px; bottom: 16px; padding: 22px; width: calc(100% - 24px); }
-  .pixel-world-detail h1 { font-size: 26px; }
-  .pixel-world-detail p { font-size: 13px; }
-}
 @media (prefers-reduced-motion: reduce) {
   .pixel-world * { scroll-behavior: auto; transition: none; }
 }
@@ -390,23 +322,15 @@
 .pixel-world-study-guest { bottom: 18px; }
 .pixel-world-study-notice { bottom: 88px; }
 .pixel-world-study-notice a { color: #ffe0a0; }
-@media (max-width: 700px) {
-  .pixel-world-study-tools { left: 10px; right: 10px; bottom: 195px; max-width: none; }
-  .pixel-world-study-guest { left: 10px; bottom: 195px; }
-  .pixel-world-study-notice { left: 10px; bottom: 275px; }
-}
-
 .pixel-world-nature-log { padding: 6px 0; line-height: 1.5; color: #eadfc7; }
 .pixel-world-nature-notice { position: absolute; bottom: 86px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border: 1px solid #c4ac76; background: #203d36ed; color: #f9e6bf; z-index: 6; font-size: 13px; pointer-events: none; }
 .pixel-world-interact:disabled { opacity: .7; cursor: default; }
 .pixel-world-weather-controls { flex-wrap: wrap; }
-@media(max-width:700px){.pixel-world-weather-controls{max-width: 144px}.pixel-world-nature-notice{bottom: 192px;}}
+
 
 /* Community props share the existing RPG panel and map collection. */
 .pixel-world-community-detail {
-  max-height: calc(100dvh - 105px);
-  overflow-y: auto;
-  scrollbar-width: thin;
+
 }
 .pixel-world-community-detail h1 { font-size: 26px; padding-right: 18px; }
 .pixel-world-community-detail p { margin-bottom: 12px; }
@@ -463,12 +387,6 @@
   .pixel-community-sprite::after { opacity: 0; }
   .pixel-community-drive-robot { transition: none; }
 }
-@media (max-width: 700px) {
-  .pixel-world-community-detail { max-height: calc(100dvh - 90px); padding: 18px; }
-  .pixel-world-community-detail h1 { font-size: 22px; margin: 8px 0; }
-  .pixel-community-controls button, .pixel-community-action { min-height: 44px; }
-}
-
 .pixel-community-sprite--animated { animation: pixel-community-pose 2s steps(1, end) infinite; }
 .pixel-community-sprite--animated.pixel-community-sprite--glow { animation: pixel-community-pose 2s steps(1, end) infinite, pixel-community-glow 1.25s ease-out both; }
 @keyframes pixel-community-pose {
@@ -478,3 +396,61 @@
 }
 .pixel-community-controls button:has(.pixel-community-sprite) { display: inline-flex; align-items: center; gap: 5px; }
 @media (prefers-reduced-motion: reduce) { .pixel-community-sprite--animated { animation: none !important; } }
+
+/* A single safe game viewport, shared by the canvas and touch HUD. */
+.pixel-world-joystick {
+  position: absolute; pointer-events: none; z-index: 2;
+  width: 96px; height: 96px; transform: translate(-50%, -50%);
+  border: 2px solid #f0d8a4b8; border-radius: 50%;
+  background: #20353744; box-shadow: 0 0 0 2px #20353766;
+}
+.pixel-world-joystick[hidden] { display: none; }
+.pixel-world-joystick i {
+  position: absolute; width: 26px; height: 26px; left: 50%; top: 50%;
+  transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)));
+  background: #edca7bc7; border: 2px solid #463a30;
+  box-shadow: 2px 2px #17292777;
+}
+.pixel-world-joystick[data-running="true"] i { background: #ffdf92; border-color: #fff0be; }
+.pixel-world-detail { display: flex; flex-direction: column; max-height: calc(100% - 50px); }
+.pixel-world-detail-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.pixel-world-detail-close { z-index: 1; }
+.pixel-world.is-mobile {
+  top: env(safe-area-inset-top); left: env(safe-area-inset-left);
+  right: env(safe-area-inset-right); bottom: auto;
+  height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+.is-mobile .pixel-world-header { inset: 8px 8px auto; }
+.is-mobile .pixel-world-menu-toggle { width: 44px; height: 44px; padding: 0; }
+.is-mobile .pixel-world-menu-toggle i { display: block; width: 18px; height: 2px; background: currentColor; box-shadow: 0 -6px currentColor, 0 6px currentColor; }
+.is-mobile .pixel-world-top-actions { position: absolute; right: 0; top: 52px; display: grid; gap: 4px; padding: 8px; width: 180px; max-height: calc(100dvh - 76px); overflow: auto; background: #203b3bf5; border: 2px solid #e4d3a5; }
+.is-mobile :is(.pixel-world-tool,.pixel-world-return) { min-height: 44px; padding: 6px 8px; }
+.is-mobile :is(.pixel-world-tool,.pixel-world-interact) kbd { display: none; }
+.is-mobile .pixel-world-climate { left: 8px; top: 8px; padding: 8px; min-height: 44px; font-size: 11px; }
+.is-mobile .pixel-world-weather-controls { display: grid; gap: 4px; }
+.is-mobile .pixel-world-weather-controls select { width: 100%; min-height: 44px; }
+.is-mobile .pixel-world-map-panel:not(.is-open) { visibility: hidden; pointer-events: none; }
+.is-mobile .pixel-world-map-panel.is-open { top: 60px; right: 8px; width: min(360px, calc(100% - 16px)); max-height: calc(100% - 68px); }
+.is-mobile .pixel-world-room-name { top: 58px; left: 8px; transform: none; max-width: calc(100% - 16px); }
+.is-mobile .pixel-world-interact { bottom: 20px; right: 20px; left: auto; transform: none; min-width: 72px; min-height: 48px; justify-content: center; }
+.is-mobile .pixel-world-interact:active { background: #ffe2a0; box-shadow: none; }
+.is-mobile .pixel-world-guide { bottom: 85px; max-width: calc(100% - 24px); white-space: normal; text-align: center; }
+.is-mobile .pixel-world-nature-notice { bottom: 80px; max-width: calc(100% - 24px); }
+.is-mobile .pixel-world-detail { right: 8px; bottom: 8px; width: min(420px, calc(100% - 16px)); max-height: calc(100% - 16px); padding: 14px; backdrop-filter: none; }
+.is-mobile .pixel-world-detail-content { padding-top: 44px; }
+.is-mobile .pixel-world-detail-close { width: 44px; height: 44px; top: 7px; right: 7px; }
+.is-mobile .pixel-world-detail h1 { font-size: 23px; margin: 8px 0; }
+.is-mobile .pixel-world-detail p { font-size: 13px; }
+.is-mobile :is(.pixel-community-controls button,.pixel-community-action,.pixel-world-zoom button) { min-height: 44px; }
+.is-mobile .pixel-world-study-tools { top: 100px; bottom: auto; left: 8px; right: 8px; max-width: none; }
+.is-mobile .pixel-world-study-guest { top: 100px; bottom: auto; left: 8px; }
+.is-mobile .pixel-world-study-notice { bottom: 80px; left: 8px; }
+.is-mobile:has(.pixel-world-detail) :is(.pixel-world-header,.pixel-world-climate,.pixel-world-room-name,.pixel-world-interact,.pixel-world-study-tools,.pixel-world-study-guest) { visibility: hidden; }
+
+.pixel-community-archive-image { position: relative; min-height: 70px; display: grid; place-items: center; }
+.pixel-community-archive-image span { position: absolute; inset: auto; }
+.pixel-community-terminal--wolf { color: #a7f5f3; background: #25213f; border-color: #ad8df7; }
+.pixel-community-terminal--wolf a, .pixel-community-history a { color: #e2c9ff; }
+.pixel-community-sprite--laugh { animation: pixel-community-laugh .65s steps(2,end) 2; }
+@keyframes pixel-community-laugh { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-8deg); } }
+@media (prefers-reduced-motion: reduce) { .pixel-community-sprite--laugh { animation: none; } }

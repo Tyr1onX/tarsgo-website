@@ -8,7 +8,7 @@ export type CommunitySource = {
   date: string;
   role: "suggestion" | "support" | "reply";
 };
-export type CommunityInteraction = "smoke" | "burst" | "cable" | "old-capacitor" | "glow" | "tools" | "assembly" | "drive" | "terminal" | "silverwolf" | "memoir" | "memory" | "meeting" | "senior";
+export type CommunityInteraction = "smoke" | "burst" | "cable" | "old-capacitor" | "glow" | "tools" | "assembly" | "drive" | "terminal" | "silverwolf" | "memoir" | "memory" | "meeting" | "senior" | "laugh";
 export type CommunityContribution = {
   sources: readonly CommunitySource[];
   interaction?: CommunityInteraction;
@@ -39,7 +39,7 @@ export const COMMUNITY_ROOM_OBJECTS: Record<string, Entry[]> = {
     item("old-capacitor", "老旧电容", "Old Capacitor · 电压不足 · Voltage starving。根据共建成员的原始像素投稿重新绘制。", "machine", 28.55, 10.65, .85, .5, [suggestion(63, 5)], "old-capacitor", "components"),
     item("lit-capacitor", "点亮的电容", "一枚收藏在像素实验室里的发光电容；这只是虚构的电子元件彩蛋。", "machine", 18.45, 15.1, 1, .55, [suggestion(49, 2)], "glow", "embedded"),
     item("lit-mos", "点亮的 MOS 管", "三根引脚、金属散热片与黑色封装；它在这个像素世界里闪出一点光。", "machine", 21.15, 15.1, .95, .55, [suggestion(62, 4)], "glow", "embedded"),
-    item("chip-poster", "芯片小伙伴海报", "根据实验室海报提议创作的原创像素芯片伙伴，没有使用商业吉祥物形象。", "display", 26.2, 5, 3.5, .5, [suggestion(64, 5)]),
+    item("chip-poster", "奶娃 · 调试海报", "灵感来自共建者提出的嘉立创奶娃海报。这里是原创电子实验室主题海报，并非嘉立创原版海报。", "display", 26.2, 5, 3.5, .5, [suggestion(64, 5)]),
   ],
   mechanical: [
     item("tool-pile", "乱中有序的工具", "机械工作台上的螺丝、轴承、齿轮、扳手和六角工具，各自有用处。", "machine", 26.25, 16.35, 2.2, .6, [suggestion(44, 2)], "tools", "review"),
@@ -49,7 +49,7 @@ export const COMMUNITY_ROOM_OBJECTS: Record<string, Entry[]> = {
   ],
   ai: [
     item("hello-terminal", "Hello World", "打开一台最简单的终端，看看第一行程序的输出。", "console", 8.15, 7.9, 3.2, 1.9, [suggestion(50, 2)], "terminal", undefined, true),
-    item("silverwolf-terminal", "银狼 Lv.999", "一份藏在游戏终端里的神秘账户记录。", "console", 25, 6.7, 2.25, 1.65, [suggestion(69, 8)], "silverwolf", undefined, true),
+    item("silverwolf-terminal", "银狼 LV.999", "致敬《崩坏：星穹铁道》的银狼 LV.999。星际玩家已经解锁满级成就，游戏却尚未结束。", "console", 25, 6.7, 2.25, 1.65, [suggestion(69, 8)], "silverwolf", undefined, true),
   ],
   honors: [
     item("memoir", "吉甲回忆录", "翻开这本回忆录，从战队介绍、历年机器人和赛事档案中认识过去的吉甲。封面插画为原创像素美术。", "display", 24.15, 16.25, 2.45, .6, [suggestion(59, 3)], "memoir", "history"),
@@ -58,11 +58,11 @@ export const COMMUNITY_ROOM_OBJECTS: Record<string, Entry[]> = {
   guild: [
     item("weekly-meeting", "共创周会", "大家围坐交流研发进度、记录问题和安排接下来的工作。以下对话是通用情景演绎，不代表真实成员的发言。", "workbench", 2, 16.6, 9.5, 4.4, [suggestion(58, 3)], "meeting", undefined, true),
     item("senior", "老学长", "一位原创的吉甲引路人，和他聊聊如何了解战队、寻找学习资源和参与研发。", "reception", 24.5, 13.8, 1.45, .95, [suggestion(70, 8)], "senior", undefined, true),
-    item("burger", "汉堡外卖", "休憩角里的汉堡和外卖纸袋，是一份来自校园生活的共建提议。采用原创外卖包装。", "display", 28, 17.7, 1.65, .6, [suggestion(42, 2), reply(56, 2, "support"), reply(61, 3, "support")], undefined, "welcome-wall"),
-    item("milk-frog", "奶蛙摆件", "一只圆滚滚的原创奶蛙摆件，安静地守着休憩角。", "display", 32.15, 17.7, 1.1, .5, [suggestion(45, 2)], undefined, "welcome-wall"),
+    item("burger", "汉堡王外卖", "共建者点名的汉堡王外卖。休憩角的原创纸袋与汉堡，留给每一位忙碌的队员。", "display", 28, 17.7, 1.65, .6, [suggestion(42, 2), reply(56, 2, "support"), reply(61, 3, "support")], undefined, "welcome-wall"),
+    item("milk-frog", "奶蛙摆件", "共建者留下的「hohoho」笑声，源于奶龙衍生的奶蛙网络梗；这是一只原创捧腹笑摆件。", "display", 32.15, 17.7, 1.1, .5, [suggestion(45, 2)], "laugh", "welcome-wall"),
   ],
   vision: [
-    item("block-landscape", "方块世界小景", "一座由方块树木、草地和溪水组成的小模型，是对方块世界的轻量致敬。", "display", 6.2, 8.2, 2.5, 1.4, [suggestion(51, 2)], undefined, undefined, true),
+    item("block-landscape", "Minecraft 方块小景", "致敬共建者提出的 MC：方块草地、泥土、树木与水流组成的原创微缩景观。", "display", 6.2, 8.2, 2.5, 1.4, [suggestion(51, 2)], undefined, undefined, true),
   ],
 };
 
