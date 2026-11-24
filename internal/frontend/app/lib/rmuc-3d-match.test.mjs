@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -165,4 +165,66 @@ test("outposts ramp consistently, return to rest at stop and never restart",()=>
   updateMatch(a,170);assert.equal(a.sides.red.stopped,true);assert.equal(a.pose.outpostAngle.red,0);
   assert.equal(createMatch(roster).pose.outpostAngle.red,0);
  }
+});
+
+test("supply and controlled outpost repair use combat state, logistics and maximum HP",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0],b=m.robots[1];
+ for(let i=0;i<5;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ const supply=new Map([["r",{x:11.5,y:.154,z:-5.65}]]);
+ const post=new Map([["r",{x:2.4,y:.495,z:-4}]]);
+ updateMatch(m,1,supply);assert.equal(r.hp,120);
+ updateMatch(m,2);assert.equal(r.hp,158); // 1.9s activation hold
+ updateMatch(m,1,post);assert.equal(r.hp,168);
+ m.sides.red.base=5000;
+ updateMatch(m,1,post);assert.equal(r.hp,176); // 50% outpost rate × .75
+ updateMatch(m,233);for(let i=0;i<5;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ const before=r.hp;updateMatch(m,1,supply);assert.equal(r.hp,before+15);
+ updateMatch(m,6);for(let i=0;i<2;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ updateMatch(m,6);const low=r.hp;
+ updateMatch(m,1,supply);assert.equal(r.hp,Math.min(200,low+38));
+});
+test("non-remote exchange is immediate and sentry earns accumulated free supply",()=>{
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1);startMatch(m);
+ const r=m.robots[0],s=m.robots[2],b=m.robots[1];
+ const supply={x:11.5,y:.154,z:-5.65};
+ updateMatch(m,.1,new Map([["r",supply]]));
+ damageTarget(m,b,{type:"robot",id:"r"});
+ assert.deepEqual(ammoOffer(m,r),{count:10,cost:10,local:true,allowed:true});
+ assert.equal(purchaseAmmo(m,"r"),true);assert.equal(r.ammo,10);assert.equal(m.sides.red.purchased,10);assert.equal(m.sides.red.coins,790);
+ updateMatch(m,180);assert.equal(s.ammo,300);
+ updateMatch(m,.1,new Map([["s",supply]]));assert.equal(s.ammo,600);assert.equal(m.sides.red.purchased,10);
+ updateMatch(m,59,new Map([["s",supply]]));assert.equal(s.ammo,600);
+ updateMatch(m,1,new Map([["s",supply]]));assert.equal(s.ammo,700);
+});
+test("revival uses death time and logistics, read recovery has weakness and immunity",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,20);
+ const r=m.robots[0],b=m.robots[1];
+ for(let i=0;i<10;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(r.hp,0);assert.equal(r.revival.required,12);assert.equal(reviveRobot(m,"r"),false);
+ m.sides.red.base=5000;
+ updateMatch(m,15.9);assert.equal(revivalStatus(m,r).canConfirm,false);
+ updateMatch(m,.1);assert.equal(reviveRobot(m,"r"),true);assert.equal(r.hp,20);
+ assert.equal(revivalStatus(m,r).weak,true);assert.equal(damageTarget(m,b,{type:"robot",id:"r"}),0);
+ assert.equal(fireRound(m,"r"),null);
+ updateMatch(m,1,new Map([["r",{x:10.15,y:.3,z:0}]]));
+ assert.equal(revivalStatus(m,r).weak,false);assert.equal(revivalStatus(m,r).immune,true);
+ updateMatch(m,8.9);assert.equal(revivalStatus(m,r).immune,true);
+ updateMatch(m,.1);assert.equal(revivalStatus(m,r).immune,false);
+ assert.equal(damageTarget(m,b,{type:"robot",id:"r"}),20);
+});
+test("paid revival restores full health, consumes coins, and lengthens subsequent read",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,30);
+ const r=m.robots[0],b=m.robots[1];
+ for(let i=0;i<10;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(revivalStatus(m,r).cost,100);assert.equal(reviveRobot(m,"r",true),true);
+ assert.equal(m.sides.red.coins,700);assert.equal(r.hp,200);assert.equal(r.paidRevives,1);
+ updateMatch(m,2.9);assert.equal(revivalStatus(m,r).weak,true);assert.equal(damageTarget(m,b,{type:"robot",id:"r"}),0);
+ updateMatch(m,.1);assert.equal(revivalStatus(m,r).weak,false);
+ for(let i=0;i<10;i++)damageTarget(m,b,{type:"robot",id:"r"});
+ assert.equal(r.revival.required,33);
+ m.sides.red.base=3000;
+ updateMatch(m,12.6);assert.equal(revivalStatus(m,r).canConfirm,false);
+ updateMatch(m,.1);assert.equal(reviveRobot(m,"r"),true);assert.equal(r.hp,20);
+ assert.equal(createMatch(roster).robots[0].paidRevives,0);
 });

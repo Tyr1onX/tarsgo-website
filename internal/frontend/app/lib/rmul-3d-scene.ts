@@ -6,7 +6,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
@@ -16,13 +16,14 @@ import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
 type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number } };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; hp: number; buff: number; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
   start: () => void;
   buy: () => void;
   heal: () => void;
+  revive: (paid:boolean) => void;
   fire: () => void;
   reset: () => void;
   input: (key: string, pressed: boolean) => void;
@@ -107,7 +108,7 @@ export function mountArena(
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
-  const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots.filter(r=>!match||match.robots.find(m=>m.id===r.object.name)?.hp!==0)) : null;
+  const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   function publish() {
     const vehicle = activeRobot();
     const side = vehicle&&match?.sides[vehicle.team];
@@ -116,6 +117,7 @@ export function mountArena(
       return {base:side.base,outpost:side.outpost,outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
         outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
     };
+    const offer=match&&vehicle?ammoOffer(match,vehicle):null;
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,hp:vehicle?.hp??0,buff:Math.ceil(side?.buff??0),
@@ -123,7 +125,7 @@ export function mountArena(
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
         pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
-        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0} : undefined };
+        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null} : undefined };
     const signature = JSON.stringify(status);
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
   }
@@ -165,7 +167,7 @@ export function mountArena(
         nextBotTurn=match.elapsed+.65;
         updateOpponent();
       }
-      if(driving&&activeRobot()?.hp===0){explorer.copy(driving.position);driving=null;clearInput();}
+      if(driving&&activeRobot()?.hp===0)clearInput();
       updateVisibility();
       invalidate();
     }
@@ -182,7 +184,7 @@ export function mountArena(
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
       if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
       const { yaw } = look;
-      if (f || r) {
+      if ((f || r)&&activeRobot()?.hp!==0) {
         const target = driving?.position ?? explorer;
         const radius = driving?.radius ?? PLAYER_RADIUS;
         const speed = driving ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 3.6 : 2.2;
@@ -248,6 +250,9 @@ export function mountArena(
     startMatch(match);
     if(driving)purchaseAmmo(match,driving.object.name);
     publish();invalidate();
+  }
+  function revive(paid:boolean) {
+    if(match&&driving){reviveRobot(match,driving.object.name,paid);publish();invalidate();}
   }
   function heal() {
     if(match&&driving){purchaseHealth(match,driving.object.name);publish();invalidate();}
@@ -489,7 +494,7 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input, pauseInput, start, buy, heal, fire, reset,
+    view: setView, interact, input, pauseInput, start, buy, heal, revive, fire, reset,
     dispose() {
       disposed = true;
       abort.abort();
