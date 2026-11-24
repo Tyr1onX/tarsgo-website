@@ -57,7 +57,7 @@ test("four difficulty rewards: legal steps, 5/7/10 caps, no backdated XP, period
  assert.equal(technologyLevel(m,"red"),3);assert.equal(infantryCap(m,"red"),10);
  assert.equal(robotLevel(r,m),10);assert.equal(r.maxHp,600);assert.equal(launcherStatus(m,r).state,"unlocked");
  assert.equal(installLauncher(m,"r"),false);
- at("red",rack.red);assert.ok(installLauncher(m,"r"));assert.ok(purchaseAmmo(m,"r"));assert.ok(fireRound(m,"r"));assert.equal(r.launcher,"ready");
+ const bench={x:12.7,y:.16,z:-5.4};at("red",bench);assert.ok(installLauncher(m,"r",bench));assert.ok(purchaseAmmo(m,"r"));assert.ok(fireRound(m,"r"));assert.equal(r.launcher,"ready");
  assert.equal(damageTarget(m,bi,{type:"robot",id:"ri"}),15);
  assert.equal(damageTarget(m,bi,{type:"outpost",team:"red"}),15);
  advance(180-m.elapsed);complete("red",4);

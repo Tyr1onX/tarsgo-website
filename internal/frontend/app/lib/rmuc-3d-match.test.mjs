@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance,selectSentryControl,markSentry} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance,selectSentryControl,markSentry,removeLauncher} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -264,8 +264,8 @@ test("42mm timed fallback, calibration shot, separate ammunition cap and real me
  assert.equal(installLauncher(m,"h"),false);
  assert.equal(purchaseAmmo(m,"h"),true);updateMatch(m,6);assert.equal(h.ammo,10);
  assert.equal(m.sides.red.purchased42,10);assert.equal(m.sides.red.purchased,0);
- const supply=new Map([["h",{x:11.5,y:.2,z:-5.65}]]);
- updateMatch(m,.1,supply);assert.equal(installLauncher(m,"h"),true);
+ const bench={x:12.7,y:.16,z:-5.4};const supply=new Map([["h",bench]]);
+ updateMatch(m,.1,supply);assert.equal(installLauncher(m,"h",{x:11.5,y:.2,z:-5.65}),false);assert.equal(installLauncher(m,"h",bench),true);
  assert.equal(ammoOffer(m,h).count,1);
  assert.equal(purchaseAmmo(m,"h"),true);assert.equal(h.ammo,11);
  const model=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial());
@@ -559,4 +559,16 @@ test("automatic sentry commander revival fees apply atomically; semi commands re
    assert.equal(reviveRobot(m,"s",true,true),false);assert.equal(side.coins,cost-1);
    side.coins=cost;assert.ok(reviveRobot(m,"s",true,true));assert.equal(side.coins,0);
  }
+});
+
+test("workbench installation and removal require actual reach; calibration history is not reset by removal",()=>{
+ const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400}],1,1),h=m.robots[2];startMatch(m);updateMatch(m,300);
+ const bench={x:12.7,y:.16,z:-5.4},outside={x:11.5,y:.2,z:-5.65};
+ assert.equal(installLauncher(m,"h",outside),false);assert.ok(installLauncher(m,"h",bench));
+ assert.equal(removeLauncher(m,"h",outside),false);assert.ok(removeLauncher(m,"h",bench));assert.equal(h.launcher,"unlocked");
+ assert.equal(fireRound(m,"h"),null);
+ assert.ok(installLauncher(m,"h",bench));assert.ok(purchaseAmmo(m,"h"));updateMatch(m,6);assert.ok(fireRound(m,"h"));
+ assert.ok(h.launcherCalibrated);assert.equal(h.maxHp,600);assert.ok(removeLauncher(m,"h",bench));
+ assert.ok(h.launcherCalibrated);assert.equal(h.maxHp,600);assert.equal(fireRound(m,"h"),null);
+ assert.ok(installLauncher(m,"h",bench));updateMatch(m,.3);assert.ok(fireRound(m,"h"));assert.equal(h.maxHp,600);
 });

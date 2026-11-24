@@ -70,3 +70,14 @@ export function crossingContacts(p:ArenaPosition,zones:readonly ZoneId[]):Crossi
   }
   return result;
 }
+
+// Figure 4-23, resource-area CAD 3998852: red marking at the raised
+// launcher workbench, not the entire supply polygon. Mirror by team.
+export function launcherBench(team:Team){
+  const sign=team==="red"?1:-1;
+  return {pad:{x:13.6*sign,y:.562,z:-5.35*sign},approach:[12.7*sign,-5.4*sign] as const};
+}
+export function withinLauncherBench(team:Team,p:ArenaPosition){
+  const {pad}=launcherBench(team);
+  return Math.hypot(p.x-pad.x,p.z-pad.z)<=1.05&&Math.abs(p.y-pad.y)<=.55&&zonesAtPosition(p).includes(`${team}-supply`);
+}
