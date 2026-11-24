@@ -1,3 +1,4 @@
+import {fireTestTrajectory} from "./rmuc-3d-test-shot.mjs";
 import { CAD_MODELS } from "./rmul-3d-cad-assets.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -10,7 +11,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { installMechanisms, installCoreGeometry, CORE_ASSET, DART_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
 import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose, armorStatus, fortifyArmor } from "./rmuc-3d-match.ts";
-import { resolveArenaShot, traceArenaShot, bindArmorFrame, armorHit } from "./rmuc-3d-shot.ts";
+import { traceArenaShot, bindArmorFrame, armorHit } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight, moveOnArena } from "./rmuc-3d-terrain.ts";
 import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt, addRobotPreviews } from "./rmuc-3d-robots.ts";
 
@@ -368,17 +369,17 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
         assert.ok(aim,team+" visible shot at "+angle);
         assert.ok(aim.distance>1.5);
         const before=match.sides[team].outpost;
-        const result=resolveArenaShot(match,shooter.name,ray,roots,aim.from,aim.direction);
+        const result=fireTestTrajectory(match,shooter.name,ray,roots,aim.from,aim.direction);
         assert.deepEqual(result.target,{type:"outpost",team});
         assert.equal(result.damage,20);
         assert.equal(match.sides[team].outpost,before-20);
         assert.ok(result.hit.point.distanceTo(result.to)<1e-9);
-        assert.equal(resolveArenaShot(match,shooter.name,ray,roots,aim.from,aim.direction),null);
+        assert.equal(fireTestTrajectory(match,shooter.name,ray,roots,aim.from,aim.direction),null);
         assert.equal(match.sides[team].outpost,before-20);
         updateMatch(match,1);
         const blocked=findRay(module,point,true);
         assert.ok(blocked,team+" tower occlusion at "+angle);
-        const stop=resolveArenaShot(match,shooter.name,ray,roots,blocked.from,blocked.direction);
+        const stop=fireTestTrajectory(match,shooter.name,ray,roots,blocked.from,blocked.direction);
         assert.ok(stop.hit);
         assert.equal(stop.target,undefined);
         assert.equal(stop.damage,0);
@@ -393,7 +394,7 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
     match.pose.outpostAngle[team]=0;mechanisms.apply(match.pose);scene.updateMatrixWorld(true);
     const point=new THREE.Box3().setFromObject(module).getCenter(new THREE.Vector3());
     const aim=findRay(module,point,false);assert.ok(aim);
-    const hit=resolveArenaShot(match,shooter.name,ray,roots,aim.from,aim.direction);
+    const hit=fireTestTrajectory(match,shooter.name,ray,roots,aim.from,aim.direction);
     assert.equal(hit.damage,20);assert.equal(armorStatus(match,shooter.userData.team).hits,10);
     const coordinate=armorHit(hit.hit);assert.ok(coordinate&&coordinate.area>0);
     updateMatch(match,1);
@@ -402,21 +403,21 @@ test("actual field and robots: meter-range shots follow rotating modules, stop a
       assert.ok(fortifyArmor(match,team,coordinate));
       match.pose.outpostAngle[team]=0;mechanisms.apply(match.pose);scene.updateMatrixWorld(true);
       const next=findRay(module,point,false);assert.ok(next);
-      const reinforced=resolveArenaShot(match,shooter.name,ray,roots,next.from,next.direction);
+      const reinforced=fireTestTrajectory(match,shooter.name,ray,roots,next.from,next.direction);
       assert.equal(reinforced.damage,10);
       assert.equal(armorStatus(match,team).lastHit,"reinforced");
       updateMatch(match,1);
       assert.ok(fortifyArmor(match,team,{x:1,y:1}));
       match.pose.outpostAngle[team]=0;mechanisms.apply(match.pose);scene.updateMatrixWorld(true);
       const exposedAim=findRay(module,point,false);assert.ok(exposedAim);
-      const exposed=resolveArenaShot(match,shooter.name,ray,roots,exposedAim.from,exposedAim.direction);
+      const exposed=fireTestTrajectory(match,shooter.name,ray,roots,exposedAim.from,exposedAim.direction);
       assert.equal(exposed.damage,30);assert.equal(armorStatus(match,team).lastHit,"exposed");
     }
     shooter.position.copy(saved);
   }
   updateMatch(match,420);
   assert.equal(match.phase,"finished");
-  assert.equal(resolveArenaShot(match,robots[0].name,ray,[root],new THREE.Vector3(),new THREE.Vector3(1,0,0)),null);
+  assert.equal(fireTestTrajectory(match,robots[0].name,ray,[root],new THREE.Vector3(),new THREE.Vector3(1,0,0)),null);
   mechanisms.apply(createMatch(roster).pose);
 });
 
@@ -518,7 +519,7 @@ test("base shells block actual muzzle shots without scoring arbitrary surfaces",
    }
    assert.ok(valid,team+" shell at "+open);
    const before=match.sides[team].base;
-   const shot=resolveArenaShot(match,id,ray,[root],valid.origin,valid.direction);
+   const shot=fireTestTrajectory(match,id,ray,[root],valid.origin,valid.direction);
    assert.ok(shot.hit);assert.equal(shot.target,undefined);assert.equal(shot.damage,0);assert.equal(match.sides[team].base,before);
    console.log(team,"cover",open,"blocked muzzle metres",shot.hit.distance.toFixed(3));
    updateMatch(match,1);

@@ -1,40 +1,93 @@
 import * as THREE from "three";
-import { fireRound, damageTarget, type Match, type Target, type ArmorHit } from "./rmuc-3d-match.ts";
+import { type Target, type ArmorHit } from "./rmuc-3d-match.ts";
 
 import { runeHit } from "./rmuc-3d-mechanisms.ts";
 
-const RANGE = 35;
+export const SHOT_RANGE=35;
 
-// The first actual surface blocks the shot even if it has no damage target.
-export function traceArenaShot(ray: THREE.Raycaster, roots: THREE.Object3D[], from: THREE.Vector3, direction: THREE.Vector3) {
-  ray.set(from,direction);
-  ray.near=0;
-  ray.far=RANGE;
-  // The arena consists of rigid triangle meshes. Order candidates by a
-  // conservative world-space bounds entry, then skip surfaces beyond the
-  // nearest exact triangle hit. Bounds never decide damage or visibility.
-  const candidates:{object:THREE.Mesh;entry:number;order:number}[]=[];
-  const box=new THREE.Box3(),point=new THREE.Vector3();
-  let order=0,unsupported=false;
+type ShotSurface={root:THREE.Object3D;object:THREE.Mesh;bounds:THREE.Box3;order:number};
+export type ShotIndex={roots:THREE.Object3D[];surfaces:ShotSurface[];unsupported:boolean};
+
+// Build the conservative bounds once for a collision instant. Several
+// projectiles can share these bounds; exact triangle hits remain authoritative.
+export function prepareArenaShots(roots:THREE.Object3D[]):ShotIndex{
+  const surfaces:ShotSurface[]=[];
+  let unsupported=false;
   for(const root of roots)root.traverse(object=>{
-    if(!object.layers.test(ray.layers))return;
     if(object.raycast===THREE.Object3D.prototype.raycast)return;
     if(!(object instanceof THREE.Mesh)||object.raycast!==THREE.Mesh.prototype.raycast||object.morphTargetInfluences){
       unsupported=true;return;
     }
     if(!object.geometry.boundingBox)object.geometry.computeBoundingBox();
-    box.copy(object.geometry.boundingBox!).applyMatrix4(object.matrixWorld).expandByScalar(1e-7);
-    const entry=box.containsPoint(from)?0:ray.ray.intersectBox(box,point)?.distanceTo(from);
-    if(entry!==undefined&&entry<=RANGE)candidates.push({object,entry,order:order++});
+    const bounds=object.geometry.boundingBox!.clone().applyMatrix4(object.matrixWorld).expandByScalar(1e-7);
+    surfaces.push({root,object,bounds,order:surfaces.length});
   });
-  if(unsupported)return ray.intersectObjects(roots,true)[0];
-  candidates.sort((a,b)=>a.entry-b.entry);
+  return {roots,surfaces,unsupported};
+}
+
+// Profiling short flight segments identified the 77,420-triangle CAD
+// mesh_81 as the dominant exact-ray cost. Cull contiguous index blocks
+// without changing any geometry, material, face index or triangle test.
+// Three's native raycast honors drawRange; restore it synchronously.
+type TriangleBlock={start:number;count:number;bounds:THREE.Box3};
+const triangleBlocks=new WeakMap<THREE.BufferGeometry,TriangleBlock[]>();
+function exactMeshHit(ray:THREE.Raycaster,mesh:THREE.Mesh){
+  const geometry=mesh.geometry,index=geometry.index,range=geometry.drawRange;
+  if(!index||index.count<60000||Array.isArray(mesh.material)||range.start!==0||range.count!==Infinity)
+    return ray.intersectObject(mesh,false)[0];
+  let blocks=triangleBlocks.get(geometry);
+  if(!blocks){
+    blocks=[];const point=new THREE.Vector3(),position=geometry.attributes.position;
+    for(let start=0;start<index.count;start+=768){
+      const count=Math.min(768,index.count-start),bounds=new THREE.Box3();
+      for(let i=start;i<start+count;i++)bounds.expandByPoint(point.fromBufferAttribute(position,index.getX(i)));
+      bounds.expandByScalar(1e-7);blocks.push({start,count,bounds});
+    }
+    triangleBlocks.set(geometry,blocks);
+  }
+  const inverse=new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+  const from=ray.ray.origin.clone().applyMatrix4(inverse),end=ray.ray.at(ray.far,new THREE.Vector3()).applyMatrix4(inverse);
+  const direction=end.sub(from),length=direction.length();
+  if(!length)return undefined;
+  const local=new THREE.Ray(from,direction.multiplyScalar(1/length)),point=new THREE.Vector3();
+  const candidates:{block:TriangleBlock;entry:number}[]=[];
+  for(const block of blocks){
+    const entry=block.bounds.containsPoint(from)?0:local.intersectBox(block.bounds,point)?.distanceTo(from);
+    if(entry!==undefined&&entry<=length+1e-7)candidates.push({block,entry:entry/length*ray.far});
+  }
+  candidates.sort((a,b)=>a.entry-b.entry||a.block.start-b.block.start);
+  let closest:THREE.Intersection|undefined;
+  try{
+    for(const {block,entry} of candidates){
+      if(closest&&entry>closest.distance+1e-7)break;
+      geometry.setDrawRange(block.start,block.count);
+      const hit=ray.intersectObject(mesh,false)[0];
+      if(hit&&(!closest||hit.distance<closest.distance||hit.distance===closest.distance&&(hit.faceIndex??0)<(closest.faceIndex??0)))closest=hit;
+    }
+  }finally{geometry.setDrawRange(0,Infinity);}
+  return closest;
+}
+
+// A bounded flight segment and an AI sight ray use the same exact first hit.
+// The index is valid only for the current rigid scene pose.
+export function traceArenaShot(ray:THREE.Raycaster,roots:THREE.Object3D[],from:THREE.Vector3,direction:THREE.Vector3,
+  range=SHOT_RANGE,index?:ShotIndex,exclude?:THREE.Object3D){
+  ray.set(from,direction);ray.near=0;ray.far=range;
+  const prepared=index??prepareArenaShots(roots);
+  if(prepared.unsupported)return ray.intersectObjects(roots.filter(r=>r!==exclude),true)[0];
+  const candidates:{surface:ShotSurface;entry:number}[]=[],point=new THREE.Vector3();
+  for(const surface of prepared.surfaces){
+    if(surface.root===exclude||!surface.object.layers.test(ray.layers))continue;
+    const entry=surface.bounds.containsPoint(from)?0:ray.ray.intersectBox(surface.bounds,point)?.distanceTo(from);
+    if(entry!==undefined&&entry<=range)candidates.push({surface,entry});
+  }
+  candidates.sort((a,b)=>a.entry-b.entry||a.surface.order-b.surface.order);
   let closest:THREE.Intersection|undefined,closestOrder=Infinity;
-  for(const candidate of candidates){
-    if(closest&&candidate.entry>closest.distance+1e-7)break;
-    const hit=ray.intersectObject(candidate.object,false)[0];
-    if(hit&&(!closest||hit.distance<closest.distance||hit.distance===closest.distance&&candidate.order<closestOrder)){
-      closest=hit;closestOrder=candidate.order;
+  for(const {surface,entry} of candidates){
+    if(closest&&entry>closest.distance+1e-7)break;
+    const hit=exactMeshHit(ray,surface.object);
+    if(hit&&(!closest||hit.distance<closest.distance||hit.distance===closest.distance&&surface.order<closestOrder)){
+      closest=hit;closestOrder=surface.order;
     }
   }
   return closest;
@@ -92,14 +145,4 @@ export function armorHit(hit:THREE.Intersection|undefined):ArmorHit|undefined{
   const p=f.node.worldToLocal(hit.point.clone()).sub(f.origin);
   const clamp=(n:number,max:number)=>Math.min(max,Math.max(0,n));
   return {x:clamp(p.dot(f.right)/f.right.lengthSq(),f.width),y:clamp(p.dot(f.up)/f.up.lengthSq(),f.height),area:f.width*f.height};
-}
-
-export function resolveArenaShot(match: Match, id: string, ray: THREE.Raycaster, roots: THREE.Object3D[], from: THREE.Vector3, direction: THREE.Vector3) {
-  const calibration=match.robots.find(r=>r.id===id)?.launcher==="test";
-  const shooter=fireRound(match,id);
-  if(!shooter)return null;
-  const hit=traceArenaShot(ray,roots,from,direction);
-  const target=arenaHitTarget(hit,direction);
-  const damage=target&&!calibration?damageTarget(match,shooter,target,armorHit(hit)):0;
-  return {shooter,hit,target,damage,to:hit?.point??from.clone().addScaledVector(direction,RANGE)};
 }

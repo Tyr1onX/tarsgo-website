@@ -255,7 +255,7 @@ test("paid revival restores full health, consumes coins, and lengthens subsequen
 
 
 test("42mm timed fallback, calibration shot, separate ammunition cap and real mesh damage",async()=>{
- const {resolveArenaShot}=await import("./rmuc-3d-shot.ts");
+ const {fireTestTrajectory}=await import("./rmuc-3d-test-shot.mjs");
  const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400}],1,1);startMatch(m);
  const h=m.robots[2],b=m.robots[1],r=m.robots[0];
  assert.equal(damageTarget(m,b,{type:"robot",id:"h"}),10);
@@ -272,7 +272,7 @@ test("42mm timed fallback, calibration shot, separate ammunition cap and real me
  const model=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial());
  model.position.set(2,.2,0);model.userData.target={type:"robot",id:"b"};model.updateMatrixWorld(true);
  const origin=new THREE.Vector3(0,.2,0),direction=new THREE.Vector3(1,0,0);
- const shot=()=>resolveArenaShot(m,"h",new THREE.Raycaster(),[model],origin,direction);
+ const shot=()=>fireTestTrajectory(m,"h",new THREE.Raycaster(),[model],origin,direction);
  const first=shot();assert.equal(first.damage,0);assert.equal(b.hp,200);
  assert.equal(h.launcher,"ready");assert.equal(h.maxHp,600);assert.equal(h.heat,0);assert.equal(h.ammo,10);
  assert.equal(h.heatLimit,300);assert.equal(h.cooling,100);
