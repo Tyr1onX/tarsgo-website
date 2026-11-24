@@ -40,21 +40,36 @@ export function* findArenaPath(terrain:Pick<ArenaTerrain,"heightAt">, start:THRE
   return path;
 }
 
-export function advanceBot(terrain:Pick<ArenaTerrain,"heightAt">, bot:Occupant, target:THREE.Vector3, occupants:readonly Occupant[], step=.65) {
-  const delta=target.clone().sub(bot.position),distance=Math.hypot(delta.x,delta.z);
-  if(distance<.015)return false;
-  const length=Math.min(distance,step), before=bot.position.clone();
-  moveOnArena(terrain,bot.position,delta.x/distance*length,delta.z/distance*length,bot.radius,.23,occupants);
-  if(bot.position.distanceTo(before)>Math.min(.06,length*.5))return true;
-  // A teammate can temporarily block a valid static path. Yield sideways
-  // only when the same direct step works with no robot in the way.
-  const direct=before.clone();
-  moveOnArena(terrain,direct,delta.x/distance*length,delta.z/distance*length,bot.radius,.23,[]);
-  if(direct.distanceTo(before)<Math.min(.06,length*.5))return false;
-  for(const sign of [1,-1]){
-    const p=before.clone();
-    moveOnArena(terrain,p,-delta.z/distance*length*sign,delta.x/distance*length*sign,bot.radius,.23,occupants);
-    if(p.distanceTo(before)>.15){bot.position.copy(p);return true;}
+// Training chassis dynamics, independent of strategic decision cadence.
+// Position is the same authoritative position consumed by collision and referee.
+export type ChassisMotion = { speed:number; yaw:number };
+export const angleDelta=(from:number,to:number)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
+export function turnTowards(from:number,to:number,limit:number){
+  const d=angleDelta(from,to);
+  return from+Math.max(-limit,Math.min(limit,d));
+}
+export function stepChassis(terrain:Pick<ArenaTerrain,"heightAt">,bot:Occupant,motion:ChassisMotion,
+  target:THREE.Vector3|null,speed:number,dt:number,occupants:readonly Occupant[],stopDistance?:number){
+  if(dt<=0)return 0;
+  if(speed<=0){motion.speed=0;return 0;}
+  const dx=target?target.x-bot.position.x:0,dz=target?target.z-bot.position.z:0;
+  const distance=Math.hypot(dx,dz);
+  if(target&&distance>Math.max(.001,stopDistance??0)){
+    const desired=Math.atan2(-dx,-dz);
+    motion.yaw=turnTowards(motion.yaw,desired,Math.PI*3*dt);
+    const remaining=distance-(stopDistance??0);
+    const limit=Math.min(speed,stopDistance===undefined?speed:Math.sqrt(2*12*remaining))*Math.max(0,Math.cos(angleDelta(motion.yaw,desired)));
+    const oldSpeed=motion.speed;
+    motion.speed=limit>oldSpeed?Math.min(limit,oldSpeed+8*dt):Math.max(limit,oldSpeed-12*dt);
+    const length=Math.min(remaining,(oldSpeed+motion.speed)*.5*dt,limit*dt);
+    if(length<=0)return 0;
+    const x=bot.position.x,z=bot.position.z;
+    moveOnArena(terrain,bot.position,dx/distance*length,dz/distance*length,bot.radius,.23,occupants);
+    const traveled=Math.hypot(bot.position.x-x,bot.position.z-z);
+    if(traveled<length*.1)motion.speed=0;
+    return traveled;
   }
-  return false;
+  // No remaining legal target: stop at the authoritative goal, no visual drift.
+  motion.speed=0;
+  return 0;
 }
