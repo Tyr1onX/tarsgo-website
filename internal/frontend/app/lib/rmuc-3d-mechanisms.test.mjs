@@ -6,9 +6,9 @@ import { createHash } from "node:crypto";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
-import { installMechanisms, installCoreGeometry, CORE_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
+import { installMechanisms, installCoreGeometry, CORE_ASSET, DART_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
-import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel } from "./rmuc-3d-match.ts";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose } from "./rmuc-3d-match.ts";
 import { resolveArenaShot, traceArenaShot } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight, moveOnArena } from "./rmuc-3d-terrain.ts";
 import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt, addRobotPreviews } from "./rmuc-3d-robots.ts";
@@ -528,4 +528,34 @@ test("nearest rigid CAD bounds pruning preserves exact ray intersections",async(
   assert.ok(originalTimes.length>=80);
   const p95=a=>a.sort((x,y)=>x-y)[Math.floor(a.length*.95)].toFixed(3);
   console.log("actual CAD/robot rays",originalTimes.length,"original P95",p95(originalTimes),"pruned P95",p95(optimizedTimes));
+});
+
+test("actual dart parts replace original assemblies and move both doors and detector carriages independently",async()=>{
+ const [field,parts,darts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256),load(DART_ASSET.url,DART_ASSET.sha256)]);
+ const root=new THREE.Group();root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
+ const originals=TEAMS.map(t=>field.getObjectByName(t+"-ramp-dart-station_0_source_3749800_7"));
+ const bounds=originals.map(o=>new THREE.Box3().setFromObject(o,true));
+ const installed=installMechanisms(field,parts,darts);
+ assert.equal(installed.dartBindings.length,2);
+ const m=createMatch([],1,1);startMatch(m);
+ for(const [i,b] of installed.dartBindings.entries()){
+   assert.equal(originals[i].parent,null);
+   const box=new THREE.Box3().setFromObject(b.door.parent,true);
+   assert.ok(box.min.distanceTo(bounds[i].min)<.002,JSON.stringify([box.min,bounds[i].min]));
+   assert.ok(box.max.distanceTo(bounds[i].max)<.002);
+   assert.ok(meshes(b.carriage).every(o=>!target(o)));
+ }
+ installed.applyDart(m);
+ const closed=installed.dartBindings.map(b=>b.door.getWorldPosition(new THREE.Vector3()));
+ updateMatch(m,30);
+ for(const team of TEAMS){assert.ok(selectDart(m,team,"randomFixed"));assert.ok(openDart(m,team));}
+ updateMatch(m,7);installed.applyDart(m);
+ for(const [i,b] of installed.dartBindings.entries()){
+   assert.ok(Math.abs(closed[i].distanceTo(b.door.getWorldPosition(new THREE.Vector3()))-1.157991188781261)<.001);
+   assert.ok(Math.abs(b.carriage.position.x-b.carriageRest.x)<=.28+1e-8);
+ }
+ updateMatch(m,40);installed.applyDart(m);
+ assert.ok(installed.dartBindings.every(b=>b.carriage.position.equals(b.carriageRest)));
+ installed.applyDart(createMatch([]));
+ assert.ok(installed.dartBindings.every((b,i)=>b.door.getWorldPosition(new THREE.Vector3()).distanceTo(closed[i])<1e-7));
 });

@@ -103,6 +103,7 @@ export default function PixelJijiaArenaPage() {
             const stance=status.match.stance;
             return <><span>{stance.enhanced?"强化":""}{({attack:"进攻",defense:"防御",move:"移动"})[stance.mode]}姿态{stance.cooldown>0?" · "+Math.ceil(stance.cooldown)+"s":""}</span>{(["attack","defense","move"] as const).map(mode=><button key={mode} disabled={stance.cooldown>0||stance.mode===mode&&!stance.enhanced} onClick={()=>controller.current?.stance(mode,false)}>{({attack:"进攻",defense:"防御",move:"移动"})[mode]}</button>)}<button disabled={stance.enhanced||stance.cooldown>0||stance.remaining[stance.mode]<=0} onClick={()=>controller.current?.stance(stance.mode,true)}>强化 {Math.ceil(stance.remaining[stance.mode])}s</button></>;
           })()}
+          {status.match.dart&&<><span>虚拟飞镖 {status.match.dart.remaining}/4 · {({opening:"开闸中",open:"已开启",closing:"关闸中",cooldown:"冷却",closed:"已关闭"})[status.match.dart.phase as "opening"|"open"|"closing"|"cooldown"|"closed"]}{status.match.dart.inFlight?" · 飞行中":""}</span>{status.match.dart.canSelect&&<select aria-label="飞镖目标" value={status.match.dart.mode} onChange={e=>controller.current?.dartSelect(e.target.value as NonNullable<NonNullable<ArenaStatus["match"]>["dart"]>["mode"])}>{Object.entries({outpost:"前哨站",fixed:"固定基地",randomFixed:"随机固定",randomMoving:"随机移动",terminalMoving:"末端移动"}).map(([id,label])=><option key={id} value={id} disabled={id==="outpost"&&status.match!.dart!.phase==="open"}>{label}</option>)}</select>}{status.match.dart.canOpen&&<button onClick={()=>controller.current?.dartOpen()}>开启闸门</button>}{status.match.dart.canFire&&<button onClick={()=>controller.current?.dartFire()}>虚拟发射</button>}</>}
           {status.match.technology&&status.match.technology.highest>0&&<span>科技 {status.match.technology.highest}级 · +{status.match.technology.income}币/10s{status.match.technology.defense>0&&` · 防御 ${status.match.technology.defense}%`}</span>}
           {status.match.energy&&status.match.energy.carrying>0&&<span>能量单元 {status.match.energy.carrying}/2</span>}
           {status.match.technology?.available.map(level=><button key={level} onClick={()=>controller.current?.assembly(level)}>装配 {level}级</button>)}
@@ -120,7 +121,7 @@ export default function PixelJijiaArenaPage() {
           {status.match.hp<status.match.maxHp&&<button disabled={!status.match.canHeal} onClick={()=>controller.current?.heal()}>{status.match.pendingHeal>0?"回血 "+status.match.pendingHeal+"s":"回血 "+status.match.healCost+"金币"}</button>}
           <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button></>}
         </div>}
-        {!disabled && playing && status.match?.phase==="running" && status.match.thermalLock==="cooling" && <div className="rmul3d-thermal-lock" aria-label="热量超限，图传断开" />}
+        {!disabled && playing && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
         {!disabled && !menu && playing && status.match?.thermalLock!=="cooling" && <div className="rmul3d-crosshair" aria-hidden="true" />}
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
           <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
@@ -165,7 +166,7 @@ export default function PixelJijiaArenaPage() {
           <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击、飞镖尚未实现；装配机构与护甲行程、场地交互模块卡覆盖范围为训练近似。</p>
+          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击尚未实现；飞镖为虚拟检测训练，装配机构与护甲行程、场地交互模块卡覆盖范围为训练近似。</p>
         </aside>}
       </section>
     </main>

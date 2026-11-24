@@ -1,10 +1,11 @@
 import * as THREE from "three";
-import { coreFrame, type EnergyUnit, type Match } from "./rmuc-3d-match.ts";
+import { dartPose, coreFrame, type EnergyUnit, type Match } from "./rmuc-3d-match.ts";
 
 export const MECHANISM_ASSET = {
   url: "/assets/pixel-jijia/rmuc-mechanisms-51f0d28d.glb.gz",
   sha256: "51f0d28d08fc36449004deb020c4a0c2733cc1854a2521ec969f05147c249af3",
 } as const;
+export const DART_ASSET = {url:"/assets/pixel-jijia/rmuc-dart-c871c084.glb.gz",sha256:"c871c0845dc3caac8e6302dd1b5ffb4b9773247ceb8d2fc0cd80ccc322860375"} as const;
 export const CORE_ASSET = {
   url: "/assets/pixel-jijia/rmuc-core-53410a8f.glb.gz",
   sha256: "53410a8f7d40a59783071b1914690ff9a65397fc360aae605d7e20b9a6613363",
@@ -163,7 +164,7 @@ export function runeHit(arm:THREE.Object3D,point:THREE.Vector3,direction:THREE.V
   return {type:"rune" as const,team:detector.team,arm:detector.arm,ring:Math.max(1,10-Math.floor(Math.round(radius*1000)/15))};
 }
 
-export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
+export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dartParts?: THREE.Group) {
   const find = (name: string) => {
     const object = parts.getObjectByName(name);
     if (!object) throw new Error("Missing mechanism " + name);
@@ -220,6 +221,33 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
   // The housing and covers are blockers, not damage targets.
   // Preserve fixed original collision envelope for locomotion; only new
   // source meshes participate in visible scene and projectile queries.
+  const dartBindings: {team:Team;door:THREE.Object3D;carriage:THREE.Object3D;doorRest:THREE.Vector3;carriageRest:THREE.Vector3}[]=[];
+  if(dartParts){
+    const clone=(name:string)=>{const node=dartParts.getObjectByName(name);if(!node)throw new Error("Missing dart part "+name);return node.clone(true);};
+    const replacement=(original:THREE.Object3D,names:string[])=>{
+      const g=new THREE.Group();g.position.copy(original.position);g.quaternion.copy(original.quaternion);g.scale.copy(original.scale);
+      original.parent!.add(g);for(const name of names)g.add(clone(name));return g;
+    };
+    for(const [i,team] of TEAMS.entries()){
+      const station=field.getObjectByName(team+"-ramp-dart-station_0_source_3749800_7");
+      if(!station)throw new Error("Missing dart station "+team);
+      const gate=replacement(station,["dart-deck","dart-door","dart-frame","dart-guides"]);
+      old.push(station);
+      const base=replacement(old[i],["base-fixed","base-rail","base-carriage"]);
+      const parent=find(team+"-cover-0").parent!;
+      for(const child of [...parent.children])if(!child.name.startsWith(team+"-cover-")){child.removeFromParent();old.push(child);}
+      const door=gate.getObjectByName("dart-door")!,carriage=base.getObjectByName("base-carriage")!;
+      dartBindings.push({team,door,carriage,doorRest:door.position.clone(),carriageRest:carriage.position.clone()});
+    }
+  }
+  function applyDart(match:Match){
+    for(const b of dartBindings){
+      const p=dartPose(match,b.team);
+      b.door.position.copy(b.doorRest).addScaledVector(new THREE.Vector3(0,-.9659258262890824,.25881904510246795),-1.157991188781261*(1-p.door));
+      b.carriage.position.copy(b.carriageRest);b.carriage.position.x+=p.target;
+    }
+    field.updateMatrixWorld(true);
+  }
   for (const object of old) object.removeFromParent();
   field.add(parts);
   field.updateMatrixWorld(true);
@@ -230,5 +258,5 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
       object.position.copy(rest).addScaledVector(local, pose.cover[team]);
     parts.updateMatrixWorld(true);
   }
-  return { parts, old, apply, rotors, banks, covers, setRuneLights };
+  return { parts, old, apply, rotors, banks, covers, setRuneLights, applyDart, dartBindings };
 }
