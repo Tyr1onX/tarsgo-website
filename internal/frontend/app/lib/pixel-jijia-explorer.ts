@@ -30,7 +30,11 @@ export function explorerAnimation(previous:ExplorerAnimation,input:Input):Explor
   if(action==="walk")frame=Math.floor(distance/.5)%4;
   else if(action==="run")frame=Math.floor(distance/.42)%6;
   else if(action==="wade"||action==="swim")frame=moving?Math.floor(distance/.35)%6:0;
-  else if(action==="idle")frame=motion&&elapsed%4200>4040?5:0;
+  else if(action==="idle"){
+    const cycle=Math.floor(elapsed/5300), blink=2300+(Math.imul(cycle+1,2654435761)>>>0)%2700;
+    const within=elapsed%5300;
+    frame=motion?(within>=blink&&within<blink+150?5:Math.floor(elapsed/420)%4):0;
+  }
   else if(action==="wait")frame=2;
   else if(action==="bite")frame=motion?Math.floor(elapsed/95)%6:0;
   else frame=Math.min(5,Math.floor(elapsed/60));

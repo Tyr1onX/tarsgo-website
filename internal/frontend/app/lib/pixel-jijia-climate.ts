@@ -81,6 +81,19 @@ export function advanceSurface(surface: SurfaceWeather, weather: WeatherKind|nul
   };
 }
 
+// Visual wind is derived from the existing weather, not a second forecast.
+export function visualWind(weather: WeatherKind|null, elapsed: number): number {
+  const strength=weather==="storm"?24:weather==="rain"?15:weather==="snow"?9:weather==="cloudy"?8:weather==="fog"?3:5;
+  const t=elapsed/1000;
+  return strength*(.72+.18*Math.sin(t*.47)+.10*Math.sin(t*1.13))*Math.sin(t*.019+1.3);
+}
+
+// Each fixture has a stable dusk threshold. Smooth activation avoids flashing.
+export function nightLight(night:number, phase:number):number {
+  const t=unit((night-(.035+phase*.12))/.14);
+  return .9*t*t*(3-2*t);
+}
+
 export const SEASON_LABEL: Record<Season, string> = {
   spring: "春", summer: "夏", autumn: "秋", winter: "冬",
 };

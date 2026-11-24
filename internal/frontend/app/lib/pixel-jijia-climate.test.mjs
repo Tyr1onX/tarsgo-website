@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { changchunClimate, parseCurrentWeather, WEATHER_REFRESH_MS, advanceSurface } from "./pixel-jijia-climate.ts";
+import { changchunClimate, parseCurrentWeather, WEATHER_REFRESH_MS, advanceSurface, visualWind, nightLight } from "./pixel-jijia-climate.ts";
 
 test("长春时钟不取访客本地时区，按照 UTC+8 确定季节", () => {
   const autumn = changchunClimate(new Date("2026-11-23T10:22:00.000Z"));
@@ -88,4 +88,17 @@ test("湿地与积雪随天气累积，雨停不瞬间消失，升温逐渐融�
   assert.equal(advanceSurface(snow,"clear",-5,20).snow,snow.snow);
   assert.ok(advanceSurface(snow,"clear",8,5).snow<snow.snow);
   assert.equal(advanceSurface(rain,null,null,1),rain);
+});
+
+
+test("视觉风随天气变化且连续，灯光阈值错开并平滑",()=>{
+  for(let t=0;t<120000;t+=173){
+    assert.ok(Math.abs(visualWind("storm",t))>=Math.abs(visualWind("clear",t)));
+    assert.ok(Math.abs(visualWind("storm",t+16)-visualWind("storm",t))<.2);
+    assert.ok(Math.abs(visualWind("snow",t))<=9);
+  }
+  assert.equal(nightLight(0,0),0);
+  assert.ok(nightLight(.12,0)>nightLight(.12,.9));
+  assert.equal(nightLight(.42,0),nightLight(.42,1));
+  for(let n=.01;n<=.42;n+=.01)assert.ok(nightLight(n,.5)>=nightLight(n-.01,.5));
 });

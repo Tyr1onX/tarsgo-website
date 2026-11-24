@@ -5,7 +5,7 @@ import { joystickIntent } from "./pixel-jijia-input.ts";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, facingScore, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
+  groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, puddleCell, puddleAt, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, facingScore, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 import { explorerAnimation, explorerFrameBox, initialExplorerAnimation, EXPLORER_ACTIONS } from "./pixel-jijia-explorer.ts";
 import { createWildlife, updateWildlife, animalAnimation, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
@@ -523,7 +523,8 @@ test("环境粒子使用统一世界坐标与现有动画循环，数量受控",
   assert.ok(route.includes("particles.length < 72"));
   assert.ok(route.includes('window.matchMedia("(prefers-reduced-motion: reduce)")'));
   assert.ok(route.includes("if (reducedMotion.matches || room)"));
-  assert.ok(route.includes("cherryTrees.find("));
+  assert.ok(route.includes("leafTrees.filter("));
+  assert.ok(route.includes("wind*(particle.wind??0)"));
   assert.ok(route.includes("FOUNTAIN.x * TILE"));
   assert.ok(route.includes("renderParticles(ctx, particles, cameraRef.current)"));
   assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3,
@@ -739,17 +740,17 @@ test("松鼠先警觉抬头，再沿真实可通行路径逃离",()=>{
 test("水面尾迹依据移动方向生成，静止后消散，雪迹随融化清除", () => {
   const marks=[];
   const a={x:9,y:60}, b={x:9.5,y:60}, c={x:9.5,y:60.5};
-  advanceSurfaceTrail(marks,a,b,.05,0,true);
+  advanceSurfaceTrail(marks,a,b,.05,{snow:0,wet:0},true);
   assert.equal(marks[0].kind,"water");
   assert.equal(marks[0].angle,0);
-  advanceSurfaceTrail(marks,b,c,.05,0,true);
+  advanceSurfaceTrail(marks,b,c,.05,{snow:0,wet:0},true);
   assert.equal(marks[1].angle,Math.PI/2);
-  advanceSurfaceTrail(marks,c,c,2,0,true);
+  advanceSurfaceTrail(marks,c,c,2,{snow:0,wet:0},true);
   assert.equal(marks.length,0);
   const dry={x:72,y:56},next={x:72.7,y:56};
-  advanceSurfaceTrail(marks,dry,next,.1,.8,true);
+  advanceSurfaceTrail(marks,dry,next,.1,{snow:.8,wet:0},true);
   assert.equal(marks[0].kind,"snow");
-  advanceSurfaceTrail(marks,next,next,.1,.1,true);
+  advanceSurfaceTrail(marks,next,next,.1,{snow:.1,wet:0},true);
   assert.equal(marks.length,0);
 });
 
@@ -862,4 +863,42 @@ test("朝向轻量加权且背后唯一候选仍可选中",()=>{
   assert.equal(closestRoomObject(room,{x:18,y:22},"down")?.id,exitObject.id);
   assert.equal(closestRoomObject(room,{x:19,y:21.15},"up")?.id,"lit-capacitor");
   assert.equal(roomExitAt(room,{x:19,y:21.15},1),false);
+});
+
+
+test("待机呼吸和眨眼不覆盖行走、交互或减少动态偏好",()=>{
+  const input={direction:"down",moving:false,sprinting:false,distance:0,water:0,seated:false,fishing:null,now:0,motion:true};
+  const frames=new Set(),blinks=[];
+  let last=0;
+  for(let now=0;now<22000;now+=50){
+    const pose=explorerAnimation(initialExplorerAnimation,{...input,now});
+    frames.add(pose.frame);
+    if(pose.frame===5&&last!==5)blinks.push(now);
+    last=pose.frame;
+    assert.equal(explorerAnimation(initialExplorerAnimation,{...input,now,motion:false}).frame,0);
+  }
+  assert.ok(frames.has(1)&&frames.has(2)&&frames.has(5));
+  assert.ok(blinks.length>=3);
+  assert.notEqual(blinks[1]-blinks[0],blinks[2]-blinks[1]);
+  assert.equal(explorerAnimation(initialExplorerAnimation,{...input,now:blinks[0],moving:true}).action,"walk");
+  assert.equal(explorerAnimation(initialExplorerAnimation,{...input,now:blinks[0],seated:true}).action,"sit");
+});
+
+test("雨水脚步反馈仅发生在实际绘制的积水，干燥或静止不产生新痕迹",()=>{
+  let cell;
+  for(let y=1;y<WORLD_HEIGHT-1&&!cell;y++)for(let x=1;x<WORLD_WIDTH-1;x++){
+    if(puddleCell(x,y)&&isWalkable(x+.5,y+9/TILE)){cell={x,y};break;}
+  }
+  assert.ok(cell);
+  const current={x:cell.x+.5,y:cell.y+9/TILE},previous={x:cell.x+.1,y:current.y},marks=[];
+  assert.ok(puddleAt(current.x,current.y));
+  assert.equal(puddleAt(previous.x,previous.y),false);
+  advanceSurfaceTrail(marks,previous,current,.05,{wet:0,snow:0},true);
+  assert.equal(marks.length,0);
+  advanceSurfaceTrail(marks,previous,current,.05,{wet:.8,snow:0},true);
+  assert.equal(marks[0].kind,"puddle");
+  advanceSurfaceTrail(marks,current,current,.1,{wet:.8,snow:0},true);
+  assert.equal(marks.length,1);
+  advanceSurfaceTrail(marks,current,current,.1,{wet:.01,snow:0},true);
+  assert.equal(marks.length,0);
 });
