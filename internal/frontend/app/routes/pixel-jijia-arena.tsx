@@ -91,17 +91,21 @@ export default function PixelJijiaArenaPage() {
           <label>发射机构 <select value={status.match.performance.launcher} onChange={e=>controller.current?.performance({...status.match!.performance!,launcher:e.target.value as "cooling"|"burst"})}><option value="cooling">冷却优先</option><option value="burst">爆发优先</option></select></label>
           <span>HP {status.match.maxHp} · {status.match.power?.limit}W · 热量上限 {status.match.heatLimit}</span>
         </div>}
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.stance && <div className="rmul3d-combat">
+          <label>哨兵控制 <select value={status.match.stance.control} onChange={e=>controller.current?.sentryControl(e.target.value as "auto"|"semi")}><option value="auto">全自动</option><option value="semi">半自动</option></select></label>
+          <span>HP {status.match.maxHp} · 热量上限 {status.match.heatLimit}</span>
+        </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
           <span>HP {status.match.hp}/{status.match.maxHp}</span>{(status.match.xp!==null||status.match.launcher)&&<span>Lv.{status.match.level}{status.match.xp!==null&&` · ${Math.floor(status.match.xp)} XP`}</span>}<span>弹药 {status.match.ammo}{status.match.reserve>0&&` + ${status.match.reserve} 储备`}</span><span>{status.match.coins} 金币</span>
           {status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}
           {status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}
           {status.match.power&&<span>{status.match.power.locked>0?"底盘断电 "+status.match.power.locked+"s":"缓冲 "+status.match.power.buffer+"/60J · "+status.match.power.limit+"W"}</span>}
           {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}
-          {status.match.revival?.dead?<>{status.match.technology?.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>退出装配</button>}<span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
+          {status.match.revival?.dead?<>{status.match.technology?.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>退出装配</button>}<span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活 {status.match.revival.fee>0&&`${status.match.revival.fee}金币`}</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
           {status.match.rune&&<button disabled={status.match.rune.active||status.match.rune.buff>0||status.match.rune.available<=0||!!status.match.revival?.weak} onClick={()=>controller.current?.rune()}>{status.match.rune.active?"机关 "+status.match.rune.groups+"/5":(status.match.rune.large?"大":"小")+"能量机关 "+status.match.rune.available}</button>}
           {status.match.stance&&(()=>{
             const stance=status.match.stance;
-            return <><span>{stance.enhanced?"强化":""}{({attack:"进攻",defense:"防御",move:"移动"})[stance.mode]}姿态{stance.cooldown>0?" · "+Math.ceil(stance.cooldown)+"s":""}</span>{(["attack","defense","move"] as const).map(mode=><button key={mode} disabled={stance.cooldown>0||stance.mode===mode&&!stance.enhanced} onClick={()=>controller.current?.stance(mode,false)}>{({attack:"进攻",defense:"防御",move:"移动"})[mode]}</button>)}<button disabled={stance.enhanced||stance.cooldown>0||stance.remaining[stance.mode]<=0} onClick={()=>controller.current?.stance(stance.mode,true)}>强化 {Math.ceil(stance.remaining[stance.mode])}s</button></>;
+            return <><span>{stance.control==="auto"?"全自动 · 指挥50币/次":"半自动"}</span>{stance.control==="auto"&&<select aria-label="指挥哨兵目标" value="" disabled={status.match!.coins<stance.commandCost} onChange={e=>controller.current?.sentryMark(e.target.value as "supply"|"outpost"|"central"|"highpoint")}><option value="" disabled>{stance.commandTarget?"更改目标":"指挥目标"}</option><option value="supply">补给区</option><option value="outpost">本方前哨</option><option value="central">本方高地</option><option value="highpoint">本方制高点</option></select>}<span>{stance.enhanced?"强化":""}{({attack:"进攻",defense:"防御",move:"移动"})[stance.mode]}姿态{stance.cooldown>0?" · "+Math.ceil(stance.cooldown)+"s":""}</span>{(["attack","defense","move"] as const).map(mode=><button key={mode} disabled={status.match!.coins<stance.commandCost||stance.cooldown>0||stance.mode===mode&&!stance.enhanced} onClick={()=>controller.current?.stance(mode,false)}>{({attack:"进攻",defense:"防御",move:"移动"})[mode]}</button>)}<button disabled={status.match!.coins<stance.commandCost||stance.enhanced||stance.cooldown>0||stance.remaining[stance.mode]<=0} onClick={()=>controller.current?.stance(stance.mode,true)}>强化 {Math.ceil(stance.remaining[stance.mode])}s</button></>;
           })()}
           {status.match.terrain?.highpoint&&<span>制高点 · 50%防御</span>}
           {!!status.match.terrain?.defense&&<span>跨越 · {status.match.terrain.defense*100}%防御</span>}
@@ -133,7 +137,7 @@ export default function PixelJijiaArenaPage() {
             <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}
           </button>
         )}
-        {!disabled && !menu && playing && <div className="rmul3d-touch" aria-label="移动控制">
+        {!disabled && !menu && playing && status.match?.stance?.control!=="auto" && <div className="rmul3d-touch" aria-label="移动控制">
           {touchKeys.map(([key, arrow]) => <button key={key} type="button"
             aria-label={key === "KeyW" ? "前进" : key === "KeyS" ? "后退" : key === "KeyA" ? "左移" : "右移"}
             onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); controller.current?.input(key, true); }}

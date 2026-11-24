@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance,selectSentryControl,markSentry} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -20,7 +20,7 @@ test("training controls ammo, friendly fire, damage, cooldown, and round reset",
  const reset=createMatch(roster);assert.equal(reset.robots[1].hp,200);assert.equal(reset.robots[0].ammo,0);
 });
 test("17mm referee heat, remote exchange and pre-assembly heavy restrictions",()=>{
- const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true,sentryControl:"semi"},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
  startMatch(m);
  const r=m.robots[0],s=m.robots[2],h=m.robots[3];
  assert.equal(s.ammo,300);assert.equal(s.heatLimit,100);assert.equal(s.cooling,10);
@@ -208,7 +208,7 @@ test("supply and controlled outpost repair use combat state, logistics and maxim
  updateMatch(m,1,supply);assert.equal(r.hp,Math.min(200,low+38));
 });
 test("non-remote exchange is immediate and sentry earns accumulated free supply",()=>{
- const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1);startMatch(m);
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,sentryControl:"semi",maxHp:200}],1,1);startMatch(m);
  const r=m.robots[0],s=m.robots[2],b=m.robots[1];
  const supply={x:11.5,y:.154,z:-5.65};
  updateMatch(m,.1,new Map([["r",supply]]));
@@ -353,7 +353,7 @@ test("infantry experience grants official default attributes, preserves HP delta
  assert.equal(r.hp,0);assert.equal(r.xp,before);assert.equal(revivalStatus(m,r).cost,Math.ceil(m.elapsed/60)*80+100);
 });
 test("sentry damage shares experience across live infantry; heavy 42mm does not",()=>{
- const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200},{id:"s",team:"red",heavy:false,sentry:true,maxHp:200},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
+ const m=createMatch([...roster,{id:"r2",team:"red",heavy:false,maxHp:200},{id:"s",team:"red",heavy:false,sentry:true,sentryControl:"semi",maxHp:200},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
  startMatch(m);const [r,b,r2,s,h]=m.robots;
  damageTarget(m,s,{type:"robot",id:"b"});
  assert.equal(r.xp,40);assert.equal(r2.xp,40);assert.equal(s.xp,0);
@@ -431,7 +431,7 @@ test("10Hz chassis buffer, five-second cutoff and level-dependent limits",async(
 });
 
 test("semi-automatic sentry stance starts mobile, switches with five-second cooldown and degrades after 180 seconds",()=>{
- const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1),r=m.robots[2];
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,sentryControl:"semi",maxHp:200}],1,1),r=m.robots[2];
  assert.equal(sentryStatus(m,r).mode,"move");assert.equal(powerLimit(m,r),90);
  startMatch(m);assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"s"}),25);
  r.heat=100;updateMatch(m,1);assert.ok(Math.abs(r.heat-97)<1e-7);
@@ -442,7 +442,7 @@ test("semi-automatic sentry stance starts mobile, switches with five-second cool
  updateMatch(m,.1);assert.equal(sentryStatus(m,r).degraded,true);assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"s"}),15);
 });
 test("sentry enhanced budgets are separate, cumulative and automatically expire",()=>{
- const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1),r=m.robots[2];
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,sentryControl:"semi",maxHp:200}],1,1),r=m.robots[2];
  startMatch(m);updateMatch(m,170);
  assert.equal(switchSentry(m,"s","move",true),true);assert.equal(powerLimit(m,r),200);
  updateMatch(m,15);assert.equal(sentryStatus(m,r).enhanced,false);assert.equal(sentryStatus(m,r).degraded,true);assert.equal(powerLimit(m,r),72);
@@ -458,7 +458,7 @@ test("sentry enhanced budgets are separate, cumulative and automatically expire"
 });
 
 test("sentry death pauses stance budget, revival preserves it, new round resets it",()=>{
- const specs=[...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}];
+ const specs=[...roster,{id:"s",team:"red",heavy:false,sentry:true,sentryControl:"semi",maxHp:200}];
  const m=createMatch(specs,1,1),r=m.robots[2],b=m.robots[1];startMatch(m);
  assert.ok(switchSentry(m,"s","attack",true));updateMatch(m,5);
  for(let i=0;i<10&&r.hp>0;i++)damageTarget(m,b,{type:"robot",id:"s"});
@@ -475,7 +475,7 @@ test("sentry death pauses stance budget, revival preserves it, new round resets 
 });
 
 test("infantry pre-round performance selection follows tables 5-17/18 and locks on start",()=>{
- const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400},{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1);
+ const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400},{id:"s",team:"red",heavy:false,sentry:true,sentryControl:"semi",maxHp:200}],1,1);
  const r=m.robots[0],b=m.robots[1];
  assert.equal(selectInfantryPerformance(m,"h",{chassis:"power",launcher:"burst"}),false);
  assert.equal(selectInfantryPerformance(m,"s",{chassis:"power",launcher:"burst"}),false);
@@ -494,7 +494,7 @@ test("infantry pre-round performance selection follows tables 5-17/18 and locks 
 });
 
 test("permanent thermal lock threshold survives cooling, death, revival and enhancement",()=>{
- const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true}],1,1);
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true,sentryControl:"semi"}],1,1);
  startMatch(m);const s=m.robots[2],b=m.robots[1];
  // Isolated detector-boundary test: emulate accumulated heat from hardware
  // reports that arrive before a lock is processed. Normal training firing
@@ -518,4 +518,45 @@ test("capped infantry never pre-banks XP or consumes unused rune XP budget",()=>
  damageTarget(m,r,{type:"outpost",team:"blue"});
  assert.equal(r.xp,2200);
  assert.equal(m.sides.red.rune.xpBonusRemaining,1200);
+});
+
+test("automatic sentry default, pre-match selection, and commander fee versus autonomous requests",()=>{
+ const specs=[...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true}];
+ const m=createMatch(specs,1,1),r=m.robots[2],side=m.sides.red;
+ assert.deepEqual([r.hp,r.maxHp,r.heatLimit,r.cooling,powerLimit(m,r),r.ammo],[400,400,260,30,150,300]);
+ assert.ok(selectSentryControl(m,"s","semi"));
+ assert.deepEqual([r.hp,r.maxHp,r.heatLimit,r.cooling,powerLimit(m,r)],[200,200,100,10,90]);
+ assert.ok(selectSentryControl(m,"s","auto"));startMatch(m);
+ assert.equal(selectSentryControl(m,"s","semi"),false);
+ assert.equal(ammoOffer(m,r,true).cost,200);
+ assert.ok(purchaseAmmo(m,"s",true));assert.equal(side.coins,600);
+ assert.equal(purchaseAmmo(m,"s",true),false);assert.equal(side.coins,600);
+ updateMatch(m,6);assert.equal(r.ammo,400);
+ assert.ok(purchaseAmmo(m,"s"));assert.equal(side.coins,450);
+ assert.ok(switchSentry(m,"s","attack",false,true));assert.equal(side.coins,400);
+ assert.equal(switchSentry(m,"s","defense",false,true),false);assert.equal(side.coins,400);
+ assert.ok(markSentry(m,"s","red-highpoint"));assert.equal(side.coins,350);assert.equal(r.commandTarget,"red-highpoint");
+ damageTarget(m,m.robots[1],{type:"robot",id:"s"});updateMatch(m,6);
+ const cost=remoteHealthCost(m);assert.ok(purchaseHealth(m,"s",true));assert.equal(side.coins,350-cost-50);
+ side.coins=49;updateMatch(m,6);assert.equal(markSentry(m,"s","red-outpost"),false);assert.equal(switchSentry(m,"s","move",false,true),false);assert.equal(side.coins,49);
+ assert.ok(switchSentry(m,"s","move"));assert.equal(side.coins,49);
+ const fresh=createMatch(specs);assert.equal(fresh.robots[2].commandTarget,null);
+});
+test("automatic sentry commander revival fees apply atomically; semi commands remain free",()=>{
+ const specs=[...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true}];
+ for(const control of ["auto","semi"]){
+   const m=createMatch(specs,1,1),r=m.robots[2],side=m.sides.red;
+   selectSentryControl(m,"s",control);startMatch(m);
+   const fee=control==="auto"?50:0;
+   for(let i=0;i<20&&r.hp>0;i++)damageTarget(m,m.robots[1],{type:"robot",id:"s"});
+   assert.equal(r.hp,0);updateMatch(m,15);
+   assert.equal(revivalStatus(m,r,true).fee,fee);
+   side.coins=fee;assert.ok(reviveRobot(m,"s",false,true));assert.equal(side.coins,0);
+   updateMatch(m,31);
+   for(let i=0;i<20&&r.hp>0;i++)damageTarget(m,m.robots[1],{type:"robot",id:"s"});
+   assert.equal(r.hp,0);
+   const cost=revivalStatus(m,r,true).cost;side.coins=cost-1;
+   assert.equal(reviveRobot(m,"s",true,true),false);assert.equal(side.coins,cost-1);
+   side.coins=cost;assert.ok(reviveRobot(m,"s",true,true));assert.equal(side.coins,0);
+ }
 });
