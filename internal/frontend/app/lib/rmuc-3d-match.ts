@@ -3,6 +3,17 @@ export type { Team };
 export const MATCH_DURATION = 420;
 const teams = ["red", "blue"] as const;
 const opponent = (t: Team): Team => t === "red" ? "blue" : "red";
+const OUTPOST_SPEED=.8*Math.PI, TURN=2*Math.PI;
+// §5.6.1: speed reaches 0.8π within 5s. Linear ramp/return trajectory
+// is a visualization choice; the rule does not specify motor acceleration.
+const outpostTravel=(t:number)=>OUTPOST_SPEED*(t<5?t*t/10:t-2.5);
+function returnToRest(angle:number,direction:number,dt:number){
+  const phase=((angle*direction%TURN)+TURN)%TURN;
+  if(phase<1e-9||TURN-phase<1e-9)return 0;
+  const remaining=TURN-phase;
+  const travel=Math.min(remaining,OUTPOST_SPEED*dt);
+  return travel>=remaining?0:angle+direction*travel;
+}
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
 export type MatchRobot = RobotSpec & { hp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null };
 type Side = { coins: number; purchased: number; base: number; outpost: number; control: number; damage: number; cover: boolean; stopped: boolean; buff: number; runeHits: number[]; siege: number };
@@ -85,19 +96,33 @@ export function updateMatch(match:Match, dt:number, siege: Record<Team,boolean> 
     }
   }
   match.pose.runeAngle+=match.direction*Math.PI/3*dt;
+  const coverOpened:Partial<Record<Team,number>>={};
   for(const team of teams){
     const side=match.sides[team], enemy=match.sides[opponent(team)];
     side.buff=Math.max(0,side.buff-dt);
     // A training proximity zone represents the fortress interaction card.
     if(match.elapsed>=180&&side.outpost===0&&!side.cover){
-      side.siege=siege[team]?Math.min(10,side.siege+dt):0;
-      if(side.siege>=10)side.cover=true;
+      const eligibleDt=match.elapsed-Math.max(before,180);
+      const previous=side.siege;
+      side.siege=siege[team]?Math.min(10,side.siege+eligibleDt):0;
+      if(side.siege>=10){side.cover=true;coverOpened[team]=Math.max(before,180)+10-previous;}
     }
-    if(side.outpost===0||enemy.cover||match.elapsed>=180)side.stopped=true;
-    if(!side.stopped)match.pose.outpostAngle[team]+=match.outpostDirection*.8*Math.PI*Math.min(1,match.elapsed/5)*dt;
     match.pose.cover[team]=Math.min(1,Math.max(0,match.pose.cover[team]+(side.cover?dt:-dt)));
     // Only this training substitute for captured outposts is counted.
     if(enemy.outpost===0) side.control+=dt;
+  }
+  for(const team of teams){
+    const side=match.sides[team],enemy=match.sides[opponent(team)];
+    // One-way stop latch, including when a destroyed outpost is later rebuilt.
+    const stopAt=side.stopped||side.outpost===0?before:
+      Math.min(180,enemy.cover?coverOpened[opponent(team)]??before:Infinity);
+    const runUntil=Math.max(before,Math.min(match.elapsed,stopAt));
+    if(!side.stopped&&runUntil>before)
+      match.pose.outpostAngle[team]+=match.outpostDirection*(outpostTravel(runUntil)-outpostTravel(before));
+    if(match.elapsed>=stopAt){
+      side.stopped=true;
+      match.pose.outpostAngle[team]=returnToRest(match.pose.outpostAngle[team],match.outpostDirection,match.elapsed-runUntil);
+    }
   }
   if(match.elapsed>=MATCH_DURATION||teams.some(t=>match.sides[t].base===0)){
     const [r,b]=teams.map(t=>match.sides[t]);
