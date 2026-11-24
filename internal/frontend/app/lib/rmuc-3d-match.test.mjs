@@ -345,7 +345,7 @@ test("infantry experience grants official default attributes, preserves HP delta
    updateMatch(m,3);
    for(let k=0;k<10;k++)damageTarget(m,r,{type:"robot",id:"b"});
  }
- assert.ok(r.xp>=2200);assert.equal(robotLevel(r),5);assert.equal(r.maxHp,300);
+ assert.equal(r.xp,2200);assert.equal(robotLevel(r),5);assert.equal(r.maxHp,300);
  assert.equal(r.heatLimit,72);assert.equal(r.cooling,20);
  // Death does not reset XP, and exchange uses the actual current level.
  const before=r.xp;
@@ -506,4 +506,16 @@ test("permanent thermal lock threshold survives cooling, death, revival and enha
  assert.equal(s.hp,0);assert.equal(s.thermalLock,"permanent");
  assert.ok(reviveRobot(m,"s",true));updateMatch(m,3);assert.equal(fireRound(m,"s"),null);
  assert.equal(createMatch(roster).robots[0].thermalLock,false);
+});
+
+test("capped infantry never pre-banks XP or consumes unused rune XP budget",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const r=m.robots[0];r.xp=2199;
+ m.sides.red.rune.activatedUntil=60;m.sides.red.rune.xpBonusRemaining=1200;
+ damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,2200);
+ assert.equal(m.sides.red.rune.xpBonusRemaining,1200);
+ damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(r.xp,2200);
+ assert.equal(m.sides.red.rune.xpBonusRemaining,1200);
 });
