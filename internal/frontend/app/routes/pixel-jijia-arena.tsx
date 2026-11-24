@@ -92,17 +92,28 @@ export default function PixelJijiaArenaPage() {
           <span>HP {status.match.maxHp} · {status.match.power?.limit}W · 热量上限 {status.match.heatLimit}</span>
         </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
-          <span>HP {status.match.hp}/{status.match.maxHp}</span>{status.match.xp!==null&&<span>Lv.{status.match.level} · {Math.floor(status.match.xp)} XP</span>}<span>弹药 {status.match.ammo}{status.match.reserve>0&&` + ${status.match.reserve} 储备`}</span><span>{status.match.coins} 金币</span>
+          <span>HP {status.match.hp}/{status.match.maxHp}</span>{(status.match.xp!==null||status.match.launcher)&&<span>Lv.{status.match.level}{status.match.xp!==null&&` · ${Math.floor(status.match.xp)} XP`}</span>}<span>弹药 {status.match.ammo}{status.match.reserve>0&&` + ${status.match.reserve} 储备`}</span><span>{status.match.coins} 金币</span>
           {status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}
           {status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}
           {status.match.power&&<span>{status.match.power.locked>0?"底盘断电 "+status.match.power.locked+"s":"缓冲 "+status.match.power.buffer+"/60J · "+status.match.power.limit+"W"}</span>}
           {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}
-          {status.match.revival?.dead?<><span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
+          {status.match.revival?.dead?<>{status.match.technology?.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>退出装配</button>}<span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
           {status.match.rune&&<button disabled={status.match.rune.active||status.match.rune.buff>0||status.match.rune.available<=0||!!status.match.revival?.weak} onClick={()=>controller.current?.rune()}>{status.match.rune.active?"机关 "+status.match.rune.groups+"/5":(status.match.rune.large?"大":"小")+"能量机关 "+status.match.rune.available}</button>}
           {status.match.stance&&(()=>{
             const stance=status.match.stance;
             return <><span>{stance.enhanced?"强化":""}{({attack:"进攻",defense:"防御",move:"移动"})[stance.mode]}姿态{stance.cooldown>0?" · "+Math.ceil(stance.cooldown)+"s":""}</span>{(["attack","defense","move"] as const).map(mode=><button key={mode} disabled={stance.cooldown>0||stance.mode===mode&&!stance.enhanced} onClick={()=>controller.current?.stance(mode,false)}>{({attack:"进攻",defense:"防御",move:"移动"})[mode]}</button>)}<button disabled={stance.enhanced||stance.cooldown>0||stance.remaining[stance.mode]<=0} onClick={()=>controller.current?.stance(stance.mode,true)}>强化 {Math.ceil(stance.remaining[stance.mode])}s</button></>;
           })()}
+          {status.match.technology&&status.match.technology.highest>0&&<span>科技 {status.match.technology.highest}级 · +{status.match.technology.income}币/10s{status.match.technology.defense>0&&` · 防御 ${status.match.technology.defense}%`}</span>}
+          {status.match.energy&&status.match.energy.carrying>0&&<span>能量单元 {status.match.energy.carrying}/2</span>}
+          {status.match.technology?.available.map(level=><button key={level} onClick={()=>controller.current?.assembly(level)}>装配 {level}级</button>)}
+          {status.match.technology?.level&&status.match.energy&&<>
+            <span>{status.match.technology.level}级装配{status.match.technology.remaining!==null&&` · ${status.match.technology.remaining}s`}{status.match.technology.pending&&" · 动作中"}</span>
+            {status.match.technology.actions.map(action=><button key={action.core} onClick={()=>controller.current?.assemblyStep(action.core,action.step,action.angle)}>{status.match!.technology!.level===4?(action.core==="red"?"红核心 ":"蓝核心 "):""}{({2:"对准并插入",3:"上移100mm",4:"向上翻转90°",5:`旋转至 ${action.angle}°`,6:"确认装配"})[action.step]}</button>)}
+            {status.match.technology.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>取消装配</button>}
+          </>}
+          {status.match.energy&&status.match.technology?.failure&&<span role="status">{status.match.technology.failure}</span>}
+          {status.match.energy?.pickup&&<button onClick={()=>controller.current?.pickup()}>拾取能量单元</button>}
+          {status.match.energy?.canDrop&&<button onClick={()=>controller.current?.drop()}>释放能量单元</button>}
           {status.match.launcher?.state==="locked"&&<span>{status.match.launcher.unlockIn}s</span>}
           {status.match.launcher?.state==="unlocked"&&<button disabled={!status.match.launcher.canInstall} onClick={()=>controller.current?.install()}>安装 42mm</button>}
           <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 "+status.match.ammoCount+"发 · "+status.match.ammoCost+"金币"}</button>
@@ -154,7 +165,7 @@ export default function PixelJijiaArenaPage() {
           <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击、科技核心实体装配及飞镖尚未实现；护甲行程及场地交互模块卡覆盖范围为训练近似。</p>
+          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击、飞镖尚未实现；装配机构与护甲行程、场地交互模块卡覆盖范围为训练近似。</p>
         </aside>}
       </section>
     </main>

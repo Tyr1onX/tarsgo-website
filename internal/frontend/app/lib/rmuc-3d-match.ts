@@ -23,23 +23,43 @@ const stanceTicks=():Record<SentryMode,number>=>({attack:0,defense:0,move:0});
 export type InfantryPerformance={chassis:"hp"|"power";launcher:"cooling"|"burst"};
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
 export type MatchRobot = RobotSpec & { hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:false|"cooling"|"permanent"; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
+export type EnergySpawn = {id:string; team:Team; position:ArenaPosition};
+export type EnergyUnit = {id:string; team:Team; location:
+  | {kind:"rack"|"ground";position:ArenaPosition}
+  | {kind:"carried";robot:string;position:ArenaPosition}
+  | {kind:"mounted";owner:Team;core:Team;position:ArenaPosition}
+  | {kind:"spent";position:ArenaPosition}
+};
+export type CoreSocket={position:ArenaPosition;axis:ArenaPosition};
+export type Difficulty=1|2|3|4;
+type AssemblyStep=2|3|4|5|6;
+type AssemblySlot={core:Team;angle:number;done:Partial<Record<AssemblyStep,number>>};
+type AssemblyAttempt={robot:string;level:Difficulty;start:number;lastSeen:number;slots:AssemblySlot[];
+  pending:null|{core:Team;step:AssemblyStep;start:number;end:number;from:ArenaPosition};deadAt:number|null;confirmAfter:number};
+type Technology={counts:[number,number,number,number];payments:{amount:number;next:number}[];attempt:AssemblyAttempt|null;immuneTicks:number;failure:string|null;retryAt:number};
+const technology=():Technology=>({counts:[0,0,0,0],payments:[],attempt:null,immuneTicks:0,failure:null,retryAt:0});
+const copyPosition=(p:ArenaPosition):ArenaPosition=>({x:p.x,y:p.y,z:p.z});
+const horizontalDistance=(a:ArenaPosition,b:ArenaPosition)=>Math.hypot(a.x-b.x,a.z-b.z);
+// Training reach from the chassis center, not a claim about real gripper dimensions.
+const ENERGY_REACH=1.4, CARRY_HEIGHT=.67;
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
-type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
-export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
-export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
+type Side = { tech:Technology; coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
+export type Match = { coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
+export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
-  const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  const side = (team:Team): Side => ({tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
+  return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
 const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
 // Table 5-12 caps infantry at level 5 until real level-two assembly.
 // The timed 42mm fallback does not grant assembly rewards.
-const TRAINING_LEVEL_CAP=5;
-const levelFromXp=(xp:number)=>Math.min(TRAINING_LEVEL_CAP,XP_LEVELS.filter(x=>xp>=x).length);
-export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
+const levelFromXp=(xp:number)=>XP_LEVELS.filter(x=>xp>=x).length;
+export function technologyLevel(match:Match,team:Team){return match.sides[team].tech.counts.reduce((n,count,i)=>count?i+1:n,0);}
+export function infantryCap(match:Match,team:Team){const n=technologyLevel(match,team);return n>=3?10:n===2?7:5;}
+export const robotLevel=(r:MatchRobot,match?:Match)=>infantry(r)?levelFromXp(r.xp):r.heavy&&match?([1,5,7,10,10][technologyLevel(match,r.team)]):1;
 // Tables 5-17/18. Selection is only possible before the round starts.
 const INFANTRY_CHASSIS={
   hp:{hp:[200,225,250,275,300,325,350,375,400,400],power:[45,50,55,60,65,70,75,80,90,100]},
@@ -94,11 +114,15 @@ export function powerLimit(match:Match,r:MatchRobot,time=match.elapsed){
 export function chassisStatus(match:Match,r:MatchRobot){
   return {limit:powerLimit(match,r),buffer:r.powerBuffer,locked:Math.max(0,r.powerLockUntil-match.elapsed)};
 }
+export function canDriveRobot(match:Match,r:MatchRobot){
+  const a=match.sides[r.team].tech.attempt;
+  return r.hp>0||a?.robot===r.id&&a.deadAt!==null&&a.deadAt!==undefined&&match.elapsed<a.deadAt+15;
+}
 export function driveSpeed(match:Match,r:MatchRobot,command:0|1|2){
   // Explicit training approximation: normal motion commands the limit,
   // sprint commands twice that demand; speed scales with sqrt(power).
   r.powerDemand=match.phase==="running"&&r.hp>0&&match.elapsed>=r.powerLockUntil?command:0;
-  return r.hp>0&&match.elapsed>=r.powerLockUntil?2.6*Math.sqrt(powerLimit(match,r)*command/45):0;
+  return canDriveRobot(match,r)&&match.elapsed>=r.powerLockUntil?2.6*Math.sqrt(powerLimit(match,r)*command/45):0;
 }
 function advancePower(match:Match,r:MatchRobot,tick:number){
   if(r.hp<=0)return;
@@ -112,7 +136,7 @@ function advancePower(match:Match,r:MatchRobot,tick:number){
 const roundedXp=(value:number)=>Math.round(value*10)/10;
 function gainXp(match:Match,r:MatchRobot,amount:number){
   if(!infantry(r)||r.hp<=0||amount<=0)return;
-  const remaining=Math.max(0,XP_LEVELS[TRAINING_LEVEL_CAP-1]-r.xp);
+  const remaining=Math.max(0,XP_LEVELS[infantryCap(match,r.team)-1]-r.xp);
   if(remaining===0)return;
   amount=Math.min(amount,remaining);
   const rune=match.sides[r.team].rune;
@@ -136,7 +160,7 @@ function attackXp(match:Match,shooter:MatchRobot,amount:number,enemy?:MatchRobot
   const recipients=infantry(shooter)?[shooter]:shooter.heavy?[]:liveInfantry(match,shooter.team);
   if(!recipients.length)return;
   const attackerLevel=levelFromXp(recipients.reduce((sum,r)=>sum+r.xp,0)/recipients.length);
-  const victimLevel=enemy?robotLevel(enemy):1;
+  const victimLevel=enemy?robotLevel(enemy,match):1;
   const kill=enemy?.hp===0?50*victimLevel*(1+.2*Math.max(0,victimLevel-attackerLevel)):0;
   for(const r of recipients)gainXp(match,r,roundedXp(amount/recipients.length));
   if(kill)for(const r of recipients)gainXp(match,r,roundedXp(kill/recipients.length));
@@ -185,6 +209,224 @@ export function purchaseHealth(match:Match,id:string){
   robot.pendingHealAt=match.elapsed+6;
   return true;
 }
+function carriedEnergy(match:Match,robot:MatchRobot){
+  return match.energyUnits.filter(u=>u.location.kind==="carried"&&u.location.robot===robot.id);
+}
+function carriedPosition(position:ArenaPosition,index:number):ArenaPosition{
+  return {x:position.x+(index===0?-.12:.12),y:position.y+CARRY_HEIGHT,z:position.z};
+}
+export function energyStatus(match:Match,robot:MatchRobot,position:ArenaPosition){
+  const held=carriedEnergy(match,robot);
+  const allowed=match.phase==="running"&&robot.heavy&&robot.hp>0&&!weak(robot)&&!match.sides[robot.team].tech.attempt;
+  const pickup=allowed&&held.length<2?match.energyUnits.filter(u=>
+    u.team===robot.team&&(u.location.kind==="ground"||u.location.kind==="rack"&&zonesAtPosition(position).includes(`${robot.team}-supply`))&&
+    horizontalDistance(position,u.location.position)<=ENERGY_REACH&&Math.abs(u.location.position.y-position.y)<=1.4)
+    .sort((a,b)=>horizontalDistance(position,a.location.position)-horizontalDistance(position,b.location.position))[0]?.id??null:null;
+  return {carrying:held.length,pickup,canDrop:allowed&&held.length>0};
+}
+export function pickupEnergy(match:Match,id:string,position:ArenaPosition,unitId:string){
+  const robot=match.robots.find(r=>r.id===id);
+  if(!robot||energyStatus(match,robot,position).pickup!==unitId)return false;
+  const unit=match.energyUnits.find(u=>u.id===unitId)!;
+  unit.location={kind:"carried",robot:id,position:carriedPosition(position,carriedEnergy(match,robot).length)};
+  return true;
+}
+export function dropEnergy(match:Match,id:string,position:ArenaPosition){
+  const robot=match.robots.find(r=>r.id===id);
+  if(!robot||!energyStatus(match,robot,position).canDrop)return false;
+  const unit=carriedEnergy(match,robot)[0];
+  unit.location={kind:"ground",position:{x:position.x,y:position.y+.075,z:position.z}};
+  return true;
+}
+function releaseCarriedEnergy(match:Match,robot:MatchRobot,position?:ArenaPosition){
+  for(const [i,unit] of carriedEnergy(match,robot).entries()){
+    if(unit.location.kind!=="carried")continue;
+    const p=position?carriedPosition(position,i):unit.location.position;
+    unit.location={kind:"ground",position:{x:p.x,y:p.y-CARRY_HEIGHT+.075,z:p.z}};
+  }
+}
+function advanceEnergy(match:Match,positions:ReadonlyMap<string,ArenaPosition>){
+  for(const robot of match.robots){
+    const position=positions.get(robot.id);
+    if(robot.hp<=0){releaseCarriedEnergy(match,robot,position);continue;}
+    if(!position)continue;
+    for(const [i,unit] of carriedEnergy(match,robot).entries())
+      if(unit.location.kind==="carried")unit.location.position=carriedPosition(position,i);
+  }
+}
+
+// §5.4.3 / tables 5-10–12 and §5.6.4.7. One attempt per team, one
+// location per unit. Discrete gripper commands drive timed kinematic steps;
+// the chassis must be in the actual assembly zone and within reach.
+const EPS=1e-7, CORE_MOVE=1, COLUMN_LENGTH=.1062;
+const add=(a:ArenaPosition,b:ArenaPosition,s=1):ArenaPosition=>({x:a.x+b.x*s,y:a.y+b.y*s,z:a.z+b.z*s});
+const mix=(a:ArenaPosition,b:ArenaPosition,t:number):ArenaPosition=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
+const clamp01=(n:number)=>Math.max(0,Math.min(1,n));
+const inAssembly=(r:MatchRobot,p:ArenaPosition)=>zonesAtPosition(p).includes(`${r.team}-assembly`);
+const assemblyActive=(m:Match,r:MatchRobot)=>m.sides[r.team].tech.attempt?.robot===r.id;
+function teamDefense(m:Match,t:Team){const n=technologyLevel(m,t);return Math.max(m.sides[t].rune.defense,n===4?.5:n===3?.25:0);}
+const requiredSteps=(level:Difficulty):AssemblyStep[]=>level===1?[2,6]:level===2?[2,3,6]:[2,3,4,5,6];
+function nextStep(a:AssemblyAttempt,s:AssemblySlot){return requiredSteps(a.level).find(step=>s.done[step]===undefined);}
+function mountedUnit(m:Match,owner:Team,core:Team){return m.energyUnits.find(u=>u.location.kind==="mounted"&&u.location.owner===owner&&u.location.core===core);}
+function attemptForCore(m:Match,core:Team){
+  for(const owner of teams){const a=m.sides[owner].tech.attempt,s=a?.slots.find(s=>s.core===core);if(a&&s)return {owner,a,s};}
+  return null;
+}
+export function coreFrame(m:Match,core:Team,time=m.elapsed){
+  const rest=m.coreSockets[core];if(!rest)return null;
+  const active=attemptForCore(m,core);
+  if(!active)return {active:false,head:rest.position,tip:rest.position,axis:rest.axis,baseAxis:rest.axis,twist:0,flip:0,lift:0};
+  const {owner,a,s}=active,own=m.coreSockets[owner]!;
+  // A legal representative pose in the published range (x=-50,z=600).
+  // The exact multi-joint linkage is not supplied; translate the tool head,
+  // keep the pedestal fixed, and use the measured column axis.
+  let target=add(own.position,own.axis,.15);target.y-=.2;
+  if(core!==owner)target=add(target,{x:-own.axis.z,y:0,z:own.axis.x},.35);
+  const motion=clamp01((time-a.start)/CORE_MOVE);
+  const head=mix(rest.position,target,motion);
+  const yaw0=Math.atan2(rest.axis.z,rest.axis.x),yaw1=Math.atan2(own.axis.z,own.axis.x);
+  const yaw=yaw0+Math.atan2(Math.sin(yaw1-yaw0),Math.cos(yaw1-yaw0))*motion;
+  const elevation=Math.asin(rest.axis.y)+(Math.asin(own.axis.y)-Math.asin(rest.axis.y))*motion;
+  const forward={x:Math.cos(yaw)*Math.cos(elevation),y:Math.sin(elevation),z:Math.sin(yaw)*Math.cos(elevation)};
+  const progress=(step:AssemblyStep)=>s.done[step]!==undefined?1:a.pending?.core===core&&a.pending.step===step?clamp01((time-a.pending.start)/(a.pending.end-a.pending.start)):0;
+  const lift=.1*progress(3),flip=Math.PI/2*progress(4);
+  const twist=s.angle*Math.PI/180*(s.done[5]!==undefined?1:a.pending?.core===core&&a.pending.step===5?clamp01((time-a.pending.start)/.6):0);
+  const tilt=elevation+flip;
+  const direction={x:Math.cos(yaw)*Math.cos(tilt),y:Math.sin(tilt),z:Math.sin(yaw)*Math.cos(tilt)};
+  const pivot=add(head,forward,-COLUMN_LENGTH);pivot.y+=lift;
+  return {active:true,head,tip:add(pivot,direction,COLUMN_LENGTH),axis:direction,baseAxis:forward,twist,flip,lift};
+}
+function assemblyReach(m:Match,r:MatchRobot,p:ArenaPosition,core:Team){
+  const frame=coreFrame(m,core);
+  return !!frame&&inAssembly(r,p)&&horizontalDistance(p,frame.tip)<=ENERGY_REACH&&Math.abs(p.y-frame.tip.y)<=1.4;
+}
+export function assemblyStatus(m:Match,r:MatchRobot,p:ArenaPosition){
+  const t=m.sides[r.team].tech,a=t.attempt,enemy=m.sides[opponent(r.team)].tech.attempt;
+  const permitted=m.phase==="running"&&r.heavy&&r.hp>0&&!weak(r)&&inAssembly(r,p)&&!!m.coreSockets[r.team];
+  const held=carriedEnergy(m,r).length;
+  const highest=technologyLevel(m,r.team);
+  const available=([1,2,3,4] as const).filter(level=>permitted&&!a&&level<=highest+1&&m.elapsed+EPS>=60*(level-1)&&held>=(level===4?2:1)&&
+    enemy?.level!==4&&(level!==4||!enemy&&!t.counts[3]&&!!m.coreSockets[opponent(r.team)]));
+  const actions=a&&a.robot===r.id&&a.deadAt===null&&permitted&&!a.pending&&m.elapsed+EPS>=a.start+CORE_MOVE?a.slots.flatMap(s=>{
+    const step=nextStep(a,s);
+    if(step===undefined||!assemblyReach(m,r,p,s.core)||step===2&&!held||step!==2&&!mountedUnit(m,r.team,s.core)||step===6&&m.elapsed<a.confirmAfter)return [];
+    return [{core:s.core,step,angle:s.angle}];
+  }):[];
+  return {highest,cap:infantryCap(m,r.team),income:t.payments.reduce((n,p)=>n+p.amount,0),defense:highest===4?50:highest===3?25:0,
+    available,level:a?.level??null,actions,pending:a?.pending?.step??null,slots:a?.slots.map(s=>({core:s.core,step:nextStep(a,s)??7,angle:s.angle}))??[],
+    remaining:a?.level===4?Math.max(0,Math.ceil(a.start+CORE_MOVE+45-m.elapsed)):null,canCancel:!!a&&a.robot===r.id&&(a.deadAt===null||!inAssembly(r,p)),failure:t.failure};
+}
+export function beginAssembly(m:Match,id:string,p:ArenaPosition,level:Difficulty){
+  const r=m.robots.find(r=>r.id===id);
+  if(!r||!assemblyStatus(m,r,p).available.includes(level))return false;
+  const t=m.sides[r.team].tech;
+  t.failure=null;t.attempt={robot:id,level,start:m.elapsed,lastSeen:m.elapsed,slots:[
+    {core:r.team,angle:30,done:{}},...(level===4?[{core:opponent(r.team),angle:Math.floor(Math.random()*37)*5-90,done:{}}]:[])],
+    pending:null,deadAt:null,confirmAfter:0};
+  return true;
+}
+function endAssembly(m:Match,owner:Team,reason:string|null,time:number){
+  const t=m.sides[owner].tech,a=t.attempt;if(!a)return;
+  for(const s of a.slots){
+    const unit=mountedUnit(m,owner,s.core);
+    if(unit)unit.location={kind:"spent",position:unit.location.position};
+  }
+  if(reason===null){
+    const first=t.counts[a.level-1]++===0;
+    const reward=(first?[40,20,20,40]:[4,8,12,0])[a.level-1];
+    if(reward)t.payments.push({amount:reward,next:time+10});
+    if(first)t.immuneTicks=0;
+    const r=m.robots.find(r=>r.id===a.robot)!;
+    const hp=Math.max(r.maxHp,[400,450,500,600,600][technologyLevel(m,owner)]);
+    if(r.hp>0)r.hp+=hp-r.maxHp;r.maxHp=hp;
+    if(a.level>=3){if(r.launcher==="locked")r.launcher="unlocked";r.heatLimit=300;r.cooling=100;}
+  }
+  t.attempt=null;t.failure=reason;t.retryAt=time+(reason?5:0);
+}
+export function cancelAssembly(m:Match,id:string,p?:ArenaPosition){
+  const r=m.robots.find(r=>r.id===id);
+  if(!r||m.phase!=="running"||!assemblyActive(m,r))return false;
+  if(m.sides[r.team].tech.attempt?.deadAt!==null&&(!p||inAssembly(r,p)))return false;
+  endAssembly(m,r.team,"已取消装配",m.elapsed);return true;
+}
+function markAssemblyDeath(m:Match,r:MatchRobot){
+  const a=m.sides[r.team].tech.attempt;if(a?.robot===r.id&&a.deadAt===null){a.deadAt=m.elapsed;a.pending=null;}
+}
+function expireAssembly(m:Match,owner:Team,time:number){
+  const a=m.sides[owner].tech.attempt;if(!a)return false;
+  if(a.deadAt!==null){
+    if(time+EPS>=a.deadAt+15)endAssembly(m,owner,"阵亡，装配失败",time);
+    return true;
+  }
+  if(time+EPS>=a.lastSeen+15){endAssembly(m,owner,"离开装配区超时",time);return true;}
+  if(a.level===4){
+    if(time>a.start+CORE_MOVE+45+EPS){endAssembly(m,owner,"双核心装配超时",time);return true;}
+    for(const step of [2,3,5,6] as const){
+      const x=a.slots[0].done[step],y=a.slots[1].done[step];
+      if(x!==undefined&&y!==undefined?Math.abs(x-y)>5+EPS:x!==undefined||y!==undefined?time>(x??y)!+5+EPS:false){
+        endAssembly(m,owner,"双核心步骤超时",time);return true;
+      }
+    }
+  }
+  return false;
+}
+function completeStep(m:Match,owner:Team,s:AssemblySlot,step:AssemblyStep,time:number){
+  const a=m.sides[owner].tech.attempt!;
+  s.done[step]=time;
+  if(expireAssembly(m,owner,time))return;
+  if(a.slots.every(s=>s.done[6]!==undefined))endAssembly(m,owner,null,time);
+}
+export function assemblyAction(m:Match,id:string,p:ArenaPosition,core:Team,step:AssemblyStep,angle?:number){
+  const r=m.robots.find(r=>r.id===id);
+  if(!r||expireAssembly(m,r.team,m.elapsed))return false;
+  const a=m.sides[r.team].tech.attempt;
+  if(!a||a.robot!==id)return false;
+  const s=a.slots.find(s=>s.core===core);
+  if(!s||!assemblyStatus(m,r,p).actions.some(x=>x.core===core&&x.step===step)){
+    if(step===6)a.confirmAfter=m.elapsed+1;
+    return false;
+  }
+  if(step===5&&(angle===undefined||!Number.isFinite(angle)||Math.abs(angle)>90||Math.abs(angle-s.angle)>5))return false;
+  if(step===6){completeStep(m,r.team,s,step,m.elapsed);return true;}
+  const unit=step===2?carriedEnergy(m,r)[0]:mountedUnit(m,r.team,core)!;
+  const from=copyPosition(unit.location.position);
+  if(step===2)unit.location={kind:"mounted",owner:r.team,core,position:from};
+  a.pending={core,step,start:m.elapsed,end:m.elapsed+(step===5?1:.6),from};
+  return true;
+}
+function advanceTechnology(m:Match,time:number,positions:ReadonlyMap<string,ArenaPosition>){
+  for(const owner of teams){
+    const side=m.sides[owner],t=side.tech;
+    for(const payment of t.payments)while(time+EPS>=payment.next){side.coins+=payment.amount;payment.next+=10;}
+    const a=t.attempt;if(!a)continue;
+    const r=m.robots.find(r=>r.id===a.robot)!;
+    if(r.hp<=0&&a.deadAt===null){a.deadAt=time;a.pending=null;}
+    const p=positions.get(r.id);
+    if(a.deadAt===null&&p&&inAssembly(r,p)){
+      a.lastSeen=time;
+          }
+    if(a.deadAt===null&&r.hp>0&&(r.zones[`${owner}-assembly`]??0)>Math.round(time*10))t.immuneTicks=Math.min(450,t.immuneTicks+1);
+    const pending=a.pending;
+    if(expireAssembly(m,owner,pending&&pending.end<=time+EPS?pending.end:time))continue;
+    if(pending&&(!p||!assemblyReach(m,r,p,pending.core))){
+      endAssembly(m,owner,"装配动作中断",time);continue;
+    }
+    for(const s of a.slots){
+      const unit=mountedUnit(m,owner,s.core),frame=coreFrame(m,s.core,time);
+      if(!unit||!frame)continue;
+      const seated=add(frame.tip,frame.axis,-.025);
+      if(pending?.core===s.core&&pending.step===2){
+        const progress=clamp01((time-pending.start)/(pending.end-pending.start));
+        unit.location.position=progress<.5?mix(pending.from,add(frame.tip,frame.axis,.075),progress*2):mix(add(frame.tip,frame.axis,.075),seated,(progress-.5)*2);
+      }else unit.location.position=seated;
+    }
+    if(pending&&time+EPS>=pending.end){
+      a.pending=null;completeStep(m,owner,a.slots.find(s=>s.core===pending.core)!,pending.step,pending.end);
+      expireAssembly(m,owner,time);
+    }
+  }
+}
+
 export function launcherStatus(match:Match,robot:MatchRobot){
   const s=match.sides[robot.team];
   return {state:robot.launcher,unlockIn:Math.max(0,Math.ceil(300-s.baseGap/50-2*s.controlGap/3-match.elapsed)),
@@ -214,7 +456,7 @@ function coolingRate(match:Match,r:MatchRobot){
   return s&&s.mode!=="attack"?Math.round(boosted/3):boosted;
 }
 export function canFire(match:Match,robot:MatchRobot) {
-  return match.phase==="running"&&(!robot.heavy||robot.launcher==="test"||robot.launcher==="ready")&&robot.hp>0&&!weak(robot)&&(robot.ammo>0||reserveAmmo(match,robot)>0)&&robot.cooldown<=0&&!robot.thermalLock;
+  return match.phase==="running"&&!assemblyActive(match,robot)&&(!robot.heavy||robot.launcher==="test"||robot.launcher==="ready")&&robot.hp>0&&!weak(robot)&&(robot.ammo>0||reserveAmmo(match,robot)>0)&&robot.cooldown<=0&&!robot.thermalLock;
 }
 export function fireRound(match:Match,id:string) {
   const robot=match.robots.find(r=>r.id===id);
@@ -252,11 +494,11 @@ function rebuildOutpost(side:Side,team:Team){
 export function revivalStatus(match:Match,robot:MatchRobot) {
   const r=robot.revival;
   const required=r?.state==="dead"?r.required/logistics(match,robot.team):0;
-  const cost=Math.ceil(match.elapsed/60)*80+robotLevel(robot)*20;
+  const cost=Math.ceil(match.elapsed/60)*80+robotLevel(robot,match)*20;
   return {dead:robot.hp===0,weak:!!weak(robot),immune:immune(match,robot),cost,
     progress:r?.state==="dead"?Math.min(1,r.progressTicks/10/required):0,
-    canConfirm:match.phase==="running"&&r?.state==="dead"&&r.progressTicks>=required*10-1e-8,
-    canPay:match.phase==="running"&&r?.state==="dead"&&match.sides[robot.team].coins>=cost};
+    canConfirm:match.phase==="running"&&!assemblyActive(match,robot)&&r?.state==="dead"&&r.progressTicks>=required*10-1e-8,
+    canPay:match.phase==="running"&&!assemblyActive(match,robot)&&r?.state==="dead"&&match.sides[robot.team].coins>=cost};
 }
 export function reviveRobot(match:Match,id:string,paid=false) {
   const robot=match.robots.find(r=>r.id===id);
@@ -272,10 +514,10 @@ export function reviveRobot(match:Match,id:string,paid=false) {
 }
 function immune(match:Match,r:MatchRobot){
   return r.hp>0&&((r.revival?.state==="revived"&&r.revival.immuneUntil>Math.floor((match.elapsed+1e-8)*10))||
-    (r.heavy&&inSupply(match,r)&&!weak(r)));
+    (r.heavy&&inSupply(match,r)&&!weak(r))||(assemblyActive(match,r)&&activeZone(match,r,`${r.team}-assembly`)&&match.sides[r.team].tech.immuneTicks<450));
 }
 function robotDefense(match:Match,robot:MatchRobot) {
-  let defense=match.sides[robot.team].rune.defense;
+  let defense=teamDefense(match,robot.team);
   if(robot.heavy&&robot.launcher!=="ready"&&match.elapsed<180)defense=Math.max(defense,.5);
   const stance=robot.stance;
   if(stance?.mode==="defense")defense=Math.max(defense,stance.enhanced?.99:stance.ticks.defense>1800?.25:.5);
@@ -295,6 +537,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   }
   for(const zone of ARENA_ZONES){
     const candidates=match.robots.filter(r=>r.hp>0&&raw.get(r.id)?.includes(zone.id)&&
+      (zone.kind!=="assembly"||r.heavy&&r.team===zone.team)&&
       (zone.kind!=="fortress"||r.team===zone.team||(tick>=1800&&controlsOutpost(match,zone.team,r.team))));
     if(zone.kind==="central"){
       const holder=match.robots.find(r=>!weak(r)&&active(r,zone.id))?.team;
@@ -466,7 +709,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0||immune(match,enemy))return 0;
     const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*side.rune.attack*robotDefense(match,enemy))));
     enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0){enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
+    if(enemy.hp===0){markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
     attackXp(match,shooter,amount*4,enemy);
     return amount;
   }
@@ -476,7 +719,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   // Base damage is available to the referee only after the protection
   // conditions are satisfied. Physical base detector binding is pending.
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
-  const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*side.rune.attack*(1-match.sides[owner].rune.defense)));
+  const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*side.rune.attack*(1-teamDefense(match,owner))));
   enemy[target.type]-=amount;side.damage+=amount;
   if(target.type==="base")enemy.baseLow=Math.min(enemy.baseLow,enemy.base);
   attackXp(match,shooter,target.type==="outpost"?amount*2:Math.ceil(amount/2));
@@ -507,6 +750,7 @@ export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string
 function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPosition>){
 
   const before=match.elapsed;match.elapsed+=dt;
+  advanceEnergy(match,positions);
   for(const second of [61,121,181,241,301,361]) if(before<second&&match.elapsed>=second)
     for(const team of teams)match.sides[team].coins+=second===361?300:100;
   const coolingTicks=Math.floor((match.elapsed+1e-8)*10)-Math.floor((before+1e-8)*10);
@@ -532,7 +776,7 @@ function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPo
   if(coolingTicks>0){
     const raw=new Map([...positions].map(([id,p])=>[id,zonesAtPosition(p)]));
     const first=Math.floor((before+1e-8)*10)+1;
-    for(let tick=first;tick<first+coolingTicks;tick++)advanceTerritories(match,tick,raw,coverOpened);
+    for(let tick=first;tick<first+coolingTicks;tick++){advanceTerritories(match,tick,raw,coverOpened);advanceTechnology(match,tick/10,positions);}
   }
   for(const team of teams){
     const side=match.sides[team],enemy=match.sides[opponent(team)];
