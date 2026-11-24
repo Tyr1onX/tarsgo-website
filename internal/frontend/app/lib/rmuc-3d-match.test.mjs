@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -428,4 +428,31 @@ test("10Hz chassis buffer, five-second cutoff and level-dependent limits",async(
  updateMatch(m,3);assert.equal(powerLimit(m,r),130);
  updateMatch(m,1);assert.equal(powerLimit(m,r),65);
  assert.equal(createMatch(roster).robots[0].powerBuffer,60);
+});
+
+test("semi-automatic sentry stance starts mobile, switches with five-second cooldown and degrades after 180 seconds",()=>{
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1),r=m.robots[2];
+ assert.equal(sentryStatus(m,r).mode,"move");assert.equal(powerLimit(m,r),90);
+ startMatch(m);assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"s"}),25);
+ r.heat=100;updateMatch(m,1);assert.ok(Math.abs(r.heat-97)<1e-7);
+ assert.equal(switchSentry(m,"s","attack"),true);assert.equal(powerLimit(m,r),30);
+ assert.equal(switchSentry(m,"s","defense"),false);updateMatch(m,4.9);assert.equal(switchSentry(m,"s","defense"),false);
+ updateMatch(m,.1);assert.equal(switchSentry(m,"s","defense"),true);assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"s"}),10);
+ updateMatch(m,180);assert.equal(sentryStatus(m,r).degraded,false);
+ updateMatch(m,.1);assert.equal(sentryStatus(m,r).degraded,true);assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"s"}),15);
+});
+test("sentry enhanced budgets are separate, cumulative and automatically expire",()=>{
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1),r=m.robots[2];
+ startMatch(m);updateMatch(m,170);
+ assert.equal(switchSentry(m,"s","move",true),true);assert.equal(powerLimit(m,r),200);
+ updateMatch(m,15);assert.equal(sentryStatus(m,r).enhanced,false);assert.equal(sentryStatus(m,r).degraded,true);assert.equal(powerLimit(m,r),72);
+ assert.equal(switchSentry(m,"s","move",true),false);assert.equal(sentryStatus(m,r).remaining.attack,15);
+ assert.equal(switchSentry(m,"s","attack",true),true);r.heat=90;assert.ok(fireRound(m,"s"));assert.equal(r.heat,0);
+ updateMatch(m,5);assert.equal(switchSentry(m,"s","defense",true),true);assert.equal(sentryStatus(m,r).remaining.attack,10);
+ m.sides.red.rune.defense=.5;
+ assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"s"}),0);
+ updateMatch(m,15);assert.equal(sentryStatus(m,r).enhanced,false);assert.equal(sentryStatus(m,r).remaining.defense,0);
+ assert.equal(switchSentry(m,"s","attack",true),true);updateMatch(m,10);
+ assert.equal(sentryStatus(m,r).enhanced,false);assert.equal(sentryStatus(m,r).remaining.attack,0);
+ assert.ok(fireRound(m,"s"));assert.equal(r.heat,10);updateMatch(m,1);assert.equal(r.heat,0);
 });
