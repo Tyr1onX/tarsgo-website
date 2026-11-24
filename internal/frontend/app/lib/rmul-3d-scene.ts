@@ -2,9 +2,11 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { frameArena, clampFollowCamera } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { addRobotPreviews } from "./rmuc-3d-robots";
-import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
+import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, FIELD_HALF_X, FIELD_HALF_Z, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { createStadium } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
@@ -51,6 +53,15 @@ export function mountArena(
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.25;
+  // A small generated environment makes metal surfaces readable without any
+  // downloaded textures. Direct lights still determine arena illumination.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const environment = pmrem.fromScene(room, .04, .1, 100, { size: 128 });
+  scene.environment = environment.texture;
+  scene.environmentIntensity = .60;
+  room.dispose();
+  pmrem.dispose();
   const canvas = renderer.domElement;
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", "RMUC 2027 三维战场");
@@ -61,8 +72,8 @@ export function mountArena(
   controls.dampingFactor = .12;
   controls.enablePan = true;
   controls.enabled = false;
-  scene.add(new THREE.HemisphereLight(0xdceaff, 0x50515b, 2.15));
-  const sun = new THREE.DirectionalLight(0xfff4e7, 2.8);
+  scene.add(new THREE.HemisphereLight(0xdceaff, 0x50515b, 1.3));
+  const sun = new THREE.DirectionalLight(0xfff4e7, 2.6);
   sun.position.set(-6, 13, 9);
   scene.add(sun);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(47, 36),
@@ -78,6 +89,7 @@ export function mountArena(
 
   let disposed = false, ready = false, frame = 0;
   let map: THREE.Group | null = null;
+  let fieldBounds: THREE.Box3 | null = null;
   let exhibit: THREE.Group | null = null;
   let terrain: ArenaTerrain | null = null;
   let robots: Robot[] = [];
@@ -114,22 +126,23 @@ export function mountArena(
     forward.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     eye.copy(target).y += h;
     camera.up.set(0, 1, 0);
+    if (driving) {
+      const gimbal = driving.object.getObjectByName("gimbal");
+      if (gimbal) gimbal.rotation.y = yaw - driving.object.rotation.y;
+      if (mode === "first") driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
+    } else player.rotation.y = yaw;
     if (mode === "first") {
       camera.position.copy(eye);
       camera.lookAt(clock.copy(eye).add(forward));
     } else {
-      // Shorten the follow camera before it crosses a CAD obstruction.
-      desired.copy(eye).addScaledVector(forward, driving ? -3.4 : -3.1);
-      desired.y += driving ? .85 : .7;
+      const distance = driving ? Math.max(2.6, driving.radius * 4.3) : 3.1;
+      desired.copy(eye).addScaledVector(forward, -distance);
+      desired.y = Math.max(eye.y + .35, desired.y + .8);
+      clampFollowCamera(eye, desired, FIELD_HALF_X - .12, FIELD_HALF_Z - .12);
       const safe = terrain.cameraDistance(eye, desired);
-      camera.position.copy(eye).add(desired.sub(eye).normalize().multiplyScalar(safe));
+      const delta = desired.sub(eye);
+      camera.position.copy(eye).add(delta.setLength(Math.min(safe,delta.length())));
       camera.lookAt(clock.copy(eye).addScaledVector(forward, 1.2));
-    }
-    if (driving) {
-      const gimbal = driving.object.getObjectByName("gimbal");
-      if (gimbal) gimbal.rotation.y = yaw - driving.object.rotation.y;
-    } else {
-      player.rotation.y = yaw;
     }
     updateVisibility();
   }
@@ -154,7 +167,8 @@ export function mountArena(
         const traveled = Math.hypot(target.x - oldX, target.z - oldZ);
         if (driving && traveled > .00001) {
           driving.object.rotation.y = Math.atan2(-(target.x - oldX), -(target.z - oldZ));
-          const direction = f < 0 && !r ? -1 : 1;
+          // Chassis faces its actual travel direction, so wheels always roll forward.
+          const direction = 1;
           driving.object.traverse(object => {
             if (object.name.startsWith("wheel-")) object.rotation.x += direction * traveled / driving!.wheelRadius;
           });
@@ -183,20 +197,9 @@ export function mountArena(
       if (document.pointerLockElement === canvas) document.exitPointerLock();
       controls.enabled = true;
       camera.fov = 48;
-      const distance = Math.max(29, 38 / Math.max(.7, camera.aspect));
-      const x = next === "red" ? 7 : next === "blue" ? -7 : 0;
-      controls.target.set(x, .65, 0);
-      if (next === "top") {
-        camera.up.set(0, 0, -1);
-        camera.position.set(x, distance, .001);
-      } else {
-        camera.up.set(0, 1, 0);
-        const side = next === "red" ? 1 : next === "blue" ? -1 : 1;
-        const d = next === "all" ? distance : distance * .64;
-        camera.position.set(x + side * d * .4, d * .72, d * .68);
-      }
+      if (fieldBounds) controls.target.copy(frameArena(camera, next as FieldView, fieldBounds));
       controls.minDistance = 2.5;
-      controls.maxDistance = 100;
+      controls.maxDistance = 160;
       controls.update();
     }
     camera.updateProjectionMatrix();
@@ -286,6 +289,10 @@ export function mountArena(
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
     renderer.setSize(w, h);
     camera.aspect = w / h;
+    if (ready && !isPlaying(mode) && fieldBounds) {
+      controls.target.copy(frameArena(camera, mode as FieldView, fieldBounds));
+      controls.update();
+    }
     camera.updateProjectionMatrix();
     invalidate();
   };
@@ -328,6 +335,7 @@ export function mountArena(
     const middle = bounds.getCenter(new THREE.Vector3());
     root.position.set(-middle.x, -bounds.min.y, -middle.z);
     root.updateMatrixWorld(true);
+    fieldBounds = new THREE.Box3().setFromObject(root);
     map = root;
     scene.add(root);
     terrain = createArenaTerrain(root);
@@ -369,6 +377,7 @@ export function mountArena(
       controls.removeEventListener("change", invalidate);
       controls.dispose();
       disposeObjects(scene);
+      environment.dispose();
       renderer.dispose();
       canvas.remove();
     },

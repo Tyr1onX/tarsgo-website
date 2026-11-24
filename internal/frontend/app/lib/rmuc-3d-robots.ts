@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { ArenaTerrain } from "./rmuc-3d-terrain";
 import { robotSeasons } from "../data/robot-seasons.ts";
 
@@ -19,9 +20,27 @@ export const ROBOT_PREVIEWS = [
 ] as const;
 
 export type RobotPreviewKind = (typeof ROBOT_PREVIEWS)[number]["kind"];
+
+// Tiny generated weave, shared across all dark body panels. No external
+// texture download; the material remains readable at close driving distance.
+const weavePixels = new Uint8Array(32 * 32 * 4);
+for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+  const i = (y * 32 + x) * 4;
+  const cross = ((x >> 2) + (y >> 2)) % 2 === 0;
+  const strand = cross ? x % 4 : y % 4;
+  const value = (cross ? 191 : 208) + (strand === 1 ? 18 : strand === 3 ? -12 : 0);
+  weavePixels.set([value, value, value, 255], i);
+}
+const weave = new THREE.DataTexture(weavePixels, 32, 32);
+weave.wrapS = weave.wrapT = THREE.RepeatWrapping;
+weave.repeat.set(4, 4);
+weave.magFilter = THREE.LinearFilter;
+weave.minFilter = THREE.LinearMipmapLinearFilter;
+weave.generateMipmaps = true;
+weave.needsUpdate = true;
 const materials = {
   frame: new THREE.MeshStandardMaterial({ color: 0x191b1f, metalness: .75, roughness: .46 }),
-  armour: new THREE.MeshStandardMaterial({ color: 0x292d31, metalness: .48, roughness: .48 }),
+  armour: new THREE.MeshStandardMaterial({ color: 0x343b43, map: weave, metalness: .36, roughness: .56 }),
   metal: new THREE.MeshStandardMaterial({ color: 0xa0a4a3, metalness: .75, roughness: .33 }),
   white: new THREE.MeshStandardMaterial({ color: 0xd5d9d3, metalness: .25, roughness: .42 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x101114, roughness: .83 }),
@@ -32,7 +51,11 @@ const materials = {
 };
 
 function box(group: THREE.Group, w: number, h: number, d: number, x: number, y: number, z: number, material: THREE.Material) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  const bevel = Math.min(w, h, d);
+  const geometry = bevel >= .045 && material !== materials.wheel && material !== materials.led
+    ? new RoundedBoxGeometry(w, h, d, 1, Math.min(.012, bevel * .18))
+    : new THREE.BoxGeometry(w, h, d);
+  const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
   group.add(mesh);
   return mesh;
@@ -112,7 +135,16 @@ function chassis(root: THREE.Group, width: number, depth: number, wheelSize = .1
     for (const z of [-.19, .19]) box(group, .013, .02, .02, x * width * .54, .31, z, materials.metal);
     for (let i = 0; i < 7; i++) box(group, .028, .02, .025, x * width * .36, .45, (i-3)*.045, materials.metal);
   }
+  // Recessed electronics tray and visible heat sink fins.
   box(group, width * .45, .06, depth * .38, 0, .43, .12, materials.frame);
+  box(group, width * .32, .045, depth * .22, 0, .48, .14, materials.metal);
+  for (let i = 0; i < 8; i++)
+    box(group, .014, .029, depth * .2, (i - 3.5) * width * .038, .51, .14, materials.metal);
+  for (const side of [-1, 1]) {
+    rod(group, new THREE.Vector3(side * width * .28,.39,-depth * .33), new THREE.Vector3(side * width * .28,.48,depth * .28), .011, materials.orange);
+    for (const z of [-depth * .32, depth * .32])
+      box(group, .045, .018, .045, side * width * .36, .285, z, materials.metal);
+  }
 }
 
 function gimbal(root: THREE.Group, y: number) {
@@ -125,6 +157,9 @@ function gimbal(root: THREE.Group, y: number) {
   joint.add(body);
   const ring = new THREE.Mesh(new THREE.CylinderGeometry(.18, .2, .06, 24), materials.metal);
   joint.add(ring);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(.205, .205, .018, 24), materials.frame);
+  collar.position.y = -.035;
+  joint.add(collar);
   return body;
 }
 
@@ -136,6 +171,14 @@ function camera(group: THREE.Group, x: number, y: number, z: number) {
   lens.position.set(x, y, z - .11);
   lens.rotation.x = Math.PI / 2;
   group.add(lens);
+  // The first visible camera is also the driving viewpoint, not an arbitrary
+  // point at the centre of the vehicle.
+  if (!group.getObjectByName("driver-eye")) {
+    const mount = new THREE.Object3D();
+    mount.name = "driver-eye";
+    mount.position.set(x, y, z - .135);
+    group.add(mount);
+  }
 }
 
 function hero(group: THREE.Group, backup = false) {
@@ -148,6 +191,11 @@ function hero(group: THREE.Group, backup = false) {
   barrel(group, -.18, .98, -.4, .45, .115);
   box(group, .22, .22, .18, 0, 1.21, .18, materials.frame);
   camera(group, .25, 1.14, -.13);
+  for (const x of [-.29, .29]) {
+    box(group, .055, .28, .33, x, .79, -.1, materials.metal);
+    box(group, .035, .14, .24, x * 1.1, .76, -.08, materials.armour);
+  }
+  box(group, .38, .055, .27, 0, .83, .22, materials.metal);
   if (backup) {
     box(group, .34, .1, .14, -.16, 1.07, -.47, materials.yellow);
     box(group, .36, .09, .15, .02, 1.14, -.13, materials.yellow);
@@ -165,6 +213,13 @@ function engineer(group: THREE.Group) {
   rod(group, new THREE.Vector3(.05, .65, 0), new THREE.Vector3(.16, 1.13, -.22), .09, materials.armour);
   rod(group, new THREE.Vector3(.16, 1.13, -.22), new THREE.Vector3(.16, 1.21, -.68), .065, materials.armour);
   box(group, .35, .12, .38, .16, 1.13, -.56, materials.frame);
+  for (const x of [-.055,.375]) {
+    const joint = new THREE.Mesh(new THREE.CylinderGeometry(.095,.095,.055,20),materials.metal);
+    joint.rotation.z = Math.PI / 2;
+    joint.position.set(x,1.13,-.22);
+    group.add(joint);
+    rod(group,new THREE.Vector3(x,.72,-.06),new THREE.Vector3(x,1.13,-.22),.028,materials.metal);
+  }
   rod(group, new THREE.Vector3(-.03, 1.12, -.74), new THREE.Vector3(-.03, 1.31, -.75), .02, materials.metal);
   rod(group, new THREE.Vector3(.34, 1.12, -.74), new THREE.Vector3(.34, 1.31, -.75), .02, materials.metal);
 }
@@ -175,7 +230,11 @@ function infantry(group: THREE.Group, variant: "03" | "04") {
   group = gimbal(group, .48);
   box(group, .48, .12, .48, 0, .48, -.03, materials.metal);
   box(group, .28, variant === "03" ? .28 : .36, .3, 0, .66, -.05, materials.frame);
-  camera(group, .18, .86, -.02);
+  camera(group, .18, variant === "03" ? .86 : .99, -.02);
+  for (const side of [-1, 1]) {
+    box(group,.055,.22,.27,side*.18,.66,-.04,materials.metal);
+    box(group,.025,.12,.18,side*.215,.67,-.04,materials.armour);
+  }
   barrel(group, -.12, variant === "03" ? .78 : .94, -.31, variant === "03" ? .32 : .46, .052);
   if (variant === "03") {
     for (const x of [-.3, .3]) for (const z of [-.26, .26])
@@ -217,6 +276,10 @@ function sentry(group: THREE.Group) {
   barrel(group, -.18, 1.3, -.27, .38, .055);
   camera(group, .22, 1.37, -.15);
   camera(group, .02, 1.02, -.29);
+  for (const side of [-1,1]) {
+    rod(group,new THREE.Vector3(side*.17,.93,.12),new THREE.Vector3(side*.17,1.26,.12),.021,materials.metal);
+    box(group,.05,.09,.24,side*.24,1.32,0,materials.metal);
+  }
 }
 
 function drone(group: THREE.Group) {
@@ -236,6 +299,13 @@ function drone(group: THREE.Group) {
     rotor.position.set(x, .08, z);
     rotor.rotation.x = Math.PI / 2;
     group.add(rotor);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(.048,.048,.065,16),materials.metal);
+    hub.position.set(x,.08,z);
+    group.add(hub);
+    for (const angle of [Math.PI/4, Math.PI*3/4]) {
+      const blade = box(group,.30,.015,.042,x,.118,z,materials.frame);
+      blade.rotation.y = angle;
+    }
   }
   camera(group, 0, -.04, -.3);
 }
@@ -250,6 +320,10 @@ function dart(group: THREE.Group) {
   for (const x of [-.26, 0, .26])
     rod(group, new THREE.Vector3(x, 1.05, .22), new THREE.Vector3(x, .7, -.54), .027, materials.white);
   box(group, .12, .17, .18, .26, .95, .12, materials.frame);
+  for (const x of [-.4,.4]) {
+    rod(group,new THREE.Vector3(x,.16,-.32),new THREE.Vector3(x,1.05,.22),.019,materials.metal);
+    box(group,.19,.055,.19,x,.155,.28,materials.metal);
+  }
 }
 
 function radar(group: THREE.Group) {
@@ -259,6 +333,8 @@ function radar(group: THREE.Group) {
     rod(group, new THREE.Vector3(x, .1, 0), new THREE.Vector3(x, 1.48, 0), .035, materials.metal);
     camera(group, x, 1.55, -.07);
     box(group, .21, .14, .14, x, 1.25, 0, materials.frame);
+    box(group, .24, .035, .18, x, 1.35, 0, materials.metal);
+    rod(group,new THREE.Vector3(x,1.25,.09),new THREE.Vector3(x,.18,.09),.012,materials.orange);
   }
 }
 
@@ -283,9 +359,11 @@ export function createRobotPreview(kind: RobotPreviewKind): THREE.Group {
     }
     for (const [material, meshes] of sets) {
       if (meshes.length < 2) continue;
+      const indexed = meshes.every(mesh => mesh.geometry.index !== null);
       const geometries = meshes.map(mesh => {
         mesh.updateMatrix();
-        return mesh.geometry.clone().applyMatrix4(mesh.matrix);
+        const geometry = !indexed && mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+        return geometry.applyMatrix4(mesh.matrix);
       });
       const merged = mergeGeometries(geometries);
       for (const geometry of geometries) geometry.dispose();
