@@ -66,7 +66,7 @@ test("the arena provides exploration, driving and four calibration views without
 });
 
 import * as THREE from "three";
-import { aimWeapon, aimWeaponAt } from "./rmuc-3d-robots.ts";
+import { aimWeapon, aimWeaponAt, previewWeaponAt } from "./rmuc-3d-robots.ts";
 import { lookDirection } from "./rmuc-3d-camera.ts";
 test("each ground weapon's actual barrel axis, muzzle and virtual sight agree", () => {
   for(const kind of ["hero","infantry03","infantry04","sentry"]){
@@ -85,4 +85,16 @@ test("each ground weapon's actual barrel axis, muzzle and virtual sight agree", 
       assert.ok(ray.direction.distanceTo(point.clone().sub(ray.origin).normalize())<1e-8);
     }
   }
+});
+
+test("AI preview aims through actual offset barrel without changing either visible joint",()=>{
+ for(const kind of ["hero","infantry03","infantry04","sentry"]){
+  const robot=createRobotPreview(kind);robot.scale.setScalar(kind==="hero"?.5:1);robot.position.set(3,.2,-2);robot.rotation.y=.8;
+  aimWeapon(robot,-1.3,.22);
+  const g=robot.getObjectByName("gimbal"),w=robot.getObjectByName("weapon-pitch"),yaw=g.rotation.y,pitch=w.rotation.x;
+  const point=new THREE.Vector3(-4,1,3),preview=previewWeaponAt(robot,point);
+  assert.equal(g.rotation.y,yaw);assert.equal(w.rotation.x,pitch);
+  const actual=aimWeaponAt(robot,point);
+  assert.ok(preview.origin.distanceTo(actual.origin)<1e-8);assert.ok(preview.direction.distanceTo(actual.direction)<1e-8);
+ }
 });

@@ -112,7 +112,7 @@ export function aimWeapon(robot: THREE.Object3D, yaw: number, pitch: number) {
   weapon.rotation.x = pitch;
   const origin = muzzle.getWorldPosition(new THREE.Vector3());
   const direction = new THREE.Vector3(0,0,-1).applyQuaternion(muzzle.getWorldQuaternion(new THREE.Quaternion())).normalize();
-  return { origin, direction };
+  return { origin, direction, yaw, pitch };
 }
 
 // Account for the barrel's lateral offset and pitch pivot when aiming a bot.
@@ -128,6 +128,24 @@ export function aimWeaponAt(robot: THREE.Object3D, point: THREE.Vector3) {
   const pivot = weapon.getWorldPosition(new THREE.Vector3());
   const pitch = Math.atan2(point.y-pivot.y,Math.hypot(point.x-pivot.x,point.z-pivot.z));
   return aimWeapon(robot,yaw,pitch);
+}
+
+// Pure planning sight for rigid, uniformly scaled preview gimbals. Never
+// rotate the rendered weapon to a candidate just to test line of sight.
+export function previewWeaponAt(robot:THREE.Object3D,point:THREE.Vector3){
+  const gimbal=robot.getObjectByName("gimbal"),weapon=robot.getObjectByName("weapon-pitch"),muzzle=robot.getObjectByName("weapon-muzzle");
+  if(!gimbal||!weapon||!muzzle)return null;
+  const delta=point.clone().sub(robot.getWorldPosition(new THREE.Vector3()));
+  const distance=Math.hypot(delta.x,delta.z),scale=robot.getWorldScale(new THREE.Vector3()).x;
+  const lateral=weapon.position.x*scale;
+  if(distance<=Math.abs(lateral))return null;
+  const yaw=Math.atan2(-delta.x,-delta.z)+Math.asin(lateral/distance);
+  const center=gimbal.getWorldPosition(new THREE.Vector3());
+  const pivot=weapon.getWorldPosition(new THREE.Vector3()).sub(center)
+    .applyAxisAngle(new THREE.Vector3(0,1,0),yaw-robot.rotation.y-gimbal.rotation.y).add(center);
+  const pitch=Math.atan2(point.y-pivot.y,Math.hypot(point.x-pivot.x,point.z-pivot.z));
+  const direction=new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
+  return {yaw,pitch,direction,origin:pivot.addScaledVector(direction,-muzzle.position.z*scale)};
 }
 
 function chassis(root: THREE.Group, width: number, depth: number, wheelSize = .12) {

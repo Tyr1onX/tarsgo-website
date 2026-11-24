@@ -9,9 +9,9 @@ import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMe
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
-import { addRobotPreviews, aimWeapon, aimWeaponAt, bindLauncherModule } from "./rmuc-3d-robots";
+import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
-import { findArenaPath, advanceBot } from "./rmuc-3d-navigation";
+import { findArenaPath, stepChassis, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
@@ -111,18 +111,25 @@ export function mountArena(
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   let matchTime: number | null = null;
+  let motionDebt=0;
   let nextBotTurn = 0;
   let botCursor = 0;
   const shotRay = new THREE.Raycaster();
   const shotEffects: { group: THREE.Group; remaining: number }[] = [];
   const shotGeometry = new THREE.BoxGeometry(1,1,1);
-  const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>}>();
+  const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number}>();
+  const motions=new Map<Robot,ChassisMotion>();
+  const shotIntents=new Map<Robot,{point:THREE.Vector3;object?:THREE.Object3D}>();
+  const wheels=new Map<Robot,THREE.Object3D[]>();
+  let fieldRobots:Robot[]=[];
+  const positions=new Map<string,THREE.Vector3>();
+  const motionFor=(bot:Robot)=>{let m=motions.get(bot);if(!m){m={speed:0,yaw:bot.object.rotation.y};motions.set(bot,m);}return m;};
   const armorCenters = new Map<Robot,{object:THREE.Object3D;center:THREE.Vector3}[]>();
   const initial = new Map<Robot, { position: THREE.Vector3; yaw: number }>();
   const benchModules=new THREE.Group();scene.add(benchModules);
   const launcherModels=new Map<string,ReturnType<typeof bindLauncherModule>>();
   const syncLaunchers=()=>{for(const r of match?.robots??[])launcherModels.get(r.id)?.update(r.launcher==="test"||r.launcher==="ready");};
-  const roster = () => robots.filter(r=>r.object.userData.area==="field").map(r=>({id:r.object.name,team:r.object.userData.team as Team,heavy:r.object.name.includes("hero"),sentry:r.object.name.includes("sentinel"),maxHp:r.object.name.includes("hero")?400:200}));
+  const roster = () => fieldRobots.map(r=>({id:r.object.name,team:r.object.userData.team as Team,heavy:r.object.name.includes("hero"),sentry:r.object.name.includes("sentinel"),maxHp:r.object.name.includes("hero")?400:200}));
   const activeRobot = () => match?.robots.find(r=>r.id===driving?.object.name);
   let mode: ArenaView = "first";
   let look = { yaw: -.7, pitch: -.08 };
@@ -170,12 +177,11 @@ export function mountArena(
   function syncCamera() {
     if (!ready || !terrain || !isPlaying(mode)) return;
     const target = driving?.position ?? explorer;
-    const { yaw } = look;
     lookDirection(look, forward);
     eye.copy(target).y += driving?.eyeHeight ?? 1.6;
     camera.up.set(0, 1, 0);
     if (driving&&manualRobot()) {
-      const sight = aimWeapon(driving.object, yaw, look.pitch);
+      const sight = aimWeapon(driving.object, driving.object.rotation.y+(driving.object.getObjectByName("gimbal")?.rotation.y??0), driving.object.getObjectByName("weapon-pitch")?.rotation.x??0);
       if (sight) { eye.copy(sight.origin); forward.copy(sight.direction); }
       else driving.object.getObjectByName("driver-eye")?.getWorldPosition(eye);
     }
@@ -187,10 +193,22 @@ export function mountArena(
   function render(time: number) {
     frame = 0;
     if (disposed) return;
-    const elapsed = matchTime===null?0:Math.max(0,(time-matchTime)/1000);
+    const elapsed = matchTime===null||document.hidden?0:Math.max(0,(time-matchTime)/1000);
     matchTime=time;
     if(match&&mechanism&&match.phase==="running"){
-      updateMatch(match,elapsed,new Map(robots.filter(r=>r.object.userData.area==="field").map(r=>[r.object.name,r.position])));
+      // Advance all chassis at the same time resolution; strategic choices stay staggered.
+      // Keep the same clock for every subsystem. A delayed render may
+      // catch up over subsequent frames, not teleport through a whole second.
+      if(!document.hidden)motionDebt+=elapsed;
+      const budget=document.hidden?0:Math.min(motionDebt,.075),end=Math.min(420,match.elapsed+budget);
+      motionDebt=Math.max(0,motionDebt-budget);
+      const before=match.elapsed;
+      while(match.elapsed<end&&match.phase==="running"){
+        const dt=Math.min(end-match.elapsed,.025);
+        advanceMotion(dt);
+        updateMatch(match,dt,positions);
+
+      }
       mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));
       coreGeometry?.applyTechnology(match);syncLaunchers();
       for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
@@ -206,7 +224,7 @@ export function mountArena(
       }
       const searchBudget=performance.now()+4;
       for(const [bot,route] of botPaths){
-        if(bot===manualRobot()||match.robots.find(r=>r.id===bot.object.name)?.hp===0){botPaths.delete(bot);continue;}
+        if(bot===manualRobot()||!canDriveRobot(match,match.robots.find(r=>r.id===bot.object.name)!)){botPaths.delete(bot);continue;}
         if(!route.search)continue;
         do{
           const step=route.search.next();
@@ -214,6 +232,8 @@ export function mountArena(
         }while(performance.now()<searchBudget);
         if(performance.now()>=searchBudget)break;
       }
+      if(match.phase==="running")advanceAiming(match.elapsed-before);
+      else {shotIntents.clear();motions.clear();motionDebt=0;}
       if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
       updateVisibility();
       invalidate();
@@ -230,30 +250,14 @@ export function mountArena(
       const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
       if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
-      const { yaw } = look;
-      const vehicle=activeRobot();
-      const boost=keys.has("ShiftLeft")||keys.has("ShiftRight");
-      const speed=vehicle?.sentryControl==="auto"?0:match&&vehicle?driveSpeed(match,vehicle,f||r?boost?2:1:0):boost?3.6:2.2;
-      if ((f || r)&&speed>0) {
-        const target = driving?.position ?? explorer;
-        const radius = driving?.radius ?? PLAYER_RADIUS;
-        const norm = Math.hypot(f, r);
-        const dx = (-Math.sin(yaw) * f + Math.cos(yaw) * r) * speed * dt / norm;
-        const dz = (-Math.cos(yaw) * f - Math.sin(yaw) * r) * speed * dt / norm;
-        const oldX = target.x, oldZ = target.z;
-        moveOnArena(terrain, target, dx, dz, radius, driving ? .23 : .34,
-          robots.filter(robot => robot !== driving && match?.robots.find(m=>m.id===robot.object.name)?.hp!==0 && Math.abs(robot.position.y - target.y) < 1.15));
-        const traveled = Math.hypot(target.x - oldX, target.z - oldZ);
-        if (driving && traveled > .00001) {
-          driving.object.rotation.y = Math.atan2(-(target.x - oldX), -(target.z - oldZ));
-          // Chassis faces its actual travel direction, so wheels always roll forward.
-          const direction = 1;
-          driving.object.traverse(object => {
-            if (object.name.startsWith("wheel-")) object.rotation.x += direction * traveled / driving!.wheelRadius;
-          });
-        }
+      if(!driving&&(f||r)){
+        const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.hypot(f,r);
+        moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
+          robots.filter(robot=>match?.robots.find(m=>m.id===robot.object.name)?.hp!==0&&Math.abs(robot.position.y-explorer.y)<1.15));
+      }else if(driving&&match?.phase==="ready"){
+        advanceMotion(dt);advanceAiming(dt);
       }
-      if (f || r || horizontal || vertical) {
+      if (f || r || horizontal || vertical || driving&&match?.phase==="ready"&&aimingManual()) {
         lastTime = time;
         invalidate();
       } else lastTime = null;
@@ -296,7 +300,7 @@ export function mountArena(
 
   function start() {
     if(!match||match.phase!=="ready")return;
-    matchTime=null;
+    matchTime=null;motionDebt=0;
     startMatch(match);
     publish();invalidate();
   }
@@ -312,8 +316,8 @@ export function mountArena(
   function reset() {
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
-    nextBotTurn=0;botCursor=0;botPaths.clear();syncLaunchers();
-    for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);}
+    nextBotTurn=0;botCursor=0;motionDebt=0;matchTime=null;botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
+    for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     for(const shot of shotEffects){shot.group.removeFromParent();shot.group.traverse(o=>{if(o instanceof THREE.Mesh)(o.material as THREE.Material).dispose()});}
     shotEffects.length=0;
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
@@ -349,7 +353,7 @@ export function mountArena(
   function fire() {
     if(!ready||paused||!isPlaying(mode)||!driving||!manualRobot()||!match||!map)return;
     syncCamera();
-    const shot = aimWeapon(driving.object,look.yaw,look.pitch);
+    const shot = aimWeapon(driving.object,driving.object.rotation.y+(driving.object.getObjectByName("gimbal")?.rotation.y??0),driving.object.getObjectByName("weapon-pitch")?.rotation.x??0);
     if (shot) shoot(driving,shot.origin,shot.direction);
   }
   function shotTargets(robot: Robot) {
@@ -360,12 +364,12 @@ export function mountArena(
   }
   function updateBots() {
     if(!match||!terrain||!mechanism)return;
-    const field=robots.filter(r=>r.object.userData.area==="field");
+    const field=fieldRobots;
     const available=field.filter(bot=>bot!==manualRobot());
     const bot=available[botCursor++%available.length];
     if(!bot)return;
     const state=match.robots.find(m=>m.id===bot.object.name)!;
-    driveSpeed(match,state,0);
+    shotIntents.delete(bot);
     const side=match.sides[state.team],enemyTeam=state.team==="red"?"blue":"red",enemySide=match.sides[enemyTeam];
     const revival=revivalStatus(match,state);
     if(revival.dead){
@@ -375,8 +379,7 @@ export function mountArena(
         const axis=match.coreSockets[state.team]?.axis;
         if(axis){
           const target=bot.position.clone().add(new THREE.Vector3(axis.x,0,axis.z));
-          const occupants=field.filter(r=>r!==bot&&match!.robots.some(s=>s.id===r.object.name&&s.hp>0));
-          advanceBot(terrain,bot,target,occupants,.3);
+          setBotGoal(bot,target,.04);
         }
         return;
       }
@@ -411,8 +414,7 @@ export function mountArena(
     const armed=!state.heavy||state.launcher==="ready"||state.launcher==="test";
     if(armed&&state.ammo+reserveAmmo(match,state)<(state.heavy?3:state.sentry?80:20))purchaseAmmo(match,state.id);
     if(state.heavy&&state.launcher==="test"&&canFire(match,state)){
-      const shot=aimWeapon(bot.object,bot.object.rotation.y,0);
-      if(shot)shoot(bot,shot.origin,shot.direction);
+      shotIntents.set(bot,{point:bot.position.clone().add(new THREE.Vector3(-Math.sin(bot.object.rotation.y)*10,bot.eyeHeight,-Math.cos(bot.object.rotation.y)*10))});
     }
     const needAmmo=armed&&state.ammo+reserveAmmo(match,state)===0&&state.pendingAmmoAt===null;
     const fortressReady=match.elapsed>=180&&controlsOutpost(match,enemyTeam,state.team)&&!enemySide.cover;
@@ -515,10 +517,10 @@ export function mountArena(
         for(const i of indices){
           const arm=arms[i],point=arm.localToWorld(arm.userData.runeDetector.center.clone());
           if(bot.position.distanceTo(point)>8)continue;
-          const shot=aimWeaponAt(bot.object,point);
+          const shot=previewWeaponAt(bot.object,point);
           if(!shot)continue;
           const target=arenaHitTarget(trace(bot,shot.origin,shot.direction),shot.direction);
-          if(target?.type==="rune"&&target.team===state.team&&target.arm===i&&(!rune.large||target.ring>=minRing))return shot;
+          if(target?.type==="rune"&&target.team===state.team&&target.arm===i&&(!rune.large||target.ring>=minRing))return {point:arm.userData.runeDetector.center.clone(),object:arm};
         }
         return null;
       };
@@ -527,7 +529,7 @@ export function mountArena(
         if(!rune.active)activateRune(match,state.id);
         if(canFire(match,state)){
           const shot=shotAt(runeStatus(match,state.team).lit);
-          if(shot)shoot(bot,shot.origin,shot.direction);
+          if(shot)shotIntents.set(bot,shot);
         }
         goal=bot.position.clone();runeDuty=true;
       }else{
@@ -548,7 +550,7 @@ export function mountArena(
       if(zone&&zonesAtPosition(bot.position).includes(zone.id))state.commandTarget=null;
       else if(zone&&!recovering&&!assaultDuty)goal=zoneGoal(zone.team,zone.kind);
     }
-    if(!technologyDuty&&!runeDuty&&canFire(match,state)&&!revival.weak){
+    if(!technologyDuty&&!runeDuty&&state.launcher!=="test"&&canFire(match,state)&&!revival.weak){
       const candidates:THREE.Vector3[]=[];
       for(const enemy of enemies.slice(0,2)){
         if(enemy.position.distanceTo(bot.position)>12)continue;
@@ -559,11 +561,11 @@ export function mountArena(
       candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
       for(const point of candidates.slice(0,6)){
         if(point.distanceTo(bot.position)>12)continue;
-        const shot=aimWeaponAt(bot.object,point);
+        const shot=previewWeaponAt(bot.object,point);
         if(!shot)continue;
-        const target=arenaHitTarget(trace(bot,shot.origin,shot.direction),shot.direction);
+        const hit=trace(bot,shot.origin,shot.direction),target=arenaHitTarget(hit,shot.direction);
         if(target?.type==="outpost"&&match.sides[target.team as Team].outpostOwner!==state.team||target?.type==="robot"&&enemies.some(r=>r.object.name===target.id)){
-          shoot(bot,shot.origin,shot.direction);break;
+          shotIntents.set(bot,{point:hit!.object.worldToLocal(hit!.point.clone()),object:hit!.object});break;
         }
       }
     }
@@ -576,41 +578,76 @@ export function mountArena(
       const enhance=stance.remaining[desired]>0&&(desired==="defense"?holding:desired==="attack"?state.heat>=state.heatLimit*.7:assaultDuty&&distance>6);
       if(stance.mode!==desired||enhance&&!stance.enhanced)switchSentry(match,state.id,desired,enhance);
     }
-    // Territory objectives still matter while firing, cooling, or waiting for ammo.
-    if(Math.hypot(goal.x-bot.position.x,goal.z-bot.position.z)<(technologyDuty?.055:.22)){botPaths.delete(bot);return;}
-    const occupants=active.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
-    const before=bot.position.clone();
-    let route=botPaths.get(bot);
-    if(route&&route.goal.distanceTo(goal)>.5){botPaths.delete(bot);route=undefined;}
-    while(route?.points.length&&bot.position.distanceTo(route.points[0])<.04)route.points.shift();
-    if(route?.search)return;
-    const speed=driveSpeed(match,state,1);
-    if(speed<=0)return;
-    let budget=.65*speed/2.6,moved=false,progress=false;
-    // Follow multiple short search edges within the same movement budget.
-    // Finer path sampling must not lower the vehicle's travel speed.
-    while(budget>.04){
-      const next=route?.points[0]??goal,previous=bot.position.clone();
-      const advanced=advanceBot(terrain,bot,next,occupants,budget);
-      if(!advanced)break;
-      moved=true;progress ||= bot.position.distanceTo(next)<previous.distanceTo(next)-.02;budget-=bot.position.distanceTo(previous);
-      if(!route?.points.length||bot.position.distanceTo(next)>=.04)break;
-      route.points.shift();
+    // Strategy writes a persistent goal; it never moves the chassis.
+    setBotGoal(bot,goal,technologyDuty?.055:.22);
+  }
+  function setBotGoal(bot:Robot,goal:THREE.Vector3,tolerance:number){
+    const route=botPaths.get(bot);
+    if(!route||route.goal.distanceTo(goal)>.5||goal.distanceTo(bot.position)<tolerance&&route.points.length>0){
+      botPaths.set(bot,{goal:goal.clone(),points:[],retryAt:0,tolerance});
+    }else{route.goal.copy(goal);route.tolerance=tolerance;}
+  }
+  function advanceMotion(dt:number){
+    if(!match||!terrain||dt<=0)return;
+    const active=fieldRobots.filter(b=>match!.robots.find(r=>r.id===b.object.name)!.hp>0);
+    for(const bot of fieldRobots){
+      const state=match.robots.find(r=>r.id===bot.object.name)!;
+      const motion=motionFor(bot),manual=manualRobot()===bot;
+      const previousYaw=bot.object.rotation.y;
+      const gimbal=bot.object.getObjectByName("gimbal");
+      const occupants=active.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
+      let target:THREE.Vector3|null=null,command:0|1|2=0;
+      const route=botPaths.get(bot);
+      if(manual&&isPlaying(mode)&&!paused){
+        const f=Number(keys.has("KeyW"))-Number(keys.has("KeyS")),r=Number(keys.has("KeyD"))-Number(keys.has("KeyA"));
+        if(f||r){const n=Math.hypot(f,r),{yaw}=look;target=bot.position.clone().add(new THREE.Vector3((-Math.sin(yaw)*f+Math.cos(yaw)*r)/n*10,0,(-Math.cos(yaw)*f-Math.sin(yaw)*r)/n*10));command=keys.has("ShiftLeft")||keys.has("ShiftRight")?2:1;}
+      }else if(!manual&&match.phase==="running"&&route&&!route.search){
+        while(route.points.length&&bot.position.distanceTo(route.points[0])<.04)route.points.shift();
+        if(Math.hypot(route.goal.x-bot.position.x,route.goal.z-bot.position.z)>=route.tolerance){target=route.points[0]??route.goal;command=1;}
+      }
+      const assembly=match.sides[state.team].tech.attempt;
+      if(assembly?.robot===state.id&&assembly.pending){target=null;command=0;}
+      const speed=driveSpeed(match,state,command);
+      if(!canDriveRobot(match,state)||match.phase==="finished"){motions.delete(bot);shotIntents.delete(bot);botPaths.delete(bot);continue;}
+      const oldX=bot.position.x,oldZ=bot.position.z;
+      const traveled=stepChassis(terrain,bot,motion,target,speed,dt,occupants,!manual&&route&&!route.points.length?route.tolerance:undefined);
+      bot.object.rotation.y=motion.yaw;
+      // Preserve gun world yaw while the chassis turns underneath it.
+      if(gimbal)gimbal.rotation.y+=previousYaw-motion.yaw;
+      const yawChange=angleDelta(previousYaw,motion.yaw);
+      if(traveled>0||yawChange!==0){
+        const dx=bot.position.x-oldX,dz=bot.position.z-oldZ;
+        const forward=-Math.sin(motion.yaw)*dx-Math.cos(motion.yaw)*dz;
+        const lateral=Math.cos(motion.yaw)*dx-Math.sin(motion.yaw)*dz;
+        for(const wheel of wheels.get(bot)??[])wheel.rotation.x+=(forward+Math.sign(wheel.position.x*wheel.position.z)*lateral+wheel.position.x*bot.object.scale.x*yawChange)/bot.wheelRadius;
+      }
+      if(!manual&&route&&target&&speed>0&&traveled<.00001&&motion.speed===0&&Math.abs(angleDelta(motion.yaw,Math.atan2(bot.position.x-target.x,bot.position.z-target.z)))<.2&&match.elapsed>=route.retryAt){
+        route.points=[];route.retryAt=match.elapsed+4;
+        route.search=findArenaPath(terrain,bot.position.clone(),route.goal.clone(),bot.radius,.4,occupants.map(r=>({position:r.position.clone(),radius:r.radius})));
+      }
+      if(traveled||previousYaw!==motion.yaw)bot.object.updateMatrixWorld(true);
     }
-    if(!moved)driveSpeed(match,state,0);
-    if((!moved||!progress)&&(!route||match.elapsed>=route.retryAt)){
-      // A static route can be blocked by a robot. Snapshot the current
-      // occupants for the same A* collision checks; avoid lateral oscillation.
-      const blockers=occupants.map(r=>({position:r.position.clone(),radius:r.radius}));
-      route={goal:goal.clone(),points:[],search:findArenaPath(terrain,bot.position.clone(),goal.clone(),bot.radius,.4,blockers),retryAt:match.elapsed+4};
-      botPaths.set(bot,route);
-    }
-    const delta=bot.position.clone().sub(before);
-    if(delta.length()>.01){
-      const yaw=Math.atan2(-delta.x,-delta.z);
-      bot.object.rotation.y=yaw;aimWeapon(bot.object,yaw,0);
-      bot.object.traverse(o=>{if(o.name.startsWith("wheel-"))o.rotation.x+=delta.length()/bot.wheelRadius;});
-      bot.object.updateMatrixWorld(true);
+  }
+  function aimingManual(){
+    if(!driving||!manualRobot())return false;
+    const g=driving.object.getObjectByName("gimbal"),w=driving.object.getObjectByName("weapon-pitch");
+    return !!g&&!!w&&(Math.abs(angleDelta(driving.object.rotation.y+g.rotation.y,look.yaw))>.001||Math.abs(w.rotation.x-look.pitch)>.001);
+  }
+  function advanceAiming(dt:number){
+    if(!match)return;
+    for(const bot of fieldRobots){
+      const state=match.robots.find(r=>r.id===bot.object.name)!;
+      const g=bot.object.getObjectByName("gimbal"),w=bot.object.getObjectByName("weapon-pitch");
+      if(!g||!w||state.hp<=0){shotIntents.delete(bot);continue;}
+      const manual=manualRobot()===bot&&isPlaying(mode),intent=shotIntents.get(bot);
+      const desired=manual?look:intent?previewWeaponAt(bot.object,intent.object?intent.object.localToWorld(intent.point.clone()):intent.point):null;
+      if(!desired)continue;
+      const yaw=turnTowards(bot.object.rotation.y+g.rotation.y,desired.yaw,Math.PI*4*dt);
+      const pitch=turnTowards(w.rotation.x,desired.pitch,Math.PI*3*dt);
+      const shot=aimWeapon(bot.object,yaw,pitch);
+      if(!manual&&intent&&shot&&Math.abs(angleDelta(yaw,desired.yaw))<.003&&Math.abs(pitch-desired.pitch)<.003){
+        shotIntents.delete(bot);shoot(bot,shot.origin,shot.direction);
+      }
     }
   }
   function shoot(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3) {
@@ -640,14 +677,15 @@ export function mountArena(
           && Math.hypot(x - other.position.x, z - other.position.z) < PLAYER_RADIUS + other.radius)) continue;
         explorer.set(x, y, z);
         driving = null;
+        motions.delete(robot);botPaths.delete(robot);shotIntents.delete(robot);
         break;
       }
     } else {
       const robot = nearby();
       if (robot) {
         driving = robot;
-        botPaths.delete(robot);
-        look = { yaw: robot.object.rotation.y, pitch: -.05 };
+        botPaths.delete(robot);shotIntents.delete(robot);motions.delete(robot);
+        look = { yaw: robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0), pitch: robot.object.getObjectByName("weapon-pitch")?.rotation.x??0 };
       }
     }
     clearInput();
@@ -676,7 +714,7 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyM") setView(mode === "all" ? "first" : "all");
   }
   function keyup(event: KeyboardEvent) { input(event.code, false); }
-  function clearInput() { keys.clear(); lastTime = null; if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
+  function clearInput() { keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
   function turn(dx: number, dy: number) {
     if (!ready || paused || !isPlaying(mode)) return;
     look = turnView(look, dx, dy);
@@ -716,6 +754,7 @@ export function mountArena(
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
   }
+  function visibilityChange(){matchTime=null;clearInput();invalidate();}
   function lockchange() { if (document.pointerLockElement !== canvas) clearInput(); }
 
   controls.addEventListener("change", invalidate);
@@ -740,6 +779,7 @@ export function mountArena(
   canvas.addEventListener("lostpointercapture", pointerup);
   document.addEventListener("mousemove", mousemove);
   document.addEventListener("pointerlockchange", lockchange);
+  document.addEventListener("visibilitychange",visibilityChange);
   window.addEventListener("keydown", keydown);
   window.addEventListener("keyup", keyup);
   window.addEventListener("blur", clearInput);
@@ -792,6 +832,8 @@ export function mountArena(
       const rotor=mechanism.parts.getObjectByName(team+"-outpost-rotor")!;
       for(let i=0;i<3;i++)bindArmorFrame(mechanism.parts.getObjectByName(team+"-outpost-armor-"+i)!,rotor);
     }
+    fieldRobots=robots.filter(r=>r.object.userData.area==="field");
+    for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
       if(robot.object.userData.area!=="field")continue;
@@ -847,6 +889,7 @@ export function mountArena(
       canvas.removeEventListener("lostpointercapture", pointerup);
       document.removeEventListener("mousemove", mousemove);
       document.removeEventListener("pointerlockchange", lockchange);
+      document.removeEventListener("visibilitychange",visibilityChange);
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", clearInput);

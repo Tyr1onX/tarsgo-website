@@ -100,7 +100,7 @@ test("takeover chooses a nearby ground vehicle, not a static or airborne asset",
 });
 
 test("training navigation routes around a raised CAD-style obstacle rather than crossing it", async()=>{
-  const {findArenaPath,advanceBot}=await import("./rmuc-3d-navigation.ts");
+  const {findArenaPath,stepChassis}=await import("./rmuc-3d-navigation.ts");
   const floor={heightAt:(x,z)=>Math.abs(x)<.35&&Math.abs(z)<2?2:.2};
   const bot={position:new THREE.Vector3(-3,.2,0),radius:.3};
   const goal=new THREE.Vector3(3,.2,0);
@@ -108,7 +108,8 @@ test("training navigation routes around a raised CAD-style obstacle rather than 
   let step=search.next();while(!step.done)step=search.next();const path=step.value;
   assert.ok(path.length>0);
   assert.ok(path.some(p=>Math.abs(p.z)>2.3));
-  for(const p of path){while(bot.position.distanceTo(p)>.1)assert.ok(advanceBot(floor,bot,p,[]));}
+  const motion={speed:0,yaw:0};
+  for(const p of path){let steps=0;while(bot.position.distanceTo(p)>.04&&steps++<500)stepChassis(floor,bot,motion,p,2.6,.025,[]);assert.ok(bot.position.distanceTo(p)<.05);}
   assert.ok(bot.position.distanceTo(goal)<.65);
 });
 
@@ -124,16 +125,20 @@ test("each estimated referee zone has a supported goal on actual CAD terrain",()
 });
 
 test("navigation reaches an exact off-grid goal rather than stopping short",async()=>{
- const {findArenaPath,advanceBot}=await import("./rmuc-3d-navigation.ts");
+ const {findArenaPath,stepChassis}=await import("./rmuc-3d-navigation.ts");
  const floor={heightAt:()=>.2},start=new THREE.Vector3(0,.2,0),goal=new THREE.Vector3(2.4,.2,0);
  const search=findArenaPath(floor,start,goal,.3,.4);
  let step=search.next();while(!step.done)step=search.next();
  assert.ok(step.value.at(-1).distanceTo(goal)<.015);
  const bot={position:start.clone(),radius:.4};
  const other={position:new THREE.Vector3(.8,.2,0),radius:.4};
- assert.ok(advanceBot(floor,bot,goal,[other]));
- assert.ok(Math.abs(bot.position.z)>.15);
- assert.ok(bot.position.distanceTo(other.position)>=.8);
+ const motion={speed:0,yaw:-Math.PI/2};
+ for(let i=0;i<80;i++)stepChassis(floor,bot,motion,goal,2.6,.025,[other]);
+ assert.ok(bot.position.distanceTo(other.position)>=.8-1e-8);
+ assert.ok(bot.position.x<.1);
+ const detour=findArenaPath(floor,bot.position,goal,bot.radius,.4,[other]);let next=detour.next();while(!next.done)next=detour.next();
+ for(const p of next.value){let n=0;while(bot.position.distanceTo(p)>.04&&n++<500)stepChassis(floor,bot,motion,p,2.6,.025,[other]);assert.ok(bot.position.distanceTo(p)<.05);}
+ assert.ok(bot.position.distanceTo(goal)<.05);
 });
 
 test("sentry can reach the opposing fortress from the previously blocked real CAD position",async()=>{
@@ -245,4 +250,21 @@ test("actual workbench pad, two-sided approach and one transferable launcher mes
    binding.update(true);assert.equal(weapon.parent,mount);assert.ok(aimWeapon(robot,0,0));
    binding.update(false);assert.equal(weapon.parent,bench);assert.equal(bench.children.length,1);
  }
+});
+
+test("continuous chassis acceleration, braking, turning, collision and frame-rate distance agree",async()=>{
+ const {stepChassis,angleDelta}=await import("./rmuc-3d-navigation.ts");
+ const flat={heightAt:()=>.2},goal=new THREE.Vector3(10,.2,0);
+ const run=hz=>{
+   const bot={position:new THREE.Vector3(0,.2,0),radius:.3},motion={speed:0,yaw:-Math.PI/2};
+   for(let i=0;i<2*hz;i++){let remaining=1/hz;while(remaining>1e-9){const dt=Math.min(.025,remaining);stepChassis(flat,bot,motion,goal,2.6,dt,[]);remaining-=dt;}}
+   return bot.position.x;
+ };
+ const distances=[30,60,120].map(run);
+ assert.ok(Math.max(...distances)-Math.min(...distances)<.03,JSON.stringify(distances));
+ const bot={position:new THREE.Vector3(0,.2,0),radius:.3},motion={speed:0,yaw:0};
+ const target=new THREE.Vector3(1,.2,0);let maxStep=0;
+ for(let i=0;i<150;i++){const yaw=motion.yaw;maxStep=Math.max(maxStep,stepChassis(flat,bot,motion,target,2.6,.025,[],.01));assert.ok(Math.abs(angleDelta(yaw,motion.yaw))<=Math.PI*3*.025+1e-8);}
+ assert.ok(bot.position.distanceTo(target)<=.011);assert.ok(maxStep<=2.6*.025+1e-8);assert.equal(motion.speed,0);
+ const before=bot.position.clone();stepChassis(flat,bot,motion,goal,0,.025,[]);assert.ok(bot.position.equals(before));assert.equal(motion.speed,0);
 });
