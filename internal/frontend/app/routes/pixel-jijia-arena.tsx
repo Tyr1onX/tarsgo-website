@@ -72,7 +72,7 @@ export default function PixelJijiaArenaPage() {
 
   return (
     <main className="rmul3d">
-      <section className="rmul3d-stage" aria-label="RMUC 2027 完整三维战场">
+      <section className="rmul3d-stage" aria-label="RMUC 2027 三维训练战场">
         <div ref={mountRef} className="rmul3d-canvas" />
         <header className="rmul3d-header">
           <Link to={returnTo} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
@@ -81,7 +81,7 @@ export default function PixelJijiaArenaPage() {
         {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
         {!disabled && !menu && status.match && <div className="rmul3d-match">
-          {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始训练</button> : <>
+          {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始自主对抗训练</button> : <>
             <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong><TeamScore team="blue" side={status.match.sides.blue} /></div>
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
@@ -149,7 +149,7 @@ export default function PixelJijiaArenaPage() {
           <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为简化对抗训练，非完整官方裁判仿真。基地有效装甲面尚未绑定，外壳仅遮挡弹丸；护甲行程及场地交互模块卡覆盖范围为训练近似。</p>
+          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击、科技核心实体装配及飞镖尚未实现；护甲行程及场地交互模块卡覆盖范围为训练近似。</p>
         </aside>}
       </section>
     </main>

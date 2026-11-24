@@ -134,3 +134,25 @@ test("navigation reaches an exact off-grid goal rather than stopping short",asyn
  assert.ok(Math.abs(bot.position.z)>.15);
  assert.ok(bot.position.distanceTo(other.position)>=.8);
 });
+
+test("sentry can reach the opposing fortress from the previously blocked real CAD position",async()=>{
+ const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
+ const model=createRobotPreview("sentry"),size=new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+ const radius=Math.hypot(size.x,size.z)/2;
+ const start=new THREE.Vector3(-5.3418323739813784,.245009577062169,-2.080637695654538);
+ const goal=new THREE.Vector3(7.43,terrain.heightAt(7.43,0),0);
+ const path=findArenaPath(terrain,start,goal,radius,.4);let step=path.next();while(!step.done)step=path.next();
+ assert.ok(step.value.at(-1).distanceTo(goal)<.015);
+ const p=start.clone();
+ for(const node of step.value){moveOnArena(terrain,p,node.x-p.x,node.z-p.z,radius,.23,[]);assert.ok(p.distanceTo(node)<.016);}
+ assert.ok(zonesAtPosition(p).includes("red-fortress"));
+});
+test("path search can route around an occupied waypoint",async()=>{
+ const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
+ const floor={heightAt:()=>.2},start=new THREE.Vector3(-2,.2,0),goal=new THREE.Vector3(2,.2,0);
+ const other={position:new THREE.Vector3(0,.2,0),radius:.6},radius=.4;
+ const path=findArenaPath(floor,start,goal,radius,.4,[other]);let step=path.next();while(!step.done)step=path.next();
+ assert.ok(step.value.at(-1).distanceTo(goal)<.015);
+ assert.ok(step.value.some(p=>Math.abs(p.z)>=.9));
+ for(const node of step.value){moveOnArena(floor,start,node.x-start.x,node.z-start.z,radius,.23,[other]);assert.ok(start.distanceTo(node)<.016);}
+});
