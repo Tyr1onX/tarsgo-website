@@ -5,11 +5,11 @@ import { joystickIntent } from "./pixel-jijia-input.ts";
 import { inflateSync } from "node:zlib";
 import {
   FOUNTAIN, GROUND_AREAS, PLACES, SCENERY, SPAWN, TILE, WALK_SPEED, RUN_SPEED, WORLD_HEIGHT, WORLD_WIDTH,
-  groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
+  groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, facingScore, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 import { explorerAnimation, explorerFrameBox, initialExplorerAnimation, EXPLORER_ACTIONS } from "./pixel-jijia-explorer.ts";
 import { createWildlife, updateWildlife, animalAnimation, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
-import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt } from "./pixel-jijia-room.ts";
+import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt, roomInteractable, chairExit, meetingChair, meetingSeat, seatPlacement, seatDepth } from "./pixel-jijia-room.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
   assert.equal(PLACES.length, 6);
@@ -119,7 +119,7 @@ test("统一场景图集必须包含十二个真实透明环境素材", () => {
   assert.equal(png[25], 6); // transparent RGBA
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   assert.ok(scene.includes("renderScene("));
-  assert.ok(scene.includes("node.y > player.y"), "必须按照脚底深度交错绘制人物和场景");
+  assert.ok(scene.includes("node.y > seatDepth"), "必须按照脚底深度交错绘制人物和场景");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(route.includes("plaza-props.png?url"), "场景素材必须使用内容指纹避免旧缓存");
 });
@@ -181,8 +181,8 @@ test("每张石凳有实际坐点和安全起身位置", () => {
   }
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
-  assert.ok(route.includes("setSeated(bench)"));
-  assert.ok(route.includes("onClick={standUp}"));
+  assert.ok(route.includes("setSeated({object,exit:placement.exit})"));
+  assert.ok(route.includes("if (seated) {event.preventDefault();standUp();return;}"));
   assert.ok(route.includes("canvas.dataset.seated"));
   assert.ok(scene.includes("pose.seated"));
   assert.ok(scene.includes("const screenCamera = snapCamera(camera)"));
@@ -246,10 +246,10 @@ test("故事点复用可见素材和碰撞配置，不制造不可见标记", ()
     assert.equal(closestStory({ x: item.x + 1.5, y: item.y })?.story?.title, item.story.title);
   }
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
-  assert.ok(route.includes("closestFeature(playerRef.current, mobile)"));
+  assert.ok(route.includes("closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null)"));
   assert.ok(route.includes("selected.story?.description"));
-  assert.ok(route.includes("selected.story?.action"));
-  assert.ok(route.includes("selected.story?.result"));
+  assert.ok(route.includes('if(feature.sprite==="bench"){if(!sit(feature))distanceNotice();return;}'));
+  assert.ok(route.includes("effectsRef.current.set(feature.story.title,now)"));
   assert.ok(stories.filter(p => p.story?.action && p.story?.result).length >= 5);
 });
 
@@ -338,7 +338,7 @@ test("机械工坊具备可通行室内、独立功能区与真实进出闭环",
   assert.ok(route.includes("roomExitAt(room, next, y)"));
   assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"), "进入建筑不能再依赖点击按钮");
   assert.ok(route.includes("setRoomId(null)"));
-  assert.ok(route.includes("{(!room || (mobile && mapOpen)) && <aside"));
+  assert.ok(route.includes("{(!room || mapOpen) && <aside"));
 });
 
 test("六栋建筑都有不同的可进入室内与独立设备，不复制人物控制器", () => {
@@ -384,7 +384,7 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(scene.includes("drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed)"));
   assert.ok(art.includes("if (!motion) return;"));
-  assert.ok(route.includes("time, !reducedMotion.matches, climate)"));
+  assert.ok(route.includes("time, !reducedMotion.matches, climate, seated?seatDepth"));
   assert.ok(!art.includes("requestAnimationFrame("));
   assert.ok(route.includes('transition.phase = "in"'));
   assert.ok(route.includes('transition.target === (room?.id ?? null)'));
@@ -400,12 +400,13 @@ test("实体脚底阻挡、装饰无操作、每栋入口及出口可通行", ()
     for (const o of room.objects.filter(o => o.solid)) {
       const x = o.x + o.width / 2, y = o.y + o.height / 2;
       assert.equal(isRoomWalkable(room, x, y), false, id + ":" + o.id);
-      if (o.decorative) assert.notEqual(closestRoomObject(room, {x, y})?.id, o.id);
+      if (o.decorative && o.kind!=="chair") assert.notEqual(closestRoomObject(room, {x, y})?.id, o.id);
     }
     const door = room.objects.find(o => o.kind === "exit");
-    const x = door.x + door.width / 2, y = door.y + .1;
+    const x = door.x + door.width / 2, y = door.y + door.height - .6;
     assert.ok(isRoomWalkable(room, x, y), id + " exit walkable");
     assert.ok(roomExitAt(room, {x, y}, 1), id + " exit trigger");
+    assert.equal(roomExitAt(room, {x, y:door.y+.5}, 1), false, id + " passing indoor aisle must not exit");
   }
 });
 
@@ -432,8 +433,11 @@ test("六栋室内所有实体不重叠且所有交互点均可从入口走到",
       }
     }
     assert.ok(exit, id + " 出口不可达");
-    for (const object of room.objects.filter(o => !o.decorative))
-      assert.ok(reachable.has(object.id), id + " 交互不可达: " + object.id);
+    for (const object of room.objects.filter(o => roomInteractable(room,o))) {
+      if (meetingSeat(room,object)) {
+        assert.ok(reachable.has("weekly-meeting") && queue.some(([x,y])=>seatPlacement(room,object,{x:x/2,y:y/2})), id+" 会议座位不可达: "+object.id);
+      } else assert.ok(reachable.has(object.id), id + " 交互不可达: " + object.id);
+    }
   }
 });
 
@@ -453,8 +457,8 @@ test("生成场景的家具碰撞与可见物件位置对应且入口可通行",
   assert.ok(source.includes('entry: { x: 18, y: 19.4 }'));
   assert.ok(source.includes('entry: { x: 18, y: 21.7 }'), "电控入口必须在工作台前方");
   assert.ok(source.includes('entry: { x: 18, y: 22.1 }'), "视觉入口必须在中央装置前方");
-  assert.ok(source.includes('position.y <= exit.y + exit.height - 0.4'),
-    "室内出口触发范围要覆盖入口门槛，避免无法返回");
+  assert.ok(source.includes('position.y <= exit.y + exit.height - 0.3'),
+    "室内出口触发范围要覆盖门口深处并保持合法可达");
   assert.ok(source.includes('id: "exit", kind: "exit", x: 16, y: 21'));
 });
 
@@ -483,7 +487,7 @@ test("室内出口、可见门槛和户外入口自动构成进出闭环", () =>
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(source.includes("export function roomExitAt("));
   assert.ok(source.includes('object.kind === "exit"'));
-  assert.ok(source.includes("position.y >= exit.y - 0.55"));
+  assert.ok(source.includes("position.y >= exit.y + exit.height - 0.8"));
   assert.ok(source.includes("ctx.fillRect(x, y, exit.width * TILE, 7)"));
   assert.ok(source.includes("entry: { x: 18, y: 19.4 }"));
   assert.ok(route.includes("roomExitAt(room, next, y)"));
@@ -491,7 +495,7 @@ test("室内出口、可见门槛和户外入口自动构成进出闭环", () =>
   assert.ok(route.includes("if (room) exitRoom()"));
   assert.ok(route.includes("enterRoom(door.id)"));
   assert.ok(!route.includes("onClick={() => enterRoom(selected.id)}"));
-  assert.ok(route.includes('if (object.kind === "exit") exitRoom()'));
+  assert.ok(route.includes('if (object.kind === "exit") { exitRoom(); return; }'));
   assert.ok(route.includes("clearInput();"));
   assert.ok(route.includes("place.y + place.height + 1.2"));
 });
@@ -821,4 +825,41 @@ test("动态摇杆死区、360 度方向、连续速度与疾跑迟滞", () => {
   const full=movePlayer(SPAWN,1,0,.05,false);
   assert.ok(end.x>SPAWN.x && end.x<full.x);
   assert.equal(movePlayer(SPAWN,0,0,.05,false),SPAWN);
+});
+
+test("统一座位从可达出口落座、与渲染深度独立，所有起身点合法",()=>{
+  for(const bench of SCENERY.filter(o=>o.sprite==="bench")){
+    const exit=benchExit(bench);
+    const placement=seatPlacement(null,bench,exit);
+    assert.ok(placement);
+    assert.deepEqual(placement.anchor,benchSeat(bench));
+    assert.equal(seatDepth(bench),bench.y);
+    assert.ok(isWalkable(placement.exit.x,placement.exit.y));
+    assert.equal(seatPlacement(null,bench,SPAWN),null);
+  }
+  for(const room of Object.values(ROOMS))for(const chair of room.objects.filter(o=>o.kind==="chair")){
+    const exit=chairExit(room,chair);
+    if(!exit)continue;
+    const placement=seatPlacement(room,chair,exit);
+    assert.ok(placement,room.id+":"+chair.id);
+    assert.ok(isRoomWalkable(room,placement.exit.x,placement.exit.y));
+    assert.equal(seatDepth(chair),chair.y+chair.height);
+    assert.ok(!chair.id.startsWith("decor-"));
+  }
+  const guild=ROOMS.guild;
+  const table=guild.objects.find(o=>o.id==="weekly-meeting");
+  const seats=guild.objects.filter(o=>o.kind==="chair");
+  assert.ok(seats.some(o=>{const p=chairExit(guild,o);return p&&meetingChair(guild,p)&&closestRoomObject(guild,p)?.id===table.id;}));
+  assert.equal(meetingChair(guild,guild.entry),null);
+});
+test("朝向轻量加权且背后唯一候选仍可选中",()=>{
+  assert.ok(facingScore({x:0,y:0},{x:1,y:0},"right")>facingScore({x:0,y:0},{x:1,y:0},"left"));
+  const bench=SCENERY.find(o=>o.sprite==="bench");
+  const exit=benchExit(bench);
+  assert.equal(closestFeature(exit,"up"),bench);
+  assert.equal(closestFeature(exit,"down"),bench);
+  const room=ROOMS.electrical,exitObject=room.objects.find(o=>o.kind==="exit");
+  assert.equal(closestRoomObject(room,{x:18,y:22},"down")?.id,exitObject.id);
+  assert.equal(closestRoomObject(room,{x:19,y:21.15},"up")?.id,"lit-capacitor");
+  assert.equal(roomExitAt(room,{x:19,y:21.15},1),false);
 });

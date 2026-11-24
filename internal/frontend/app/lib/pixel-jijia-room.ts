@@ -1,14 +1,13 @@
-import { TILE, overlapsRect, snapCamera, type Direction, type Position } from "./pixel-jijia-world.ts";
+import { TILE, overlapsRect, snapCamera, benchSeat, benchExit, facingScore, type Scenery, type Direction, type Position } from "./pixel-jijia-world.ts";
 import { renderExplorer } from "./pixel-jijia-scene.ts";
 import type { ExplorerAnimation } from "./pixel-jijia-explorer.ts";
 import { COMMUNITY_ROOM_OBJECTS, type CommunityContribution } from "./pixel-jijia-community.ts";
-import { ROOM_ART_SCALE, drawPublicRoomObject, drawRoomLight, drawRoomWindows,drawRoomAmbient, type RoomClimate, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
+import { ROOM_ART_SCALE, drawPublicRoomObject, drawStudyChair, drawRoomLight, drawRoomWindows,drawRoomAmbient, type RoomClimate, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
 
 type Rect = Position & { width: number; height: number };
 export type RoomObject = Rect & {
   id: string;
   title: string;
-  description: string;
   kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit" | "desk" | "chair" | "shelf" | "lamp" | "plant";
   solid?: boolean;
   decorative?: boolean;
@@ -38,19 +37,19 @@ export const MECHANICAL_ROOM: RoomScene = {
   walls: [],
   objects: [
     { id: "assembly", kind: "workbench", x: 14, y: 13.5, width: 8, height: 4.5, solid: true,
-      title: "装配工作台", description: "机械组在这里完成零件定位、工具检查和整机装配。台面上还有未完成的轮组草图。" },
+      title: "装配工作台" },
     { id: "tool-storage", kind: "cabinet", x: 4.5, y: 11.6, width: 6, height: 2.4, solid: true,
-      title: "工具储藏柜", description: "扭矩扳手、游标卡尺和常用紧固件都按尺寸分类。每次使用后，工具要回到自己的位置。" },
+      title: "工具储藏柜" },
     { id: "machine", kind: "machine", x: 11, y: 15.2, width: 2.5, height: 1.8, solid: true,
-      title: "加工设备", description: "试制零件在这里完成加工。机器上的安全标识提醒每一个进入工坊的人保持专注。" },
+      title: "加工设备" },
     { id: "cad", kind: "console", x: 24, y: 11, width: 5, height: 3, solid: true,
-      title: "设计工作站", description: "屏幕上是机械结构的三维装配模型。每一个尺寸，都需要与实际材料相吻合。", href: "/about", action: "了解机械组" },
+      title: "设计工作站", href: "/about", action: "了解机械组" },
     { id: "review", kind: "workbench", x: 26, y: 17.8, width: 6, height: 3.2, solid: true,
-      title: "评审台", description: "从草图到样机，方案在这里被反复讨论、修改、重新验证。" },
+      title: "评审台" },
     { id: "calibration", kind: "console", x: 30, y: 15, width: 3, height: 2, solid: true,
-      title: "传动校准站", description: "轮组、减速器与编码器在这里比对精度；微小的误差决定整机的可靠性。" },
+      title: "传动校准站" },
     { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-      title: "返回吉甲小镇", description: "推开工坊大门，回到室外的林荫道路。" },
+      title: "返回吉甲小镇" },
   ],
 };
 
@@ -62,7 +61,7 @@ export const STUDY_ROOM: RoomScene = {
  theme: { floor: "#b8ac90", rug: "#617772", wall: "#3e585d", window: "#c1dfd8" },
  walls: [],
  objects: [{ id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-   title: "返回吉甲小镇", description: "回到户外的道路。" }],
+   title: "返回吉甲小镇" }],
 };
 
 export const ROOMS: Record<string, RoomScene> = {
@@ -74,17 +73,17 @@ export const ROOMS: Record<string, RoomScene> = {
     walls: [],
     objects: [
       { id: "trophies", kind: "display", x: 14, y: 7, width: 8, height: 2.5, solid: true,
-        title: "荣誉展柜", description: "每一个奖杯都属于曾经在训练场上反复试验的队员。荣誉有日期，但成长不会停止。" },
+        title: "荣誉展柜" },
       { id: "history", kind: "display", x: 23, y: 17.4, width: 5, height: 2.6, solid: true,
-        title: "吉甲历史长廊", description: "墙上排列着战队从创立到赛季出征的片段，记录技术和团队一起前进的轨迹。", href: "/events-and-honors", action: "查看赛事与荣誉" },
+        title: "吉甲历史长廊", href: "/events-and-honors", action: "查看赛事与荣誉" },
       { id: "screen", kind: "console", x: 8, y: 17, width: 5, height: 3, solid: true,
-        title: "赛事影像台", description: "在这里可以回顾那些决定胜负的瞬间，以及镜头没有拍下的训练日常。" },
+        title: "赛事影像台" },
       { id: "archive", kind: "cabinet", x: 2, y: 15.3, width: 3, height: 1.7, solid: true,
-        title: "资料档案室", description: "纸质资料、设计草案和赛事记录被按照年份仔细收存。" },
+        title: "资料档案室" },
       { id: "team-photo", kind: "display", x: 6.2, y: 5, width: 3.5, height: 0.5,
-        title: "历届队员合影", description: "从赛场到镜头，一代代队员留下共同经历，名字与奖杯不同，热爱相同。" },
+        title: "历届队员合影" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-        title: "返回吉甲小镇", description: "走出荣誉殿堂，回到校园道路。" },
+        title: "返回吉甲小镇" },
     ],
   },
   electrical: {
@@ -94,17 +93,17 @@ export const ROOMS: Record<string, RoomScene> = {
     walls: [],
     objects: [
       { id: "solder", kind: "workbench", x: 2, y: 15.5, width: 5, height: 4.5, solid: true,
-        title: "电路焊接区", description: "焊台、放大镜与电路板整齐排列。每个焊点都需要耐心和精确。" },
+        title: "电路焊接区" },
       { id: "oscilloscope", kind: "console", x: 14, y: 10, width: 8, height: 3, solid: true,
-        title: "示波器与信号台", description: "蓝色屏幕上的波形让原本看不见的电信号有了形状。", href: "/about", action: "了解电控组" },
+        title: "示波器与信号台", href: "/about", action: "了解电控组" },
       { id: "embedded", kind: "machine", x: 13.5, y: 16.3, width: 10, height: 4.2, solid: true,
-        title: "嵌入式测试台", description: "从开发板到电机控制器，每一次调试都会让机器人更可靠一些。" },
+        title: "嵌入式测试台" },
       { id: "components", kind: "cabinet", x: 28, y: 11.6, width: 5, height: 2.4, solid: true,
-        title: "元件收纳柜", description: "电阻、电容和芯片都有自己的编号，方便下一次实验快速找到。" },
+        title: "元件收纳柜" },
       { id: "signal-wall", kind: "display", x: 6.2, y: 5, width: 3.5, height: 0.5,
-        title: "信号分析墙", description: "PWM、CAN 与闭环控制的波形与实验笔记，记录着每次调试的来龙去脉。" },
+        title: "信号分析墙" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-        title: "返回吉甲小镇", description: "离开实验室，回到户外。" },
+        title: "返回吉甲小镇" },
     ],
   },
   vision: {
@@ -114,17 +113,17 @@ export const ROOMS: Record<string, RoomScene> = {
     walls: [],
     objects: [
       { id: "camera", kind: "camera", x: 4, y: 19.6, width: 3, height: 2.4, solid: true,
-        title: "视觉采集设备", description: "标定板和相机共同决定目标位置。细微的像素误差也会影响识别结果。" },
+        title: "视觉采集设备" },
       { id: "dataset", kind: "console", x: 10, y: 12, width: 16, height: 3, solid: true,
-        title: "图像数据工作站", description: "画面中的物体被逐帧分析，算法在真实环境中不断修正判断。", href: "/about", action: "了解视觉组" },
+        title: "图像数据工作站", href: "/about", action: "了解视觉组" },
       { id: "observe", kind: "display", x: 14, y: 5, width: 8, height: 0.5,
-        title: "观测窗", description: "这里用于观察机器人在试验区的移动和目标跟踪表现。" },
+        title: "观测窗" },
       { id: "compute", kind: "server", x: 29.25, y: 13.2, width: 3.5, height: 1.8, solid: true,
-        title: "图像处理计算站", description: "计算资源支持实时图像处理与识别算法的测试。" },
+        title: "图像处理计算站" },
       { id: "lens-calibration", kind: "console", x: 15, y: 17.9, width: 6, height: 2.6, solid: true,
-        title: "镜头标定台", description: "棋盘格与镜头参数被一一校准，像素误差最终会反映在赛场的每次瞄准中。" },
+        title: "镜头标定台" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-        title: "返回吉甲小镇", description: "走出观测站，重新回到自然光线中。" },
+        title: "返回吉甲小镇" },
     ],
   },
   guild: {
@@ -133,15 +132,15 @@ export const ROOMS: Record<string, RoomScene> = {
     walls: [],
     objects: [
       { id: "welcome", kind: "reception", x: 11, y: 10.6, width: 13, height: 3.4, solid: true,
-        title: "招新接待台", description: "每个来到吉甲的人，都可以从这里了解不同组别的工作和训练生活。", href: "/join", action: "加入吉甲大师" },
+        title: "招新接待台", href: "/join", action: "加入吉甲大师" },
       { id: "board", kind: "display", x: 6.2, y: 5, width: 3.5, height: 0.5,
-        title: "活动公告栏", description: "展示近期活动、开放实践日和团队见面安排。" },
+        title: "活动公告栏" },
       { id: "welcome-wall", kind: "display", x: 27, y: 18.8, width: 7, height: 2.2, solid: true,
-        title: "成员故事墙", description: "从第一次参与训练到第一次走上赛场，团队由一段段共同经历组成。" },
+        title: "成员故事墙" },
       { id: "journey-map", kind: "display", x: 26.2, y: 5, width: 3.5, height: 0.5,
-        title: "新人旅程地图", description: "从第一次认识吉甲到完成新人任务，路线不同，但每一步都有新的同伴。" },
+        title: "新人旅程地图" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-        title: "返回吉甲小镇", description: "离开公会大厅，回到中央广场。" },
+        title: "返回吉甲小镇" },
     ],
   },
   ai: {
@@ -150,17 +149,17 @@ export const ROOMS: Record<string, RoomScene> = {
     walls: [],
     objects: [
       { id: "models", kind: "server", x: 28, y: 10.8, width: 6, height: 3.2, solid: true,
-        title: "模型计算集群", description: "感知、预测和规划模型在这里进行推理与验证。" },
+        title: "模型计算集群" },
       { id: "planning", kind: "console", x: 15, y: 14.8, width: 7, height: 3.7, solid: true,
-        title: "自主决策工作站", description: "从环境理解到行为选择，系统需要在有限时间内做出可靠判断。" },
+        title: "自主决策工作站" },
       { id: "strategy", kind: "workbench", x: 2, y: 17.7, width: 9, height: 3.3, solid: true,
-        title: "战术讨论台", description: "策略从假设开始，经仿真、推演与实际对抗不断优化。" },
+        title: "战术讨论台" },
       { id: "simulation", kind: "console", x: 26, y: 17.7, width: 8, height: 3.3, solid: true,
-        title: "战术演练终端", description: "当前像素世界的战术演练入口也属于 AI 研究所的一部分。", href: "/pixel-jijia/battle", action: "进入战术演练" },
+        title: "战术演练终端", href: "/pixel-jijia/battle", action: "进入战术演练" },
       { id: "field-log", kind: "display", x: 6.2, y: 5, width: 3.5, height: 0.5,
-        title: "策略实验记录", description: "真实赛场的测试推动感知、路径规划和自主决策持续迭代。" },
+        title: "策略实验记录" },
       { id: "exit", kind: "exit", x: 16, y: 21, width: 4, height: 2,
-        title: "返回吉甲小镇", description: "从研究所走回小镇。" },
+        title: "返回吉甲小镇" },
     ],
   },
 };
@@ -182,12 +181,14 @@ for (const room of Object.values(ROOMS)) {
   // electrical benches or precision machinery. Keep furnishing task-driven.
   const decor = ROOM_DECOR[room.id];
   for (const [i, [kind, x, y, width, height]] of decor.entries()) room.objects.push({
-    id: `decor-${i}`, title: "", description: "", kind, x, y, width, height, solid: true, decorative: true,
+    id: kind === "chair" ? `chair-${x}-${y}` : `decor-${i}`, title: kind === "chair" ? "座椅" : "", kind, x, y, width, height, solid: true, decorative: true,
   });
 }
 
 export function roomObjectAt(room: RoomScene, position: Position): RoomObject | null {
-  return room.id === "study" ? closestRoomObject(room, position) : publicRoomObjectAt(room, position);
+  const exit=room.objects.find(o=>o.kind==="exit"&&position.x>=o.x&&position.x<=o.x+o.width&&position.y>=o.y-.55&&position.y<=o.y+o.height);
+  if(exit)return exit;
+  return room.id==="study"?room.objects.find(o=>o.kind==="chair"&&position.x>=o.x-.25&&position.x<=o.x+o.width+.25&&position.y>=o.y-1&&position.y<=o.y+o.height)??null:publicRoomObjectAt(room,position);
 }
 
 export function isRoomWalkable(room: RoomScene, x: number, y: number): boolean {
@@ -204,10 +205,23 @@ export function roomExitAt(room: RoomScene, position: Position, vertical: number
   const exit = room.objects.find(object => object.kind === "exit");
   return Boolean(exit && position.x >= exit.x + 0.65 &&
     position.x <= exit.x + exit.width - 0.65 &&
-    position.y >= exit.y - 0.55 && position.y <= exit.y + exit.height - 0.4);
+    position.y >= exit.y + exit.height - 0.8 && position.y <= exit.y + exit.height - 0.3);
 }
 
 export function roomInteractionDistance(room: RoomScene, object: RoomObject, position: Position): number {
+  if(object.kind==="exit"){
+    const dx=Math.max(object.x+.65-position.x,0,position.x-(object.x+object.width-.65));
+    return Math.hypot(dx,object.y+object.height-.6-position.y);
+  }
+  if(object.kind==="chair"){
+    if(Math.hypot(object.x+object.width/2-position.x,object.y+object.height/2-position.y)>4)return Infinity;
+    const exit=chairExit(room,object,position);
+    return exit?Math.hypot(exit.x-position.x,exit.y-position.y):Infinity;
+  }
+  if(object.community?.interaction==="meeting"){
+    const chair=meetingChair(room,position);
+    return chair?roomInteractionDistance(room,chair,position):Infinity;
+  }
   if (object.host) {
     const host = room.objects.find(item => item.id === object.host)!;
     // The physical workbench stays the only collision body; approach its
@@ -220,14 +234,53 @@ export function roomInteractionDistance(room: RoomScene, object: RoomObject, pos
   return Math.hypot(dx, dy);
 }
 
-export function closestRoomObject(room: RoomScene, position: Position): RoomObject | null {
-  let best = 2.1;
+export function chairExit(room: RoomScene, object: RoomObject, from?:Position): Position | null {
+  if (object.kind !== "chair") return null;
+  const x=object.x+object.width/2,y=object.y+object.height;
+  const candidates=[{x,y:y+.55},{x:object.x-.55,y:y-.4},{x:object.x+object.width+.55,y:y-.4}];
+  return candidates.filter(p=>{
+    if(!isRoomWalkable(room,p.x,p.y))return false;
+    if(!from)return true;
+    const distance=Math.hypot(p.x-from.x,p.y-from.y),steps=Math.max(1,Math.ceil(distance/.2));
+    for(let i=0;i<=steps;i++)if(!isRoomWalkable(room,from.x+(p.x-from.x)*i/steps,from.y+(p.y-from.y)*i/steps))return false;
+    return true;
+  }).sort((a,b)=>from?Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y):0)[0]??null;
+}
+export type SeatObject=Scenery|RoomObject;
+export function seatDepth(object:SeatObject){return "sprite" in object?object.y:object.y+object.height;}
+export function seatPlacement(room:RoomScene|null,object:SeatObject,from:Position) {
+  if("sprite" in object){
+    if(room||object.sprite!=="bench"||Math.hypot(from.x-object.x,from.y-object.y)>=2.5)return null;
+    const exit=benchExit(object,from);
+    return exit?{anchor:benchSeat(object),exit}:null;
+  }
+  if(!room||object.kind!=="chair"||Math.hypot(object.x+object.width/2-from.x,object.y+object.height/2-from.y)>4)return null;
+  const exit=chairExit(room,object,from);
+  if(!exit||Math.hypot(exit.x-from.x,exit.y-from.y)>=2.1)return null;
+  return {anchor:{x:object.x+object.width/2,y:object.y+object.height-.5},exit};
+}
+export function meetingSeat(room:RoomScene,object:RoomObject):boolean {
+  if(object.kind!=="chair")return false;
+  const table=room.objects.find(o=>o.community?.interaction==="meeting");
+  return !!table&&Math.hypot(Math.max(table.x-object.x-object.width,object.x-table.x-table.width,0),Math.max(table.y-object.y-object.height,object.y-table.y-table.height,0))<1.6;
+}
+export function meetingChair(room:RoomScene,position:Position):RoomObject|null {
+  return room.objects.filter(o=>meetingSeat(room,o)&&seatPlacement(room,o,position))
+    .sort((a,b)=>Math.hypot(a.x+a.width/2-position.x,a.y+a.height/2-position.y)-Math.hypot(b.x+b.width/2-position.x,b.y+b.height/2-position.y))[0]??null;
+}
+export function roomInteractable(room: RoomScene, object: RoomObject) {
+  return object.kind==="chair"?!!chairExit(room,object):!object.decorative&&!!(object.community||object.href||object.kind==="exit");
+}
+
+export function closestRoomObject(room: RoomScene, position: Position, facing?: Direction, previous?: RoomObject | null): RoomObject | null {
+  let best = Infinity;
   let result: RoomObject | null = null;
   for (const object of room.objects) {
-    if (object.decorative) continue;
+    if (!roomInteractable(room, object) || meetingSeat(room,object)) continue;
     const distance = roomInteractionDistance(room, object, position);
+    if (distance >= 2.1) continue;
     // Close to a tabletop object, select it before its larger host.
-    const score = object.host && distance < 1.5 ? distance - 1.5 : distance;
+    const score=distance-(object.host&&distance<1.5?.7:0)-facingScore(position,{x:object.x+object.width/2,y:object.y+object.height/2},facing)-(previous?.id===object.id?.12:0)-(object.community?.interaction==="meeting"?.5:0);
     if (score < best) { best = score; result = object; }
   }
   return result;
@@ -298,11 +351,12 @@ function drawRoomObject(ctx: CanvasRenderingContext2D, object: RoomObject, camer
   const y = Math.round(object.y * TILE - camera.y);
   const w = object.width * TILE, h = object.height * TILE;
   if (object.kind === "exit") return;
+  if (object.kind === "chair") { drawStudyChair(ctx, object, camera); return; }
   ctx.fillStyle = "#334346";
   ctx.fillRect(x + 2, y + 5, w, h);
-  if (["desk", "chair", "shelf", "lamp", "plant"].includes(object.kind)) {
+  if (["desk", "shelf", "lamp", "plant"].includes(object.kind)) {
     const shades: Record<string, [string, string]> = {
-      desk: ["#8b6545", "#ddab78"], chair: ["#667a6b", "#b0c49f"],
+      desk: ["#8b6545", "#ddab78"],
       shelf: ["#735846", "#d2b076"], lamp: ["#556d77", "#ffdf8b"],
       plant: ["#6b5846", "#8aba75"],
     };
@@ -323,7 +377,7 @@ export function renderRoomScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
   elapsed: number, motionAllowed: boolean,
-  climate: RoomClimate | null = null,
+  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>,
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -341,22 +395,22 @@ export function renderRoomScene(
     drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed);
     for (const object of room.objects) {
       if (!object.solid && !object.host && object.kind !== "exit")
-        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
+        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id));
     }
   }
   let playerDrawn = false;
   const props = room.objects.filter(o => o.kind !== "exit" && (room.id === "study" || o.solid))
     .sort((a, b) => a.y + a.height - b.y - b.height);
   for (const object of props) {
-    if (!playerDrawn && player.y < object.y + object.height) {
+    if (!playerDrawn && seatDepth < object.y + object.height) {
       renderExplorer(ctx, character, player, pose, screenCamera);
       playerDrawn = true;
     }
     if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
     else {
-      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed);
+      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id));
       for (const child of room.objects) if (child.host === object.id)
-        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed);
+        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed, effects?.get(child.id));
     }
   }
   if (!playerDrawn) renderExplorer(ctx, character, player, pose, screenCamera);

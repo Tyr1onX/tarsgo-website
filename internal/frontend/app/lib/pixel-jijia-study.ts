@@ -22,10 +22,10 @@ export function canPlaceStudy(items: StudyFurniture[], candidate: StudyFurniture
  });
 }
 export function makeStudyRoom(items: StudyFurniture[], guest: boolean): RoomScene {
- const furniture: RoomObject[] = items.map((item, i) => ({
-   id: `furniture-${i}`, kind: item.kind, x: item.x, y: item.y,
+ const furniture: RoomObject[] = items.map(item => ({
+   id: `furniture-${item.kind}-${item.x}-${item.y}`, kind: item.kind, x: item.x, y: item.y,
    ...furnitureSize(item.kind), solid: true,
-   title: STUDY_CATALOG[item.kind], description: "研究室中的个人摆设。",
+   title: STUDY_CATALOG[item.kind],
  }));
  return { ...STUDY_ROOM, title: guest ? "受邀参观的研究室" : "我的研究室",
    objects: [...STUDY_ROOM.objects, ...furniture] };

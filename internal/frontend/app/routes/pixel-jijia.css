@@ -329,12 +329,8 @@
 
 
 /* Community props share the existing RPG panel and map collection. */
-.pixel-world-community-detail {
-
-}
 .pixel-world-community-detail h1 { font-size: 26px; padding-right: 18px; }
 .pixel-world-community-detail p { margin-bottom: 12px; }
-.pixel-community-art { display: flex; align-items: center; justify-content: center; min-height: 70px; padding: 6px 0 12px; }
 .pixel-community-sprite {
   display: inline-block; position: relative; flex-shrink: 0; background-repeat: no-repeat;
   image-rendering: pixelated; isolation: isolate;
@@ -344,18 +340,6 @@
   0%, 100% { filter: none; }
   35% { filter: brightness(1.4) drop-shadow(0 0 8px #f6dc8a) drop-shadow(0 0 15px #f6cf6d); }
 }
-.pixel-community-sprite--smoke::after {
-  content: ""; position: absolute; top: 12%; left: 62%; width: 4px; height: 4px; background: #b2d8cd;
-  box-shadow: 4px -4px #9cbdb6, -4px -8px #a9cbc1, 0 -12px #bfd9cb, 4px -16px #a8b9ae;
-  animation: pixel-community-smoke 1.3s steps(7, end) both;
-}
-@keyframes pixel-community-smoke { 0% { opacity: 0; transform: translate(0, 8px); } 25% { opacity: .85; } 100% { opacity: 0; transform: translate(10px, -28px); } }
-.pixel-community-sprite--burst::after {
-  content: ""; position: absolute; top: 18%; left: 45%; width: 5px; height: 5px; background: #fff3b3;
-  box-shadow: 10px -12px #f9b975, -14px -6px #eaba74, 17px 4px #f5d596, -8px 15px #e8a36d;
-  animation: pixel-community-burst .55s steps(5, end) both;
-}
-@keyframes pixel-community-burst { from { opacity: .9; transform: scale(.4); } to { opacity: 0; transform: scale(2.2); } }
 .pixel-community-interaction { display: grid; gap: 8px; margin: 0 0 14px; }
 .pixel-community-interaction p { margin: 0; }
 .pixel-community-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -451,6 +435,3 @@
 .pixel-community-archive-image span { position: absolute; inset: auto; }
 .pixel-community-terminal--wolf { color: #a7f5f3; background: #25213f; border-color: #ad8df7; }
 .pixel-community-terminal--wolf a, .pixel-community-history a { color: #e2c9ff; }
-.pixel-community-sprite--laugh { animation: pixel-community-laugh .65s steps(2,end) 2; }
-@keyframes pixel-community-laugh { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-8deg); } }
-@media (prefers-reduced-motion: reduce) { .pixel-community-sprite--laugh { animation: none; } }

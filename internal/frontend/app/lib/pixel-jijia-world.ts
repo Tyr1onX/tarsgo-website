@@ -377,7 +377,7 @@ export function closestBench(position: Position): Scenery | null {
   return nearest;
 }
 
-export function benchExit(bench: Scenery): Position | null {
+export function benchExit(bench: Scenery, from?:Position): Position | null {
   if (bench.sprite !== "bench") return null;
   const radius = bench.width / (2 * TILE) + 0.9;
   const candidates = [
@@ -386,13 +386,38 @@ export function benchExit(bench: Scenery): Position | null {
     { x: bench.x + radius, y: bench.y },
     { x: bench.x, y: bench.y - 1.4 },
   ];
-  return candidates.find(p => isWalkable(p.x, p.y)) ?? null;
+  return candidates.filter(p=>isWalkable(p.x,p.y)&&(!from||pathIsWalkable(from,p,true))).sort((a,b)=>from?Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y):0)[0]??null;
 }
 
 export function benchSeat(bench: Scenery): Position {
-  return { x: bench.x, y: bench.y - 0.6 };
+  // Seat surface is 15px above the prop anchor; the seated frame
+  // places the hips about 11px above its bottom.
+  return { x: bench.x, y: bench.y - 4 / TILE };
 }
 
+export function facingScore(position:Position, target:Position, facing?:Direction) {
+  const dx=target.x-position.x,dy=target.y-position.y;
+  return (facing==="up"?-dy:facing==="down"?dy:facing==="left"?-dx:facing==="right"?dx:0)>0?.35:0;
+}
+export function nearDoor(place:Place,position:Position) {
+  return Math.abs(position.x-place.x-place.width/2)<=1.35 &&
+    position.y>=place.y+place.height+.3 && position.y<=place.y+place.height+3;
+}
+export function closestFeature(position:Position,facing?:Direction,previous?:Place|Scenery|null):Place|Scenery|null {
+  if(waterDepthAt(position.x,position.y))return null;
+  const door=PLACES.find(p=>nearDoor(p,position));
+  if(door)return door;
+  let best=Infinity,result:Scenery|null=null;
+  for(const item of SCENERY){
+    if(!item.story&&item.sprite!=="bench")continue;
+    const distance=Math.hypot(item.x-position.x,item.y-position.y);
+    if(distance>=(item.sprite==="bench"?2.5:2.8))continue;
+    if(item.sprite==="bench"&&!benchExit(item,position))continue;
+    const score=distance-facingScore(position,item,facing)-(previous===item?.12:0);
+    if(score<best){best=score;result=item;}
+  }
+  return result;
+}
 export function closestStory({ x, y }: Position): Scenery | null {
   let nearest: Scenery | null = null;
   let distance = 2.8;

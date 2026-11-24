@@ -277,7 +277,7 @@ function snowCap(image:PropAtlas,box:SpriteBox,key:string){
   ctx.putImageData(data,0,0);cache.set(key,canvas);return canvas;
 }
 function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageElement,
-  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0){
+  sprites:SpriteIndex,props:PropAtlas,camera:Position,viewport?:{width:number;height:number},snow=0,time=0,age=Infinity){
   const b=node.kind==="building"?buildingBounds(node.value,sprites):
     node.kind==="prop"?{x:point(node.x)-node.value.width/2,y:point(node.y)-node.value.height,width:node.value.width,height:node.value.height}:
     fountainBounds();
@@ -293,6 +293,26 @@ function drawNode(ctx:CanvasRenderingContext2D,node:SceneNode,atlas:HTMLImageEle
       ctx.drawImage(props,sx,sy+top,PROP_CELL,PROP_CELL-top,x,y+cut,b.width,b.height-cut);
       ctx.drawImage(props,sx,sy,PROP_CELL,top,x+shift,y,b.width,cut);
     }else decoration(ctx,props,node.value,camera);
+    const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
+    const active=age>=0&&age<1500;
+    if(node.value.sprite==="arch"){
+      // The little brass chime hangs inside the existing arch, not in a new collision layer.
+      const cx=x+Math.round(b.width*.52),cy=y+Math.round(b.height*.31);
+      const swing=active&&time?Math.round(Math.sin(age/70)*3*(1-age/1500)):0;
+      ctx.fillStyle="#735338";ctx.fillRect(cx,cy-7,1,7);
+      ctx.fillStyle="#d4ad63";ctx.fillRect(cx-5+swing,cy,11,2);
+      for(let i=0;i<3;i++){
+        ctx.fillStyle="#82603e";ctx.fillRect(cx-4+i*4+swing,cy+2,2,6+i*2);
+        ctx.fillStyle="#ffe4a0";ctx.fillRect(cx-4+i*4+swing,cy+2,1,5+i*2);
+      }
+    }else if(active&&node.value.story?.action&&node.value.sprite==="statue"){
+      ctx.save();ctx.globalAlpha=.5+.4*(time?Math.sin(age/75)**2:1);
+      ctx.fillStyle="#9cecff";ctx.fillRect(x+Math.round(b.width*.39),y+Math.round(b.height*.24),4,2);ctx.restore();
+    }else if(active&&node.value.story?.action&&node.value.sprite==="cherry"){
+      ctx.save();ctx.globalAlpha=1-age/1500;ctx.fillStyle="#e4b4ba";
+      for(let i=0;i<4;i++){const t=time?age/1500:0;ctx.fillRect(x+b.width*.35+i*6+Math.sin(t*5+i)*5,y+b.height*.4+t*35+i*3,2,2);}
+      ctx.restore();
+    }
   }else fountain(ctx,atlas,sprites,camera);
   if(snow>.02&&(node.kind==="building"||node.kind==="prop"&&isTree(node.value))){
     const box:SpriteBox=node.kind==="building"?sprites[node.value.id]:[
@@ -590,7 +610,7 @@ export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: Terrain,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
@@ -604,12 +624,12 @@ export function renderScene(
   const drawPlayer=()=>renderExplorer(ctx, characterSheet, player, pose, screenCamera);
   for (const node of NODES) {
     while(index<land.length&&land[index].y<node.y){
-      const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
+      const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
     }
-    if (!playerDrawn && node.y > player.y) {drawPlayer();playerDrawn = true;}
-    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0);
+    if (!playerDrawn && node.y > seatDepth) {drawPlayer();playerDrawn = true;}
+    drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity);
   }
-  while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
+  while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();
   if(climate)drawAtmosphere(ctx,screenCamera,sprites,climate,w,h);
   if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
@@ -623,7 +643,7 @@ export function renderExplorer(
   const [sx,sy,w,h]=explorerFrameBox(pose);
   const swimming=pose.water===2||pose.action==="enter"||pose.action==="exit";
   const top=footY-h+(swimming?8:0);
-  if(!pose.water){
+  if(!pose.water && !pose.seated){
     ctx.fillStyle="rgba(44,66,48,.20)";ctx.beginPath();
     ctx.ellipse(footX,footY-2,pose.seated?10:12,4,0,0,Math.PI*2);ctx.fill();
   }
