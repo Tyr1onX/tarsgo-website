@@ -96,7 +96,8 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group) {
       m.emissive.copy(m.color);m.emissiveIntensity=(a.team==="red"?red:blue).includes(a.i)?1.5:0;
     }
   }
-  for(const team of TEAMS) find(team+"-base-assembly").userData.target={type:"base",team};
+  // The six base detector faces have not been bound to verified source geometry.
+  // The housing and covers are blockers, not damage targets.
   // Preserve fixed original collision envelope for locomotion; only new
   // source meshes participate in visible scene and projectile queries.
   for (const object of old) object.removeFromParent();

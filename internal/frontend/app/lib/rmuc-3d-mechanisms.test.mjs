@@ -287,3 +287,48 @@ test("ten source rune disks resolve only front hits within 150 mm at rotating po
     }
   }
 });
+
+test("base shells block actual muzzle shots without scoring arbitrary surfaces", async()=>{
+ const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+ const scene=new THREE.Scene(),root=new THREE.Group();
+ scene.add(root);root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
+ const bounds=new THREE.Box3().setFromObject(root),center=bounds.getCenter(new THREE.Vector3());
+ root.position.set(-center.x,-bounds.min.y,-center.z);root.updateMatrixWorld(true);
+ const terrain=createArenaTerrain(root),mechanism=installMechanisms(field,parts);
+ const shooter=createRobotPreview("infantry04");scene.add(shooter);
+ const match=createMatch([{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}],1,1);
+ startMatch(match);
+ const ray=new THREE.Raycaster();
+ for(const team of TEAMS){
+  const enemy=team==="red"?"blue":"red",id=enemy[0];
+  const assembly=parts.getObjectByName(team+"-base-assembly");
+  assert.ok(meshes(assembly).every(m=>!target(m)));
+  const middle=new THREE.Box3().setFromObject(assembly).getCenter(new THREE.Vector3());
+  match.sides[team].outpostArea.controller=enemy;
+  match.sides[team].cover=true;
+  assert.ok(purchaseAmmo(match,id));updateMatch(match,6);
+  for(const open of [0,.5,1]){
+   const pose={...match.pose,cover:{red:open,blue:open}};
+   mechanism.apply(pose);
+   let valid;
+   for(const distance of [2.5,3,3.5,4]){
+    for(let angle=0;angle<Math.PI*2;angle+=Math.PI/12){
+     const x=middle.x+distance*Math.cos(angle),z=middle.z+distance*Math.sin(angle);
+     const y=terrain.heightAt(x,z);
+     if(!Number.isFinite(y)||supportedHeight(terrain,x,z,.35,y,.23)===null)continue;
+     shooter.position.set(x,y,z);scene.updateMatrixWorld(true);
+     const aim=aimWeaponAt(shooter,middle);if(!aim)continue;
+     const hit=traceArenaShot(ray,[root],aim.origin,aim.direction);
+     if(hit&&meshes(assembly).includes(hit.object)&&hit.distance>1.5){valid=aim;break;}
+    }
+    if(valid)break;
+   }
+   assert.ok(valid,team+" shell at "+open);
+   const before=match.sides[team].base;
+   const shot=resolveArenaShot(match,id,ray,[root],valid.origin,valid.direction);
+   assert.ok(shot.hit);assert.equal(shot.target,undefined);assert.equal(shot.damage,0);assert.equal(match.sides[team].base,before);
+   console.log(team,"cover",open,"blocked muzzle metres",shot.hit.distance.toFixed(3));
+   updateMatch(match,1);
+  }
+ }
+});
