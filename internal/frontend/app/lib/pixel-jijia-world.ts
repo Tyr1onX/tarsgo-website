@@ -34,6 +34,7 @@ export const PLACES: Place[] = [
 // warm limestone + sage greens, decorative silhouettes clear of walking routes.
 export type GroundKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // grass, brick, stone, water, soil, flower bed, wood, sand
 export type GroundArea = { kind: GroundKind; x: number; y: number; width: number; height: number; shore?: "natural" };
+export const TRAINING_FIELD = { x:103,y:2,width:36,height:9 } as const;
 export const GROUND_AREAS: GroundArea[] = [
   // Outer walking loop + quieter branches, linked to all six existing buildings.
   { kind: 1, x: 16, y: 13, width: 112, height: 6 },
@@ -45,6 +46,7 @@ export const GROUND_AREAS: GroundArea[] = [
   { kind: 1, x: 52, y: 64, width: 6, height: 20 },
   { kind: 1, x: 86, y: 64, width: 6, height: 20 },
   { kind: 1, x: 18, y: 46, width: 108, height: 6 },
+  { kind: 2, ...TRAINING_FIELD },
   // Small authored clearings make the outer walk worth taking.
   { kind: 2, x: 20, y: 8, width: 13, height: 6 },
   { kind: 2, x: 109, y: 8, width: 13, height: 6 },
@@ -105,7 +107,8 @@ export function waterDepthAt(x: number, y: number): 0 | 1 | 2 {
 
 export type PropSprite =
   | "bench" | "lamp" | "sign" | "planter" | "oak" | "lime_tree"
-  | "cherry" | "rocks" | "fence" | "hydrangea" | "statue" | "arch";
+  | "cherry" | "rocks" | "fence" | "hydrangea" | "statue" | "arch"
+  | "training-base-red" | "training-base-blue" | "training-outpost" | "training-rune";
 export type Scenery = Position & {
   sprite: PropSprite;
   width: number; // painted width, world pixels
@@ -151,12 +154,17 @@ export const SCENERY: Scenery[] = [
   { sprite: "planter", x: 105, y: 40, width: 46, height: 36 },
   { sprite: "fence", x: 31, y: 53, width: 64, height: 34, story: { title: "西庭亲水台", caption: "WATER GARDEN", description: "这里的石阶延伸进水中。实验结束后，可以沿着浅水边缘慢慢走，或在岸边抛下一根钓线。" } },
   { sprite: "fence", x: 113, y: 53, width: 64, height: 34, story: { title: "东庭水光", caption: "WATER REFLECTIONS", description: "观测站附近的池水映着天空。日光、云层和雨滴都在这里留下短暂的轨迹。" } },
+  // Open practice court: CAD-derived fixtures share the regular scenery footprints.
+  { sprite: "training-base-red", x:106.5,y:4.6,width:49,height:58 },
+  { sprite: "training-base-blue", x:135.5,y:4.6,width:49,height:58 },
+  { sprite: "training-outpost", x:120,y:4.5,width:39,height:55 },
+  { sprite: "training-rune", x:128,y:4.5,width:55,height:58 },
   // Four visible, readable discoveries. The same anchor drives art, collision, and interaction.
   { sprite: "sign", x: 24, y: 11, width: 40, height: 59, story: {
     title: "风铃小径", caption: "A QUIET PATH", description: "一条绕开主路的林荫小径。风吹过树梢时，路边的小牌子仿佛也在提醒：不是每段旅程都必须直奔终点。"
   } },
   { sprite: "statue", x: 115, y: 11, width: 49, height: 62, story: {
-    title: "机器人试验场", caption: "FIELD NOTES", description: "测试场边留着一座小小的机器人纪念像。它没有写明胜负，只留下一句关于尝试的话：今天再让它往前走一步。"
+    title: "机器人试验场", caption: "FIELD NOTES", description: "测试场边留着一座小小的机器人纪念像。它没有写明胜负，只留下一句关于尝试的话：今天再让它往前走一步。北侧是开放式微缩训练场，可接管过洞步兵进行虚拟训练；这里也通往完整三维战场。"
   } },
   { sprite: "sign", x: 119, y: 74, width: 40, height: 59, story: {
     title: "数据树洞", caption: "HIDDEN SIGNAL", description: "这里有一张写给后来者的便条：世界再嘈杂，也总有一个信号值得认真接收。"
@@ -216,6 +224,10 @@ const GROUND_RULES: Record<PropSprite, { natural: boolean; shape: "broad" | "rou
   sign: { natural: false, shape: "round", depth: .38 },
   statue: { natural: false, shape: "round", depth: .9 },
   arch: { natural: false, shape: "arch", depth: .6 },
+  "training-base-red": { natural:false,shape:"broad",depth:.85 },
+  "training-base-blue": { natural:false,shape:"broad",depth:.85 },
+  "training-outpost": { natural:false,shape:"round",depth:.65 },
+  "training-rune": { natural:false,shape:"round",depth:.85 },
 };
 function footprints(object: Scenery): Footprint[] {
   const { x, y, width, sprite } = object;
@@ -285,8 +297,7 @@ export function overlapsRect(x: number, y: number, radius: number,
     y + radius > rect.y && y - radius < rect.y + rect.height;
 }
 
-export function isWalkable(x: number, y: number): boolean {
-  const radius = 0.3;
+export function isWalkable(x: number, y: number, radius = 0.3): boolean {
   if (x - radius < 1 || y - radius < 1 || x + radius > WORLD_WIDTH - 1 || y + radius > WORLD_HEIGHT - 1) return false;
   // Every building has a solid body; its painted roof can overlap a rear path.
   // The interaction is in front of the body, not in a non-solid wall strip.
@@ -317,11 +328,16 @@ export function pathIsWalkable(from:Position,to:Position,dry=false):boolean {
 export function movePlayer(
   position: Position, horizontal: number, vertical: number, dt: number, sprinting = false,
   walkable: (x: number, y: number) => boolean = isWalkable,
+  outdoor = walkable === isWalkable,
 ): Position {
+  const depth = outdoor ? waterDepthAt(position.x, position.y) : 0;
+  const speed = depth === 2 ? WALK_SPEED * .46 : depth === 1 ? WALK_SPEED * .65 : sprinting ? RUN_SPEED : WALK_SPEED;
+  return moveEntity(position,horizontal,vertical,dt,speed,walkable);
+}
+
+export function moveEntity(position:Position,horizontal:number,vertical:number,dt:number,speed:number,walkable:(x:number,y:number)=>boolean):Position {
   const len = Math.hypot(horizontal, vertical);
   if (!len || dt <= 0) return position;
-  const depth = walkable === isWalkable ? waterDepthAt(position.x, position.y) : 0;
-  const speed = depth === 2 ? WALK_SPEED * .46 : depth === 1 ? WALK_SPEED * .65 : sprinting ? RUN_SPEED : WALK_SPEED;
   const distance = speed * Math.min(dt, 0.05) * Math.min(len, 1);
   // Short substeps keep thin obstacles solid at both walk and sprint speeds.
   const steps = Math.ceil(distance / 0.2);

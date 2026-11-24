@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-navigation";
+import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
+  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, isWalkable, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
   type SurfaceMark, type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
@@ -26,6 +26,7 @@ import roomSprites from "../assets/pixel-jijia/room-props-v3.json";
 import communityPropsUrl from "../assets/pixel-jijia/room-community-v31.png?url";
 import communitySprites from "../assets/pixel-jijia/room-community-v31.json";
 import { JOYSTICK_RADIUS, joystickIntent } from "~/lib/pixel-jijia-input";
+import { GUODONG, createCampusRobot, tickCampusRobot, robotInReach, robotBlocksPlayer, aimCampusRobot, releaseCampusRobot, inTrainingField, createTraining, tickTraining, fireTraining, type TrainingSession } from "~/lib/pixel-jijia-robot";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
@@ -51,11 +52,19 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function PixelJijiaPage() {
-  const returnTo = getExperienceReturnTo(useLocation().state, "/");
+  const location=useLocation();
+  const pixelReturn=getPixelReturn(location.state);
+  const returnTo=pixelReturn?.parent??getExperienceReturnTo(location.state,"/");
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
-  const playerRef = useRef<Position>({ ...SPAWN });
+  const playerRef = useRef<Position>(pixelReturn&&isWalkable(pixelReturn.x,pixelReturn.y)?{x:pixelReturn.x,y:pixelReturn.y}:{...SPAWN});
+  const robotRef=useRef(createCampusRobot());
+  const robotAtlasRef=useRef<HTMLImageElement|null>(null);
+  const [robotControlled,setRobotControlled]=useState(false);
+  const trainingRef=useRef<TrainingSession|null>(null);
+  const [trainingPhase,setTrainingPhase]=useState<TrainingSession["phase"]|null>(null);
+  const pilotZoomRef=useRef(DEFAULT_ZOOM);
   const cameraRef = useRef<Position>({ x: 0, y: 0 });
   const directionRef = useRef<Direction>("down");
   const keysRef = useRef(new Set<Direction>());
@@ -104,8 +113,8 @@ export default function PixelJijiaPage() {
   const propsRef = useRef<HTMLImageElement | null>(null);
   const nearIdRef = useRef<string | null>(null);
   const nearRoomIdRef = useRef<string | null>(null);
-  const zoomRef = useRef(DEFAULT_ZOOM);
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const zoomRef = useRef(pixelReturn?.zoom??DEFAULT_ZOOM);
+  const [zoom, setZoom] = useState(pixelReturn?.zoom??DEFAULT_ZOOM);
   const [timeMode, setTimeMode] = useState<TimeMode>("actual");
   const [clock, setClock] = useState<ChangchunClimate | null>(null);
   const [weatherMode, setWeatherMode] = useState<WeatherMode | null>(null);
@@ -472,9 +481,9 @@ export default function PixelJijiaPage() {
     canvas.height = height * roomScale;
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.imageSmoothingEnabled = false;
-    cameraRef.current = cameraAt(playerRef.current, width, height,
+    cameraRef.current = cameraAt(robotControlled?robotRef.current:playerRef.current, width, height,
       (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
-  }, [room, roomScale, mobile]);
+  }, [room, roomScale, mobile,robotControlled]);
 
   useEffect(() => {
     const query = window.matchMedia("(pointer: coarse), (max-width: 700px)");
@@ -505,9 +514,20 @@ export default function PixelJijiaPage() {
     resizeCanvas();
   }, [resizeCanvas]);
 
+  const toggleRobot=useCallback(()=>{
+    if(room||transitionRef.current)return false;
+    if(robotControlled){
+      clearInput();trainingRef.current=null;setTrainingPhase(null);releaseCampusRobot(robotRef.current);setRobotControlled(false);
+      setMapZoom(pilotZoomRef.current);return true;
+    }
+    if(seated||castRef.current||selectedRef.current||selectedRoom||catalogueDetail||
+        !robotAtlasRef.current||!robotInReach(robotRef.current,playerRef.current))return false;
+    clearInput();pilotZoomRef.current=zoomRef.current;setRobotControlled(true);
+    setMapZoom(Math.max(2.6,zoomRef.current));return true;
+  },[room,robotControlled,seated,selectedRoom,catalogueDetail,clearInput,setMapZoom]);
   useEffect(() => {
     let active = true;
-    const atlas = new Image();
+    const atlas = new Image(),robotAtlas=new Image();
     const character = new Image();
     const groundTiles = new Image();
     const props = new Image();
@@ -526,20 +546,22 @@ export default function PixelJijiaPage() {
       loadImage(props, plazaPropsUrl),
       loadImage(roomProps,roomPropsUrl),
       loadImage(communityProps,communityPropsUrl),
+      loadImage(robotAtlas,GUODONG.atlas),
       fetch("/assets/pixel-jijia/campus-buildings-v3.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, ground, environment, furniture, communityFurniture, metadata]) => {
+      .then(([image, explorer, ground, environment, furniture, communityFurniture, robotImage, metadata]) => {
         if (!active) return;
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 1376) {
           throw new Error("地面图集与场景版本不匹配");
         }
-        if (environment.naturalWidth !== 512 || environment.naturalHeight !== 384) {
+        if (environment.naturalWidth !== 512 || environment.naturalHeight !== 512) {
           throw new Error("场景美术素材与当前版本不匹配");
         }
+        robotAtlasRef.current=robotImage;
         characterRef.current = explorer;
         artRef.current = image;
         artIndexRef.current = metadata.sprites;
@@ -558,6 +580,7 @@ export default function PixelJijiaPage() {
       active = false;
       atlas.onload = null;
       atlas.onerror = null;
+      robotAtlas.onload=null;robotAtlas.onerror=null;
       character.onload = null;
       character.onerror = null;
       groundTiles.onload = null;
@@ -640,6 +663,7 @@ export default function PixelJijiaPage() {
         if(feature.sprite==="arch")playSound("chime");
         if(feature.sprite==="cherry")poseRef.current={...poseRef.current,action:"observe",since:now};
         recordDiscovery(feature.story.title,feature.sprite==="statue"&&feature.story.action?"自检通过":feature.sprite==="sign"&&feature.story.action?feature.story.result:feature.story.title);
+        if(feature.story.title==="机器人试验场")selectPlace(feature);
       }
     }
   }, [room, enterRoom, selectPlace, distanceNotice, seated, standUp, recordDiscovery, clearInput, muted]);
@@ -655,7 +679,7 @@ export default function PixelJijiaPage() {
         else if (selectedRoom) selectRoomObject(null);
         else if(castRef.current)castRef.current=null;
         else if (selectedRef.current) selectPlace(null);
-        else if(mapOpen)setMapOpen(false);else if(menuOpen)setMenuOpen(false);else if(showHelp)setShowHelp(false);
+        else if(mapOpen)setMapOpen(false);else if(menuOpen)setMenuOpen(false);else if(showHelp)setShowHelp(false);else if(robotControlled)toggleRobot();
         return;
       }
       if (selectedRoom || selectedRef.current || catalogueDetail) {
@@ -697,6 +721,7 @@ export default function PixelJijiaPage() {
       if (event.key.toLowerCase() === "e") {
         if (event.repeat) return;
         if (seated) {event.preventDefault();standUp();return;}
+        if(!room&&toggleRobot()){event.preventDefault();return;}
         if (room) {
           if(studyEditing)return;
           const object = targetRef.current as RoomObject | null;
@@ -737,7 +762,7 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, interactRoom, interactFeature, interactNature, clearInput, menuOpen, mobile, mapOpen, catalogueDetail, studyEditing]);
+  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, interactRoom, interactFeature, interactNature, clearInput, menuOpen, mobile, mapOpen, catalogueDetail, studyEditing, robotControlled,toggleRobot]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
@@ -796,9 +821,21 @@ export default function PixelJijiaPage() {
       const sprinting = touch ? touch.running : sprintKeyRef.current;
 
       const previous = playerRef.current;
-      if (!transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !mapOpen && !catalogueDetail) {
+      const canMove=!transitionRef.current&&!selectedRef.current&&!selectedRoom&&!seated&&!menuOpen&&!mapOpen&&!catalogueDetail;
+      if(!room){
+        const robot=robotRef.current,previousPhase=trainingRef.current?.phase??null;
+        const moving=robotControlled&&canMove&&trainingRef.current?.phase!=="lost";
+        tickCampusRobot(robot,previous,dt,robotControlled,moving?x:0,moving?y:0,!reducedMotion.matches,trainingRef.current?.opponent);
+        if(robotControlled&&inTrainingField(robot)){
+          if(!trainingRef.current)trainingRef.current=createTraining(robot,previous);
+          if(trainingRef.current&&canMove)tickTraining(trainingRef.current,robot,previous,dt,!reducedMotion.matches);
+        }else trainingRef.current=null;
+        const phase=trainingRef.current?.phase??null;
+        if(phase!==previousPhase)setTrainingPhase(phase);
+      }
+      if (!robotControlled && !transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !mapOpen && !catalogueDetail) {
         const next = movePlayer(previous, x, y, dt, sprinting,
-          room ? (px, py) => isRoomWalkable(room, px, py) : undefined);
+          room ? (px, py) => isRoomWalkable(room, px, py) : (px,py)=>!robotBlocksPlayer(robotRef.current,px,py)&&isWalkable(px,py),!room);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = Math.abs(x) >= Math.abs(y) ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
@@ -849,9 +886,9 @@ export default function PixelJijiaPage() {
         }
       }
       const viewWidth = canvas.width / roomScale, viewHeight = canvas.height / roomScale;
-      const target = cameraAt(playerRef.current, viewWidth, viewHeight,
+      const target = cameraAt(robotControlled?robotRef.current:playerRef.current, viewWidth, viewHeight,
         (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
-      const follow = 1 - Math.exp(-(sprinting ? 8 : 6) * dt);
+      const follow = reducedMotion.matches?1:1 - Math.exp(-(sprinting ? 8 : 6) * dt);
       cameraRef.current.x += (target.x - cameraRef.current.x) * follow;
       cameraRef.current.y += (target.y - cameraRef.current.y) * follow;
 
@@ -880,7 +917,7 @@ export default function PixelJijiaPage() {
         updateWildlife(wildlifeRef.current,playerRef.current,dt,(climate?.hour??12)+(climate?.minute??0)/60,climate?.weather??null,!reducedMotion.matches,castRef.current,walking);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
-          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind);
+          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind,robotRef.current,robotAtlasRef.current??undefined,robotControlled,trainingRef.current);
       }
 
       if (reducedMotion.matches || room) {
@@ -936,12 +973,13 @@ export default function PixelJijiaPage() {
       canvas.dataset.wetness=surfaceRef.current.wet.toFixed(2);
       canvas.dataset.snow=surfaceRef.current.snow.toFixed(2);
 
-      const nextNearby = seated || room ? null : closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null);
+      const nearRobot=!room&&!seated&&(robotControlled||(!castRef.current&&robotInReach(robotRef.current,playerRef.current)));
+      const nextNearby = seated || room || nearRobot ? null : closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null);
       const cast=castRef.current;
       const ready=cast&&fishingReady(wildlifeRef.current,cast,time);
       const animal=!room&&!nextNearby&&!seated?closestAnimal(wildlifeRef.current,playerRef.current):null;
       const prompt=room||seated||selectedRef.current||transitionRef.current?"":cast?(cast.caughtAt!==undefined?"":ready?"收竿":"等待鱼咬钩"):
-        nextNearby?"":fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+SPECIES_LABEL[animal.species]:"";
+        nearRobot?(robotControlled?"退出机器人":"接管过洞步兵"):nextNearby?"":fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+SPECIES_LABEL[animal.species]:"";
       if(prompt!==naturePromptRef.current){naturePromptRef.current=prompt;setNaturePrompt(prompt);}
       if(noticeUntilRef.current&&time>=noticeUntilRef.current){noticeUntilRef.current=0;setNatureNotice("");}
       canvas.dataset.wildlife=String(room?0:wildlifeRef.current.length);
@@ -964,7 +1002,7 @@ export default function PixelJijiaPage() {
       const label=seated?"起身":room&&nextRoom?roomAction(nextRoom):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
       if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!transitionRef.current&&label&&label!=="等待鱼咬钩"){
         const c=snapCamera(cameraRef.current);
-        const anchor=seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
+        const anchor=nearRobot?{x:robotRef.current.x,y:robotRef.current.y-2.6}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
         const text=(mobile?"":"E ")+label;
         ctx.save();ctx.font="bold 10px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
         const w=ctx.measureText(text).width+12;
@@ -973,6 +1011,16 @@ export default function PixelJijiaPage() {
       }
       canvas.dataset.interaction=label;
       canvas.dataset.targetId=feature?("id" in feature?feature.id:feature.story?.title??feature.sprite):"";
+      canvas.dataset.training=trainingRef.current?.phase??"off";
+      canvas.dataset.trainingHp=String(trainingRef.current?.hp??100);
+      canvas.dataset.trainingOpponentHp=String(trainingRef.current?.opponentHp??100);
+      canvas.dataset.trainingOpponentX=String(trainingRef.current?.opponent.x??0);
+      canvas.dataset.trainingOpponentY=String(trainingRef.current?.opponent.y??0);
+      canvas.dataset.control=robotControlled?"robot":"player";
+      canvas.dataset.robotX=robotRef.current.x.toFixed(3);
+      canvas.dataset.robotY=robotRef.current.y.toFixed(3);
+      canvas.dataset.robotHeading=String(robotRef.current.heading);
+      canvas.dataset.robotYaw=String(robotRef.current.yaw);
       canvas.dataset.playerX = playerRef.current.x.toFixed(3);
       canvas.dataset.playerY = playerRef.current.y.toFixed(3);
       canvas.dataset.cameraX = cameraRef.current.x.toFixed(2);
@@ -982,7 +1030,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.walkFrame = walking ? String(pose.frame) : "0";
 
       if (!room && miniCtx && (!mobile || mapOpen) && time - lastMini > 100) {
-        renderNavigationMap(miniCtx, preview, playerRef.current, directionRef.current,
+        renderNavigationMap(miniCtx, preview, robotControlled?robotRef.current:playerRef.current, directionRef.current,
           cameraRef.current, viewWidth, viewHeight, mapOpen,discoveries);
         lastMini = time;
       }
@@ -1018,7 +1066,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing]);
+    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, robotControlled]);
 
   const handleMapClick = (event: {clientX: number; clientY: number}) => {
     const canvas = canvasRef.current;
@@ -1049,6 +1097,15 @@ export default function PixelJijiaPage() {
       }
       setStudyNotice("");
       return;
+    }
+    if(!room){
+      const robot=robotRef.current;
+      if(robotControlled){
+        aimCampusRobot(robot,{x,y});
+        if(fireTraining(trainingRef.current,robot,{x,y}))setTrainingPhase(trainingRef.current!.phase);
+        return;
+      }
+      if(Math.abs(x-robot.x)<1.5&&y>=robot.y-2.4&&y<=robot.y+.7&&toggleRobot())return;
     }
     if (room) {
       const object = roomObjectAt(room, { x, y });
@@ -1087,6 +1144,12 @@ export default function PixelJijiaPage() {
     joystick.current = { pointer: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false, x: 0, y: 0, running: false };
   };
   const handleTouchMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if(robotControlled&&event.pointerType==="mouse"){
+      const canvas=event.currentTarget,rect=canvas.getBoundingClientRect(),camera=snapCamera(cameraRef.current);
+      aimCampusRobot(robotRef.current,{x:((event.clientX-rect.left)/rect.width*canvas.width/roomScale+camera.x)/TILE,
+        y:((event.clientY-rect.top)/rect.height*canvas.height/roomScale+camera.y)/TILE});
+      return;
+    }
     const active = joystick.current;
     if (!active || active.pointer !== event.pointerId) {
       const start = tapPointers.current.get(event.pointerId);
@@ -1118,6 +1181,7 @@ export default function PixelJijiaPage() {
   const handleNavigationClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (transitionRef.current) return;
     if (!mapOpen) { setMapOpen(true); return; }
+    if(robotControlled)return;
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / rect.width * WORLD_WIDTH;
     const y = (event.clientY - rect.top) / rect.height * WORLD_HEIGHT;
@@ -1170,7 +1234,7 @@ export default function PixelJijiaPage() {
             <><button type="button" className="pixel-world-tool" onClick={exitRoom}>返回户外</button><button type="button" className="pixel-world-tool" onClick={() => { clearInput(); setMapOpen(true); setMenuOpen(false); }}>图鉴</button></>
           ) : (
             <>
-              <button type="button" className="pixel-world-tool" onClick={() => void openStudy()}>我的研究室</button>
+              {!robotControlled&&<button type="button" className="pixel-world-tool" onClick={() => void openStudy()}>我的研究室</button>}
               <button type="button" className="pixel-world-tool" aria-controls="pixel-world-map-panel"
                 aria-expanded={mapOpen} onClick={() => { clearInput(); setMapOpen(open => !open); setMenuOpen(false); }}>地图 <kbd>M</kbd></button>
             </>
@@ -1195,7 +1259,7 @@ export default function PixelJijiaPage() {
           aria-label="小镇真实世界缩略图，点击可展开查看或选择地标" role="img" />
         <div className="pixel-world-map-destinations" aria-label="建筑目的地">
           {PLACES.map(place => (
-            <button type="button" key={place.id} onClick={() => { selectPlace(place); setMapOpen(false); }}>
+            <button type="button" key={place.id} disabled={robotControlled} onClick={() => { selectPlace(place); setMapOpen(false); }}>
               {place.title}
             </button>
           ))}
@@ -1207,7 +1271,7 @@ export default function PixelJijiaPage() {
             {knownStories.length===0&&<span className="pixel-world-nature-log">靠近地标，按 E 探索。</span>}
             {knownStories.map(item => (
               <button type="button" key={item.story!.title}
-                onClick={() => { selectPlace(item); setMapOpen(false); }}>{item.story!.title}</button>
+                disabled={robotControlled} onClick={() => { selectPlace(item); setMapOpen(false); }}>{item.story!.title}</button>
             ))}
           </div>
         </details>
@@ -1263,6 +1327,12 @@ export default function PixelJijiaPage() {
         </div>
         {!mobile && weatherControls}
       </div>}
+      {robotControlled&&trainingPhase&&!menuOpen&&!mapOpen&&<div className="pixel-world-training" role="status">
+        {trainingPhase==="playing"?<span>{mobile?"点击蓝方机器人进行虚拟训练":"微缩训练 · 点击蓝方机器人 · E 退出"}</span>:<>
+          <span>{trainingPhase==="won"?"训练完成":"训练机器人失能"}</span>
+          <button type="button" onClick={()=>{trainingRef.current=createTraining(robotRef.current,playerRef.current);setTrainingPhase(trainingRef.current?.phase??null);}}>重新训练</button>
+        </>}
+      </div>}
       {showHelp && <div className="pixel-world-guide" role="note">
         {mobile ? "左下拖动 · 推远疾跑 · 靠近或点击交互" : "WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图"}
       </div>}
@@ -1271,7 +1341,7 @@ export default function PixelJijiaPage() {
         发现共建彩蛋 · {natureNotice.title}{natureNotice.community?.sources.map((source,index)=>source.authorName&&<span key={source.comment}> · {communityCreditRole(natureNotice.community!.sources,index)}：{source.authorName}</span>)}
       </>}</div>}
       {mobile && !studyEditing && !menuOpen && !mapOpen && !selected && !selectedRoom && !catalogueDetail && (seated || nearbyRoom || nearby || (naturePrompt && naturePrompt!=="等待鱼咬钩")) &&
-        <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
+        <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : toggleRobot()?undefined:naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
           {seated?"起身":nearbyRoom?roomAction(nearbyRoom):naturePrompt|| (nearby?featureAction(nearby):"")}
         </button>}
 
@@ -1281,6 +1351,8 @@ export default function PixelJijiaPage() {
           <div className="pixel-world-detail-content">
           <h1>{featureTitle(selected)}</h1>
           {!("href" in selected) && selected.story?.description && <p>{selected.story.description}</p>}
+          {!("href" in selected)&&selected.story?.title==="机器人试验场"&&Math.hypot(playerRef.current.x-selected.x,playerRef.current.y-selected.y)<2.8&&
+            <Link to="/pixel-jijia/arena" state={{experienceReturnTo:"/pixel-jijia",pixelReturn:{...playerRef.current,zoom:zoomRef.current,parent:returnTo}}} className="pixel-world-detail-link">进入三维战场<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && <Link to={selected.href} state={selected.href === "/pixel-jijia/battle" ? { experienceReturnTo: returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia" } : undefined} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
 

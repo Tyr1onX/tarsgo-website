@@ -29,7 +29,7 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
     assert.ok(area.x + area.width <= WORLD_WIDTH && area.y + area.height <= WORLD_HEIGHT);
   }
   const props = ["bench","lamp","sign","planter","oak","lime_tree","cherry",
-    "rocks","fence","hydrangea","statue","arch"];
+    "rocks","fence","hydrangea","statue","arch","training-base-red","training-base-blue","training-outpost","training-rune"];
   assert.ok(SCENERY.length >= 30);
   for (const obj of SCENERY) {
     assert.ok(props.includes(obj.sprite), obj.sprite);
@@ -110,12 +110,12 @@ test("四处真实水面都能涉水、游泳、上岸，只有喷泉实体保�
   for(const o of SCENERY.filter(o=>o.sprite==="planter"&&[59,85].includes(o.x))) assert.equal(groundAt(o.x,o.y),2);
 });
 
-test("统一场景图集必须包含十二个真实透明环境素材", () => {
+test("统一场景图集包含原十二个透明环境素材及四个训练设施", () => {
   const path = new URL("../assets/pixel-jijia/plaza-props.png", import.meta.url);
   const png = readFileSync(path);
   assert.deepEqual([...png.subarray(0,8)], [137,80,78,71,13,10,26,10]);
   assert.equal(png.readUInt32BE(16), 512);
-  assert.equal(png.readUInt32BE(20), 384);
+  assert.equal(png.readUInt32BE(20), 512);
   assert.equal(png[25], 6); // transparent RGBA
   const scene = readFileSync(new URL("./pixel-jijia-scene.ts", import.meta.url), "utf8");
   assert.ok(scene.includes("renderScene("));
@@ -388,7 +388,7 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   assert.ok(!art.includes("requestAnimationFrame("));
   assert.ok(route.includes('transition.phase = "in"'));
   assert.ok(route.includes('transition.target === (room?.id ?? null)'));
-  assert.ok(route.includes('if (!transitionRef.current && (x !== 0 || y !== 0)'));
+  assert.ok(route.includes('if (!robotControlled && !transitionRef.current && (x !== 0 || y !== 0)'));
   assert.ok(route.includes('alpha * alpha * (3 - 2 * alpha)'));
   assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3);
 });

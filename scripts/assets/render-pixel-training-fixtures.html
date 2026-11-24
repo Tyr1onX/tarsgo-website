@@ -1,0 +1,77 @@
+<!doctype html><meta charset="utf-8"><title>Offline pixel fixtures</title>
+<script type="importmap">{"imports":{"three":"/internal/frontend/node_modules/three/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "/internal/frontend/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "/internal/frontend/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js";
+const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+async function localModel(name){
+ const r=await fetch("/public/assets/pixel-jijia/"+name);
+ if(!r.ok)throw Error(name+" "+r.status);
+ const b=await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+ return (await loader.parseAsync(b,"")).scene;
+}
+function materialStyle(mesh,blue){
+ if(!mesh.isMesh)return;
+ const transform=m=>{
+  const color=m.color?.clone()??new THREE.Color(.6,.6,.6);
+  const red=color.r>color.g*1.8&&color.r>color.b*1.6;
+  if(blue&&red)color.setRGB(.12,.28,.68);
+  const neutral=(color.r+color.g+color.b)/3;
+  color.lerp(new THREE.Color(neutral,neutral,neutral),.24).multiplyScalar(.83);
+  return new THREE.MeshStandardMaterial({color,roughness:.94,metalness:0,side:THREE.DoubleSide});
+ };
+ mesh.material=Array.isArray(mesh.material)?mesh.material.map(transform):transform(mesh.material);
+}
+function makeSprite(source,names,maxSize,blue=false){
+ source.updateMatrixWorld(true);
+ const group=new THREE.Group();
+ for(const name of names){
+  const node=source.getObjectByName(name);if(!node)throw Error("Missing CAD occurrence "+name);
+  const item=node.clone(true);item.matrix.copy(node.matrixWorld);item.matrixAutoUpdate=false;group.add(item);
+ }
+ group.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(group);
+ if(bounds.isEmpty())throw Error("Empty CAD fixture");
+ const center=bounds.getCenter(new THREE.Vector3());
+ const dims=bounds.getSize(new THREE.Vector3());
+ const scale=1/Math.max(dims.x,dims.y,dims.z);
+ const normal=new THREE.Group();normal.add(group);group.position.sub(center);normal.scale.setScalar(scale);
+ normal.traverse(m=>materialStyle(m,blue));normal.updateMatrixWorld(true);
+ const scene=new THREE.Scene();scene.add(normal);
+ scene.add(new THREE.HemisphereLight(0xfff5df,0x657269,1.35));
+ const sun=new THREE.DirectionalLight(0xfff5db,2.15);sun.position.set(-3,6,4);scene.add(sun);
+ const renderer=new THREE.WebGLRenderer({alpha:true,antialias:false,preserveDrawingBuffer:true});
+ renderer.setClearColor(0,0);renderer.setPixelRatio(1);renderer.setSize(128,128);
+ renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
+ const camera=new THREE.OrthographicCamera(-.9,.9,.9,-.9,.01,10);
+ camera.position.set(1.2,2.4,4.0);camera.lookAt(0,0,0);camera.updateProjectionMatrix();
+ renderer.render(scene,camera);
+ const c=document.createElement("canvas");c.width=c.height=128;const ctx=c.getContext("2d");
+ ctx.drawImage(renderer.domElement,0,0);const pixels=ctx.getImageData(0,0,128,128).data;
+ let minX=128,minY=128,maxX=-1,maxY=-1;
+ for(let y=0;y<128;y++)for(let x=0;x<128;x++)if(pixels[(y*128+x)*4+3]>127){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y)}
+ if(maxX<0)throw Error("Empty rendered CAD fixture");
+ const sw=maxX-minX+1,sh=maxY-minY+1,factor=maxSize/Math.max(sw,sh);
+ const w=Math.round(sw*factor),h=Math.round(sh*factor);
+ const pixel=document.createElement("canvas");pixel.width=w;pixel.height=h;
+ const p=pixel.getContext("2d");p.imageSmoothingEnabled=false;p.drawImage(c,minX,minY,sw,sh,0,0,w,h);
+ const data=p.getImageData(0,0,w,h);for(let i=0;i<data.data.length;i+=4){
+  if(data.data[i+3]<128){data.data[i+3]=0;continue}
+  data.data[i+3]=255;
+  for(let k=0;k<3;k++)data.data[i+k]=Math.round(data.data[i+k]/12)*12;
+ }
+ p.putImageData(data,0,0);
+ renderer.dispose();renderer.forceContextLoss();
+ return {width:w,height:h,data:pixel.toDataURL("image/png"),sourceNodes:names};
+}
+window.generateFixtures=async()=>{
+ const base=await localModel("rmuc-2027-base.glb.gz");
+ const field=await localModel("rmuc-2027-arena-5eb9e75a.glb.gz");
+ return {
+  "training-base-red":makeSprite(base,["source_4774244_0"],58),
+  "training-base-blue":makeSprite(base,["source_4774244_0"],58,true),
+  "training-outpost":makeSprite(field,["centre-platform_0_source_1800898_10","centre-platform_0_source_2603236_11"],55),
+  "training-rune":makeSprite(field,["centre-platform_0_source_1354629_1"],58),
+ };
+};
+</script>

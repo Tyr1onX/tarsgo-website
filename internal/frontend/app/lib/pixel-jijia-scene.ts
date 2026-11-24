@@ -1,10 +1,12 @@
 import {
-  FOUNTAIN, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt, puddleCell, worldHash as hash,
+  FOUNTAIN, TRAINING_FIELD, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt, puddleCell, worldHash as hash,
   type Direction, type Place, type Position, type PropSprite, type Scenery, type SurfaceMark,
 } from "./pixel-jijia-world.ts";
 import { explorerFrameBox, EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT, type ExplorerAnimation } from "./pixel-jijia-explorer.ts";
 import { nightLight, type Season, type ChangchunClimate, type WeatherKind, type SurfaceWeather } from "./pixel-jijia-climate.ts";
 import { drawAnimal, drawFishing, fishingReady, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
+
+import { drawCampusRobot, drawTrainingHealth, drawTrainingPulse, type CampusRobot, type TrainingSession } from "./pixel-jijia-robot.ts";
 
 export type SpriteBox = [number, number, number, number];
 export type SpriteIndex = Record<string, SpriteBox>;
@@ -13,6 +15,7 @@ const PROP_CELLS: Record<PropSprite, number> = {
   bench: 0, lamp: 1, sign: 2, planter: 3,
   oak: 4, lime_tree: 5, cherry: 6, rocks: 7,
   fence: 8, hydrangea: 9, statue: 10, arch: 11,
+  "training-base-red":12,"training-base-blue":13,"training-outpost":14,"training-rune":15,
 };
 const PROP_CELL = 128;
 export const GROUND_PATCH=128,GROUND_TEXTURE_TILE=32,GROUND_ATLAS_HEIGHT=1376;
@@ -424,6 +427,23 @@ function drawTerrain(ctx:CanvasRenderingContext2D,terrain:Terrain,camera:Positio
 }
 
 // The minimap is rendered from the same terrain and authored scenery.
+function drawTrainingGround(ctx:CanvasRenderingContext2D,camera:Position,w:number,h:number){
+  const f=TRAINING_FIELD,x=f.x*TILE-camera.x,y=f.y*TILE-camera.y,fw=f.width*TILE,fh=f.height*TILE;
+  if(x>w||x+fw<0||y>h||y+fh<0)return;
+  ctx.save();
+  ctx.fillStyle="rgba(65,73,76,.16)";ctx.fillRect(x,y,fw,fh);
+  ctx.strokeStyle="#b6ada0";ctx.lineWidth=1;ctx.strokeRect(x+3,y+3,fw-6,fh-6);
+  for(const [px,color] of [[x+5,"rgba(167,79,70,.26)"],[x+fw-85,"rgba(66,110,151,.26)"]] as const){
+    ctx.fillStyle=color;ctx.fillRect(px,y+5,80,fh-10);
+    ctx.strokeStyle=color.replace(".26","1");ctx.strokeRect(px+1,y+6,78,fh-12);
+    for(let i=0;i<3;i++)ctx.strokeRect(px+13+i*20,y+fh-29,15,15);
+  }
+  ctx.strokeStyle="rgba(235,227,197,.6)";ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(x+fw/2,y+5);ctx.lineTo(x+fw/2,y+fh-5);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();ctx.ellipse(x+fw/2,y+fh*.72,19,11,0,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="#c5bda4";ctx.font="bold 8px sans-serif";ctx.textAlign="center";ctx.fillText("RM · TRAINING",x+fw/2,y+fh-7);
+  ctx.restore();
+}
+
 export function renderWorldPreview(
   terrain: Terrain, atlas: HTMLImageElement,
   sprites: SpriteIndex, props: HTMLImageElement, season:Season="summer",
@@ -436,6 +456,7 @@ export function renderWorldPreview(
   ctx.imageSmoothingEnabled = true;
   ctx.scale(preview.width / (WORLD_WIDTH * TILE), preview.height / (WORLD_HEIGHT * TILE));
   drawTerrain(ctx,terrain,{x:0,y:0},WORLD_WIDTH*TILE,WORLD_HEIGHT*TILE);
+  drawTrainingGround(ctx,{x:0,y:0},WORLD_WIDTH*TILE,WORLD_HEIGHT*TILE);
   const seasonal = seasonalProps(props,season);
   for (const node of NODES) drawNode(ctx, node, atlas, sprites, seasonal, { x: 0, y: 0 });
   return preview;
@@ -752,15 +773,27 @@ export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: Terrain,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,wind=0,
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,wind=0,robot?:CampusRobot,robotAtlas?:HTMLImageElement,robotControlled=false,training:TrainingSession|null=null,
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
   drawTerrain(ctx,terrain,screenCamera,w,h);
+  drawTrainingGround(ctx,screenCamera,w,h);
   drawWater(ctx,screenCamera,w,h,marks,time,motion,climate,wind);
   if(climate){drawDew(ctx,screenCamera,climate,w,h);drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
-  const land=animals.filter(a=>a.species!=="fish").sort((a,b)=>a.y-b.y);
+  const land:(Animal|CampusRobot)[]=animals.filter(a=>a.species!=="fish");
+  if(robot&&robotAtlas)land.push(robot);
+  if(training&&robotAtlas)land.push(training.opponent);
+  const depth=(a:Animal|CampusRobot)=>a.y+("species" in a?0:.65);
+  land.sort((a,b)=>depth(a)-depth(b));
+  const drawLand=(a:Animal|CampusRobot)=>{
+    if("species" in a)drawAnimal(ctx,a,screenCamera,motion);
+    else if(robotAtlas){
+      drawCampusRobot(ctx,a,robotAtlas,screenCamera,w,h,motion,robotControlled&&a===robot);
+      if(training)drawTrainingHealth(ctx,a,a===robot?training.hp:training.opponentHp,screenCamera,a!==robot);
+    }
+  };
   const seasonal=seasonalProps(props,climate?.season??"summer");
   const insects=motion&&climate&&(climate.temperature??0)>12&&
     (climate.weather==="clear"||climate.weather==="cloudy")?
@@ -780,15 +813,16 @@ export function renderScene(
     }
   };
   for (const node of NODES) {
-    while(index<land.length&&land[index].y<node.y){
-      const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
+    while(index<land.length&&depth(land[index])<node.y){
+      const a=land[index++];if(!playerDrawn&&depth(a)>seatDepth){drawPlayer();playerDrawn=true;}drawLand(a);
     }
     if (!playerDrawn && node.y > seatDepth) {drawPlayer();playerDrawn = true;}
     drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0,node.kind==="prop"&&node.value.story?time-(effects?.get(node.value.story.title)??-Infinity):Infinity,wind,climate?.night??0,(climate?.temperature??0)>0?surface.wet:0,
       insects);
   }
-  while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
+  while(index<land.length){const a=land[index++];if(!playerDrawn&&depth(a)>seatDepth){drawPlayer();playerDrawn=true;}drawLand(a);}
   if (!playerDrawn) drawPlayer();
+  if(training)drawTrainingPulse(ctx,training,screenCamera,motion);
   if(climate)drawAtmosphere(ctx,climate,w,h);
   if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
 }
