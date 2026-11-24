@@ -73,3 +73,33 @@ export function stepChassis(terrain:Pick<ArenaTerrain,"heightAt">,bot:Occupant,m
   motion.speed=0;
   return 0;
 }
+
+// R51 permits slowly clearing a defeated robot blocking a key path.
+// This training clearance is capped at one footprint diameter per defeat;
+// no rigid-body impulses, chain pushing, or clearance through CAD support.
+export const DEFEATED_PUSH_SPEED=.25;
+export function clearDefeatedPath<T extends Occupant>(terrain:Pick<ArenaTerrain,"heightAt">,bot:T,target:THREE.Vector3,
+  dt:number,occupants:readonly T[],isDefeated:(o:T)=>boolean,pushed:Map<T,number>){
+  const dx=target.x-bot.position.x,dz=target.z-bot.position.z,length=Math.hypot(dx,dz);
+  if(length<.04||dt<=0)return 0;
+  const ux=dx/length,uz=dz/length;
+  const corpse=occupants.find(o=>{
+    if(!isDefeated(o)||Math.abs(o.position.y-bot.position.y)>=1.15)return false;
+    const x=o.position.x-bot.position.x,z=o.position.z-bot.position.z,limit=bot.radius+o.radius;
+    return x*ux+z*uz>0&&Math.hypot(x,z)<=limit+.08&&Math.hypot(x-ux*.08,z-uz*.08)<limit;
+  });
+  if(!corpse)return 0;
+  const amount=Math.min(DEFEATED_PUSH_SPEED*dt,2*corpse.radius-(pushed.get(corpse)??0),length);
+  if(amount<=1e-8)return 0;
+  const shiftX=ux*amount,shiftZ=uz*amount;
+  const old=corpse.position,next=old.clone(),from=bot.position,nextBot=from.clone();
+  const blockers=occupants.filter(o=>o!==corpse);
+  moveOnArena(terrain,next,shiftX,shiftZ,corpse.radius,.23,[bot,...blockers.filter(o=>Math.abs(o.position.y-old.y)<1.15)]);
+  if(Math.hypot(next.x-old.x-shiftX,next.z-old.z-shiftZ)>1e-6)return 0;
+  // Both bodies translate by exactly the same vector, so their mutual
+  // separation cannot decrease. Check the remaining obstacles individually.
+  moveOnArena(terrain,nextBot,shiftX,shiftZ,bot.radius,.23,blockers.filter(o=>Math.abs(o.position.y-from.y)<1.15));
+  if(Math.hypot(nextBot.x-from.x-shiftX,nextBot.z-from.z-shiftZ)>1e-6)return 0;
+  old.copy(next);from.copy(nextBot);pushed.set(corpse,(pushed.get(corpse)??0)+amount);
+  return amount;
+}

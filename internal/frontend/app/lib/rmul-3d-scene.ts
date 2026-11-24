@@ -13,7 +13,7 @@ import { createDartVisual } from "./rmuc-3d-dart-visual";
 import { createProjectileSystem, projectileSpeed } from "./rmuc-3d-projectiles";
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
-import { findArenaPath, stepChassis, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
+import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
@@ -134,6 +134,7 @@ export function mountArena(
   let decisionShotIndex:ShotIndex|undefined;
   const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number}>();
   const motions=new Map<Robot,ChassisMotion>();
+  const defeatedPush=new Map<Robot,number>();
   const shotIntents=new Map<Robot,{point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3}>();
   const wheels=new Map<Robot,THREE.Object3D[]>();
   let fieldRobots:Robot[]=[];
@@ -355,7 +356,7 @@ export function mountArena(
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     damageFlashes.clear();match.onDamage=recordDamage;
-    nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
+    defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
     projectiles.clear();dartVisual?.clear();
@@ -644,6 +645,7 @@ export function mountArena(
   }
   function advanceMotion(dt:number){
     if(!match||!terrain||dt<=0)return;
+    for(const bot of fieldRobots)if(match.robots.find(r=>r.id===bot.object.name)!.hp>0)defeatedPush.delete(bot);
     for(const bot of fieldRobots){
       const state=match.robots.find(r=>r.id===bot.object.name)!;
       const motion=motionFor(bot),manual=manualRobot()===bot;
@@ -664,7 +666,15 @@ export function mountArena(
       const speed=driveSpeed(match,state,command);
       if(!canDriveRobot(match,state)||match.phase==="finished"){motions.delete(bot);shotIntents.delete(bot);botPaths.delete(bot);continue;}
       const oldX=bot.position.x,oldZ=bot.position.z;
-      const traveled=stepChassis(terrain,bot,motion,target,speed,dt,occupants,!manual&&route&&!route.points.length?route.tolerance:undefined);
+      let traveled=stepChassis(terrain,bot,motion,target,speed,dt,occupants,!manual&&route&&!route.points.length?route.tolerance:undefined);
+      if(match.phase==="running"&&state.hp>0&&target&&speed>0&&traveled<1e-5&&motion.speed===0&&
+        Math.abs(angleDelta(motion.yaw,Math.atan2(bot.position.x-target.x,bot.position.z-target.z)))<.2){
+        traveled=clearDefeatedPath(terrain,bot,target,dt,fieldRobots.filter(r=>r!==bot),o=>{
+          const r=match!.robots.find(r=>r.id===o.object.name);
+          return !!r&&r.hp===0&&!canDriveRobot(match!,r);
+        },defeatedPush);
+        if(traveled>0)for(const other of fieldRobots)other.object.updateMatrixWorld(true);
+      }
       bot.object.rotation.y=motion.yaw;
       // Preserve gun world yaw while the chassis turns underneath it.
       if(gimbal)gimbal.rotation.y+=previousYaw-motion.yaw;

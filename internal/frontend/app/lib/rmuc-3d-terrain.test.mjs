@@ -268,3 +268,24 @@ test("continuous chassis acceleration, braking, turning, collision and frame-rat
  assert.ok(bot.position.distanceTo(target)<=.011);assert.ok(maxStep<=2.6*.025+1e-8);assert.equal(motion.speed,0);
  const before=bot.position.clone();stepChassis(flat,bot,motion,goal,0,.025,[]);assert.ok(bot.position.equals(before));assert.equal(motion.speed,0);
 });
+
+test("R51 bounded displacement on the actual CAD support surface",async()=>{
+ const {clearDefeatedPath}=await import("./rmuc-3d-navigation.ts");
+ const radius=.25;
+ // Actual initial lane near blue infantry, use the same support controller.
+ let fixture;
+ for(let x=-11;x<-6&&!fixture;x+=.1)for(let z=-5;z<-1&&!fixture;z+=.1){
+  const a={position:new THREE.Vector3(x,terrain.heightAt(x,z),z),radius};
+  const b={position:new THREE.Vector3(x+.5,terrain.heightAt(x+.5,z),z),radius};
+  if([a,b].every(o=>supportedHeight(terrain,o.position.x,o.position.z,radius,o.position.y,.23)!==null)){
+   const p=new Map(),start=b.position.clone();const delta=clearDefeatedPath(terrain,a,new THREE.Vector3(x+2,0,z),.025,[b],o=>o===b,p);
+   if(delta>0)fixture={a,b,p,start};
+  }
+ }
+ assert.ok(fixture);
+ const {a,b,p,start}=fixture;const goal=a.position.clone().add(new THREE.Vector3(2,0,0));
+ for(let i=0;i<200;i++)clearDefeatedPath(terrain,a,goal,.025,[b],o=>o===b,p);
+ assert.ok(b.position.x>start.x);assert.ok(b.position.x-start.x<=.5+1e-8);
+ assert.notEqual(supportedHeight(terrain,b.position.x,b.position.z,b.radius,b.position.y,.23),null);
+ assert.ok(Math.hypot(a.position.x-b.position.x,a.position.z-b.position.z)>=.5-1e-8);
+});
