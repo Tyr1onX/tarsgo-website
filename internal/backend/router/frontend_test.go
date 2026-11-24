@@ -87,14 +87,17 @@ func TestFrontendFallbackRevalidatesStableAssetURLs(t *testing.T) {
 	modTime := time.Date(2026, time.October, 15, 5, 26, 2, 0, time.UTC)
 	engine := gin.New()
 	registerFrontendFallback(engine, fstest.MapFS{
-		"index.html":                            &fstest.MapFile{Data: []byte("<html>spa</html>")},
-		"assets/app.js":                         &fstest.MapFile{Data: []byte("console.log('ok')")},
-		"assets/images/Logo/tarsgo-logo-v5.svg": &fstest.MapFile{Data: []byte("<svg/>"), ModTime: modTime},
+		"index.html": &fstest.MapFile{Data: []byte("<html>spa</html>")},
+		"assets/pixel-jijia/rmuc-2027-arena-5eb9e75a.glb.gz": &fstest.MapFile{Data: []byte("hashed glb")},
+		"assets/pixel-jijia/rmuc-2027-base.glb.gz":           &fstest.MapFile{Data: []byte("stable glb")},
+		"assets/app.js":                                          &fstest.MapFile{Data: []byte("console.log('ok')")},
+		"assets/images/Logo/tarsgo-logo-v5.svg":                  &fstest.MapFile{Data: []byte("<svg/>"), ModTime: modTime},
 		"assets/images/Home/Responsive/about-1280-8e5963df.webp": &fstest.MapFile{Data: []byte("hashed webp")},
 	}, true)
 
 	for _, assetPath := range []string{
 		"/assets/app.js",
+		"/assets/pixel-jijia/rmuc-2027-base.glb.gz",
 		"/assets/images/Logo/tarsgo-logo-v5.svg",
 	} {
 		t.Run(assetPath, func(t *testing.T) {
@@ -131,6 +134,12 @@ func TestFrontendFallbackRevalidatesStableAssetURLs(t *testing.T) {
 	}
 	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
 		t.Fatalf("Cache-Control = %q, want immutable for fingerprinted nested asset", got)
+	}
+	request = httptest.NewRequest(http.MethodGet, "/assets/pixel-jijia/rmuc-2027-arena-5eb9e75a.glb.gz", nil)
+	recorder = httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || recorder.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" {
+		t.Fatalf("fingerprinted GLB must be immutable, got %d %q", recorder.Code, recorder.Header().Get("Cache-Control"))
 	}
 }
 

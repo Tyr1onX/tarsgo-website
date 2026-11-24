@@ -1,3 +1,4 @@
+import { CAD_MODELS } from "./rmul-3d-cad-assets.ts";
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {createHash} from "node:crypto";
@@ -130,7 +131,7 @@ test("real source assemblies match static CAD bounds and rotate independently",a
  const load=async(bytes)=>(await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),"")).scene;
  const bytes=gunzipSync(readFileSync(new URL("../../../../public"+MECHANISM_ASSET.url,import.meta.url)));
  assert.equal(createHash("sha256").update(bytes).digest("hex"),MECHANISM_ASSET.sha256);
- const old=await load(gunzipSync(readFileSync(new URL("../../../../public/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz",import.meta.url))));
+ const old=await load(gunzipSync(readFileSync(new URL("../../../../public"+CAD_MODELS.rmucField.url,import.meta.url))));
  const parts=await load(bytes);
  for(const [n,o] of Object.entries(REPLACEMENTS)){
   const a=new THREE.Box3().setFromObject(parts.getObjectByName(n),true),b=new THREE.Box3().setFromObject(old.getObjectByName(o),true);

@@ -38,7 +38,22 @@ for (const [id, model] of Object.entries(CAD_MODELS)) {
     if (id === "rmucField") {
       assert.equal(document.nodes.length, model.nodes);
       assert.ok(document.extensionsRequired.includes("EXT_meshopt_compression"));
-      assert.ok(!document.extensionsUsed.includes("KHR_mesh_quantization"));
+      assert.ok(document.extensionsUsed.includes("KHR_mesh_quantization"));
+      // The pinned source's positions and triangle index streams are unchanged.
+      const bin = bytes.subarray(28 + bytes.readUInt32LE(12));
+      const expected = new Map([
+        [0,"6eae49ab0965bca861ae89d49483eda29052f44f56360b4e30e30ad9df1a02a4"],
+        [2,"0ace80333c1aa393bbd3e5de13cf3c3c5b0e18e34cb003d0f2fb271bf90e9d48"],
+        [3,"ce06ad9a7601f408cf7297dfc6f0541f5f279cf33302f739bfbf1910bc0cb0e7"],
+      ]);
+      for (const [index,hash] of expected) {
+        const e = document.bufferViews[index].extensions.EXT_meshopt_compression;
+        assert.equal(createHash("sha256").update(bin.subarray(e.byteOffset,e.byteOffset+e.byteLength)).digest("hex"),hash);
+      }
+      for (const p of document.meshes.flatMap(m=>m.primitives)) {
+        assert.equal(document.accessors[p.attributes.POSITION].componentType,5126);
+        assert.equal(document.accessors[p.attributes.NORMAL].componentType,5122);
+      }
       const names = new Set(document.nodes.map((node) => node.name));
       for (const name of [
         "base_0_source_4774244_0", "base_1_source_4774244_0",
