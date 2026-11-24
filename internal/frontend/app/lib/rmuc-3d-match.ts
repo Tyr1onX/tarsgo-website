@@ -44,11 +44,14 @@ const horizontalDistance=(a:ArenaPosition,b:ArenaPosition)=>Math.hypot(a.x-b.x,a
 const ENERGY_REACH=1.4, CARRY_HEIGHT=.67;
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
-type Side = { tech:Technology; coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
+export type DartMode="outpost"|"fixed"|"randomFixed"|"randomMoving"|"terminalMoving";
+type Dart={used:number;shots:number;hits:number;baseHits:number;mode:DartMode;openedAt:number|null;windowHits:number;switched:boolean;blockedUntil:number;offset:number;motion:null|{from:number;to:number;start:number;end:number};resumeAt:number;flight:null|{mode:DartMode;at:number;hit:boolean}};
+const dart=():Dart=>({used:0,shots:0,hits:0,baseHits:0,mode:"outpost",openedAt:null,windowHits:0,switched:false,blockedUntil:0,offset:0,motion:null,resumeAt:0,flight:null});
+type Side = { dart:Dart;blindUntil:number;runeDisabledUntil:number;baseZoneUntil:number;outpostZoneUntil:number;tech:Technology; coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
 export type Match = { coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
-  const side = (team:Team): Side => ({tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
+  const side = (team:Team): Side => ({dart:dart(),blindUntil:0,runeDisabledUntil:0,baseZoneUntil:0,outpostZoneUntil:0,tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
   return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
@@ -140,7 +143,7 @@ function gainXp(match:Match,r:MatchRobot,amount:number){
   if(remaining===0)return;
   amount=Math.min(amount,remaining);
   const rune=match.sides[r.team].rune;
-  const bonus=rune.activatedUntil>match.elapsed?Math.min(amount,rune.xpBonusRemaining,remaining-amount):0;
+  const bonus=rune.activatedUntil>match.elapsed&&match.sides[r.team].runeDisabledUntil<=match.elapsed?Math.min(amount,rune.xpBonusRemaining,remaining-amount):0;
   rune.xpBonusRemaining=roundedXp(rune.xpBonusRemaining-bonus);
   const previous=robotLevel(r);
   r.xp=roundedXp(r.xp+amount+bonus);
@@ -264,7 +267,7 @@ const mix=(a:ArenaPosition,b:ArenaPosition,t:number):ArenaPosition=>({x:a.x+(b.x
 const clamp01=(n:number)=>Math.max(0,Math.min(1,n));
 const inAssembly=(r:MatchRobot,p:ArenaPosition)=>zonesAtPosition(p).includes(`${r.team}-assembly`);
 const assemblyActive=(m:Match,r:MatchRobot)=>m.sides[r.team].tech.attempt?.robot===r.id;
-function teamDefense(m:Match,t:Team){const n=technologyLevel(m,t);return Math.max(m.sides[t].rune.defense,n===4?.5:n===3?.25:0);}
+function teamDefense(m:Match,t:Team){const n=technologyLevel(m,t);return Math.max(m.sides[t].runeDisabledUntil>m.elapsed?0:m.sides[t].rune.defense,n===4?.5:n===3?.25:0);}
 const requiredSteps=(level:Difficulty):AssemblyStep[]=>level===1?[2,6]:level===2?[2,3,6]:[2,3,4,5,6];
 function nextStep(a:AssemblyAttempt,s:AssemblySlot){return requiredSteps(a.level).find(step=>s.done[step]===undefined);}
 function mountedUnit(m:Match,owner:Team,core:Team){return m.energyUnits.find(u=>u.location.kind==="mounted"&&u.location.owner===owner&&u.location.core===core);}
@@ -452,7 +455,7 @@ function coolingRate(match:Match,r:MatchRobot){
   const side=match.sides[r.team];
   const s=r.stance;
   const stanceCooling=s?.mode==="attack"?s.ticks.attack>1800?2:3:1;
-  const boosted=Math.max(r.cooling*side.rune.cooling,r.cooling*stanceCooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
+  const boosted=Math.max(r.cooling*(side.runeDisabledUntil>match.elapsed?1:side.rune.cooling),r.cooling*stanceCooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
   return s&&s.mode!=="attack"?Math.round(boosted/3):boosted;
 }
 export function canFire(match:Match,robot:MatchRobot) {
@@ -474,8 +477,12 @@ export function fireRound(match:Match,id:string) {
   return robot;
 }
 // Territory progress and zone expiry use integer 10 Hz referee ticks.
+function zoneEnabled(m:Match,id:ZoneId,time=m.elapsed){
+  const [t,kind]=id.split("-"),s=m.sides[t as Team];
+  return kind==="base"?time>=s.baseZoneUntil:kind==="outpost"?time>=s.outpostZoneUntil:true;
+}
 export function activeZone(match:Match,robot:MatchRobot,id:ZoneId) {
-  return robot.hp>0&&(robot.zones[id]??0)>Math.floor((match.elapsed+1e-8)*10);
+  return zoneEnabled(match,id)&&robot.hp>0&&(robot.zones[id]??0)>Math.floor((match.elapsed+1e-8)*10);
 }
 export function controlsOutpost(match:Match,location:Team,team:Team,full=false){
   const a=match.sides[location].outpostArea;
@@ -530,12 +537,13 @@ function robotDefense(match:Match,robot:MatchRobot) {
   return 1-defense+Math.max(stanceVulnerability,vulnerable?1:0);
 }
 function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,coverOpened:Partial<Record<Team,number>>){
-  const active=(robot:MatchRobot,id:ZoneId)=>robot.hp>0&&(robot.zones[id]??0)>tick;
+  const active=(robot:MatchRobot,id:ZoneId)=>zoneEnabled(match,id,tick/10)&&robot.hp>0&&(robot.zones[id]??0)>tick;
   for(const r of match.robots){
     if(r.hp<=0){r.zones={};continue;}
     for(const id of Object.keys(r.zones) as ZoneId[])if(!active(r,id))delete r.zones[id];
   }
   for(const zone of ARENA_ZONES){
+    if(!zoneEnabled(match,zone.id,tick/10))continue;
     const candidates=match.robots.filter(r=>r.hp>0&&raw.get(r.id)?.includes(zone.id)&&
       (zone.kind!=="assembly"||r.heavy&&r.team===zone.team)&&
       (zone.kind!=="fortress"||r.team===zone.team||(tick>=1800&&controlsOutpost(match,zone.team,r.team))));
@@ -655,6 +663,7 @@ function resetRuneAttempt(r:Rune,at:number){
   a.groups=0;a.rings=[];a.completed=[];a.lit=chooseArms(a.large?2:1);a.second=false;a.deadline=at+2.5;
 }
 function finishRune(match:Match,team:Team,at:number){
+  match.sides[team].runeDisabledUntil=0;
   const r=match.sides[team].rune,a=r.attempt!;
   if(a.large){
     const mean=a.rings.reduce((sum,n)=>sum+n,0)/a.rings.length;
@@ -699,6 +708,108 @@ function hitRune(m:Match,shooter:MatchRobot,target:Extract<Target,{type:"rune"}>
   }
 }
 
+function killRobot(match:Match,enemy:MatchRobot){
+  markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
+}
+function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|"base",amount:number){
+  const enemy=match.sides[location],side=match.sides[attacker],owner=type==="outpost"?enemy.outpostOwner:location;
+  if(owner===attacker)return 0;
+  amount=Math.min(enemy[type],amount);
+  enemy[type]-=amount;side.damage+=amount;
+  if(type==="base")enemy.baseLow=Math.min(enemy.baseLow,enemy.base);
+  if(type==="outpost"&&amount>0&&enemy.outpost===0){
+    enemy.stopped=true;const area=enemy.outpostArea;
+    if(area.full){area.full=false;area.progress=0;}
+    else if(area.controller!==owner){area.full=true;area.progress=0;rebuildOutpost(enemy,area.controller);}
+  }
+  return amount;
+}
+// §5.7.3. Virtual detection: a launched training dart reports a qualified
+// hit/miss after a representative delay; no physical trajectory or armor proxy.
+const mobileDart=(mode:DartMode)=>mode==="randomMoving"||mode==="terminalMoving";
+const dartModes:DartMode[]=["outpost","fixed","randomFixed","randomMoving","terminalMoving"];
+export function dartStatus(m:Match,team:Team){
+  const d=m.sides[team].dart,t=m.elapsed,start=d.openedAt;
+  const age=start===null?Infinity:t-start;
+  const phase=age<7?"opening":age<37?"open":age<44?"closing":age<59?"cooldown":"closed";
+  return {mode:d.mode,phase,available:Math.max(0,Number(t>=30)+Number(t>=240)-d.used),remaining:4-d.shots,
+    hits:d.hits,canOpen:m.phase==="running"&&phase==="closed"&&d.used<Number(t>=30)+Number(t>=240)&&d.shots<4,
+    canFire:m.phase==="running"&&phase==="open"&&d.shots<4&&!d.flight&&t>=d.blockedUntil,
+    canSelect:m.phase==="running"&&(phase==="closed"||phase==="open"&&d.mode==="outpost"&&d.windowHits>0&&!d.switched&&!d.flight),
+    blind:Math.max(0,Math.ceil(m.sides[team].blindUntil-t)),inFlight:!!d.flight};
+}
+export function selectDart(m:Match,team:Team,mode:DartMode){
+  const status=dartStatus(m,team),d=m.sides[team].dart;
+  if(!status.canSelect||!dartModes.includes(mode))return false;
+  if(status.phase==="open"){
+    if(mode==="outpost")return false;
+    d.switched=true;d.mode=mode;moveDartTarget(d,m.elapsed);return true;
+  }
+  d.mode=mode;return true;
+}
+function nextDartOffset(d:Dart){const n=(Math.random()*2-1)*.28;return Math.abs(n-d.offset)<.02?(d.offset>0?-.28:.28):n;}
+function moveDartTarget(d:Dart,at:number,delay=0){
+  if(d.mode==="outpost"||d.mode==="fixed"){d.offset=0;d.motion=null;return;}
+  d.motion={from:d.offset,to:nextDartOffset(d),start:at+delay,end:at+delay+.6};
+}
+export function openDart(m:Match,team:Team){
+  if(!dartStatus(m,team).canOpen)return false;
+  const d=m.sides[team].dart;
+  d.used++;d.openedAt=m.elapsed;d.windowHits=0;d.switched=false;d.blockedUntil=0;d.offset=0;d.resumeAt=0;
+  moveDartTarget(d,m.elapsed);return true;
+}
+export function launchDart(m:Match,team:Team,hit=true){
+  if(!dartStatus(m,team).canFire)return false;
+  const d=m.sides[team].dart,t=m.elapsed;
+  d.shots++;d.flight={mode:d.mode,at:t+2.5,hit};
+  if(mobileDart(d.mode))moveDartTarget(d,t,d.mode==="terminalMoving"?1.2:0);
+  return true;
+}
+export function dartPose(m:Match,team:Team){
+  const d=m.sides[team].dart,age=d.openedAt===null?Infinity:m.elapsed-d.openedAt;
+  return {door:age<7?clamp01(age/7):age<37?1:age<44?clamp01((44-age)/7):0,target:m.sides[opponent(team)].dart.offset};
+}
+function settleDart(m:Match,team:Team,mode:DartMode){
+  const side=m.sides[team],enemy=m.sides[opponent(team)],d=side.dart,t=m.elapsed,other=opponent(team);
+  if(mode==="outpost"&&(enemy.outpost<=0||enemy.outpostOwner===team))return;
+  d.hits++;d.windowHits++;d.blockedUntil=t+2;
+  const blind=mobileDart(mode)?10:[10,5,3,2][Math.min(3,d.hits-1)];
+  enemy.blindUntil=Math.max(t,enemy.blindUntil)+blind;
+  if(mode==="outpost"){damageStructure(m,team,other,"outpost",1000);enemy.outpostZoneUntil=t+30;return;}
+  d.baseHits++;enemy.baseZoneUntil=t+30;
+  damageStructure(m,team,other,"base",({fixed:200,randomFixed:300,randomMoving:800,terminalMoving:1250})[mode]);
+  shareXp(m,team,mode==="fixed"?200:mode==="randomFixed"?600:2500);
+  if(mode==="randomFixed"&&enemy.rune.activatedUntil>t)enemy.runeDisabledUntil=Math.min(enemy.rune.activatedUntil,Math.max(t,enemy.runeDisabledUntil)+blind);
+  if(mobileDart(mode)){
+    enemy.rune.activatedUntil=0;enemy.rune.attack=1;enemy.rune.defense=0;enemy.rune.cooling=1;enemy.rune.xpBonusRemaining=0;
+    for(const r of m.robots)if(r.team===other&&r.hp>0){
+      const amount=Math.min(r.hp,Math.round(r.maxHp*(mode==="terminalMoving"?.5:.2)));
+      r.hp-=amount;side.damage+=amount;r.lastCombat=t;if(r.hp===0)killRobot(m,r);
+    }
+  }
+  if(mobileDart(mode)||d.baseHits===4)enemy.cover=true;
+}
+function advanceDarts(m:Match){
+  const t=m.elapsed;
+  for(const team of teams){
+    const d=m.sides[team].dart;if(d.openedAt===null)continue;
+    const age=t-d.openedAt;
+    if(d.motion){
+      const motion=d.motion;
+      d.offset=motion.from+(motion.to-motion.from)*clamp01((t-motion.start)/(motion.end-motion.start));
+      if(t>=motion.end)d.motion=null;
+    }
+    if(d.flight&&t+EPS>=d.flight.at){
+      const f=d.flight;d.flight=null;
+      const valid=age>=7&&age<=47+EPS&&t>=d.blockedUntil&&(!d.motion||f.mode==="fixed"||f.mode==="outpost");
+      if(f.hit&&valid){settleDart(m,team,f.mode);if(f.mode==="randomFixed"||mobileDart(f.mode))moveDartTarget(d,t);}
+      else if(mobileDart(f.mode))d.resumeAt=t+7.5;
+    }
+    if(age>=47){d.offset=0;d.motion=null;}
+    else if(mobileDart(d.mode)&&!d.motion&&!d.flight&&t>=d.resumeAt)moveDartTarget(d,t);
+  }
+}
+
 export type Target = {type:"robot";id:string}|{type:"outpost"|"base";team:Team}|{type:"rune";team:Team;arm:number;ring:number};
 export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   if(match.phase!=="running") return 0;
@@ -707,9 +818,9 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   if(target.type==="robot"){
     const enemy=match.robots.find(r=>r.id===target.id);
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0||immune(match,enemy))return 0;
-    const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*side.rune.attack*robotDefense(match,enemy))));
+    const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack)*robotDefense(match,enemy))));
     enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0){markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};}
+    if(enemy.hp===0)killRobot(match,enemy);
     attackXp(match,shooter,amount*4,enemy);
     return amount;
   }
@@ -719,16 +830,9 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   // Base damage is available to the referee only after the protection
   // conditions are satisfied. Physical base detector binding is pending.
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
-  const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*side.rune.attack*(1-teamDefense(match,owner))));
-  enemy[target.type]-=amount;side.damage+=amount;
-  if(target.type==="base")enemy.baseLow=Math.min(enemy.baseLow,enemy.base);
+  const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack)*(1-teamDefense(match,owner))));
+  damageStructure(match,shooter.team,target.team,target.type,amount);
   attackXp(match,shooter,target.type==="outpost"?amount*2:Math.ceil(amount/2));
-  if(target.type==="outpost"&&amount>0&&enemy.outpost===0){
-    enemy.stopped=true;
-    const area=enemy.outpostArea;
-    if(area.full){area.full=false;area.progress=0;}
-    else if(area.controller!==owner){area.full=true;area.progress=0;rebuildOutpost(enemy,area.controller);}
-  }
   return amount;
 }
 export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
@@ -740,7 +844,7 @@ export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string
     let next=end;
     for(const team of teams){
       const rune=match.sides[team].rune;
-      for(const at of [rune.attempt?.end,rune.attempt?.deadline,rune.activatedUntil]){
+      for(const at of [rune.attempt?.end,rune.attempt?.deadline,rune.activatedUntil,match.sides[team].dart.flight?.at,match.sides[team].runeDisabledUntil]){
         if(at!==undefined&&at>match.elapsed&&at<next)next=at;
       }
     }
@@ -778,6 +882,7 @@ function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPo
     const first=Math.floor((before+1e-8)*10)+1;
     for(let tick=first;tick<first+coolingTicks;tick++){advanceTerritories(match,tick,raw,coverOpened);advanceTechnology(match,tick/10,positions);}
   }
+  advanceDarts(match);
   for(const team of teams){
     const side=match.sides[team],enemy=match.sides[opponent(team)];
     side.baseGap=Math.max(side.baseGap,enemy.base-side.base);
