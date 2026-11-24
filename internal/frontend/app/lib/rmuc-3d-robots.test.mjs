@@ -64,3 +64,25 @@ test("the arena provides exploration, driving and four calibration views without
   assert.doesNotMatch(route, /rmul3d-models|selectModel|CAD_MODELS/);
   assert.match(route, /\/robots/);
 });
+
+import * as THREE from "three";
+import { aimWeapon, aimWeaponAt } from "./rmuc-3d-robots.ts";
+import { lookDirection } from "./rmuc-3d-camera.ts";
+test("each ground weapon's actual barrel axis, muzzle and virtual sight agree", () => {
+  for(const kind of ["hero","infantry03","infantry04","sentry"]){
+    const robot=createRobotPreview(kind);
+    robot.position.set(3,.2,-2);
+    robot.rotation.y=.8;
+    const muzzle=robot.getObjectByName("weapon-muzzle");
+    assert.ok(muzzle);
+    for(const [yaw,pitch] of [[0,0],[1.3,.4],[-2,-.35]]){
+      const ray=aimWeapon(robot,yaw,pitch);
+      assert.ok(ray.origin.distanceTo(muzzle.getWorldPosition(new THREE.Vector3()))<1e-8);
+      assert.ok(ray.direction.distanceTo(lookDirection({yaw,pitch}))<1e-8);
+    }
+    for(const point of [new THREE.Vector3(-4,1,3),new THREE.Vector3(8,2,5),new THREE.Vector3(1,3,-7)]){
+      const ray=aimWeaponAt(robot,point);
+      assert.ok(ray.direction.distanceTo(point.clone().sub(ray.origin).normalize())<1e-8);
+    }
+  }
+});
