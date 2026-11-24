@@ -20,8 +20,9 @@ type Launcher = "locked"|"unlocked"|"test"|"ready";
 export type SentryMode = "attack"|"defense"|"move";
 type SentryStance = {mode:SentryMode; enhanced:boolean; switchedAt:number; ticks:Record<SentryMode,number>; enhancedTicks:Record<SentryMode,number>};
 const stanceTicks=():Record<SentryMode,number>=>({attack:0,defense:0,move:0});
+export type InfantryPerformance={chassis:"hp"|"power";launcher:"cooling"|"burst"};
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; xp:number; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
+export type MatchRobot = RobotSpec & { hp:number; xp:number; performance:InfantryPerformance|null; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
 type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
@@ -29,7 +30,7 @@ export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; 
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -38,6 +39,24 @@ const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
 // The timed 42mm fallback does not grant assembly rewards.
 const levelFromXp=(xp:number)=>Math.min(5,XP_LEVELS.filter(x=>xp>=x).length);
 export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
+// Tables 5-17/18. Selection is only possible before the round starts.
+function infantryAttributes(r:MatchRobot){
+  const index=robotLevel(r)-1, power=r.performance?.chassis==="power", burst=r.performance?.launcher==="burst";
+  return {hp:(power?[150,175,200,225,250,275,300,325,350,400]:[200,225,250,275,300,325,350,375,400,400])[index],
+    power:(power?[60,65,70,75,80,85,90,95,100,100]:[45,50,55,60,65,70,75,80,90,100])[index],
+    heat:(burst?[170,180,190,200,210,220,230,240,250,260]:[40,48,56,64,72,80,88,96,104,120])[index],
+    cooling:(burst?[5,7,9,11,12,13,14,16,18,20]:[12,14,16,18,20,22,24,26,28,30])[index]};
+}
+function refreshInfantry(r:MatchRobot){
+  const a=infantryAttributes(r);
+  r.hp=Math.min(a.hp,r.hp+a.hp-r.maxHp);r.maxHp=a.hp;r.heatLimit=a.heat;r.cooling=a.cooling;
+}
+export function selectInfantryPerformance(match:Match,id:string,performance:InfantryPerformance){
+  const r=match.robots.find(r=>r.id===id);
+  if(match.phase!=="ready"||!r?.performance||!["hp","power"].includes(performance.chassis)||!["cooling","burst"].includes(performance.launcher))return false;
+  r.performance={...performance};refreshInfantry(r);return true;
+}
+
 // §5.7.2 / table 5-28. All durations share the referee's 10 Hz ticks.
 export function sentryStatus(match:Match,r:MatchRobot){
   const s=r.stance;
@@ -63,7 +82,7 @@ function advanceStance(r:MatchRobot){
 // §5.1.4 / tables 5-16, 5-17; the current kinematic preview does not
 // measure motor current. Its movement command supplies an estimated demand.
 export function powerLimit(match:Match,r:MatchRobot,time=match.elapsed){
-  const base=r.heavy?50:r.sentry?60:45+5*(robotLevel(r)-1);
+  const base=r.heavy?50:r.sentry?60:infantryAttributes(r).power;
   const paid=time<r.powerBoostUntil;
   const s=r.stance;
   if(!s)return Math.min(200,base*(paid?2:1));
@@ -98,10 +117,7 @@ function gainXp(match:Match,r:MatchRobot,amount:number){
   r.xp=roundedXp(r.xp+amount+bonus);
   const level=robotLevel(r);
   if(level===previous)return;
-  const hp=[200,225,250,275,300,325,350,375,400,400][level-1];
-  r.hp=Math.min(hp,r.hp+hp-r.maxHp);r.maxHp=hp;
-  r.heatLimit=level===10?120:40+(level-1)*8;
-  r.cooling=12+(level-1)*2;
+  refreshInfantry(r);
 }
 function liveInfantry(match:Match,team:Team){
   return match.robots.filter(r=>r.team===team&&infantry(r)&&r.hp>0);

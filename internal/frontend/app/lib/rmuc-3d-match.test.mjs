@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -472,4 +472,23 @@ test("sentry death pauses stance budget, revival preserves it, new round resets 
  const reset=createMatch(specs),fresh=reset.robots[2];
  assert.equal(sentryStatus(reset,fresh).mode,"move");assert.equal(powerLimit(reset,fresh),90);
  assert.deepEqual(sentryStatus(reset,fresh).remaining,{attack:15,defense:15,move:15});
+});
+
+test("infantry pre-round performance selection follows tables 5-17/18 and locks on start",()=>{
+ const m=createMatch([...roster,{id:"h",team:"red",heavy:true,maxHp:400},{id:"s",team:"red",heavy:false,sentry:true,maxHp:200}],1,1);
+ const r=m.robots[0],b=m.robots[1];
+ assert.equal(selectInfantryPerformance(m,"h",{chassis:"power",launcher:"burst"}),false);
+ assert.equal(selectInfantryPerformance(m,"s",{chassis:"power",launcher:"burst"}),false);
+ assert.equal(selectInfantryPerformance(m,"r",{chassis:"power",launcher:"burst"}),true);
+ assert.deepEqual([r.hp,r.maxHp,powerLimit(m,r),r.heatLimit,r.cooling],[150,150,60,170,5]);
+ assert.deepEqual([b.hp,powerLimit(m,b),b.heatLimit,b.cooling],[200,45,40,12]);
+ startMatch(m);
+ assert.equal(selectInfantryPerformance(m,"r",{chassis:"hp",launcher:"cooling"}),false);
+ damageTarget(m,b,{type:"robot",id:"r"});
+ for(let i=0;i<14;i++)damageTarget(m,r,{type:"outpost",team:"blue"});
+ assert.equal(robotLevel(r),2);
+ assert.deepEqual([r.hp,r.maxHp,powerLimit(m,r),r.heatLimit,r.cooling],[155,175,65,180,7]);
+ updateMatch(m,6);assert.ok(purchaseAmmo(m,"r"));updateMatch(m,6);assert.ok(fireRound(m,"r"));updateMatch(m,1);
+ assert.ok(Math.abs(r.heat-3)<1e-8); // 10 - 7 points per second
+ assert.deepEqual(createMatch(roster).robots[0].performance,{chassis:"hp",launcher:"cooling"});
 });
