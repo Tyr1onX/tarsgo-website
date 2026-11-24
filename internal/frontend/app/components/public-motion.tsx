@@ -44,48 +44,6 @@ export function Reveal({
   );
 }
 
-export function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [value, setValue] = useState(target);
-  const startedRef = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof window === "undefined") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || typeof IntersectionObserver === "undefined") {
-      setValue(target);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting) || startedRef.current) return;
-        startedRef.current = true;
-        observer.disconnect();
-        const duration = 720;
-        const start = performance.now();
-        const step = (now: number) => {
-          const progress = Math.min(1, (now - start) / duration);
-          const eased = 1 - Math.pow(1 - progress, 3);
-          setValue(Math.round(target * eased));
-          if (progress < 1) requestAnimationFrame(step);
-        };
-        setValue(0);
-        requestAnimationFrame(step);
-      },
-      { threshold: 0.2 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [target]);
-
-  return (
-    <span ref={ref} className="public-counter">
-      {value}
-      {suffix}
-    </span>
-  );
-}
-
 export function useScrollSpy(ids: string[]) {
   const [activeId, setActiveId] = useState(ids[0] ?? "");
   const key = ids.join("|");
@@ -173,7 +131,7 @@ export function PublicPhotoLightbox({
     >
       {photo && activeIndex !== null ? (
         <>
-          <button type="button" className="public-lightbox__scrim" aria-label="关闭图片预览" onClick={() => dialogRef.current?.close()} />
+          <button type="button" className="public-lightbox__scrim" tabIndex={-1} aria-label="关闭图片预览" onClick={() => dialogRef.current?.close()} />
           <div className="public-lightbox__toolbar">
             {photos.length > 1 ? (
               <span className="public-lightbox__pill">

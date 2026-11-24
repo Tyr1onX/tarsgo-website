@@ -45,3 +45,29 @@ test("salon drag feedback preserves the existing slider and drag state", async (
   assert.match(styles, /salon-time-handle\[data-dragging\] \.salon-handle-line/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+test("registration dialogs use shared interruptible transitions instead of restarting JS animations", async () => {
+  const form = await source("../routes/admin/form-config.tsx");
+  const styles = await source("../app.css");
+  assert.doesNotMatch(form, /\.animate\(/);
+  assert.match(form, /inert=\{drawerClosing\}/);
+  assert.match(form, /inert=\{previewClosing\}/);
+  assert.match(form, /useModalAccessibility\(drawerOpen && !drawerClosing/);
+  assert.match(styles, /\.registration-drawer\[data-state="closed"\] \.registration-drawer__panel/);
+});
+
+test("static honor counts stay accurate and XP changes start from the displayed value", async () => {
+  const honors = await source("../components/events-and-honors-archive.tsx");
+  const growth = await source("../components/community-growth.tsx");
+  assert.doesNotMatch(honors, /AnimatedCounter/);
+  assert.match(growth, /const from = displayedRef.current/);
+  assert.match(growth, /cancelAnimationFrame\(frame\)/);
+  assert.match(growth, /className="sr-only"\>\{targetXp.toLocaleString/);
+});
+
+test("hidden notifications cannot be focused and keyboard focus pauses dismissal", async () => {
+  const notify = await source("../components/notify.tsx");
+  assert.match(notify, /inert=\{!open\}/);
+  assert.match(notify, /onFocus=.*setPaused\(true\)/);
+  assert.match(notify, /contains\(document.activeElement\)/);
+});
