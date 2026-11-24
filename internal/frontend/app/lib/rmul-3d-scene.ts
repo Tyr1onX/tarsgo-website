@@ -6,7 +6,8 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, fireRound, damageTarget, type Match, type Target } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, type Match } from "./rmuc-3d-match";
+import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
@@ -261,16 +262,11 @@ export function mountArena(
     syncCamera();
     shoot(driving,camera.position.clone().addScaledVector(forward,.1),forward);
   }
-  function trace(robot: Robot, from: THREE.Vector3, direction: THREE.Vector3) {
-    if(!map)return undefined;
-    shotRay.set(from,direction);shotRay.far=35;
-    const targets=[map,...robots.filter(r=>r!==robot&&r.object.userData.area==="field"&&match?.robots.find(m=>m.id===r.object.name)?.hp!==0).map(r=>r.object)];
-    return shotRay.intersectObjects(targets,true)[0];
+  function shotTargets(robot: Robot) {
+    return [map!, ...robots.filter(r=>r!==robot&&r.object.userData.area==="field"&&match?.robots.find(m=>m.id===r.object.name)?.hp!==0).map(r=>r.object)];
   }
-  function hitTarget(hit: THREE.Intersection|undefined): Target|undefined {
-    let node:THREE.Object3D|null=hit?.object??null;
-    while(node&&!node.userData.target)node=node.parent;
-    return node?.userData.target as Target|undefined;
+  function trace(robot: Robot, from: THREE.Vector3, direction: THREE.Vector3) {
+    return map ? traceArenaShot(shotRay,shotTargets(robot),from,direction) : undefined;
   }
   function updateOpponent() {
     if(!match||!driving||!terrain)return;
@@ -307,13 +303,10 @@ export function mountArena(
   }
   function shoot(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3) {
     if(!match||!map)return;
-    const shooter=fireRound(match,robot.object.name);
-    if(!shooter)return;
     scene.updateMatrixWorld(true);
-    const hit=trace(robot,from,direction);
-    const to=hit?.point??from.clone().addScaledVector(direction,35);
-    const target=hitTarget(hit);
-    if(target)damageTarget(match,shooter,target);
+    const shot=resolveArenaShot(match,robot.object.name,shotRay,shotTargets(robot),from,direction);
+    if(!shot)return;
+    const {shooter,hit,to}=shot;
     const group=new THREE.Group(), style=SHOT_STYLE[shooter.team], delta=to.clone().sub(from);
     const trail=new THREE.Mesh(shotGeometry,new THREE.MeshBasicMaterial({color:style.trail,transparent:true,depthWrite:false,toneMapped:false}));
     trail.position.copy(from).addScaledVector(delta,.5);trail.scale.set(.025,.025,delta.length());trail.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),delta.normalize());

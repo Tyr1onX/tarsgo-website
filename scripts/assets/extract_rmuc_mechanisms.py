@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Extract reviewed, separately movable meshes from the pinned upstream CAD GLB.
 
-Usage: python3 scripts/assets/extract_rmuc_mechanisms.py SOURCE.glb OUTPUT.glb
+Usage: python3 scripts/assets/extract_rmuc_mechanisms.py SOURCE.glb CORRECTED_OUTPOST.glb OUTPUT.glb
 Then gltfpack -i OUTPUT.glb -o packed.glb -cc -kn -km -noq
 Source release: hxyulin/rm-map-tools rmuc2027-simplified-glb-20261018.
 Motion axes: rules/source-motion-rmuc2027.json, source product 1354629 / 2603236.
-The release predates the later hub/logo and carrier-face review. Only the
-independent arms/modules move; the unresolved hub and carrier stay fixed.
+The outpost uses the reviewed source-face partition from rm-map-tools
+fe859777e5ee7a311f2a7d7cd1ea9f798a585233. Rune hub/logo remains unresolved.
 DJI / RoboMaster CAD remains subject to upstream CAD usage terms.
 """
 import copy
@@ -16,12 +16,37 @@ import struct
 import sys
 from pathlib import Path
 
-source, output = map(Path, sys.argv[1:])
+source, corrected, output = map(Path, sys.argv[1:])
 raw = source.read_bytes()
 assert hashlib.sha256(raw).hexdigest() == "ef40412bae1324475aab47e908e150b7b21d66f233740561232df5adf7919882"
 length = struct.unpack_from("<I", raw, 12)[0]
 doc = json.loads(raw[20:20 + length])
 binary = raw[28 + length:]
+# Replace the old fused upper cluster with disjoint source-derived fixed
+# and moving surfaces. Both occurrences share these two mesh definitions.
+raw2 = corrected.read_bytes()
+assert hashlib.sha256(raw2).hexdigest() == "cb1e05db459284bf7817eca7f84eb2208ffc72bacff8dc675e06212fc5706b97"
+length2 = struct.unpack_from("<I", raw2, 12)[0]
+fix = json.loads(raw2[20:20 + length2])
+assert [n.get("name") for n in fix["nodes"]] == ["outpost-corrected-parts", "upper-cluster", "carrier-frame", "armor-0", "armor-1", "armor-2"]
+assert not any(fix.get(k) for k in ("textures", "images", "extensionsUsed"))
+assert len(binary) % 4 == 0
+offsets = {k: len(doc[k]) for k in ("bufferViews", "accessors", "materials", "meshes")}
+for view in fix["bufferViews"]:
+    assert view["buffer"] == 0
+    view["byteOffset"] = view.get("byteOffset", 0) + len(binary)
+for accessor in fix["accessors"]:
+    accessor["bufferView"] += offsets["bufferViews"]
+for mesh in fix["meshes"]:
+    for primitive in mesh["primitives"]:
+        primitive["attributes"] = {k: v + offsets["accessors"] for k, v in primitive["attributes"].items()}
+        primitive["indices"] += offsets["accessors"]
+        primitive["material"] += offsets["materials"]
+for k in offsets:
+    doc[k].extend(fix[k])
+binary += raw2[28 + length2:]
+doc["buffers"][0]["byteLength"] = len(binary)
+fixed_mesh, carrier_mesh, *armor_meshes = [fix["nodes"][i]["mesh"] + offsets["meshes"] for i in range(1, 6)]
 nodes = doc["nodes"]
 selected = []
 
@@ -60,8 +85,8 @@ for side, parent, product, body, covers in [
         assert index in nodes[body]["children"]
         named(index, side + "-cover-" + str(i))
 
-for side, parent, product, rotor in [
-    ("red",1627,1632,1690), ("blue",1733,1738,1796),
+for side, parent, product, fixed, upper, rotor in [
+    ("red",1627,1632,1633,1666,1690), ("blue",1733,1738,1739,1772,1796),
 ]:
     original(parent, side + "-outpost-with-footing")
     original(product, "outpost")
@@ -70,7 +95,21 @@ for side, parent, product, rotor in [
     named(product, side + "-outpost-assembly")
     children = nodes[rotor]["children"]
     assert [nodes[i]["name"] for i in children] == [f"outpost/rotor/module-{i}" for i in range(3)]
-    pivot(rotor, side + "-outpost-rotor", [-.009437883451525,1.1374399976,-.0010455166794], children)
+    original(upper, "outpost/fixed/upper-cluster")
+    assert upper in nodes[fixed]["children"]
+    assert nodes[upper]["matrix"] == [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
+    nodes[upper] = {"mesh": fixed_mesh}
+    named(upper, side + "-outpost-fixed-upper")
+    for i, module in enumerate(children):
+        named(module, f"{side}-outpost-module-{i}")
+    carrier = node(mesh=carrier_mesh)
+    named(carrier, side + "-outpost-carrier")
+    plates = []
+    for i, mesh in enumerate(armor_meshes):
+        plate = node(mesh=mesh)
+        named(plate, f"{side}-outpost-armor-{i}")
+        plates.append(plate)
+    pivot(rotor, side + "-outpost-rotor", [-.009437883451525,1.1374399976,-.0010455166794], children + [carrier] + plates)
 
 original(2045, "rune")
 named(2045, "rune-assembly")
