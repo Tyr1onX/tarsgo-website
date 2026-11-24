@@ -4,18 +4,18 @@ import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-n
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, movePlayer, outdoorDoorAt, snapCamera, advanceSurfaceTrail,
+  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, outdoorDoorAt, snapCamera, advanceSurfaceTrail,
   type SurfaceMark, type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } from "~/lib/pixel-jijia-explorer";
-import { ROOMS, STUDY_ROOM, closestRoomObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
+import { ROOMS, STUDY_ROOM, closestRoomObject, seatPlacement, seatDepth, meetingChair, meetingSeat, roomInteractable, type SeatObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
 import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
-import { ROOM_ART_SCALE,preparePublicRoomArt } from "~/lib/pixel-jijia-room-art";
+import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds } from "~/lib/pixel-jijia-room-art";
 import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityDiscoveryId } from "~/lib/pixel-jijia-community";
-import { CommunityObjectDetail } from "~/components/pixel-jijia-community-detail";
+import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
 import { apiRequest } from "~/lib/api-client";
-import { getCurrentUser } from "~/lib/auth-client";
+import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
@@ -32,20 +32,8 @@ const communityObjects = Object.values(COMMUNITY_ROOM_OBJECTS).flat();
 
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
-const nearDoor = (place: Place, position: Position) => Math.abs(position.x-place.x-place.width/2)<=1.35 && position.y>=place.y+place.height+.3 && position.y<=place.y+place.height+3;
-const closestFeature = (position: Position, mobile = false): Feature | null => {
-  if(waterDepthAt(position.x,position.y))return null;
-  const candidate = closestPlace(position);
-  const place = candidate && (!mobile || nearDoor(candidate, position)) ? candidate : null;
-  const story = closestStory(position), bench = closestBench(position);
-  const scenery = story && bench && Math.hypot(position.x - bench.x, position.y - bench.y) <
-    Math.hypot(position.x - story.x, position.y - story.y) ? bench : story ?? bench;
-  if (!place || !scenery) return place ?? scenery;
-  const dx = Math.max(place.x - position.x, 0, position.x - place.x - place.width);
-  const dy = Math.max(place.y - position.y, 0, position.y - place.y - place.height);
-  return Math.hypot(position.x - scenery.x, position.y - scenery.y) < Math.hypot(dx, dy)
-    ? scenery : place;
-};
+const featureAction=(feature:Feature)=>"href" in feature?"进入":feature.sprite==="bench"?"坐下":"观察";
+const roomAction=(object:RoomObject)=>object.kind==="chair"?"坐下":object.kind==="exit"?"离开":({senior:"对话",meeting:"落座",drive:"驾驶",assembly:"组装",terminal:"使用",silverwolf:"使用",memoir:"查看",memory:"查看"} as Record<string,string>)[object.community?.interaction??""]??(object.community?"互动":"查看");
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
@@ -96,7 +84,7 @@ export default function PixelJijiaPage() {
   const naturePromptRef = useRef("");
   const noticeUntilRef = useRef(0);
   const [naturePrompt,setNaturePrompt] = useState("");
-  const [natureNotice,setNatureNotice] = useState("");
+  const [natureNotice,setNatureNotice] = useState<string | RoomObject>("");
   const [discoveries,setDiscoveries] = useState<string[]>([]);
   const storySites=SCENERY.filter(p=>p.story);
   const knownStories=storySites.filter(p=>discoveries.includes(p.story!.title));
@@ -134,8 +122,15 @@ export default function PixelJijiaPage() {
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
   const [nearby, setNearby] = useState<Feature | null>(null);
   const [selected, setSelected] = useState<Feature | null>(null);
-  const [storyActivated, setStoryActivated] = useState(false);
-  const [seated, setSeated] = useState<Scenery | null>(null);
+
+  const [seated, setSeated] = useState<{ object:SeatObject; exit: Position } | null>(null);
+  const effectsRef = useRef(new Map<string,number>());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [muted, setMuted] = useState(false);
+  useEffect(()=>()=>audioRef.current?.pause(),[]);
+  const [studyEditing, setStudyEditing] = useState(false);
+  const [creditNames, setCreditNames] = useState<Record<number,string>>({});
+  const [catalogueDetail, setCatalogueDetail] = useState<RoomObject | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [studyItems, setStudyItems] = useState<StudyFurniture[]>([]);
   const [studyGuest, setStudyGuest] = useState(false);
@@ -150,8 +145,8 @@ export default function PixelJijiaPage() {
   const roomScale = room ? room.id !== "study" ? ROOM_ART_SCALE : 1 : WORLD_ART_SCALE;
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
-  const [roomSitting,setRoomSitting] = useState(false);
-  const roomSitOrigin = useRef<Position | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const targetRef = useRef<Feature | RoomObject | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     try {
@@ -166,25 +161,38 @@ export default function PixelJijiaPage() {
   useEffect(() => {
     if(discoveries.length) localStorage.setItem("pixel-jijia-nature-log",JSON.stringify(discoveries));
   },[discoveries]);
+  useEffect(() => {
+    let active = true, request:AbortController|undefined, identity:string|undefined;
+    const ids=new Set(communityObjects.flatMap(o=>o.community.sources.map(s=>s.comment)));
+    const load=(user:AuthUser|null)=>{
+      const next=user?String(user.id)+":"+user.role.id:"anonymous";
+      if(!active||identity===next)return;
+      identity=next;request?.abort();setCreditNames({});
+      if(!user)return;
+      const controller=request=new AbortController();
+      void apiRequest<{comments:{id:number;authorName:string;isDeleted:boolean}[]}>("/api/community/posts/28",{cache:"no-store",signal:controller.signal})
+        .then(data=>{if(active&&!controller.signal.aborted)setCreditNames(Object.fromEntries(data.comments.filter(c=>ids.has(c.id)&&!c.isDeleted).map(c=>[c.id,c.authorName])));})
+        .catch(()=>{});
+    };
+    const unsubscribe=subscribeAuthStateChange(load);
+    void getCurrentUser().then(()=>load(getCachedCurrentUser()),()=>load(null));
+    return()=>{active=false;request?.abort();unsubscribe();};
+  }, []);
+  const standUp = useCallback(() => {
+    if (!seated) return;
+    playerRef.current = seated.exit;
+    setSeated(null);
+  }, [seated]);
   const selectRoomObject = useCallback((object: RoomObject | null) => {
-    if (roomSitOrigin.current) {
-      playerRef.current = roomSitOrigin.current;
-      roomSitOrigin.current = null;
-    }
-    setRoomSitting(false);
+    if (!object && selectedRoom?.community?.interaction === "meeting") standUp();
     clearInput();
-    if (object?.community) recordDiscovery(communityDiscoveryId(object));
     setSelectedRoom(object);
-  }, [recordDiscovery, clearInput]);
-  const sitAtMeeting = useCallback(() => {
-    if (room?.id !== "guild" || selectedRoom?.id !== "weekly-meeting") return;
-    const chair = room.objects.find(object => object.id === "decor-2");
-    if (!chair) return;
-    roomSitOrigin.current = { ...playerRef.current };
-    playerRef.current = { x: chair.x + chair.width / 2, y: chair.y + chair.height / 2 };
-    directionRef.current = "up";
-    setRoomSitting(true);
-  }, [room, selectedRoom]);
+  }, [selectedRoom, standUp, clearInput]);
+  const discover = (object: RoomObject) => {
+    const id=communityDiscoveryId(object);
+    if(!object.community || discoveries.includes(id)) return;
+    recordDiscovery(id);setNatureNotice(object);noticeUntilRef.current=performance.now()+3200;
+  };
   const interactNature = useCallback(()=>{
     if(transitionRef.current||selectedRef.current)return;
     const player=playerRef.current,cast=castRef.current;
@@ -262,32 +270,32 @@ export default function PixelJijiaPage() {
     }
     selectedRef.current = place;
     clearInput();
-    setStoryActivated(false);
     setSelected(place);
   }, [recordDiscovery, clearInput]);
 
-  const standUp = useCallback(() => {
-    if (!seated) return;
-    const exit = benchExit(seated);
-    if (exit) playerRef.current = exit;
-    setSeated(null);
-  }, [seated]);
-
-  const sitDown = (bench: Scenery) => {
-    if (bench.sprite !== "bench" || !benchExit(bench)) return;
-    if (Math.hypot(playerRef.current.x - bench.x, playerRef.current.y - bench.y) >= 2.5) return;
-    playerRef.current = benchSeat(bench);
-    directionRef.current = "down";
-    setSeated(bench);
-    selectPlace(null);
+  const sit = (object:SeatObject) => {
+    const placement=seatPlacement(room,object,playerRef.current);
+    if(!placement)return false;
+    clearInput();castRef.current=null;
+    playerRef.current=placement.anchor;directionRef.current="down";
+    setSeated({object,exit:placement.exit});
+    if("sprite" in object&&object.story)recordDiscovery(object.story.title);
+    return true;
   };
-
+  const playLaugh = (frog: boolean) => {
+    if(muted||document.hidden)return;
+    audioRef.current?.pause();
+    const audio=new Audio(frog?"/assets/pixel-jijia/frog-laugh.wav":"/assets/pixel-jijia/poster-laugh.wav");
+    audio.volume=.35;audioRef.current=audio;
+    void audio.play().catch(()=>{});
+  };
   // The existing animation frame owns both halves of the fade. Swap only
   // while fully covered, and keep it covered until the destination has rendered.
   const transitionTo = useCallback((target: string | null, swap: () => void) => {
     if (transitionRef.current) return;
     clearInput();
     setMenuOpen(false);
+    audioRef.current?.pause();effectsRef.current.clear();targetRef.current=null;
     castRef.current=null;
     if (!canvasRef.current?.dataset.scene || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       swap();
@@ -307,12 +315,11 @@ export default function PixelJijiaPage() {
       setSeated(null);
       setRoomId(placeId);
       setSelectedRoom(null);
-      setRoomSitting(false); roomSitOrigin.current = null;
+      setSeated(null);
       setMapOpen(false);
       selectedRef.current = null;
       setSelected(null);
-      setStoryActivated(false);
-    });
+      });
   }, [transitionTo]);
 
   const openStudy = useCallback(async (invitation?: string) => {
@@ -324,7 +331,7 @@ export default function PixelJijiaPage() {
       }>(invitation ? `/api/pixel-home/visit?token=${encodeURIComponent(invitation)}`
         : "/api/pixel-home/me", { cache: "no-store" });
       transitionTo("study", () => {
-        setStudyItems(data.furniture);
+        setStudyItems(data.furniture);setStudyEditing(false);
         setStudyHasInvite(Boolean(data.inviteActive));
         setStudyGuest(Boolean(invitation));
         setStudyInvite("");
@@ -335,7 +342,7 @@ export default function PixelJijiaPage() {
         clearInput();
         setRoomId("study");
         setSelectedRoom(null);
-      setRoomSitting(false); roomSitOrigin.current = null;
+      setSeated(null);
         setMapOpen(false);
         selectPlace(null);
       });
@@ -404,7 +411,7 @@ export default function PixelJijiaPage() {
         if (canvas) cameraRef.current = cameraAt(SPAWN, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current);
         setRoomId(null);
         setSelectedRoom(null);
-      setRoomSitting(false); roomSitOrigin.current = null;
+      setSeated(null);
         setStudyGuest(false);
         if (window.location.search.includes("visit=")) window.history.replaceState(null, "", "/pixel-jijia");
         return;
@@ -415,7 +422,7 @@ export default function PixelJijiaPage() {
       const canvas = canvasRef.current;
       if (canvas) cameraRef.current = cameraAt(playerRef.current, canvas.clientWidth / zoomRef.current, canvas.clientHeight / zoomRef.current);
       setSelectedRoom(null);
-      setRoomSitting(false); roomSitOrigin.current = null;
+      setSeated(null);
       setRoomId(null);
     });
   }, [roomId, transitionTo]);
@@ -544,19 +551,43 @@ export default function PixelJijiaPage() {
   }, [climate?.season]);
 
   useEffect(() => {
-    if (selected) closeRef.current?.focus();
-  }, [selected]);
+    if (selected || selectedRoom || catalogueDetail) {
+      const dialog=dialogRef.current;
+      (dialog?.querySelector<HTMLElement>("[data-drive], .pixel-community-controls button:not(:disabled)") ?? dialog?.querySelector<HTMLElement>(".pixel-world-detail-close"))?.focus();
+    } else canvasRef.current?.focus({preventScroll:true});
+  }, [selected, selectedRoom, catalogueDetail]);
 
   const distanceNotice = useCallback(() => {
     setNatureNotice("再靠近一点");
     noticeUntilRef.current = performance.now() + 1800;
   }, []);
   const interactRoom = useCallback((object: RoomObject) => {
-    if (!room || transitionRef.current || !room.objects.includes(object)) return;
+    if (!room || transitionRef.current || !room.objects.includes(object) || !roomInteractable(room,object)) return;
     if (roomInteractionDistance(room, object, playerRef.current) >= 2.1) { distanceNotice(); return; }
-    if (object.kind === "exit") exitRoom();
-    else selectRoomObject(object);
-  }, [room, exitRoom, selectRoomObject, distanceNotice]);
+    if (seated) { standUp(); return; }
+    if (object.kind === "exit") { exitRoom(); return; }
+    if (object.kind === "chair") {
+      const meeting=room.objects.find(o=>o.community?.interaction==="meeting");
+      if(meeting&&meetingSeat(room,object))object=meeting;
+      else {if(!sit(object))distanceNotice();return;}
+    }
+    if (object.community) {
+      const action=object.community.interaction;
+      if(action==="meeting"){
+        const chair=meetingChair(room,playerRef.current);
+        if(!chair || !sit(chair)){distanceNotice();return;}
+      }
+      discover(object);
+      if(!action || ["smoke","burst","glow","cable","old-capacitor","laugh","poster-laugh","tools"].includes(action)){
+        if((action==="laugh"||action==="poster-laugh")&&performance.now()-(effectsRef.current.get(object.id)??-Infinity)<1500)return;
+        effectsRef.current.set(object.id,performance.now());
+        if(action==="laugh"||action==="poster-laugh")playLaugh(action==="laugh");
+
+        return;
+      }
+    }
+    selectRoomObject(object);
+  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, creditNames, muted]);
   const interactFeature = useCallback((feature: Feature) => {
     if (room || transitionRef.current || waterDepthAt(playerRef.current.x, playerRef.current.y)) return;
     if ("href" in feature) {
@@ -566,46 +597,77 @@ export default function PixelJijiaPage() {
     } else {
       const radius = feature.sprite === "bench" ? 2.5 : 2.8;
       if (Math.hypot(playerRef.current.x-feature.x,playerRef.current.y-feature.y) >= radius) { distanceNotice(); return; }
-      selectPlace(feature);
+      if(seated){standUp();return;}
+      if(feature.sprite==="bench"){if(!sit(feature))distanceNotice();return;}
+      if(feature.story){recordDiscovery(feature.story.title,feature.story.result ?? feature.story.title);}
     }
-  }, [room, enterRoom, selectPlace, distanceNotice]);
+  }, [room, enterRoom, selectPlace, distanceNotice, seated, standUp, recordDiscovery, clearInput]);
   useEffect(() => {
-    if (menuOpen || (mobile && mapOpen) || selectedRoom || selected) clearInput();
-  }, [menuOpen, mapOpen, mobile, selectedRoom, selected, clearInput]);
+    if (menuOpen || mapOpen || selectedRoom || selected || catalogueDetail) clearInput();
+  }, [menuOpen, mapOpen, selectedRoom, selected, catalogueDetail, clearInput]);
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea, [contenteditable=true]")) return;
       if (transitionRef.current) return;
       if (event.key === "Escape") {
-        if (selectedRoom) selectRoomObject(null);
+        if (catalogueDetail) setCatalogueDetail(null);
+        else if (selectedRoom) selectRoomObject(null);
         else if(castRef.current)castRef.current=null;
         else if (selectedRef.current) selectPlace(null);
-        else { setMapOpen(false); setShowHelp(false); setMenuOpen(false); }
+        else if(mapOpen)setMapOpen(false);else if(menuOpen)setMenuOpen(false);else if(showHelp)setShowHelp(false);
         return;
       }
-      if (menuOpen || (mobile && mapOpen)) return;
+      if (selectedRoom || selectedRef.current || catalogueDetail) {
+        const dialog=dialogRef.current;
+        if(!dialog)return;
+        const controls=[...dialog.querySelectorAll<HTMLElement>(".pixel-community-controls button:not(:disabled), .pixel-community-action:not(:disabled), .pixel-world-detail-link")];
+        const current=controls.indexOf(document.activeElement as HTMLElement);
+        if(event.key.toLowerCase()==="e"&&!event.repeat){
+          event.preventDefault();
+          if(current>=0)controls[current].click();
+          else if(selectedRoom?.community?.interaction==="drive")dialog.querySelector<HTMLButtonElement>("[data-drive-turn]")?.click();
+          else controls.find(c=>c.tagName==="BUTTON")?.click();
+        }
+        else if(event.key.startsWith("Arrow")&&selectedRoom?.community?.interaction!=="drive"){
+          event.preventDefault();
+          if(selectedRoom?.community?.interaction==="memoir"&&(event.key==="ArrowLeft"||event.key==="ArrowRight")){
+            dialog.querySelector<HTMLButtonElement>(event.key==="ArrowLeft"?"[data-page=previous]":"[data-page=next]")?.click();
+          }else if(controls.length)controls[current<0?(event.key==="ArrowLeft"||event.key==="ArrowUp"?controls.length-1:0):(current+(event.key==="ArrowLeft"||event.key==="ArrowUp"?-1:1)+controls.length)%controls.length]?.focus();
+        }
+        return;
+      }
+      if (menuOpen || mapOpen) {
+        if(event.key.toLowerCase()==="m"&&!event.repeat){event.preventDefault();setMapOpen(false);return;}
+        const panel=document.querySelector(menuOpen?".pixel-world-top-actions":"#pixel-world-map-panel");
+        const controls=[...(panel?.querySelectorAll<HTMLElement>("button:not(:disabled),summary,a")??[])].filter(e=>e.getClientRects().length);
+        const index=controls.indexOf(document.activeElement as HTMLElement);
+        if(event.key.toLowerCase()==="e"&&!event.repeat){event.preventDefault();if(index>=0)controls[index].click();else controls[0]?.focus();}
+        else if(event.key.startsWith("Arrow")&&controls.length){event.preventDefault();controls[index<0?0:(index+(event.key==="ArrowLeft"||event.key==="ArrowUp"?-1:1)+controls.length)%controls.length].focus();}
+        return;
+      }
       if (event.key === "Shift") {
         if (!selectedRef.current) sprintKeyRef.current = true;
         return;
       }
       if (event.key.toLowerCase() === "m") {
-        if (!room) { event.preventDefault(); setMapOpen(open => !open); }
+        event.preventDefault(); setMapOpen(open => !open);
         return;
       }
       if (event.key.toLowerCase() === "e") {
-        if (selectedRoom || event.repeat) return;
+        if (event.repeat) return;
+        if (seated) {event.preventDefault();standUp();return;}
         if (room) {
-          const object = closestRoomObject(room, playerRef.current);
-          if (object && (mobile || object.kind !== "exit")) {
+          if(studyEditing)return;
+          const object = targetRef.current as RoomObject | null;
+          if (object) {
             event.preventDefault();
             interactRoom(object);
           }
           return;
         }
-        if (seated) { event.preventDefault(); standUp(); return; }
-        const place = closestFeature(playerRef.current, mobile);
+        const place = targetRef.current as Feature | null;
         if(castRef.current){event.preventDefault();interactNature();}
-        else if(place){event.preventDefault();if (mobile) interactFeature(place); else selectPlace(place);}
+        else if(place){event.preventDefault();interactFeature(place);}
         else if(fishingTarget(playerRef.current)||closestAnimal(wildlifeRef.current,playerRef.current)){event.preventDefault();interactNature();}
         return;
       }
@@ -621,7 +683,7 @@ export default function PixelJijiaPage() {
       if (dir) keysRef.current.delete(dir);
     };
     const stop = () => {
-      clearInput();
+      clearInput();audioRef.current?.pause();
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -634,7 +696,7 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, interactRoom, interactFeature, interactNature, clearInput, menuOpen, mobile, mapOpen]);
+  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, interactRoom, interactFeature, interactNature, clearInput, menuOpen, mobile, mapOpen, catalogueDetail, studyEditing]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
@@ -692,7 +754,7 @@ export default function PixelJijiaPage() {
       const sprinting = touch ? touch.running : sprintKeyRef.current;
 
       const previous = playerRef.current;
-      if (!transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !(mobile && mapOpen)) {
+      if (!transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !mapOpen && !catalogueDetail) {
         const next = movePlayer(previous, x, y, dt, sprinting,
           room ? (px, py) => isRoomWalkable(room, px, py) : undefined);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
@@ -728,7 +790,7 @@ export default function PixelJijiaPage() {
       const readyNow=Boolean(castNow&&fishingReady(wildlifeRef.current,castNow,time));
       const pose=poseRef.current=explorerAnimation(poseRef.current,{
         direction:directionRef.current,moving:walking,sprinting,distance:traveled,
-        water:room?0:waterDepthAt(playerRef.current.x,playerRef.current.y),seated:Boolean(seated)||roomSitting,
+        water:room?0:waterDepthAt(playerRef.current.x,playerRef.current.y),seated:Boolean(seated),
         fishing:fishingPose(castNow,readyNow,time),now:time,motion:!reducedMotion.matches,
       });
       ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
@@ -738,13 +800,13 @@ export default function PixelJijiaPage() {
         trailRef.current.length = 0;
         renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
           pose, cameraRef.current,
-          time, !reducedMotion.matches, climate);
+          time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current);
       } else {
         advanceSurfaceTrail(trailRef.current, previous, playerRef.current, dt, surfaceRef.current.snow, !reducedMotion.matches);
         updateWildlife(wildlifeRef.current,playerRef.current,dt,climate?.hour??12,climate?.weather??null,!reducedMotion.matches,castRef.current);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
-          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current);
+          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y);
       }
 
       if (reducedMotion.matches || room) {
@@ -799,7 +861,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.wetness=surfaceRef.current.wet.toFixed(2);
       canvas.dataset.snow=surfaceRef.current.snow.toFixed(2);
 
-      const nextNearby = seated || room ? null : closestFeature(playerRef.current, mobile);
+      const nextNearby = seated || room ? null : closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null);
       const cast=castRef.current;
       const ready=cast&&fishingReady(wildlifeRef.current,cast,time);
       const animal=!room&&!nextNearby&&!seated?closestAnimal(wildlifeRef.current,playerRef.current):null;
@@ -811,8 +873,9 @@ export default function PixelJijiaPage() {
       canvas.dataset.fishing=cast?(cast.caughtAt!==undefined?"caught":ready?"ready":"waiting"):"idle";
       canvas.dataset.action=pose.action;
       canvas.dataset.actionFrame=String(pose.frame);
-      const object = room && !selectedRoom ? closestRoomObject(room, playerRef.current) : null;
-      const nextRoom = object && (mobile || object.kind !== "exit") ? object : null;
+      const object = room && !selectedRoom && !catalogueDetail && !studyEditing ? closestRoomObject(room, playerRef.current, directionRef.current, targetRef.current as RoomObject | null) : null;
+      const nextRoom = seated ? null : object;
+      targetRef.current = room ? nextRoom : nextNearby;
       if (nearRoomIdRef.current !== (nextRoom?.id ?? null)) {
         nearRoomIdRef.current = nextRoom?.id ?? null;
         setNearbyRoom(nextRoom);
@@ -822,12 +885,25 @@ export default function PixelJijiaPage() {
         nearIdRef.current = nearId;
         setNearby(nextNearby);
       }
+      const feature=room?nextRoom:nextNearby;
+      const label=seated?"起身":room&&nextRoom?roomAction(nextRoom):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
+      if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!transitionRef.current&&label&&label!=="等待鱼咬钩"){
+        const c=snapCamera(cameraRef.current);
+        const anchor=seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
+        const text=(mobile?"":"E ")+label;
+        ctx.save();ctx.font="bold 10px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+        const w=ctx.measureText(text).width+12;
+        const px=Math.max(w/2+2,Math.min(viewWidth-w/2-2,anchor.x*TILE-c.x)),py=Math.max(12,Math.min(viewHeight-12,anchor.y*TILE-c.y-12));
+        ctx.fillStyle="#263f39";ctx.fillRect(px-w/2,py-8,w,16);ctx.strokeStyle="#dfc58d";ctx.strokeRect(px-w/2,py-8,w,16);ctx.fillStyle="#fff0c5";ctx.fillText(text,px,py);ctx.restore();
+      }
+      canvas.dataset.interaction=label;
+      canvas.dataset.targetId=feature?("id" in feature?feature.id:feature.story?.title??feature.sprite):"";
       canvas.dataset.playerX = playerRef.current.x.toFixed(3);
       canvas.dataset.playerY = playerRef.current.y.toFixed(3);
       canvas.dataset.cameraX = cameraRef.current.x.toFixed(2);
       canvas.dataset.facing = directionRef.current;
       canvas.dataset.sprinting = String(sprinting && walking);
-      canvas.dataset.seated = String(Boolean(seated)||roomSitting);
+      canvas.dataset.seated = String(Boolean(seated));
       canvas.dataset.walkFrame = walking ? String(pose.frame) : "0";
 
       if (!room && miniCtx && (!mobile || mapOpen) && time - lastMini > 100) {
@@ -867,16 +943,17 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom, discoveries, roomSitting, clearInput, menuOpen, mobile]);
+    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing]);
 
-  const handleMapClick = (event: {clientX: number; clientY: number}, touch = false) => {
+  const handleMapClick = (event: {clientX: number; clientY: number}) => {
     const canvas = canvasRef.current;
-    if (!canvas || transitionRef.current || (mobile && (menuOpen || mapOpen || selected || selectedRoom))) return;
+    if (!canvas || transitionRef.current || (menuOpen || mapOpen || selected || selectedRoom || catalogueDetail)) return;
     const rect = canvas.getBoundingClientRect();
     const camera = snapCamera(cameraRef.current);
     const x = ((event.clientX - rect.left) / rect.width * canvas.width / roomScale + camera.x) / TILE;
     const y = ((event.clientY - rect.top) / rect.height * canvas.height / roomScale + camera.y) / TILE;
-    if (room?.id === "study" && !studyGuest) {
+    if (seated){standUp();return;}
+    if (room?.id === "study" && !studyGuest && studyEditing) {
       const cellX = Math.floor(x), cellY = Math.floor(y);
       if (studyTool === "erase") {
         setStudyItems(items => items.filter(item => {
@@ -900,10 +977,7 @@ export default function PixelJijiaPage() {
     }
     if (room) {
       const object = roomObjectAt(room, { x, y });
-      if (object) {
-        if (touch || mobile) interactRoom(object);
-        else if (object.kind !== "exit" && (!object.community || roomInteractionDistance(room, object, playerRef.current) < 2.1)) selectRoomObject(object);
-      }
+      if (object) interactRoom(object);
       return;
     }
     const sprites = artIndexRef.current;
@@ -911,19 +985,16 @@ export default function PixelJijiaPage() {
       const bounds = buildingBounds(p, sprites);
       return x*TILE >= bounds.x && x*TILE < bounds.x+bounds.width && y*TILE >= bounds.y && y*TILE < bounds.y+bounds.height;
     });
-    if (place) { if (touch || mobile) interactFeature(place); else selectPlace(place); }
+    if (place) interactFeature(place);
     else {
-      const story = closestStory({ x, y }) ?? (mobile ? closestBench({x,y}) : null);
-      if (story) {
-        if (touch || mobile) interactFeature(story);
-        else if (discoveries.includes(story.story!.title) || Math.hypot(playerRef.current.x-story.x,playerRef.current.y-story.y)<2.8) selectPlace(story);
-      }
+      const story = [...SCENERY].sort((a,b)=>b.y-a.y).find(o=>(o.story||o.sprite==="bench")&&Math.abs(x-o.x)<=o.width/(TILE*2)&&y>=o.y-o.height/TILE&&y<=o.y);
+      if (story) interactFeature(story);
     }
   };
 
   const handleTouchDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (event.pointerType === "mouse" || !mobile || transitionRef.current ||
-        menuOpen || mapOpen || selected || selectedRoom || assetState !== "ready") return;
+        menuOpen || mapOpen || selected || selectedRoom || catalogueDetail || assetState !== "ready") return;
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left, y = event.clientY - rect.top;
     if (joystick.current || x > rect.width * .48 || y < rect.height * .5) {
@@ -939,7 +1010,6 @@ export default function PixelJijiaPage() {
     ring.style.setProperty("--dx", "0px"); ring.style.setProperty("--dy", "0px");
     ring.dataset.running = "false"; ring.hidden = false;
     joystick.current = { pointer: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false, x: 0, y: 0, running: false };
-    if (seated) standUp();
   };
   const handleTouchMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const active = joystick.current;
@@ -950,7 +1020,7 @@ export default function PixelJijiaPage() {
     }
     const dx = event.clientX-active.startX, dy = event.clientY-active.startY;
     const distance = Math.hypot(dx,dy);
-    if (distance > JOYSTICK_RADIUS*.15) active.moved = true;
+    if (distance > JOYSTICK_RADIUS*.15) { active.moved = true; if(seated)standUp(); }
     Object.assign(active, joystickIntent(dx, dy, active.running));
     const ring = joystickRef.current!;
     const scale = Math.min(1, JOYSTICK_RADIUS / (distance || 1));
@@ -963,11 +1033,11 @@ export default function PixelJijiaPage() {
     if (active?.pointer === event.pointerId) {
       const tap = !active.moved && event.type === "pointerup";
       releaseJoystick();
-      if (tap) handleMapClick(event, true);
+      if (tap) handleMapClick(event);
     } else {
       const start = tapPointers.current.get(event.pointerId);
       tapPointers.current.delete(event.pointerId);
-      if (start && event.type === "pointerup" && Math.hypot(event.clientX-start.x,event.clientY-start.y)<=7) handleMapClick(event, true);
+      if (start && event.type === "pointerup" && Math.hypot(event.clientX-start.x,event.clientY-start.y)<=7) handleMapClick(event);
     }
   };
   const handleNavigationClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1022,7 +1092,7 @@ export default function PixelJijiaPage() {
           onClick={() => { clearInput(); setMenuOpen(open => !open); setMapOpen(false); }}><i aria-hidden="true" /></button>}
         {(!mobile || menuOpen) && <div className="pixel-world-top-actions">
           {room ? (
-            <><button type="button" className="pixel-world-tool" onClick={exitRoom}>返回户外</button>{mobile && <button type="button" className="pixel-world-tool" onClick={() => { clearInput(); setMapOpen(true); setMenuOpen(false); }}>图鉴</button>}</>
+            <><button type="button" className="pixel-world-tool" onClick={exitRoom}>返回户外</button><button type="button" className="pixel-world-tool" onClick={() => { clearInput(); setMapOpen(true); setMenuOpen(false); }}>图鉴</button></>
           ) : (
             <>
               <button type="button" className="pixel-world-tool" onClick={() => void openStudy()}>我的研究室</button>
@@ -1032,14 +1102,15 @@ export default function PixelJijiaPage() {
           )}
           <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
             onClick={() => { clearInput(); setShowHelp(open => !open); setMenuOpen(false); }} aria-label="操作帮助">{mobile ? "操作帮助" : "?"}</button>
+          <button type="button" className="pixel-world-tool" aria-pressed={muted} onClick={()=>{setMuted(!muted);if(!muted)audioRef.current?.pause();}}>音效 {muted?"关":"开"}</button>
           {mobile && weatherControls}
           <Link to={returnTo === "/pixel-jijia" ? "/" : returnTo} className="pixel-world-return">{experienceReturnLabel(returnTo === "/pixel-jijia" ? "/" : returnTo)}</Link>
         </div>}
       </header>
 
-      {(!room || (mobile && mapOpen)) && <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
+      {(!room || mapOpen) && <aside id="pixel-world-map-panel" className={`pixel-world-map-panel ${mapOpen ? "is-open" : ""}`}
         aria-label="小镇导航地图">
-        {mobile && <button type="button" className="pixel-world-tool" onClick={() => setMapOpen(false)}>关闭地图</button>}
+        {(mobile || room) && <button type="button" className="pixel-world-tool" onClick={() => setMapOpen(false)}>关闭地图</button>}
         {!room && <><div className="pixel-world-map-caption"><span>吉甲地图</span><span>6 个区域 · {SCENERY.filter(p => p.story).length} 处发现</span></div>
         <canvas ref={miniRef} width={432} height={288} onClick={handleNavigationClick}
           aria-label="小镇真实世界缩略图，点击可展开查看或选择地标" role="img" />
@@ -1069,7 +1140,7 @@ export default function PixelJijiaPage() {
           <summary>共建图鉴 · {knownCommunity.length}/{communityObjects.length}</summary>
           <div className="pixel-world-map-discovery-list">
             {!knownCommunity.length && <span className="pixel-world-nature-log">探索校园中的共建物件。</span>}
-            {knownCommunity.map(object => <button key={object.id} type="button" onClick={() => { selectRoomObject(object); setMapOpen(false); }}>{object.title}</button>)}
+            {knownCommunity.map(object => <button key={object.id} type="button" onClick={() => { setCatalogueDetail(object); setMapOpen(false); }}>{object.title}</button>)}
           </div>
         </details>
         {!room && <div className="pixel-world-zoom">
@@ -1080,12 +1151,13 @@ export default function PixelJijiaPage() {
       </aside>}
       {room && <div className="pixel-world-room-name">{room.title}</div>}
       {room?.id === "study" && !studyGuest && <div className="pixel-world-study-tools" role="group" aria-label="研究室家具布置">
-        <select aria-label="选择家具或删除" value={studyTool}
+        <button type="button" aria-pressed={studyEditing} onClick={()=>{standUp();setStudyEditing(!studyEditing);}}> {studyEditing?"完成布置":"布置家具"}</button>
+        {studyEditing && <select aria-label="选择家具或删除" value={studyTool}
           onChange={event => setStudyTool(event.target.value as StudyFurnitureKind | "erase")}>
           {Object.entries(STUDY_CATALOG).map(([kind, title]) =>
             <option value={kind} key={kind}>{title}</option>)}
           <option value="erase">移除家具</option>
-        </select>
+        </select>}
         <button type="button" disabled={studySaving} onClick={() => void saveStudy()}>保存布局</button>
         <button type="button" onClick={() => void createStudyInvite()}>邀请参观</button>
         {studyHasInvite && <button type="button" onClick={() => void revokeStudyInvite()}>撤销邀请</button>}
@@ -1115,60 +1187,42 @@ export default function PixelJijiaPage() {
       {showHelp && <div className="pixel-world-guide" role="note">
         {mobile ? "左下拖动 · 推远疾跑 · 靠近或点击交互" : "WASD / 方向键移动 · Shift 疾跑 · E 探索 · 滚轮缩放 · M 地图"}
       </div>}
-      {!menuOpen && !(mobile && mapOpen) && !selected && !selectedRoom && room && nearbyRoom && (
-        <button type="button" className="pixel-world-interact"
-          onClick={() => interactRoom(nearbyRoom)}>
-          <kbd>E</kbd> {mobile ? (nearbyRoom.kind === "exit" ? "离开" : ({ senior:"对话", meeting:"落座", drive:"驾驶", assembly:"组装", terminal:"使用", silverwolf:"使用" } as Record<string,string>)[nearbyRoom.community?.interaction ?? ""] ?? "查看") : nearbyRoom.title}
-        </button>
-      )}
-      {!menuOpen&&!(mobile&&mapOpen)&&!room&&!selected&&!seated&&naturePrompt&&(!mobile||naturePrompt!=="等待鱼咬钩")&&<button type="button" className="pixel-world-interact"
-        disabled={naturePrompt==="等待鱼咬钩"} onClick={interactNature}><kbd>E</kbd> {naturePrompt}</button>}
-      {mobile && naturePrompt === "等待鱼咬钩" && !natureNotice && <div className="pixel-world-nature-notice" role="status">等待鱼咬钩</div>}
-      {natureNotice&&<div className="pixel-world-nature-notice" role="status">{natureNotice}</div>}
-      {!menuOpen && !(mobile && mapOpen) && !selected && seated && (
-        <button type="button" className="pixel-world-interact" onClick={standUp}><kbd>E</kbd> 起身</button>
-      )}
-      {!menuOpen && !(mobile && mapOpen) && !room && !selected && !seated && !naturePrompt && nearby && (mobile || !("href" in nearby)) && (
-        <button type="button" className="pixel-world-interact" onClick={() => mobile ? interactFeature(nearby) : selectPlace(nearby)}>
-          <kbd>E</kbd> {mobile ? ("href" in nearby && ROOMS[nearby.id] ? "进入" : "查看") : "探索" + featureTitle(nearby)}
-        </button>
-      )}
+      {naturePrompt==="等待鱼咬钩" && !natureNotice && <div className="pixel-world-nature-notice" role="status">等待鱼咬钩</div>}
+      {natureNotice&&<div className="pixel-world-nature-notice" role="status">{typeof natureNotice==="string"?natureNotice:<>
+        发现共建彩蛋 · {natureNotice.title}{[...new Set(natureNotice.community?.sources.filter(s=>s.role==="suggestion").map(s=>creditNames[s.comment]).filter(Boolean))].map(name=><span key={name}> · {name}</span>)}
+      </>}</div>}
+      {mobile && !studyEditing && !menuOpen && !mapOpen && !selected && !selectedRoom && !catalogueDetail && (seated || nearbyRoom || nearby || (naturePrompt && naturePrompt!=="等待鱼咬钩")) &&
+        <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
+          {seated?"起身":nearbyRoom?roomAction(nearbyRoom):naturePrompt|| (nearby?featureAction(nearby):"")}
+        </button>}
 
       {selected && (
-        <section className="pixel-world-detail" role="dialog" aria-label={featureTitle(selected)} aria-modal="false">
+        <section ref={dialogRef} className="pixel-world-detail" role="dialog" aria-label={featureTitle(selected)} aria-modal="false">
           <button ref={closeRef} className="pixel-world-detail-close" type="button" aria-label="关闭介绍" onClick={() => selectPlace(null)}>×</button>
-          <div className="pixel-world-detail-content"><span className="pixel-world-detail-eyebrow">{"href" in selected ? selected.caption : selected.story?.caption}</span>
+          <div className="pixel-world-detail-content">
           <h1>{featureTitle(selected)}</h1>
-          <p>{"href" in selected ? selected.description : selected.story?.description ?? "坐在这里，看看周围的风景。"}</p>
-          {"sprite" in selected && selected.sprite === "bench" && !seated && (
-            <button type="button" className="pixel-world-detail-link"
-              disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
-              onClick={() => sitDown(selected)}>坐下</button>
-          )}
+          {!("href" in selected) && selected.story?.description && <p>{selected.story.description}</p>}
           {"href" in selected && <Link to={selected.href} state={selected.href === "/pixel-jijia/battle" ? { experienceReturnTo: returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia" } : undefined} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
-          {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
-            <button type="button" className="pixel-world-detail-link"
-              onClick={() => setStoryActivated(true)}>{selected.story.action}</button>
-          )}
-          {"story" in selected && selected.story?.result && storyActivated && (
-            <p className="pixel-world-story-result" role="status">{selected.story.result}</p>
-          )}
+          {"story" in selected && selected.story?.result && <p>{selected.story.result}</p>}
         </div></section>
       )}
-      {selectedRoom && <section className={`pixel-world-detail${selectedRoom.community ? " pixel-world-community-detail" : ""}`} role="dialog"
+      {selectedRoom && <section ref={dialogRef} className={`pixel-world-detail${selectedRoom.community ? " pixel-world-community-detail" : ""}`} role="dialog"
         aria-label={selectedRoom.title} aria-modal="false">
         <button type="button" className="pixel-world-detail-close" aria-label="关闭介绍"
           onClick={() => selectRoomObject(null)}>×</button>
-        <div className="pixel-world-detail-content"><span className="pixel-world-detail-eyebrow">{selectedRoom.community ? "共建者的痕迹" : room?.title ?? "INDOOR SPACE"}</span>
+        <div className="pixel-world-detail-content">
         <h1>{selectedRoom.title}</h1>
-        {selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom} sitting={roomSitting}
-          onSit={room?.id === "guild" && selectedRoom.id === "weekly-meeting" ? sitAtMeeting : undefined}
-          returnTo={returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia"} /> : <p>{selectedRoom.description}</p>}
+        {selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom} names={creditNames}
+          returnTo={returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia"} /> : null}
         {selectedRoom.href && <Link to={selectedRoom.href} className="pixel-world-detail-link">
           {selectedRoom.action ?? "查看详情"}<span aria-hidden="true">↗</span>
         </Link>}
       </div></section>}
+      {catalogueDetail && <section ref={dialogRef} className="pixel-world-detail pixel-world-community-detail" role="dialog" aria-label={catalogueDetail.title}>
+        <button className="pixel-world-detail-close" type="button" aria-label="关闭图鉴" onClick={()=>setCatalogueDetail(null)}>×</button>
+        <div className="pixel-world-detail-content"><h1>{catalogueDetail.title}</h1><CommunityCredits object={catalogueDetail} names={creditNames}/></div>
+      </section>}
     </main>
   );
 }

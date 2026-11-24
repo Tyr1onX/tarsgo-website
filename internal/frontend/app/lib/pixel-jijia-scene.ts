@@ -590,7 +590,7 @@ export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: Terrain,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
@@ -604,12 +604,12 @@ export function renderScene(
   const drawPlayer=()=>renderExplorer(ctx, characterSheet, player, pose, screenCamera);
   for (const node of NODES) {
     while(index<land.length&&land[index].y<node.y){
-      const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
+      const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);
     }
-    if (!playerDrawn && node.y > player.y) {drawPlayer();playerDrawn = true;}
+    if (!playerDrawn && node.y > seatDepth) {drawPlayer();playerDrawn = true;}
     drawNode(ctx, node, atlas, sprites, seasonal, screenCamera, { width:w, height:h },surface.snow,motion?time:0);
   }
-  while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>player.y){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
+  while(index<land.length){const a=land[index++];if(!playerDrawn&&a.y>seatDepth){drawPlayer();playerDrawn=true;}drawAnimal(ctx,a,screenCamera,motion);}
   if (!playerDrawn) drawPlayer();
   if(climate)drawAtmosphere(ctx,screenCamera,sprites,climate,w,h);
   if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
@@ -623,7 +623,7 @@ export function renderExplorer(
   const [sx,sy,w,h]=explorerFrameBox(pose);
   const swimming=pose.water===2||pose.action==="enter"||pose.action==="exit";
   const top=footY-h+(swimming?8:0);
-  if(!pose.water){
+  if(!pose.water && !pose.seated){
     ctx.fillStyle="rgba(44,66,48,.20)";ctx.beginPath();
     ctx.ellipse(footX,footY-2,pose.seated?10:12,4,0,0,Math.PI*2);ctx.fill();
   }

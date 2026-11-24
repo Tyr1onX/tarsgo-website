@@ -35,16 +35,16 @@ test("每件共建物件有稳定可达交互范围，桌面小物件只复用�
     }
   }
 });
-test("30 个原生透明区域包含四个装配部件和三个实体的独立连续姿态",()=>{
+test("36 个原生透明区域包含装配部件、实体姿态与两个独立大笑帧",()=>{
   const index=JSON.parse(readFileSync(new URL("../assets/pixel-jijia/room-community-v31.json",import.meta.url),"utf8"));
   const png=readFileSync(new URL("../assets/pixel-jijia/room-community-v31.png",import.meta.url));
   assert.equal(png[25],6);
-  assert.equal(Object.keys(index).length,30);
+  assert.equal(Object.keys(index).length,36);
   const regions=Object.values(index);
   for(const [x,y,w,h] of regions){assert.ok(w>8&&h>8&&x+w<=png.readUInt32BE(16)&&y+h<=png.readUInt32BE(20));}
   for(const [i,a] of regions.entries())for(const b of regions.slice(i+1))assert.ok(a[0]+a[2]<=b[0]||b[0]+b[2]<=a[0]||a[1]+a[3]<=b[1]||b[1]+b[3]<=a[1],"sprite bounds overlap");
   for(const [id,poses] of Object.entries(COMMUNITY_POSES)){
-    assert.equal(poses.length,3);
+    assert.equal(poses.length,id==="chip-poster"||id==="milk-frog"?4:3);
     for(const key of poses)assert.deepEqual(index[key].slice(2),index[id].slice(2));
   }
   for(const key of ["part-armor","part-turret","part-chassis","part-drive"])assert.ok(index[key]);
