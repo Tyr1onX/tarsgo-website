@@ -378,7 +378,9 @@
 .community-draft-status { margin-right: auto; color: var(--admin-dim); font-size: 11px; }
 .community-draft-status.is-error { color: var(--admin-danger); }
 
-.community-editor-dialog { position: fixed; z-index: var(--community-layer-editor-dialog); inset: 0; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, #070a09 58%, transparent); backdrop-filter: blur(5px); }
+.community-editor-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 24px; background: transparent; color: inherit; overflow: hidden; }
+.community-editor-dialog[open] { display: grid; place-items: center; }
+.community-editor-dialog::backdrop { background: color-mix(in srgb, #070a09 58%, transparent); backdrop-filter: blur(5px); }
 .community-editor-dialog__panel { width: min(100%, 860px); max-height: min(92dvh, 940px); overflow: auto; border: 1px solid var(--admin-border); border-radius: 15px; background: var(--admin-surface); box-shadow: 0 24px 80px color-mix(in srgb, #000 30%, transparent); outline: 0; }
 .community-editor-dialog__panel > .community-composer { min-height: 0; margin: 0; border: 0; border-radius: inherit; box-shadow: none; }
 .community-editor-dialog__panel .community-composer__fields { grid-template-columns: minmax(0, 1fr) 214px; }
@@ -580,7 +582,7 @@
   .community-comment__head time { font-size: 9px; }
   .community-comment__body,.community-comment__actions,.community-comment-edit,.community-reply-preview { margin-left: 32px; }
   .community-comment__context { margin-left: 32px; }
-  .community-editor-dialog { align-items: stretch; padding: 0; background: var(--admin-surface); backdrop-filter: none; }
+  .community-editor-dialog[open] { align-items: stretch; padding: 0; background: var(--admin-surface); }
   .community-editor-dialog__panel { width: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
   .community-editor-dialog__panel > .community-composer { min-height: 100%; gap: 12px; padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)); }
   .community-editor-dialog__panel .community-composer__fields { grid-template-columns: minmax(0, 1fr); }

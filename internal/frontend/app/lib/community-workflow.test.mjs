@@ -213,8 +213,8 @@ test("post drafts persist text and selected image files per account", () => {
   assert.match(composer, /CommunityMarkdownEditor/);
   assert.match(composer, /uploadTokens: draft\.uploads\.map/);
   assert.match(dashboard, /CommunityEditorDialog/);
-  assert.match(editorDialog, /aria-modal="true"/);
-  assert.match(editorDialog, /event\.key === "Escape"/);
+  assert.match(editorDialog, /<dialog[\s\S]*?aria-labelledby/);
+  assert.match(editorDialog, /onCancel=\{/);
   assert.match(editorDialog, /onMouseDown/);
 });
 
@@ -238,12 +238,16 @@ test("reply editor floats above the thread and restores drafts by account and to
   assert.match(replyComposer, /writeCommunityReplyDraft|saveCommunityReplyDraft\(draft\.accountId, draft\.postId/);
 });
 
-test("community toast, reply panel, and editor share intentional overlay layers", () => {
+test("community toast and reply panel share overlay layers while the editor uses the browser top layer", () => {
   assert.match(dashboardLayout, /<main[\s\S]*?<\/main>\s*<CommunityExperienceToastHost[\s\S]*?<DashboardMobileBottomNav[\s\S]*?<DashboardGroupCheckinToast[\s\S]*?<CoBuilderBadgeUnlockToast/);
   assert.match(experienceToastStyles, /--community-layer-reply-panel: 40/);
-  assert.match(experienceToastStyles, /--community-layer-editor-dialog: 50/);
   assert.match(experienceToastStyles, /--community-layer-toast: 60/);
-  assert.match(styles, /\.community-editor-dialog \{ position: fixed; z-index: var\(--community-layer-editor-dialog\)/);
+  assert.match(editorDialog, /dialog\.showModal\(\)/);
+  assert.match(editorDialog, /dialog\.close\(\)/);
+  assert.match(editorDialog, /previousFocus\?\.focus/);
+  assert.doesNotMatch(experienceToastStyles, /--community-layer-editor-dialog/);
+  assert.match(styles, /\.community-editor-dialog\[open\] \{ display: grid/);
+  assert.match(styles, /\.community-editor-dialog::backdrop/);
   assert.match(experienceToastStyles, /z-index: var\(--community-layer-toast\)/);
   assert.match(experienceToastHost, /readDismissedCommunityExperienceToasts/);
   assert.match(experienceToastHost, /writeDismissedCommunityExperienceToasts/);
