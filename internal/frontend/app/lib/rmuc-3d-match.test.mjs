@@ -6,7 +6,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -33,14 +33,37 @@ test("17mm referee heat, remote exchange and pre-assembly heavy restrictions",()
  updateMatch(m,5);assert.equal(r.heat,0);assert.equal(r.thermalLock,false);assert.equal(purchaseAmmo(m,"r"),true);
  damageTarget(m,s,{type:"robot",id:"b"});assert.equal(purchaseAmmo(m,"b"),false);
 });
-test("distinct arm hits grant a timed training buff; repeated hits do not",()=>{
- const m=createMatch(roster);startMatch(m);
- const r=m.robots[0];for(let i=0;i<5;i++)damageTarget(m,r,{type:"rune",arm:0});
- assert.equal(m.sides.red.buff,0);
- for(let i=1;i<5;i++)damageTarget(m,r,{type:"rune",arm:i});
- assert.equal(m.sides.red.buff,30);
+test("small rune requires activation and five successive lit arms, expires and replenishes",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);const r=m.robots[0];
+ const hit=(team,arm,ring=10)=>damageTarget(m,r,{type:"rune",team,arm,ring});
+ hit("red",0);assert.equal(runeStatus(m,"red").groups,0);
+ assert.equal(activateRune(m,"r"),true);assert.equal(activateRune(m,"r"),false);
+ let lit=runeStatus(m,"red").lit[0];
+ hit("blue",lit);assert.equal(runeStatus(m,"red").groups,0);
+ hit("red",lit);assert.equal(runeStatus(m,"red").groups,1);
+ updateMatch(m,2.5);assert.equal(runeStatus(m,"red").groups,0);
+ const seen=new Set();
+ for(let i=0;i<5;i++){lit=runeStatus(m,"red").lit[0];assert.ok(!seen.has(lit));seen.add(lit);hit("red",lit);}
+ assert.equal(runeStatus(m,"red").buff,45);
  assert.equal(damageTarget(m,m.robots[1],{type:"robot",id:"r"}),15);
- updateMatch(m,31);assert.equal(m.sides.red.buff,0);
+ updateMatch(m,45);assert.equal(runeStatus(m,"red").buff,0);
+ assert.equal(activateRune(m,"r"),false);updateMatch(m,90-m.elapsed);
+ assert.equal(activateRune(m,"r"),true);updateMatch(m,20);assert.equal(runeStatus(m,"red").active,false);
+});
+test("large rune pairs, ring-dependent buffs and reduced detection on later activations",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,180);const r=m.robots[0];
+ const hit=(arm,ring=10)=>damageTarget(m,r,{type:"rune",team:"red",arm,ring});
+ assert.equal(activateRune(m,"r"),true);
+ for(let i=0;i<5;i++){const [first,second]=runeStatus(m,"red").lit;hit(first);hit(second);}
+ const status=runeStatus(m,"red");assert.equal(status.buff,60);assert.equal(status.attack,3);assert.equal(status.defense,.5);assert.equal(status.cooling,5);
+ assert.equal(damageTarget(m,r,{type:"robot",id:"b"}),60);
+ updateMatch(m,75);assert.equal(activateRune(m,"r"),true);
+ hit(runeStatus(m,"red").lit[0],3);assert.equal(runeStatus(m,"red").groups,0);
+ for(let i=0;i<5;i++){hit(runeStatus(m,"red").lit[0],4);updateMatch(m,1);}
+ assert.equal(runeStatus(m,"red").buff,30);assert.equal(runeStatus(m,"red").attack,1.5);assert.equal(runeStatus(m,"red").cooling,2);
+ updateMatch(m,70);assert.equal(activateRune(m,"r"),true);
+ hit(runeStatus(m,"red").lit[0],6);assert.equal(runeStatus(m,"red").groups,0);
+ hit(runeStatus(m,"red").lit[0],7);assert.equal(runeStatus(m,"red").groups,1);
 });
 test("formal territory: protected base, destroy and rebuild, fortress hold, and settlement",()=>{
  const m=createMatch(roster,1,1);startMatch(m);updateMatch(m,5);
@@ -122,7 +145,7 @@ test("real source assemblies match static CAD bounds and rotate independently",a
  assert.ok(installed.banks[0].position.equals(p));assert.ok(installed.banks[0].quaternion.angleTo(q)>.9);
  assert.ok(installed.covers[0].object.position.distanceTo(c)>.15);
  assert.ok(parts.getObjectByName("rune-assembly").quaternion.equals(fixed));
- for(const bank of ["a","b"])for(let i=0;i<5;i++)assert.ok(parts.getObjectByName("rune-arm-"+bank+"-"+i).userData.target);
+ for(const bank of ["a","b"])for(let i=0;i<5;i++)assert.ok(parts.getObjectByName("rune-arm-"+bank+"-"+i).userData.runeDetector);
  installed.apply({runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}});
  assert.ok(installed.covers[0].object.position.equals(c));
 });

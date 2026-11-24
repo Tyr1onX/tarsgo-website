@@ -265,3 +265,25 @@ test("reviewed rune hubs move with five arms while source logos stay fixed", asy
     assert.ok(mechanism.banks[0].quaternion.equals(mechanism.banks[1].quaternion));
   }
 });
+
+test("ten source rune disks resolve only front hits within 150 mm at rotating poses",async()=>{
+  const {runeHit}=await import("./rmuc-3d-mechanisms.ts");
+  const [field,parts]=await Promise.all([load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+  const mechanisms=installMechanisms(field,parts);
+  for(const angle of [0,.6,1.7]){
+    mechanisms.apply({runeAngle:angle,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}});
+    for(const bank of ["a","b"])for(let i=0;i<5;i++){
+      const arm=parts.getObjectByName("rune-arm-"+bank+"-"+i),d=arm.userData.runeDetector;
+      const center=arm.localToWorld(d.center.clone()),normal=d.normal.clone().transformDirection(arm.matrixWorld);
+      const dir=normal.clone().negate(),ray=new THREE.Raycaster(center.clone().addScaledVector(normal,.4),dir);
+      const hit=ray.intersectObject(parts,true)[0];assert.ok(hit);
+      assert.ok(hit.point.distanceTo(center)<.003);
+      assert.deepEqual(runeHit(arm,hit.point,dir),{type:"rune",team:d.team,arm:i,ring:10});
+      const u=new THREE.Vector3(0,0,1).transformDirection(arm.matrixWorld);
+      assert.equal(runeHit(arm,center.clone().addScaledVector(u,.149),dir)?.ring,1);
+      assert.equal(runeHit(arm,center.clone().addScaledVector(u,.151),dir),undefined);
+      assert.equal(runeHit(arm,hit.point,normal),undefined);
+      assert.equal(runeHit(arm,center.clone().addScaledVector(normal,.02),dir),undefined);
+    }
+  }
+});
