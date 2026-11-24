@@ -190,12 +190,12 @@ test("public photo illustrations do not show redundant explanatory captions", as
   assert.match(historyArchive, /image\.sourceIds\.map/);
 });
 
-test("the homepage keeps all ten illustrated entries and preserves legacy navigation", () => {
+test("the homepage keeps all eleven illustrated entries and preserves legacy navigation", () => {
   const modules = homeVisualNavigation.match(/const homeNavigationModules: HomeNavigationModule\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.deepEqual(Array.from(modules.matchAll(/title: "([^"]+)"/g), ([, title]) => title), [
-    "认识吉甲", "机器人展示", "加入吉甲", "像素吉甲", "战场模拟", "吉甲社区", "AI 沙龙", "赛事与荣誉", "团队历程", "低空微专业",
+    "认识吉甲", "机器人展示", "加入吉甲", "像素吉甲", "战场模拟", "吉甲社区", "AI 沙龙", "赛事与荣誉", "设计实验室", "团队历程", "低空微专业",
   ]);
-  assert.equal((modules.match(/image: /g) ?? []).length, 10);
+  assert.equal((modules.match(/image: /g) ?? []).length, 11);
   assert.equal((modules.match(/experience: true/g) ?? []).length, 4);
   assert.equal((modules.match(/href: "\/dashboard"/g) ?? []).length, 1);
   assert.equal((modules.match(/href: "\/programs\/ai-salon"/g) ?? []).length, 1);
@@ -204,7 +204,7 @@ test("the homepage keeps all ten illustrated entries and preserves legacy naviga
   assert.match(homeVisualNavigation, /prefetch=\{module\.experience \? "intent" : "viewport"\}/);
   assert.match(routes, /route\("programs\/ai-salon",/);
   assert.doesNotMatch(home, /25 张荣誉证书原图/);
-  for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
+  for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/design-lab", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
     assert.ok(modules.includes(`href: "${path}"`), `missing homepage route ${path}`);
   }
   for (const [anchor, destination] of [
