@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-battle";
 import { buildPublicMeta } from "~/lib/social-meta";
 import { FIELD_HEIGHT, FIELD_WIDTH, MATCH_SECONDS, ROBOT_RADIUS,
@@ -26,6 +27,7 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function PixelJijiaBattlePage() {
+  const returnTo = getExperienceReturnTo(useLocation().state, "/pixel-jijia");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const battleRef = useRef<Battle>(createBattle());
   const [, setRevision] = useState(0);
@@ -123,9 +125,9 @@ export default function PixelJijiaBattlePage() {
   return (
     <main className="pixel-battle">
       <header className="pixel-battle-header">
-        <Link to="/pixel-jijia" className="pixel-battle-back">← 返回像素吉甲</Link>
+        <Link to={returnTo} className="pixel-battle-back">← {experienceReturnLabel(returnTo)}</Link>
         <span className="pixel-battle-title">战术演练 <small>TACTICAL TRAINING / 01</small></span>
-        <Link to="/pixel-jijia/arena" className="pixel-battle-back">查看三维场地</Link>
+        <Link to="/pixel-jijia/arena" state={{ experienceReturnTo: returnTo }} className="pixel-battle-back">查看三维场地</Link>
       </header>
 
       <div className="pixel-battle-layout">
@@ -165,7 +167,7 @@ export default function PixelJijiaBattlePage() {
                 <p>吉甲剩余 {totalHp("red")} HP · 对手剩余 {totalHp("blue")} HP · 用时 {Math.ceil(current.seconds)} 秒</p>
                 <div className="pixel-battle-dialog-actions">
                   <button type="button" onClick={reset}>再战一次</button>
-                  <Link to="/pixel-jijia">返回小镇</Link>
+                  <Link to={returnTo}>{experienceReturnLabel(returnTo)}</Link>
                 </div>
               </div>
             </div>

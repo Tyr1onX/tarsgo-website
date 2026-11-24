@@ -37,7 +37,7 @@ test("community and profile remain the only global entries for every role", () =
 
 test("one stable business directory exposes only accessible member functions", () => {
   const memberMenu = getUnifiedDashboardMenu(account("user"), false);
-  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["daily-work", "日常事务"], ["team-information", "战队信息"]]);
+  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["daily-work", "日常事务"], ["team-information", "战队信息"], ["interactive-experience", "互动体验"]]);
   assert.deepEqual(memberMenu[0]?.children.map(({ key, href }) => [key, href]), [
     ["weekly-reports", "/dashboard/weekly-reports"],
     ["training-materials", "/dashboard/training-materials"],
@@ -51,6 +51,7 @@ test("one stable business directory exposes only accessible member functions", (
   assert.deepEqual(linkKeys(getUnifiedDashboardMenu(account("user"), true)[0]), ["weekly-reports", "my-assignments", "training-materials", "leave-workbench", "users-registrations"]);
   assert.deepEqual(getUnifiedDashboardMenu(account("user", false)).map(({ key, children }) => [key, linkKeys({ children })]), [
     ["daily-work", ["training-materials", "users-registrations"]],
+    ["interactive-experience", ["pixel-jijia", "battle-simulation"]],
   ]);
   assert.deepEqual(linkKeys(getUnifiedDashboardMenu(account("admin"), true)[0]), ["weekly-reports", "my-assignments", "training-materials", "leave-workbench"]);
   assert.equal(memberMenu.flatMap(({ children }) => children).some(({ key }) => key === "timetable" || key === "work-manual"), false);
@@ -104,22 +105,22 @@ test("assignment access follows the existing five groups for both member and adm
 
 test("admin capabilities extend the same directory without duplicate leave links", () => {
   const adminMenu = getUnifiedDashboardMenu(account("admin"), true);
-  assert.deepEqual(menuKeys(adminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information"]);
+  assert.deepEqual(menuKeys(adminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information", "interactive-experience"]);
   assert.deepEqual(linkKeys(adminMenu[2]), ["candidate-processing"]);
   assert.deepEqual(linkKeys(adminMenu[1]), ["assignment-management", "training-assessments"]);
   assert.deepEqual(linkKeys(adminMenu[3]), ["collection-forms", "timetable-availability"]);
   assert.equal(adminMenu.flatMap(({ children }) => children).filter(({ href }) => href === "/dashboard/leave").length, 1);
 
   const restrictedAdminMenu = getUnifiedDashboardMenu(account("admin"), false);
-  assert.deepEqual(menuKeys(restrictedAdminMenu), ["daily-work", "recruitment", "collaboration-operations", "team-information"]);
+  assert.deepEqual(menuKeys(restrictedAdminMenu), ["daily-work", "recruitment", "collaboration-operations", "team-information", "interactive-experience"]);
 
   const adminWithoutWorkbench = getUnifiedDashboardMenu(account("admin", false), true);
-  assert.deepEqual(menuKeys(adminWithoutWorkbench), ["daily-work", "members-training", "recruitment", "collaboration-operations"]);
+  assert.deepEqual(menuKeys(adminWithoutWorkbench), ["daily-work", "members-training", "recruitment", "collaboration-operations", "interactive-experience"]);
   assert.equal(adminWithoutWorkbench.flatMap(({ children }) => children).some(({ href }) => href === "/dashboard/leave"), false);
   assert.deepEqual(linkKeys(adminWithoutWorkbench[0]), ["training-materials"]);
 
   const superAdminMenu = getUnifiedDashboardMenu(account("super_admin"), false);
-  assert.deepEqual(menuKeys(superAdminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information"]);
+  assert.deepEqual(menuKeys(superAdminMenu), ["daily-work", "members-training", "recruitment", "collaboration-operations", "team-information", "interactive-experience"]);
   assert.deepEqual(linkKeys(superAdminMenu[2]), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
   assert.deepEqual(linkKeys(superAdminMenu[1]), ["accounts", "assignment-management", "training-assessments"]);
   assert.deepEqual(linkKeys(superAdminMenu[3]), ["collection-forms", "timetable-availability", "email-management"]);
@@ -130,7 +131,7 @@ test("admin capabilities extend the same directory without duplicate leave links
   assert.equal(superAdminMenu.flatMap(({ children }) => children).filter(({ key }) => key === "team-state").length, 1);
   assert.equal(adminMenu.flatMap(({ children }) => children).some(({ key }) => key === "team-state"), false);
   assert.equal(getUnifiedDashboardMenu(account("user")).flatMap(({ children }) => children).some(({ key }) => key === "team-state"), false);
-  assert.deepEqual(menuKeys(getUnifiedDashboardMenu(account("super_admin", false))), ["daily-work", "members-training", "recruitment", "collaboration-operations"]);
+  assert.deepEqual(menuKeys(getUnifiedDashboardMenu(account("super_admin", false))), ["daily-work", "members-training", "recruitment", "collaboration-operations", "interactive-experience"]);
 });
 
 test("management deep links keep role restrictions without broadening page access", () => {
@@ -219,4 +220,16 @@ test("common foundations link directly to tutorials and preserve original team r
   }
   for (const topic of ["CPU", "内存", "DNS"]) assert.ok(computer.includes(topic), topic);
   for (const topic of ["工作区", "暂存区", "本地仓库", "远程仓库"]) assert.ok(git.includes(topic), topic);
+});
+
+test("experience navigation is last and shared by all roles without workbench permission", () => {
+  for (const role of ["user", "admin", "super_admin"]) {
+    for (const access of [true, false]) {
+      const group = getUnifiedDashboardMenu(account(role, access)).at(-1);
+      assert.equal(group.key, "interactive-experience");
+      assert.deepEqual(group.children.map(({ label, href }) => [label, href]), [
+        ["像素吉甲", "/pixel-jijia"], ["战场模拟", "/pixel-jijia/arena"],
+      ]);
+    }
+  }
 });

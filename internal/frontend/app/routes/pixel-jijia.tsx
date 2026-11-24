@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
@@ -48,6 +49,7 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function PixelJijiaPage() {
+  const returnTo = getExperienceReturnTo(useLocation().state, "/");
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
@@ -783,7 +785,7 @@ export default function PixelJijiaPage() {
           )}
           <button type="button" className="pixel-world-tool" aria-expanded={showHelp}
             onClick={() => setShowHelp(open => !open)} aria-label="操作帮助">?</button>
-          <Link to="/" className="pixel-world-return">返回官网</Link>
+          <Link to={returnTo === "/pixel-jijia" ? "/" : returnTo} className="pixel-world-return">{experienceReturnLabel(returnTo === "/pixel-jijia" ? "/" : returnTo)}</Link>
         </div>
       </header>
 
@@ -922,7 +924,7 @@ export default function PixelJijiaPage() {
               disabled={Math.hypot(playerRef.current.x - selected.x, playerRef.current.y - selected.y) >= 2.5 || !benchExit(selected)}
               onClick={() => sitDown(selected)}>坐下</button>
           )}
-          {"href" in selected && <Link to={selected.href} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
+          {"href" in selected && <Link to={selected.href} state={selected.href === "/pixel-jijia/battle" ? { experienceReturnTo: returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia" } : undefined} className="pixel-world-detail-link">{selected.action}<span aria-hidden="true">↗</span></Link>}
           {"href" in selected && selected.id === "ai" && <Link to="/about" className="pixel-world-detail-secondary-link">认识 AI 组</Link>}
           {"story" in selected && selected.sprite !== "bench" && selected.story?.action && !storyActivated && (
             <button type="button" className="pixel-world-detail-link"

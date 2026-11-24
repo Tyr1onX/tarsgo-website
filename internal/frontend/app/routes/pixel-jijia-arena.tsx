@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
 import type { ArenaController, ArenaStatus, ArenaView } from "~/lib/rmul-3d-scene";
@@ -24,6 +25,7 @@ const CAMERA_VIEWS = [
 ] as const satisfies readonly { id: ArenaView; label: string }[];
 
 export default function PixelJijiaArenaPage() {
+  const returnTo = getExperienceReturnTo(useLocation().state, "/");
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
   const [status, setStatus] = useState<ArenaStatus>({ view: "first", robot: null, nearby: null });
@@ -63,9 +65,12 @@ export default function PixelJijiaArenaPage() {
       <section className="rmul3d-stage" aria-label="RMUC 2027 完整三维战场">
         <div ref={mountRef} className="rmul3d-canvas" />
         <header className="rmul3d-header">
-          <Link to="/pixel-jijia/battle" className="rmul3d-back" aria-label="返回战术演练">←</Link>
+          <Link to={returnTo} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
           <h1>RMUC <span>2027</span></h1>
-          <button type="button" onClick={() => setHelp(value => !value)} aria-expanded={help}>操作</button>
+          <div className="rmul3d-header-actions">
+            <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }} className="rmul3d-back rmul3d-mode">战术演练</Link>
+            <button type="button" onClick={() => setHelp(value => !value)} aria-expanded={help}>操作</button>
+          </div>
         </header>
         {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}

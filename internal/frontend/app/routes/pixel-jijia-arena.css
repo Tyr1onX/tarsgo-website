@@ -11,6 +11,8 @@
 .rmul3d button:disabled { opacity: .4; cursor: not-allowed; }
 .rmul3d :is(button,a):focus-visible { outline: 2px solid #a5c9fb; outline-offset: 3px; }
 .rmul3d-back { font-size: 19px; display: grid; place-items: center; }
+.rmul3d-header-actions { display: flex; gap: 6px; align-items: center; }
+.rmul3d-mode { font-size: 13px; padding-inline: 8px; }
 .rmul3d-loading, .rmul3d-error { position: absolute; inset: 0; display: grid; place-content: center; gap: 12px; margin: 0; background: #111922ee; text-align: center; padding: 20px; z-index: 3; }
 .rmul3d-error { color: #ffb5ab; }
 .rmul3d-views { position: absolute; right: 16px; bottom: 16px; display: flex; gap: 4px; padding: 5px; background: #121b25e0; border: 1px solid #60748b70; border-radius: 7px; z-index: 2; }

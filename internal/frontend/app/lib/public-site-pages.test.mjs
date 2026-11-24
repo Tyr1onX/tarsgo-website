@@ -190,10 +190,10 @@ test("public photo illustrations do not show redundant explanatory captions", as
   assert.match(historyArchive, /image\.sourceIds\.map/);
 });
 
-test("the homepage keeps six photos around two co-creation entries and preserves legacy navigation", () => {
+test("the homepage keeps six photos and adds two experience entries alongside co-creation entries and preserves legacy navigation", () => {
   const modules = homeVisualNavigation.match(/const homeNavigationModules: HomeNavigationModule\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.deepEqual(Array.from(modules.matchAll(/title: "([^"]+)"/g), ([, title]) => title), [
-    "认识吉甲", "机器人展示", "加入吉甲", "吉甲社区", "AI 沙龙", "赛事与荣誉", "团队历程", "低空微专业",
+    "认识吉甲", "机器人展示", "加入吉甲", "像素吉甲", "战场模拟", "吉甲社区", "AI 沙龙", "赛事与荣誉", "团队历程", "低空微专业",
   ]);
   assert.equal((modules.match(/image: /g) ?? []).length, 6);
   assert.equal((modules.match(/href: "\/dashboard"/g) ?? []).length, 1);
@@ -295,23 +295,25 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
 
-test("the homepage preserves photo proportions and inserts a shorter equal-width co-creation row", () => {
+test("the homepage preserves photo proportions with equal-width experience and co-creation rows", () => {
   const desktopGrid = styles.match(/@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   const tabletGrid = styles.match(/@media \(min-width: 768px\) and \(max-width: 1023px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   assert.match(desktopGrid, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(desktopGrid, /--home-photo-height: clamp\(17\.5rem, 21vw, 20rem\)/);
   for (const grid of [desktopGrid, tabletGrid]) {
-    assert.match(grid, /grid-template-rows: var\(--home-photo-height\) calc\(var\(--home-photo-height\) \* 0\.7\) var\(--home-photo-height\)/);
+    assert.match(grid, /grid-template-rows: var\(--home-photo-height\) repeat\(2, calc\(var\(--home-photo-height\) \* 0\.7\)\) var\(--home-photo-height\)/);
   }
   for (const [card, placement] of [
     ["about", /grid-column: 1; grid-row: 1;/],
     ["robots", /grid-column: 2; grid-row: 1;/],
     ["join", /grid-column: 3 \/ span 2; grid-row: 1;/],
-    ["events", /grid-column: 1 \/ span 2; grid-row: 3;/],
-    ["history", /grid-column: 3; grid-row: 3;/],
-    ["micro", /grid-column: 4; grid-row: 3;/],
-    ["community", /grid-column: 1 \/ span 2; grid-row: 2;/],
-    ["salon", /grid-column: 3 \/ span 2; grid-row: 2;/],
+    ["events", /grid-column: 1 \/ span 2; grid-row: 4;/],
+    ["history", /grid-column: 3; grid-row: 4;/],
+    ["micro", /grid-column: 4; grid-row: 4;/],
+    ["pixel", /grid-column: 1 \/ span 2; grid-row: 2;/],
+    ["arena", /grid-column: 3 \/ span 2; grid-row: 2;/],
+    ["community", /grid-column: 1 \/ span 2; grid-row: 3;/],
+    ["salon", /grid-column: 3 \/ span 2; grid-row: 3;/],
   ]) {
     assert.match(desktopGrid, new RegExp(`\\.home-visual-card--${card} \\{[^}]*${placement.source}[^}]*\\}`));
   }
@@ -322,11 +324,13 @@ test("the homepage preserves photo proportions and inserts a shorter equal-width
     ["about", /grid-column: 1 \/ span 2; grid-row: 1;/],
     ["robots", /grid-column: 3 \/ span 2; grid-row: 1;/],
     ["join", /grid-column: 5 \/ span 2; grid-row: 1;/],
-    ["events", /grid-column: 1 \/ span 2; grid-row: 3;/],
-    ["history", /grid-column: 3 \/ span 2; grid-row: 3;/],
-    ["micro", /grid-column: 5 \/ span 2; grid-row: 3;/],
-    ["community", /grid-column: 1 \/ span 3; grid-row: 2;/],
-    ["salon", /grid-column: 4 \/ span 3; grid-row: 2;/],
+    ["events", /grid-column: 1 \/ span 2; grid-row: 4;/],
+    ["history", /grid-column: 3 \/ span 2; grid-row: 4;/],
+    ["micro", /grid-column: 5 \/ span 2; grid-row: 4;/],
+    ["pixel", /grid-column: 1 \/ span 3; grid-row: 2;/],
+    ["arena", /grid-column: 4 \/ span 3; grid-row: 2;/],
+    ["community", /grid-column: 1 \/ span 3; grid-row: 3;/],
+    ["salon", /grid-column: 4 \/ span 3; grid-row: 3;/],
   ]) {
     assert.match(tabletGrid, new RegExp(`\\.home-visual-card--${card} \\{[^}]*${placement.source}[^}]*\\}`));
   }
