@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
 import type { ArenaController, ArenaStatus, ArenaView } from "~/lib/rmul-3d-scene";
@@ -24,6 +25,7 @@ const CAMERA_VIEWS = [
 ] as const satisfies readonly { id: ArenaView; label: string }[];
 
 export default function PixelJijiaArenaPage() {
+  const returnTo = getExperienceReturnTo(useLocation().state);
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
   const [status, setStatus] = useState<ArenaStatus>({ view: "first", robot: null, nearby: null });
@@ -67,7 +69,7 @@ export default function PixelJijiaArenaPage() {
       <section className="rmul3d-stage" aria-label="RMUC 2027 完整三维战场">
         <div ref={mountRef} className="rmul3d-canvas" />
         <header className="rmul3d-header">
-          <Link to="/pixel-jijia/battle" className="rmul3d-back" aria-label="返回战术演练">←</Link>
+          <Link to={returnTo} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
         </header>
         {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
@@ -88,6 +90,7 @@ export default function PixelJijiaArenaPage() {
         </div>}
         {menu && <aside className="rmul3d-help" aria-label="战场菜单" onKeyDown={event => { if (event.key === "Escape") toggleMenu(false); }}>
           <button className="rmul3d-close" onClick={() => toggleMenu(false)} aria-label="关闭">×</button>
+          <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }}>战术演练</Link>
           <h2>视角</h2>
           <nav className="rmul3d-views" aria-label="校准视角">
             {CAMERA_VIEWS.map(({ id, label }) => (

@@ -1291,6 +1291,16 @@ html[data-theme-transition] :is(
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
 
+.home-visual-card--pixel {
+  color: #f5f1e7;
+  background: #263d32;
+}
+
+.home-visual-card--arena {
+  color: #f5f1e7;
+  background: #26394c;
+}
+
 .home-visual-card--community {
   color: #f5f1e7;
   background: #192823 url("/assets/images/Home/community-concept.svg") center / cover no-repeat;
@@ -1901,7 +1911,7 @@ html[data-theme-transition] :is(
   .home-visual-grid {
     --home-photo-height: clamp(17rem, 28vw, 19rem);
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    grid-template-rows: var(--home-photo-height) calc(var(--home-photo-height) * 0.7) var(--home-photo-height);
+    grid-template-rows: var(--home-photo-height) repeat(2, calc(var(--home-photo-height) * 0.7)) var(--home-photo-height);
   }
 
   .home-visual-card {
@@ -1911,12 +1921,14 @@ html[data-theme-transition] :is(
   .home-visual-card--about { grid-column: 1 / span 2; grid-row: 1; }
   .home-visual-card--robots { grid-column: 3 / span 2; grid-row: 1; }
   .home-visual-card--join { grid-column: 5 / span 2; grid-row: 1; }
-  .home-visual-card--events { grid-column: 1 / span 2; grid-row: 3; }
-  .home-visual-card--history { grid-column: 3 / span 2; grid-row: 3; }
-  .home-visual-card--micro { grid-column: 5 / span 2; grid-row: 3; }
+  .home-visual-card--events { grid-column: 1 / span 2; grid-row: 4; }
+  .home-visual-card--history { grid-column: 3 / span 2; grid-row: 4; }
+  .home-visual-card--micro { grid-column: 5 / span 2; grid-row: 4; }
 
-  .home-visual-card--community { grid-column: 1 / span 3; grid-row: 2; }
-  .home-visual-card--salon { grid-column: 4 / span 3; grid-row: 2; }
+  .home-visual-card--pixel { grid-column: 1 / span 3; grid-row: 2; }
+  .home-visual-card--arena { grid-column: 4 / span 3; grid-row: 2; }
+  .home-visual-card--community { grid-column: 1 / span 3; grid-row: 3; }
+  .home-visual-card--salon { grid-column: 4 / span 3; grid-row: 3; }
 
   .home-visual-card--cocreation {
     padding: 1.25rem 3.25rem 1.25rem 1rem;
@@ -1951,7 +1963,7 @@ html[data-theme-transition] :is(
   .home-visual-grid {
     --home-photo-height: clamp(17.5rem, 21vw, 20rem);
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: var(--home-photo-height) calc(var(--home-photo-height) * 0.7) var(--home-photo-height);
+    grid-template-rows: var(--home-photo-height) repeat(2, calc(var(--home-photo-height) * 0.7)) var(--home-photo-height);
   }
 
   .home-visual-card {
@@ -1961,12 +1973,14 @@ html[data-theme-transition] :is(
   .home-visual-card--about { grid-column: 1; grid-row: 1; }
   .home-visual-card--robots { grid-column: 2; grid-row: 1; }
   .home-visual-card--join { grid-column: 3 / span 2; grid-row: 1; }
-  .home-visual-card--events { grid-column: 1 / span 2; grid-row: 3; }
-  .home-visual-card--history { grid-column: 3; grid-row: 3; }
-  .home-visual-card--micro { grid-column: 4; grid-row: 3; }
+  .home-visual-card--events { grid-column: 1 / span 2; grid-row: 4; }
+  .home-visual-card--history { grid-column: 3; grid-row: 4; }
+  .home-visual-card--micro { grid-column: 4; grid-row: 4; }
 
-  .home-visual-card--community { grid-column: 1 / span 2; grid-row: 2; }
-  .home-visual-card--salon { grid-column: 3 / span 2; grid-row: 2; }
+  .home-visual-card--pixel { grid-column: 1 / span 2; grid-row: 2; }
+  .home-visual-card--arena { grid-column: 3 / span 2; grid-row: 2; }
+  .home-visual-card--community { grid-column: 1 / span 2; grid-row: 3; }
+  .home-visual-card--salon { grid-column: 3 / span 2; grid-row: 3; }
 
   .home-visual-card--cocreation {
     padding: 1.35rem 3.25rem 1.35rem 1rem;

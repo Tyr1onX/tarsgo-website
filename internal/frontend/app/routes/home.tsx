@@ -370,9 +370,6 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
                     加入我们
                   </Link>
                 </div>
-                <Link to="/pixel-jijia" className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#ebc987] transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
-                  <span aria-hidden="true">✦</span> 探索像素吉甲 <span aria-hidden="true">↗</span>
-                </Link>
               </div>
             </div>
           </div>

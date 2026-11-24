@@ -68,6 +68,9 @@ export function DashboardSectionNavigation({
                     : item.href;
                   return <Link key={item.key}
                       to={target}
+                      state={group.key === "interactive-experience" ? {
+                        experienceReturnTo: location.pathname + location.search + location.hash,
+                      } : undefined}
                       prefetch={item.key === "candidate-processing" ? "render" : "intent"}
                       onClick={onNavigate}
                       aria-current={isActive ? "page" : undefined}

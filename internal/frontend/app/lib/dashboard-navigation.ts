@@ -182,6 +182,14 @@ export function getUnifiedDashboardMenu(currentUser: AuthUser, hasAssignmentGrou
         ...TEAM_INFORMATION.children,
       ],
     }] : []),
+    {
+      key: "interactive-experience",
+      label: "互动体验",
+      children: [
+        { key: "pixel-jijia", label: "像素吉甲", href: "/pixel-jijia" },
+        { key: "battle-simulation", label: "战场模拟", href: "/pixel-jijia/arena" },
+      ],
+    },
   ];
 }
 

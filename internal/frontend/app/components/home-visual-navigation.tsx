@@ -65,6 +65,18 @@ const homeNavigationModules: HomeNavigationModule[] = [
     placement: "home-visual-card--join",
   },
   {
+    title: "像素吉甲",
+    description: "漫游吉甲像素小镇。",
+    href: "/pixel-jijia",
+    placement: "home-visual-card--cocreation home-visual-card--pixel",
+  },
+  {
+    title: "战场模拟",
+    description: "探索 RMUC 2027 三维赛场。",
+    href: "/pixel-jijia/arena",
+    placement: "home-visual-card--cocreation home-visual-card--arena",
+  },
+  {
     title: "吉甲社区",
     description: "分享想法，交流经验，找到同行的人。",
     href: "/dashboard",
