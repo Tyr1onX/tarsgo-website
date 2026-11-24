@@ -3,31 +3,41 @@ export type { Team };
 export const MATCH_DURATION = 420;
 const teams = ["red", "blue"] as const;
 const opponent = (t: Team): Team => t === "red" ? "blue" : "red";
-export type MatchRobot = { id: string; team: Team; hp: number; maxHp: number; ammo: number; cooldown: number; heavy: boolean };
+type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
+export type MatchRobot = RobotSpec & { hp:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null };
 type Side = { coins: number; purchased: number; base: number; outpost: number; control: number; damage: number; cover: boolean; stopped: boolean; buff: number; runeHits: number[]; siege: number };
 export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
-export function createMatch(robots: readonly {id:string;team:Team;heavy:boolean;maxHp:number}[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
+export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const side = (): Side => ({ coins:800, purchased:0, base:10000, outpost:1000, control:0, damage:0, cover:false, stopped:false, buff:0, runeHits:[], siege:0 });
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side(),blue:side()}, robots:robots.map(r=>({...r,hp:r.maxHp,ammo:0,cooldown:0})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {elapsed:0, phase:"ready", winner:null, sides:{red:side(),blue:side()}, robots:robots.map(r=>({...r,hp:r.maxHp,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 export function startMatch(match: Match) {
   if(match.phase==="ready") match.phase="running";
 }
-// Training preset: only 17 mm-style virtual attacks. The heavy is a visual
-// stand-in until its official assembly and 42 mm unlock system is implemented.
-export function purchaseAmmo(match:Match, id:string) {
-  if(match.phase!=="running") return false;
-  const robot=match.robots.find(r=>r.id===id);
-  if(!robot||robot.hp<=0) return false;
+// RMUC 2027 V1.0.0: §3.1, §5.1.3, §5.4.2, table 5-7 and table 5-18.
+// Infantry: level 1 cooling-priority; controllable sentry: semi-automatic.
+// Heavy cannot fire until the as-yet unimplemented 42 mm assembly.
+export function canPurchaseAmmo(match:Match, robot:MatchRobot) {
   const side=match.sides[robot.team];
-  if(side.coins<150||side.purchased+100>1000) return false;
-  side.coins-=150;side.purchased+=100;robot.ammo+=100;
+  return match.phase==="running"&&!robot.heavy&&robot.hp>0&&
+    match.elapsed-robot.lastCombat>=6&&robot.pendingAmmoAt===null&&side.coins>=150&&side.purchased+100<=1000;
+}
+export function purchaseAmmo(match:Match, id:string) {
+  const robot=match.robots.find(r=>r.id===id);
+  if(!robot||!canPurchaseAmmo(match,robot)) return false;
+  const side=match.sides[robot.team];
+  side.coins-=150;side.purchased+=100;robot.pendingAmmoAt=match.elapsed+6;
   return true;
+}
+export function canFire(match:Match,robot:MatchRobot) {
+  return match.phase==="running"&&!robot.heavy&&robot.hp>0&&robot.ammo>0&&robot.cooldown<=0&&!robot.thermalLock;
 }
 export function fireRound(match:Match,id:string) {
   const robot=match.robots.find(r=>r.id===id);
-  if(match.phase!=="running"||!robot||robot.hp<=0||robot.ammo<=0||robot.cooldown>0) return null;
-  robot.ammo--;robot.cooldown=.18;
+  if(!robot||!canFire(match,robot)) return null;
+  robot.ammo--;robot.cooldown=.18;robot.lastCombat=match.elapsed;
+  robot.heat+=10;
+  if(robot.heat>robot.heatLimit)robot.thermalLock=true;
   return robot;
 }
 export type Target = {type:"robot";id:string}|{type:"outpost"|"base";team:Team}|{type:"rune";arm:number};
@@ -44,7 +54,9 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
     const enemy=match.robots.find(r=>r.id===target.id);
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0)return 0;
     const amount=Math.min(enemy.hp,match.sides[enemy.team].buff>0?15:20);
-    enemy.hp-=amount;side.damage+=amount;return amount;
+    enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
+    if(enemy.hp===0){enemy.heat=0;enemy.thermalLock=false;enemy.pendingAmmoAt=null;}
+    return amount;
   }
   if(target.team===shooter.team)return 0;
   const enemy=match.sides[target.team];
@@ -55,14 +67,23 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target) {
   return amount;
 }
 // The training rules intentionally omit formal zone capture, reconstruction,
-// heat and assembly. Outpost destruction serves as a training capture trigger.
+// assembly. Outpost destruction serves as a training capture trigger.
 export function updateMatch(match:Match, dt:number, siege: Record<Team,boolean> = {red:false,blue:false}) {
   if(match.phase!=="running")return;
   dt=Math.max(0,Math.min(dt,MATCH_DURATION-match.elapsed));
   const before=match.elapsed;match.elapsed+=dt;
   for(const second of [61,121,181,241,301,361]) if(before<second&&match.elapsed>=second)
     for(const team of teams)match.sides[team].coins+=second===361?300:100;
-  for(const r of match.robots)r.cooldown=Math.max(0,r.cooldown-dt);
+  const coolingTicks=Math.floor((match.elapsed+1e-8)*10)-Math.floor((before+1e-8)*10);
+  for(const r of match.robots){
+    r.cooldown=Math.max(0,r.cooldown-dt);
+    r.heat=Math.max(0,r.heat-coolingTicks*r.cooling/10);
+    if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
+    if(r.pendingAmmoAt!==null&&match.elapsed>=r.pendingAmmoAt){
+      if(r.hp>0)r.ammo+=100;
+      r.pendingAmmoAt=null;
+    }
+  }
   match.pose.runeAngle+=match.direction*Math.PI/3*dt;
   for(const team of teams){
     const side=match.sides[team], enemy=match.sides[opponent(team)];

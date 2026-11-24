@@ -12,12 +12,26 @@ const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heav
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
  const m=createMatch(roster,1,1);
  assert.equal(fireRound(m,"r"),null);
- startMatch(m);assert.equal(purchaseAmmo(m,"r"),true);assert.equal(m.sides.red.coins,650);
+ startMatch(m);assert.equal(purchaseAmmo(m,"r"),true);assert.equal(m.sides.red.coins,650);updateMatch(m,6);
  const r=fireRound(m,"r");assert.ok(r);assert.equal(r.ammo,99);assert.equal(fireRound(m,"r"),null);
  assert.equal(damageTarget(m,r,{type:"robot",id:"r"}),0);
  assert.equal(damageTarget(m,r,{type:"robot",id:"b"}),20);
  assert.equal(m.robots[1].hp,180);updateMatch(m,.18);assert.ok(fireRound(m,"r"));
  const reset=createMatch(roster);assert.equal(reset.robots[1].hp,200);assert.equal(reset.robots[0].ammo,0);
+});
+test("17mm referee heat, remote exchange and pre-assembly heavy restrictions",()=>{
+ const m=createMatch([...roster,{id:"s",team:"red",heavy:false,maxHp:200,sentry:true},{id:"h",team:"red",heavy:true,maxHp:400}],1,1);
+ startMatch(m);
+ const r=m.robots[0],s=m.robots[2],h=m.robots[3];
+ assert.equal(s.ammo,300);assert.equal(s.heatLimit,100);assert.equal(s.cooling,10);
+ assert.equal(h.ammo,0);assert.equal(purchaseAmmo(m,"h"),false);assert.equal(fireRound(m,"h"),null);
+ assert.equal(purchaseAmmo(m,"r"),true);assert.equal(purchaseAmmo(m,"r"),false);
+ updateMatch(m,5.9);assert.equal(r.ammo,0);updateMatch(m,.1);assert.equal(r.ammo,100);
+ for(let i=0;i<6&&!r.thermalLock;i++){assert.ok(fireRound(m,"r"));updateMatch(m,.18);}
+ assert.equal(r.thermalLock,true);assert.equal(fireRound(m,"r"),null);assert.equal(purchaseAmmo(m,"r"),false);
+ updateMatch(m,1);assert.equal(r.thermalLock,true);
+ updateMatch(m,5);assert.equal(r.heat,0);assert.equal(r.thermalLock,false);assert.equal(purchaseAmmo(m,"r"),true);
+ damageTarget(m,s,{type:"robot",id:"b"});assert.equal(purchaseAmmo(m,"b"),false);
 });
 test("distinct arm hits grant a timed training buff; repeated hits do not",()=>{
  const m=createMatch(roster);startMatch(m);

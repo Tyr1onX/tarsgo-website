@@ -83,10 +83,12 @@ export default function PixelJijiaArenaPage() {
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
           <span>HP {status.match.hp}</span><span>弹药 {status.match.ammo}</span><span>{status.match.coins} 金币</span>
           {status.match.buff>0&&<span>防御 {status.match.buff}s</span>}
-          <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>补弹 B</button>
-          <button disabled={!status.match.ammo} onClick={()=>controller.current?.fire()}>开火</button>
+          {status.match.heatLimit>0&&<span>热量 {status.match.heat}/{status.match.heatLimit}</span>}
+          <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 B"}</button>
+          <button disabled={!status.match.canFire} onClick={()=>controller.current?.fire()}>{status.match.thermalLock?"冷却中":"开火"}</button>
         </div>}
-        {!disabled && !menu && playing && <div className="rmul3d-crosshair" aria-hidden="true" />}
+        {!disabled && playing && status.match?.phase==="running" && status.match.thermalLock && <div className="rmul3d-thermal-lock" aria-label="热量超限，图传断开" />}
+        {!disabled && !menu && playing && !status.match?.thermalLock && <div className="rmul3d-crosshair" aria-hidden="true" />}
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
           <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
             <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}
