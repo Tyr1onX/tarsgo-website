@@ -6,9 +6,9 @@ import { createHash } from "node:crypto";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
-import { installMechanisms, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
+import { installMechanisms, installCoreGeometry, CORE_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
-import { createMatch, startMatch, updateMatch, purchaseAmmo } from "./rmuc-3d-match.ts";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget } from "./rmuc-3d-match.ts";
 import { resolveArenaShot, traceArenaShot } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight } from "./rmuc-3d-terrain.ts";
 import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt } from "./rmuc-3d-robots.ts";
@@ -49,6 +49,98 @@ function triangles(root, skip) {
   }
   return result;
 }
+test("actual technology cores preserve source placements, isolate columns and expose twelve original energy units", async () => {
+  const [field, parts] = await Promise.all([
+    load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),
+    load(CORE_ASSET.url, CORE_ASSET.sha256)
+  ]);
+  const root = new THREE.Group();
+  root.add(field); root.rotation.x = -Math.PI / 2;
+  root.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(root), center = bounds.getCenter(new THREE.Vector3());
+  root.position.set(-center.x, -bounds.min.y, -center.z);
+  root.updateMatrixWorld(true);
+  const sources = [2,3].map(i => field.getObjectByName("centre-platform_0_source_1751926_" + i));
+  const oldBounds = sources.map(o => new THREE.Box3().setFromObject(o, true));
+  const originalUnits = TEAMS.flatMap(team => Array.from({length:6}, (_,i) => field.getObjectByName(team+"-resource-zone_0_source_4056216_"+(i+1))));
+  const unitMatrices = originalUnits.map(o=>o.matrixWorld.clone());
+  const installed = installCoreGeometry(field,parts);
+  assert.equal(installed.cores.length,2);
+  assert.equal(installed.units.length,12);
+  assert.equal(new Set(installed.units.map(u=>u.id)).size,12);
+  const close=(a,b)=>a.elements.every((v,i)=>Math.abs(v-b.elements[i])<1e-7);
+  for (const [i,core] of installed.cores.entries()) {
+    assert.equal(field.getObjectByName(sources[i].name),undefined);
+    const actual = new THREE.Box3().setFromObject(core.object,true);
+    assert.ok(actual.min.distanceTo(oldBounds[i].min)<.0002);
+    assert.ok(actual.max.distanceTo(oldBounds[i].max)<.0002);
+    const fixed = ["pedestal-and-shoulder","arm-and-shared","head-fixed"].map(n=>core.object.getObjectByName(n));
+    const shaft=core.object.getObjectByName("shaft");
+    const rest = fixed.map(o=>o.matrixWorld.clone()), shaftRest=shaft.matrixWorld.clone();
+    const fixedTriangles = new Set(fixed.flatMap(o=>[...triangles(o)]));
+    assert.equal([...triangles(shaft)].filter(t=>fixedTriangles.has(t)).length,0);
+    installed.rotateColumn(i,Math.PI/2);
+    assert.ok(fixed.every((o,j)=>close(o.matrixWorld,rest[j])));
+    assert.ok(!close(shaft.matrixWorld,shaftRest));
+    installed.rotateColumn(i,0);
+    assert.ok(close(shaft.matrixWorld,shaftRest));
+  }
+  for(const [i,unit] of installed.units.entries()){
+    assert.equal(unit.object,originalUnits[i]);
+    assert.equal(unit.object.parent,installed.group);
+    assert.ok(close(unit.object.matrixWorld,unitMatrices[i]));
+  }
+  const first=installed.units[0].object,second=installed.units[1].object;
+  first.position.x+=.2;root.updateMatrixWorld(true);
+  assert.ok(!close(first.matrixWorld,unitMatrices[0]));
+  assert.ok(close(second.matrixWorld,unitMatrices[1]));
+  const roster=[
+    {id:"r",team:"red",heavy:true,maxHp:400},
+    {id:"r2",team:"red",heavy:true,maxHp:400},
+    {id:"b",team:"blue",heavy:true,maxHp:400},
+    {id:"i",team:"red",heavy:false,maxHp:200}
+  ];
+  const match=createMatch(roster,1,1,installed.energySpawns);
+  const rack={x:12,z:-6.4,y:.13},blueRack={x:-12,z:6.4,y:.13};
+  assert.equal(energyStatus(match,match.robots[0],rack).pickup,null);
+  startMatch(match);
+  for(const [id,p] of [["r",rack],["b",blueRack]]){
+    const robot=match.robots.find(r=>r.id===id);
+    const unit=energyStatus(match,robot,p).pickup;
+    assert.ok(unit);
+    assert.equal(pickupEnergy(match,"i",p,unit),false);
+    assert.equal(pickupEnergy(match,id,{x:0,y:0,z:0},unit),false);
+    assert.equal(pickupEnergy(match,id,p,unit),true);
+    assert.equal(pickupEnergy(match,id==="r"?"r2":"r",p,unit),false);
+    assert.equal(energyStatus(match,robot,p).carrying,1);
+    const location=match.energyUnits.find(u=>u.id===unit).location;
+    assert.equal(location.robot,id);
+    installed.applyEnergy(match.energyUnits);
+    const mesh=installed.units.find(u=>u.id===unit).object;
+    const actual=mesh.localToWorld(new THREE.Vector3(0,.075,0));
+    assert.ok(actual.distanceTo(new THREE.Vector3(location.position.x,location.position.y,location.position.z))<1e-6);
+    const next={x:p.x*.8,y:.2,z:p.z*.8};
+    updateMatch(match,.1,new Map([[id,next]]));
+    installed.applyEnergy(match.energyUnits);
+    assert.equal(location.position.y,1.3);
+    assert.ok(mesh.localToWorld(new THREE.Vector3(0,.075,0)).distanceTo(new THREE.Vector3(location.position.x,location.position.y,location.position.z))<1e-6);
+    if(id==="r"){
+      assert.equal(dropEnergy(match,id,next),true);
+      assert.equal(match.energyUnits.find(u=>u.id===unit).location.kind,"ground");
+      assert.equal(energyStatus(match,robot,next).carrying,0);
+    }else{
+      const shooter=match.robots[0];
+      for(let i=0;i<10&&robot.hp>0;i++)damageTarget(match,shooter,{type:"robot",id});
+      assert.equal(robot.hp,0);
+      assert.equal(match.energyUnits.find(u=>u.id===unit).location.kind,"ground");
+      assert.equal(energyStatus(match,robot,next).carrying,0);
+    }
+  }
+  const reset=createMatch(roster,1,1,installed.energySpawns);
+  installed.applyEnergy(reset.energyUnits);
+  assert.ok(originalUnits.every((o,i)=>close(o.matrixWorld,unitMatrices[i])));
+});
+
 test("actual CAD outposts replace original assemblies; carrier and hit geometry rotate together", async () => {
   const [field, parts] = await Promise.all([
     load("/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz"),

@@ -103,6 +103,9 @@ export default function PixelJijiaArenaPage() {
             const stance=status.match.stance;
             return <><span>{stance.enhanced?"强化":""}{({attack:"进攻",defense:"防御",move:"移动"})[stance.mode]}姿态{stance.cooldown>0?" · "+Math.ceil(stance.cooldown)+"s":""}</span>{(["attack","defense","move"] as const).map(mode=><button key={mode} disabled={stance.cooldown>0||stance.mode===mode&&!stance.enhanced} onClick={()=>controller.current?.stance(mode,false)}>{({attack:"进攻",defense:"防御",move:"移动"})[mode]}</button>)}<button disabled={stance.enhanced||stance.cooldown>0||stance.remaining[stance.mode]<=0} onClick={()=>controller.current?.stance(stance.mode,true)}>强化 {Math.ceil(stance.remaining[stance.mode])}s</button></>;
           })()}
+          {status.match.energy&&status.match.energy.carrying>0&&<span>能量单元 {status.match.energy.carrying}/2</span>}
+          {status.match.energy?.pickup&&<button onClick={()=>controller.current?.pickup()}>拾取能量单元</button>}
+          {status.match.energy?.canDrop&&<button onClick={()=>controller.current?.drop()}>释放能量单元</button>}
           {status.match.launcher?.state==="locked"&&<span>{status.match.launcher.unlockIn}s</span>}
           {status.match.launcher?.state==="unlocked"&&<button disabled={!status.match.launcher.canInstall} onClick={()=>controller.current?.install()}>安装 42mm</button>}
           <button disabled={!status.match.canBuy} onClick={()=>controller.current?.buy()}>{status.match.pendingAmmo>0?"补弹 "+status.match.pendingAmmo+"s":"补弹 "+status.match.ammoCount+"发 · "+status.match.ammoCost+"金币"}</button>

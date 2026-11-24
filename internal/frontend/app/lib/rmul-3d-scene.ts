@@ -5,8 +5,8 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
-import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type InfantryPerformance, selectInfantryPerformance, type Match } from "./rmuc-3d-match";
+import { CORE_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot, arenaHitTarget } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
@@ -18,7 +18,7 @@ import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
 type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null } };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
@@ -28,6 +28,8 @@ export interface ArenaController {
   revive: (paid:boolean) => void;
   fire: () => void;
   install: () => void;
+  pickup: () => void;
+  drop: () => void;
   rune: () => void;
   stance: (mode:SentryMode,enhanced:boolean) => void;
   performance:(value:InfantryPerformance)=>void;
@@ -96,6 +98,7 @@ export function mountArena(
   let robots: Robot[] = [];
   let driving: Robot | null = null;
   let mechanism: ReturnType<typeof installMechanisms> | null = null;
+  let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   let matchTime: number | null = null;
   let nextBotTurn = 0;
@@ -137,7 +140,7 @@ export function mountArena(
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
         pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
-        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,level:vehicle?robotLevel(vehicle):1,xp:vehicle&&!vehicle.heavy&&!vehicle.sentry?vehicle.xp:null,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle):null} : undefined };
+        healCost:remoteHealthCost(match),canHeal:!!vehicle&&canPurchaseHealth(match,vehicle),maxHp:vehicle?.maxHp??0,level:vehicle?robotLevel(vehicle):1,xp:vehicle&&!vehicle.heavy&&!vehicle.sentry?vehicle.xp:null,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle):null,energy:vehicle?.heavy&&driving?energyStatus(match,vehicle,driving.position):null} : undefined };
     const signature = JSON.stringify(status);
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
   }
@@ -175,6 +178,7 @@ export function mountArena(
     if(match&&mechanism&&match.phase==="running"){
       updateMatch(match,elapsed,new Map(robots.filter(r=>r.object.userData.area==="field").map(r=>[r.object.name,r.position])));
       mechanism.apply(match.pose);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));
+      coreGeometry?.applyEnergy(match.energyUnits);
       if(match.phase==="running" && match.elapsed>=nextBotTurn){
         nextBotTurn=match.elapsed+.12;
         updateBots();
@@ -286,13 +290,27 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    match=createMatch(roster());
+    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns);
     nextBotTurn=0;botCursor=0;botPaths.clear();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);}
     for(const shot of shotEffects){shot.group.removeFromParent();shot.group.traverse(o=>{if(o instanceof THREE.Mesh)(o.material as THREE.Material).dispose()});}
     shotEffects.length=0;
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
-    mechanism.apply(match.pose);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));updateVisibility();setView("first");publish();invalidate();
+    mechanism.apply(match.pose);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyEnergy(match.energyUnits);updateVisibility();setView("first");publish();invalidate();
+  }
+  function pickup(){
+    const robot=activeRobot();
+    if(match&&driving&&robot){
+      const unit=energyStatus(match,robot,driving.position).pickup;
+      if(unit)pickupEnergy(match,robot.id,driving.position,unit);
+      coreGeometry?.applyEnergy(match.energyUnits);publish();invalidate();
+    }
+  }
+  function drop(){
+    if(match&&driving){
+      dropEnergy(match,driving.object.name,driving.position);
+      coreGeometry?.applyEnergy(match.energyUnits);publish();invalidate();
+    }
   }
   function install(){
     if(match&&driving){installLauncher(match,driving.object.name);publish();invalidate();}
@@ -639,8 +657,8 @@ export function mountArena(
   }
   void (async () => {
     const asset=await resolveCadModel("rmucField");
-    const [field,parts]=await Promise.all([loadAsset(asset),loadAsset(MECHANISM_ASSET)]);
-    if(disposed){disposeObjects(field);disposeObjects(parts);return;}
+    const [field,parts,coreParts]=await Promise.all([loadAsset(asset),loadAsset(MECHANISM_ASSET),loadAsset(CORE_ASSET)]);
+    if(disposed){disposeObjects(field);disposeObjects(parts);disposeObjects(coreParts);return;}
     const root = new THREE.Group();
     root.add(field);
     root.rotation.x = -Math.PI / 2;
@@ -652,8 +670,12 @@ export function mountArena(
     fieldBounds = new THREE.Box3().setFromObject(root);
     map = root;
     scene.add(root);
+    coreGeometry=installCoreGeometry(field,coreParts);
+    coreGeometry.group.removeFromParent();
     terrain = createArenaTerrain(root);
-    // Ground support uses the original static CAD envelope. Visible/shot geometry uses the articulated replacements.
+    field.add(coreGeometry.group);
+    field.updateMatrixWorld(true);
+    // Ground support uses the static CAD envelope without movable energy units.
     mechanism=installMechanisms(field,parts);
     exhibit = addRobotPreviews(map, scene, terrain);
     robots = exhibit.children.map(object => {
@@ -663,7 +685,7 @@ export function mountArena(
         eyeHeight: group.userData.eyeHeight ?? 1, wheelRadius: group.userData.wheelRadius ?? .12 };
     });
     for(const robot of robots){initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});if(robot.object.userData.area==="field")robot.object.traverse(o=>{if(o.userData.hitPlate&&o instanceof THREE.Mesh){o.userData.target={type:"robot",id:robot.object.name};o.geometry.computeBoundingBox();const list=armorCenters.get(robot)??[];list.push({object:o,center:o.geometry.boundingBox!.getCenter(new THREE.Vector3())});armorCenters.set(robot,list);}});}
-    match=createMatch(roster());
+    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns);
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});
@@ -676,7 +698,7 @@ export function mountArena(
   });
 
   return {
-    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, fire, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    view: setView, interact, input, pauseInput, start, buy, heal, revive, install, pickup, drop, fire, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     dispose() {
       disposed = true;
       abort.abort();
@@ -698,6 +720,7 @@ export function mountArena(
       controls.dispose();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
+      for(const old of coreGeometry?.old??[])disposeObjects(old);
       shotGeometry.dispose();
       environment.dispose();
       renderer.dispose();
