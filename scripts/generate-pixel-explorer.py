@@ -16,7 +16,7 @@ DEST = ROOT / "public/assets/pixel-jijia/explorer-actions-v3.png"
 W, H = 40, 54
 DIRS = ("down", "left", "right", "up")
 # Keep the source artwork's four walk cells; other rows have independent poses.
-ACTIONS = ("walk", "idle", "run", "sit", "stand", "observe", "wade", "swim", "enter", "exit", "cast", "wait", "bite", "reel", "catch", "turn", "swim-turn")
+ACTIONS = ("walk", "idle", "run", "sit", "stand", "observe", "wade", "swim", "enter", "exit", "cast", "wait", "bite", "reel", "catch", "turn", "swim-turn", "stretch", "sit-rest")
 FRAMES = 6
 INK = (43, 34, 32, 255)
 HAIR = (65, 43, 36, 255)
@@ -151,6 +151,11 @@ def front_body(p,direction,cy,frame,action,lean=0):
         for sign,delta in [(-1,reach),(1,(-reach[0],-reach[1]))]:
             a=(center+sign*7,cy+3);b=(center+sign*(9+abs(delta[0])//2),cy+2+delta[1]//2);c=(center+sign*(9+abs(delta[0])),cy+4+delta[1])
             limb(p,a,b,c,COAT_LIGHT,COAT_SHADE,3);hand(p,*c)
+    elif action=="stretch":
+        reach=[(8,11),(10,6),(11,-2),(10,-7),(11,4),(8,11)][frame]
+        for sign in (-1,1):
+            a=(center+sign*6,cy+3);b=(center+sign*11,cy+4+reach[1]//2);c=(center+sign*reach[0],cy+reach[1])
+            limb(p,a,b,c,COAT_LIGHT,COAT_SHADE,4);hand(p,*c)
     elif action in ("cast","wait","bite","reel","catch","observe"):
         if action=="cast": reach=[(-8,-4),(-10,-10),(-8,-12),(0,-9),(9,-1),(10,3)][frame]
         elif action=="reel":reach=[(9,4),(8,2),(5,-1),(2,-4),(-3,-5),(-4,-1)][frame]
@@ -210,6 +215,7 @@ def side_body(p,cy,frame,action,lean):
         elif action=="bite":reach=[(11,5),(13,2),(7,1),(9,2),(12,4),(10,5)][frame]
         elif action=="wait":reach=(10,5)
         elif action=="observe":reach=[(4,10),(6,3),(7,-3),(7,-5),(7,-5),(6,1)][frame]
+        elif action=="stretch":reach=[(2,11),(6,5),(8,-3),(6,-8),(7,3),(2,11)][frame]
         else:reach=(2,11)
         a=(center,cy+4);b=(center+reach[0]//2,cy+6);c=(center+reach[0],cy+reach[1])
         limb(p,a,b,c,COAT_LIGHT,COAT_SHADE,4);hand(p,*c)
@@ -265,11 +271,27 @@ def authored(direction,action,frame):
         p=blank();swim_body(p,direction,frame,action=="swim-turn");return p
     if action=="idle":
         p=[r[:] for r in original(direction,0)]
+        # One-pixel breathing in the head and upper torso; feet stay anchored.
+        if frame in (1,2):
+            for y in range(0,34):
+                p[y]=p[y+1][:]
+        if frame==4:
+            glance={"down":"left","up":"right","left":"down","right":"down"}[direction]
+            other=original(glance,0)
+            for y in range(0,27):p[y]=other[y][:]
         # Brief eyelid closure on the original face; leave hair and clothing intact.
         if frame==5 and direction!="up":
             xs=range(13,16) if direction=="left" else range(24,27) if direction=="right" else list(range(14,17))+list(range(23,26))
             for x in xs:dot(p,x,22,HAIR)
         return p
+    if action=="sit-rest":
+        p=authored(direction,"sit",5)
+        if frame in (2,3):
+            glance={"down":"right","up":"left","left":"down","right":"down"}[direction]
+            other=original(glance,0)
+            for y in range(27):p[y+8]=other[y][:]
+        return p
+    if action=="stretch" and frame in (0,5):return original(direction,0)
     # Pose anchors preserve the same foot coordinate. Head art remains original.
     if action in ("sit","stand"): offset=[0,2,4,6,7,8][frame if action=="sit" else 5-frame]
     elif action=="swim":offset=10
@@ -290,6 +312,12 @@ def authored(direction,action,frame):
         if direction=="left":p=flip(p)
     else:front_body(p,direction,cy,frame,actual)
     head(p,direction,offset,(-lean if direction=="left" else lean),0)
+    if action=="stretch":
+        # Arm motion must not change the original planted legs or torso centre.
+        base=original(direction,0)
+        for y in range(42,len(p)):p[y]=base[y][:]
+        if not side:
+            for y in range(29,42):p[y][15:25]=base[y][15:25]
     return p
 
 def main():

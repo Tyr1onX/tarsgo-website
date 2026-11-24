@@ -1,3 +1,4 @@
+import { ArenaClock, SIM_STEP_MS, PATH_CHECKS_PER_STEP } from "./rmuc-3d-clock";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
@@ -6,25 +7,27 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent } from "./rmuc-3d-match";
 import { traceArenaShot, prepareArenaShots, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { createArmorGlow } from "./rmuc-3d-lighting";
 import { createDartVisual } from "./rmuc-3d-dart-visual";
 import { createProjectileSystem, projectileSpeed } from "./rmuc-3d-projectiles";
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
-import { findArenaPath, stepChassis, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
+import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
-type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
+type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number};
+type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number;technology:number;robots:RobotStatus[];outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
 export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
   start: () => void;
+  configureSeed: (value:number)=>boolean;
   buy: () => void;
   heal: () => void;
   revive: (paid:boolean) => void;
@@ -114,9 +117,9 @@ export function mountArena(
   let armorGlow:ReturnType<typeof createArmorGlow>|null=null;
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
-  let matchTime: number | null = null;
+  const simClock=new ArenaClock();
+  let seed=crypto.getRandomValues(new Uint32Array(1))[0];
   let viewportHeight=1;
-  let motionDebt=0;
   let nextBotTurn = 0;
   let botCursor = 0;
   const shotRay = new THREE.Raycaster();
@@ -133,6 +136,7 @@ export function mountArena(
   let decisionShotIndex:ShotIndex|undefined;
   const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number}>();
   const motions=new Map<Robot,ChassisMotion>();
+  const defeatedPush=new Map<Robot,number>();
   const shotIntents=new Map<Robot,{point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3}>();
   const wheels=new Map<Robot,THREE.Object3D[]>();
   let fieldRobots:Robot[]=[];
@@ -152,17 +156,30 @@ export function mountArena(
   let lastStatus = "";
   const keys = new Set<string>();
   const triggers = new Set<string>();
+  let shotRequested=false;
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
   const manualRobot=()=>activeRobot()?.sentryControl==="auto"?null:driving;
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
+  const damageFlashes=new Map<string,{amount:number;until:number}>();
+  function recordDamage(event:DamageEvent){
+    const target=event.target,key=target.type==="robot"?target.id:target.team+"-"+target.type;
+    const old=damageFlashes.get(key);
+    damageFlashes.set(key,{amount:event.amount+(old&&old.until>event.at?old.amount:0),until:event.at+.65});
+    if(target.type==="robot"&&target.id===activeRobot()?.id&&activeRobot()?.hp===0)clearInput();
+  }
+  function damageFor(key:string){
+    const entry=damageFlashes.get(key);
+    return entry&&match?.phase==="running"&&entry.until>match.elapsed?entry.amount:0;
+  }
   function publish() {
     const vehicle = activeRobot();
     const side = vehicle&&match?.sides[vehicle.team];
     const teamStatus=(team:Team):SideStatus=>{
       const side=match!.sides[team];
-      return {base:side.base,outpost:side.outpost,outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
+      return {base:side.base,outpost:side.outpost,baseDamage:damageFor(team+"-base"),outpostDamage:damageFor(team+"-outpost"),coins:side.coins,technology:technologyLevel(match!,team),
+        robots:match!.robots.filter(r=>r.team===team).map(r=>{const revival=revivalStatus(match!,r);return {id:r.id,number:r.id.slice(-2),kind:r.heavy?"heavy":r.sentry?"sentry":"infantry",hp:r.hp,maxHp:r.maxHp,level:robotLevel(r,match!),powerOff:r.hp===0&&!canDriveRobot(match!,r)||r.powerLockUntil>match!.elapsed,launcherLocked:r.hp===0||!!r.thermalLock||revival.weak||r.heavy&&r.launcher!=="ready"&&r.launcher!=="test",revival:revival.dead?Math.floor(revival.progress*100):null,weak:revival.weak,immune:revival.immune,damage:damageFor(r.id)};}),outpostOwner:side.outpostOwner,alive:match!.robots.filter(r=>r.team===team&&r.hp>0).length,control:Math.floor(side.controlTicks/10),
         outpostArea:territoryStatus(match!,team,"outpost"),baseArea:territoryStatus(match!,team,"base"),cover:side.cover};
     };
     const offer=match&&vehicle?ammoOffer(match,vehicle,true):null;
@@ -190,7 +207,7 @@ export function mountArena(
     for (const robot of robots){const state=match?.robots.find(r=>r.id===robot.object.name);
       const lit=!state||state.hp>0;
       if(armorLit.get(robot)!==lit){armorLit.set(robot,lit);setArmorLight(robot.object,lit);}
-      robot.object.visible=(mode!=="first"||driving!==robot)&&(!match||!state||canDriveRobot(match,state));}
+      robot.object.visible=mode!=="first"||driving!==robot;}
   }
 
   function syncCamera() {
@@ -209,64 +226,62 @@ export function mountArena(
     updateVisibility();
   }
 
-  function render(time: number) {
-    frame = 0;
-    if (disposed) return;
-    const elapsed = matchTime===null||document.hidden?0:Math.max(0,(time-matchTime)/1000);
-    matchTime=time;
-    if(match&&mechanism&&match.phase==="running"){
-      // Advance all chassis at the same time resolution; strategic choices stay staggered.
-      // Keep the same clock for every subsystem. A delayed render may
-      // catch up over subsequent frames, not teleport through a whole second.
-      if(!document.hidden)motionDebt+=elapsed;
-      const budget=document.hidden?0:Math.min(motionDebt,.075),end=Math.min(420,match.elapsed+budget);
-      motionDebt=Math.max(0,motionDebt-budget);
-      const before=match.elapsed,oldRune=match.pose.runeAngle,oldOutpost={...match.pose.outpostAngle};
-      let synced=false;
-      while(match.elapsed<end&&match.phase==="running"){
-        const dt=Math.min(end-match.elapsed,.025);
-        advanceMotion(dt);
-        updateMatch(match,dt,positions);
-        if(projectiles.activeCount){
-          syncMechanisms();synced=true;
-          projectiles.advance(match,dt,shotRoots());
-        }else {
-          // Advance pooled impact flashes on the same simulation clock.
-          projectiles.advance(match,dt,[]);
-          synced=false;
-        }
-      }
-      if(!synced)syncMechanisms();
-      for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
-        if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
-        const d=match.sides[team].dart,status=dartStatus(match,team);
-        if(status.canOpen){selectDart(match,team,d.used===0&&match.sides[team==="red"?"blue":"red"].outpost>0?"outpost":"randomMoving");openDart(match,team);}
-        if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,"randomFixed");
-        if(status.canFire&&d.shots<d.used*2)launchDart(match,team);
-      }
-      if(match.phase==="running" && match.elapsed>=nextBotTurn){
-        nextBotTurn=match.elapsed+.12;
-        decisionShotIndex=undefined;updateBots();decisionShotIndex=undefined;
-      }
-      const searchBudget=performance.now()+4;
+  function simulate(tick:number){
+    if(!match||!mechanism||match.phase!=="running")return false;
+    const before=match.elapsed,oldRune=match.pose.runeAngle,oldOutpost={...match.pose.outpostAngle};
+    const dt=tick*SIM_STEP_MS/1000-before;
+    if(driving&&isPlaying(mode)&&!paused){
+      const h=Number(keys.has("ArrowRight"))-Number(keys.has("ArrowLeft")),v=Number(keys.has("ArrowDown"))-Number(keys.has("ArrowUp"));
+      if(h||v)look=turnView(look,h*dt*520,v*dt*520);
+    }
+    advanceMotion(dt);
+    updateMatch(match,dt,positions);
+    syncMechanisms();
+    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[]);
+    if(match.phase!=="running"){shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
+    for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
+      if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
+      const d=match.sides[team].dart,status=dartStatus(match,team);
+      if(status.canOpen){selectDart(match,team,d.used===0&&match.sides[team==="red"?"blue":"red"].outpost>0?"outpost":"randomMoving");openDart(match,team);}
+      if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,"randomFixed");
+      if(status.canFire&&d.shots<d.used*2)launchDart(match,team);
+    }
+    if(tick*SIM_STEP_MS>=nextBotTurn){
+      nextBotTurn+=120;
+      decisionShotIndex=undefined;updateBots();decisionShotIndex=undefined;
+    }
+    // Deterministic round-robin work across pending searches. Each yield
+    // is one actual CAD footprint check, never a wall-clock cutoff.
+    for(let remaining=PATH_CHECKS_PER_STEP;remaining>0;){
+      let worked=false;
       for(const [bot,route] of botPaths){
         if(bot===manualRobot()||!canDriveRobot(match,match.robots.find(r=>r.id===bot.object.name)!)){botPaths.delete(bot);continue;}
         if(!route.search)continue;
-        do{
-          const step=route.search.next();
-          if(step.done){route.points=step.value;route.search=undefined;break;}
-        }while(performance.now()<searchBudget);
-        if(performance.now()>=searchBudget)break;
+        worked=true;remaining--;
+        const step=route.search.next();
+        if(step.done){route.points=step.value;route.search=undefined;}
+        if(!remaining)break;
       }
-      if(match.phase==="running"){
-        const dt=match.elapsed-before;
-        advanceAiming(dt,dt>0?{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt}:undefined);
-      }
-      else {shotIntents.clear();motions.clear();motionDebt=0;projectiles.clear();}
-      if(match.phase!=="running"||activeRobot()?.hp===0)triggers.clear();
-      if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
-      if(triggers.size&&match.elapsed>before)fire();
-      updateVisibility();
+      if(!worked)break;
+    }
+    advanceAiming(dt,{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt});
+    if(activeRobot()?.hp===0)triggers.clear();
+    if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
+    if(triggers.size||shotRequested)fire();
+    shotRequested=false;
+    // Renderer-independent collision transforms, including the gimbal's
+    // siblings whose world matrices aimWeapon does not traverse.
+    for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
+    updateVisibility();
+    return true;
+  }
+
+  function render(time: number) {
+    frame = 0;
+    if (disposed) return;
+    if(match?.phase==="running"){
+      if(document.hidden)simClock.pause();
+      else{simClock.deposit(time);simClock.run(simulate);}
       invalidate();
     }
     if (ready && terrain && isPlaying(mode)) {
@@ -275,11 +290,11 @@ export function mountArena(
       const r = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
       const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
-      if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
+      if ((!driving||match?.phase!=="running")&&(horizontal || vertical)) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
       if(!driving&&(f||r)){
         const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.hypot(f,r);
         moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
-          robots.filter(robot=>match?.robots.find(m=>m.id===robot.object.name)?.hp!==0&&Math.abs(robot.position.y-explorer.y)<1.15));
+          robots.filter(robot=>Math.abs(robot.position.y-explorer.y)<1.15));
       }else if(driving&&match?.phase==="ready"){
         advanceMotion(dt);advanceAiming(dt);
       }
@@ -288,14 +303,13 @@ export function mountArena(
         invalidate();
       } else lastTime = null;
       syncCamera();
-      publish();
     } else if (controls.enabled) controls.update();
     publish();
     armorGlow?.update();
     if(match)dartVisual?.update(match);
     projectiles.visual(camera,viewportHeight,isPlaying(mode));
     renderer.render(scene, camera);
-    if(match?.phase!=="running"&&!keys.size) matchTime=null;
+
   }
 
   function setView(next: ArenaView) {
@@ -328,7 +342,7 @@ export function mountArena(
 
   function start() {
     if(!match||match.phase!=="ready")return;
-    matchTime=null;motionDebt=0;
+    simClock.reset();
     startMatch(match);
     publish();invalidate();
   }
@@ -343,9 +357,11 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
-    nextBotTurn=0;botCursor=0;motionDebt=0;matchTime=null;botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
+    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
+    damageFlashes.clear();match.onDamage=recordDamage;
+    defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
+    for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
     projectiles.clear();dartVisual?.clear();
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
     mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyTechnology(match);updateVisibility();setView("first");publish();invalidate();
@@ -380,15 +396,13 @@ export function mountArena(
   function trigger(source:string,pressed:boolean){
     if(!pressed){triggers.delete(source);return;}
     if(!ready||paused||document.hidden||!isPlaying(mode)||!manualRobot()||match?.phase!=="running"||!activeRobot()?.hp||triggers.has(source))return;
-    const first=!triggers.size;
+    if(!triggers.size)shotRequested=true;
     triggers.add(source);
-    if(first)fire();
     invalidate();
   }
   function fire() {
     const robot=activeRobot();
     if(!ready||paused||document.hidden||!isPlaying(mode)||!driving||!manualRobot()||!match||!map||!robot||!canFire(match,robot))return;
-    syncCamera();
     const shot = aimWeapon(driving.object,driving.object.rotation.y+(driving.object.getObjectByName("gimbal")?.rotation.y??0),driving.object.getObjectByName("weapon-pitch")?.rotation.x??0);
     if (shot) shoot(driving,shot.origin,shot.direction);
   }
@@ -399,7 +413,7 @@ export function mountArena(
     coreGeometry?.applyTechnology(match);syncLaunchers();
   }
   function shotRoots(){
-    return [map!,ground,benchModules,...fieldRobots.filter(r=>match?.robots.find(m=>m.id===r.object.name)?.hp!==0).map(r=>r.object)];
+    return [map!,ground,benchModules,...fieldRobots.map(r=>r.object)];
   }
   function trace(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3){
     if(!map)return undefined;
@@ -439,13 +453,13 @@ export function mountArena(
       const zone=ARENA_ZONES.find(z=>z.team===team&&z.kind===kind)!;
       if(kind!=="assembly"&&zonesAtPosition(bot.position).includes(zone.id))return bot.position.clone();
       const previous=botPaths.get(bot)?.goal;
-      if(kind!=="assembly"&&previous&&zonesAtPosition(previous).includes(zone.id)&&!active.some(r=>r!==bot&&Math.abs(r.position.y-previous.y)<1.15&&Math.hypot(r.position.x-previous.x,r.position.z-previous.z)<r.radius+bot.radius))return previous.clone();
+      if(kind!=="assembly"&&previous&&zonesAtPosition(previous).includes(zone.id)&&!field.some(r=>r!==bot&&Math.abs(r.position.y-previous.y)<1.15&&Math.hypot(r.position.x-previous.x,r.position.z-previous.z)<r.radius+bot.radius))return previous.clone();
       const [x,z]=zone.goal;
       const offsets=kind==="assembly"?[[0,0],[.2,-.2],[-.2,.2]]:state.sentry?[[0,0],[.5,.4],[-.5,-.4]]:state.id.includes("03")?[[.5,.4],[0,0],[-.5,-.4]]:[[-.5,-.4],[0,0],[.5,.4]];
       for(const [dx,dz] of offsets){
         const p=new THREE.Vector3(x+dx,terrain!.heightAt(x+dx,z+dz),z+dz);
         if(zonesAtPosition(p).includes(zone.id)&&supportedHeight(terrain!,p.x,p.z,bot.radius,p.y,.23)!==null
-          && !active.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))return p;
+          && !field.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))return p;
       }
       return new THREE.Vector3(x,terrain!.heightAt(x,z),z);
     };
@@ -533,7 +547,7 @@ export function mountArena(
               const y=terrain.heightAt(x,z);
               const point=new THREE.Vector3(x,y,z);
               if(Math.abs(y-p.y)>1.4||unit.location.kind==="rack"&&!zonesAtPosition(point).includes(`${state.team}-supply`)||supportedHeight(terrain,x,z,bot.radius,y,.23)===null)continue;
-              if(active.some(r=>r!==bot&&Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))continue;
+              if(field.some(r=>r!==bot&&Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))continue;
               candidates.push(point);
             }
             candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
@@ -583,7 +597,7 @@ export function mountArena(
             const p=center.clone().addScaledVector(normal,distance).addScaledVector(lateral,offset);
             p.y=terrain.heightAt(p.x,p.z);
             if(supportedHeight(terrain,p.x,p.z,bot.radius,p.y,.23)===null||p.distanceTo(bot.position)<.3)continue;
-            if(active.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))continue;
+            if(field.some(r=>r!==bot&&Math.abs(r.position.y-p.y)<1.15&&Math.hypot(r.position.x-p.x,r.position.z-p.z)<r.radius+bot.radius))continue;
             goal=p;runeDuty=true;break;
           }
           if(runeDuty)break;
@@ -634,13 +648,13 @@ export function mountArena(
   }
   function advanceMotion(dt:number){
     if(!match||!terrain||dt<=0)return;
-    const active=fieldRobots.filter(b=>match!.robots.find(r=>r.id===b.object.name)!.hp>0);
+    for(const bot of fieldRobots)if(match.robots.find(r=>r.id===bot.object.name)!.hp>0)defeatedPush.delete(bot);
     for(const bot of fieldRobots){
       const state=match.robots.find(r=>r.id===bot.object.name)!;
       const motion=motionFor(bot),manual=manualRobot()===bot;
       const previousYaw=bot.object.rotation.y;
       const gimbal=bot.object.getObjectByName("gimbal");
-      const occupants=active.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
+      const occupants=fieldRobots.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
       let target:THREE.Vector3|null=null,command:0|1|2=0;
       const route=botPaths.get(bot);
       if(manual&&isPlaying(mode)&&!paused){
@@ -655,7 +669,15 @@ export function mountArena(
       const speed=driveSpeed(match,state,command);
       if(!canDriveRobot(match,state)||match.phase==="finished"){motions.delete(bot);shotIntents.delete(bot);botPaths.delete(bot);continue;}
       const oldX=bot.position.x,oldZ=bot.position.z;
-      const traveled=stepChassis(terrain,bot,motion,target,speed,dt,occupants,!manual&&route&&!route.points.length?route.tolerance:undefined);
+      let traveled=stepChassis(terrain,bot,motion,target,speed,dt,occupants,!manual&&route&&!route.points.length?route.tolerance:undefined);
+      if(match.phase==="running"&&state.hp>0&&target&&speed>0&&traveled<1e-5&&motion.speed===0&&
+        Math.abs(angleDelta(motion.yaw,Math.atan2(bot.position.x-target.x,bot.position.z-target.z)))<.2){
+        traveled=clearDefeatedPath(terrain,bot,target,dt,fieldRobots.filter(r=>r!==bot),o=>{
+          const r=match!.robots.find(r=>r.id===o.object.name);
+          return !!r&&r.hp===0&&!canDriveRobot(match!,r);
+        },defeatedPush);
+        if(traveled>0)for(const other of fieldRobots)other.object.updateMatrixWorld(true);
+      }
       bot.object.rotation.y=motion.yaw;
       // Preserve gun world yaw while the chassis turns underneath it.
       if(gimbal)gimbal.rotation.y+=previousYaw-motion.yaw;
@@ -683,8 +705,14 @@ export function mountArena(
     for(const bot of fieldRobots){
       const state=match.robots.find(r=>r.id===bot.object.name)!;
       const g=bot.object.getObjectByName("gimbal"),w=bot.object.getObjectByName("weapon-pitch");
-      if(!g||!w||state.hp<=0){shotIntents.delete(bot);continue;}
+      if(!g||!w||!canDriveRobot(match,state)){shotIntents.delete(bot);continue;}
+      if(state.hp<=0)shotIntents.delete(bot);
       const manual=manualRobot()===bot&&isPlaying(mode),intent=shotIntents.get(bot);
+      if(intent?.object){
+        let target:THREE.Object3D|null=intent.object;
+        while(target&&!target.userData.target)target=target.parent;
+        if(target?.userData.target.type==="robot"&&match.robots.some(r=>r.id===target!.userData.target.id&&r.hp===0)){shotIntents.delete(bot);continue;}
+      }
       let desired:{yaw:number;pitch:number}|null=manual?look:null;
       if(!manual&&intent){
         const point=intent.object?intent.object.localToWorld(intent.point.clone()):intent.point.clone();
@@ -775,7 +803,7 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyM") setView(mode === "all" ? "first" : "all");
   }
   function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);else input(event.code, false); }
-  function clearInput() { triggers.clear();keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
+  function clearInput() { shotRequested=false;triggers.clear();keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
   function turn(dx: number, dy: number) {
     if (!ready || paused || !isPlaying(mode)) return;
     look = turnView(look, dx, dy);
@@ -817,7 +845,7 @@ export function mountArena(
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
   }
-  function visibilityChange(){matchTime=null;clearInput();invalidate();}
+  function visibilityChange(){simClock.pause();clearInput();invalidate();}
   function lockchange() { if (document.pointerLockElement !== canvas) clearInput(); }
 
   controls.addEventListener("change", invalidate);
@@ -917,7 +945,8 @@ export function mountArena(
       for(const overlay of overlays)aliasArmorFrames(overlay,plates);
       armorCenters.set(robot,list);
     }
-    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
+    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
+    damageFlashes.clear();match.onDamage=recordDamage;
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});
@@ -935,6 +964,7 @@ export function mountArena(
   });
 
   return {
+    configureSeed(value){if(!match||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;reset();return true;},
     view: setView, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},

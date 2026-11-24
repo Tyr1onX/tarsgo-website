@@ -58,11 +58,24 @@ type ArmorRegion="default"|"reinforced"|"exposed";
 type Armor={shots:number;hits:(ArmorPoint&{region:ArmorRegion})[];used:number;center:ArmorPoint|null};
 const armor=():Armor=>({shots:0,hits:[],used:0,center:null});
 type Side = { armor:Armor;dart:Dart;blindUntil:number;runeDisabledUntil:number;baseZoneUntil:number;outpostZoneUntil:number;tech:Technology; coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
-export type Match = { coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
-export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}): Match {
+export type DamageEvent={target:Exclude<Target,{type:"rune"}>;amount:number;at:number;source:"projectile"|"dart"};
+// Independent serialized PRNG streams: no renderer or global random state.
+type RandomStream="direction"|"red-rune"|"blue-rune"|"red-dart"|"blue-dart"|"red-tech"|"blue-tech";
+const streams:RandomStream[]=["direction","red-rune","blue-rune","red-dart","blue-dart","red-tech","blue-tech"];
+function randomState(seed:number){return Object.fromEntries(streams.map((key,i)=>[key,(seed^Math.imul(i+1,0x9e3779b9))>>>0])) as Record<RandomStream,number>;}
+function random(state:Record<RandomStream,number>,key:RandomStream){
+  const n=state[key]=(state[key]+0x6d2b79f5)>>>0;
+  let t=Math.imul(n^(n>>>15),n|1);
+  t^=t+Math.imul(t^(t>>>7),t|61);
+  return ((t^(t>>>14))>>>0)/4294967296;
+}
+export type Match = { seed:number;randomState:Record<RandomStream,number>;onDamage?:(event:DamageEvent)=>void; coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
+export function createMatch(robots: readonly RobotSpec[], direction?:number, outpostDirection?:number, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}, seed=0): Match {
+  seed=seed>>>0;const rng=randomState(seed);
+  direction??=random(rng,"direction")<.5?-1:1;outpostDirection??=random(rng,"direction")<.5?-1:1;
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({armor:armor(),dart:dart(),blindUntil:0,runeDisabledUntil:0,baseZoneUntil:0,outpostZoneUntil:0,tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,sentryControl:r.sentry?(r.sentryControl??"auto"):undefined,terrain:terrainState(),commandTarget:null,maxHp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,hp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?(r.sentryControl==="semi"?100:260):40,cooling:r.heavy?0:r.sentry?(r.sentryControl==="semi"?10:30):12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready",launcherCalibrated:false})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {seed,randomState:rng,coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,sentryControl:r.sentry?(r.sentryControl??"auto"):undefined,terrain:terrainState(),commandTarget:null,maxHp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,hp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?(r.sentryControl==="semi"?100:260):40,cooling:r.heavy?0:r.sentry?(r.sentryControl==="semi"?10:30):12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready",launcherCalibrated:false})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -351,7 +364,7 @@ export function beginAssembly(m:Match,id:string,p:ArenaPosition,level:Difficulty
   if(!r||!assemblyStatus(m,r,p).available.includes(level))return false;
   const t=m.sides[r.team].tech;
   t.failure=null;t.attempt={robot:id,level,start:m.elapsed,lastSeen:m.elapsed,slots:[
-    {core:r.team,angle:30,done:{}},...(level===4?[{core:opponent(r.team),angle:Math.floor(Math.random()*37)*5-90,done:{}}]:[])],
+    {core:r.team,angle:30,done:{}},...(level===4?[{core:opponent(r.team),angle:Math.floor(random(m.randomState,`${r.team}-tech`)*37)*5-90,done:{}}]:[])],
     pending:null,deadAt:null,confirmAfter:0};
   return true;
 }
@@ -719,9 +732,9 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
 
 // §5.6.3: two independent team attempts share the physical rotation axis.
 const runeAvailable=(m:Match,r:Rune)=>m.elapsed<180?1+Number(m.elapsed>=90)-r.usedSmall:1+Number(m.elapsed>=255)+Number(m.elapsed>=330)-r.usedLarge;
-const chooseArms=(n:number,excluded:number[]=[]):number[]=>{
+const chooseArms=(m:Match,team:Team,n:number,excluded:number[]=[]):number[]=>{
   const pool=[0,1,2,3,4].filter(i=>!excluded.includes(i)),result:number[]=[];
-  while(result.length<n&&pool.length)result.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  while(result.length<n&&pool.length)result.push(pool.splice(Math.floor(random(m.randomState,`${team}-rune`)*pool.length),1)[0]);
   return result;
 };
 export function runeStatus(m:Match,team:Team){
@@ -740,12 +753,12 @@ export function activateRune(m:Match,id:string){
   if(r.attempt||r.activatedUntil>m.elapsed||runeAvailable(m,r)<=0)return false;
   const large=m.elapsed>=180;
   if(large)r.usedLarge++;else r.usedSmall++;
-  r.attempt={large,end:m.elapsed+20,deadline:m.elapsed+2.5,lit:chooseArms(large?2:1),groups:0,rings:[],second:false,a:.780+Math.random()*(1.045-.780),w:1.884+Math.random()*(2-1.884)};
+  r.attempt={large,end:m.elapsed+20,deadline:m.elapsed+2.5,lit:chooseArms(m,robot.team,large?2:1),groups:0,rings:[],second:false,a:.780+random(m.randomState,`${robot.team}-rune`)*(1.045-.780),w:1.884+random(m.randomState,`${robot.team}-rune`)*(2-1.884)};
   return true;
 }
-function resetRuneAttempt(r:Rune,at:number){
+function resetRuneAttempt(m:Match,team:Team,r:Rune,at:number){
   const a=r.attempt!;
-  a.groups=0;a.rings=[];a.completed=[];a.lit=chooseArms(a.large?2:1);a.second=false;a.deadline=at+2.5;
+  a.groups=0;a.rings=[];a.completed=[];a.lit=chooseArms(m,team,a.large?2:1);a.second=false;a.deadline=at+2.5;
 }
 function finishRune(match:Match,team:Team,at:number){
   match.sides[team].runeDisabledUntil=0;
@@ -766,8 +779,8 @@ function advanceRune(match:Match,team:Team,at:number){
   else if(a&&at>=a.deadline){
     if(a.second){
       if(a.groups===5)finishRune(match,team,a.deadline);
-      else{a.second=false;a.lit=chooseArms(2);a.deadline=at+2.5;}
-    }else resetRuneAttempt(r,at);
+      else{a.second=false;a.lit=chooseArms(match,team,2);a.deadline=at+2.5;}
+    }else resetRuneAttempt(match,team,r,at);
   }
   if(r.activatedUntil<=at){r.attack=1;r.defense=0;r.cooling=1;r.xpBonusRemaining=0;}
 }
@@ -776,27 +789,35 @@ function hitRune(m:Match,shooter:MatchRobot,target:Extract<Target,{type:"rune"}>
   const r=m.sides[shooter.team].rune,a=r.attempt;
   if(!a||m.elapsed>=a.end)return;
   if(a.large&&target.ring<(r.largeWins>=2?7:r.largeWins===1?4:1))return;
-  if(!a.lit.includes(target.arm)){resetRuneAttempt(r,m.elapsed);return;}
+  if(!a.lit.includes(target.arm)){resetRuneAttempt(m,shooter.team,r,m.elapsed);return;}
   if(!a.large){
     a.rings.push(target.ring);a.groups++;
     if(a.groups===5){finishRune(m,shooter.team,m.elapsed);return;}
     // Small rune lights each of the five arms exactly once.
     const completed=a.completed??[];
     completed.push(target.arm);a.completed=completed;
-    a.lit=chooseArms(1,completed);a.deadline=m.elapsed+2.5;
+    a.lit=chooseArms(m,shooter.team,1,completed);a.deadline=m.elapsed+2.5;
   }else if(!a.second){
     a.groups++;a.rings.push(target.ring);a.lit=a.lit.filter(i=>i!==target.arm);a.second=true;a.deadline=m.elapsed+1;
   }else{
     a.rings.push(target.ring);
     if(a.groups===5){finishRune(m,shooter.team,m.elapsed);return;}
-    a.second=false;a.lit=chooseArms(2);a.deadline=m.elapsed+2.5;
+    a.second=false;a.lit=chooseArms(m,shooter.team,2);a.deadline=m.elapsed+2.5;
   }
 }
 
 function killRobot(match:Match,enemy:MatchRobot){
-  enemy.commandTarget=null;enemy.terrain.effects={};enemy.terrain.combinedUntil=0;enemy.terrain.attempt=null;enemy.terrain.seen=[];markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
+  enemy.commandTarget=null;enemy.terrain.effects={};enemy.terrain.combinedUntil=0;enemy.terrain.attempt=null;enemy.terrain.seen=[];markAssemblyDeath(match,enemy);releaseCarriedEnergy(match,enemy);enemy.powerDemand=0;enemy.powerBoostUntil=0;enemy.powerBuffer=60;enemy.powerLockUntil=0;enemy.heat=0;if(enemy.thermalLock!=="permanent")enemy.thermalLock=false;enemy.pendingAmmoAt=null;enemy.pendingHealAt=null;enemy.zones={};enemy.repairCarry=0;enemy.revival={state:"dead",progressTicks:0,required:Math.round(10+match.elapsed/10+20*enemy.paidRevives)};
 }
-function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|"base",amount:number){
+function damageRobot(match:Match,attacker:Team,enemy:MatchRobot,amount:number,source:DamageEvent["source"]){
+  amount=Math.min(enemy.hp,Math.max(0,amount));
+  if(!amount)return 0;
+  enemy.hp-=amount;match.sides[attacker].damage+=amount;enemy.lastCombat=match.elapsed;
+  if(enemy.hp===0)killRobot(match,enemy);
+  match.onDamage?.({target:{type:"robot",id:enemy.id},amount,at:match.elapsed,source});
+  return amount;
+}
+function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|"base",amount:number,source:DamageEvent["source"]="projectile"){
   const enemy=match.sides[location],side=match.sides[attacker],owner=type==="outpost"?enemy.outpostOwner:location;
   if(owner===attacker)return 0;
   amount=Math.min(enemy[type],amount);
@@ -807,6 +828,7 @@ function damageStructure(match:Match,attacker:Team,location:Team,type:"outpost"|
     if(area.full){area.full=false;area.progress=0;}
     else if(area.controller!==owner){area.full=true;area.progress=0;rebuildOutpost(enemy,area.controller);}
   }
+  if(amount>0)match.onDamage?.({target:{type,team:location},amount,at:match.elapsed,source});
   return amount;
 }
 // §5.7.3. Virtual detection: a launched training dart reports a qualified
@@ -829,26 +851,26 @@ export function selectDart(m:Match,team:Team,mode:DartMode){
   if(!status.canSelect||!dartModes.includes(mode))return false;
   if(status.phase==="open"){
     if(mode==="outpost")return false;
-    d.switched=true;d.mode=mode;moveDartTarget(d,m.elapsed);return true;
+    d.switched=true;d.mode=mode;moveDartTarget(m,team,d,m.elapsed);return true;
   }
   d.mode=mode;return true;
 }
-function nextDartOffset(d:Dart){const n=(Math.random()*2-1)*.28;return Math.abs(n-d.offset)<.02?(d.offset>0?-.28:.28):n;}
-function moveDartTarget(d:Dart,at:number,delay=0){
+function nextDartOffset(m:Match,team:Team,d:Dart){const n=(random(m.randomState,`${team}-dart`)*2-1)*.28;return Math.abs(n-d.offset)<.02?(d.offset>0?-.28:.28):n;}
+function moveDartTarget(m:Match,team:Team,d:Dart,at:number,delay=0){
   if(d.mode==="outpost"||d.mode==="fixed"){d.offset=0;d.motion=null;return;}
-  d.motion={from:d.offset,to:nextDartOffset(d),start:at+delay,end:at+delay+.6};
+  d.motion={from:d.offset,to:nextDartOffset(m,team,d),start:at+delay,end:at+delay+.6};
 }
 export function openDart(m:Match,team:Team){
   if(!dartStatus(m,team).canOpen)return false;
   const d=m.sides[team].dart;
   d.used++;d.openedAt=m.elapsed;d.windowHits=0;d.switched=false;d.blockedUntil=0;d.offset=0;d.resumeAt=0;
-  moveDartTarget(d,m.elapsed);return true;
+  moveDartTarget(m,team,d,m.elapsed);return true;
 }
 export function launchDart(m:Match,team:Team,hit=true){
   if(!dartStatus(m,team).canFire)return false;
   const d=m.sides[team].dart,t=m.elapsed;
   d.shots++;d.flight={mode:d.mode,at:t+DART_FLIGHT_SECONDS,hit};
-  if(mobileDart(d.mode))moveDartTarget(d,t,d.mode==="terminalMoving"?1.2:0);
+  if(mobileDart(d.mode))moveDartTarget(m,team,d,t,d.mode==="terminalMoving"?1.2:0);
   return true;
 }
 export function dartPose(m:Match,team:Team){
@@ -861,9 +883,9 @@ function settleDart(m:Match,team:Team,mode:DartMode){
   d.hits++;d.windowHits++;d.blockedUntil=t+2;
   const blind=mobileDart(mode)?10:[10,5,3,2][Math.min(3,d.hits-1)];
   enemy.blindUntil=Math.max(t,enemy.blindUntil)+blind;
-  if(mode==="outpost"){damageStructure(m,team,other,"outpost",1000);enemy.outpostZoneUntil=t+30;return;}
+  if(mode==="outpost"){damageStructure(m,team,other,"outpost",1000,"dart");enemy.outpostZoneUntil=t+30;return;}
   d.baseHits++;enemy.baseZoneUntil=t+30;
-  damageStructure(m,team,other,"base",({fixed:200,randomFixed:300,randomMoving:800,terminalMoving:1250})[mode]);
+  damageStructure(m,team,other,"base",({fixed:200,randomFixed:300,randomMoving:800,terminalMoving:1250})[mode],"dart");
   shareXp(m,team,mode==="fixed"?200:mode==="randomFixed"?600:2500);
   if(mode==="randomFixed"&&enemy.rune.activatedUntil>t)enemy.runeDisabledUntil=Math.min(enemy.rune.activatedUntil,Math.max(t,enemy.runeDisabledUntil)+blind);
   if(mode==="randomFixed"){
@@ -874,7 +896,7 @@ function settleDart(m:Match,team:Team,mode:DartMode){
     for(const r of m.robots)if(r.team===other&&r.hp>0){
       r.terrain.effects={};r.terrain.combinedUntil=0;
       const amount=Math.min(r.hp,Math.round(r.maxHp*(mode==="terminalMoving"?.5:.2)));
-      r.hp-=amount;side.damage+=amount;r.lastCombat=t;if(r.hp===0)killRobot(m,r);
+      damageRobot(m,team,r,amount,"dart");
     }
   }
   if(mobileDart(mode)||d.baseHits===4)enemy.cover=true;
@@ -892,11 +914,11 @@ function advanceDarts(m:Match){
     if(d.flight&&t+EPS>=d.flight.at){
       const f=d.flight;d.flight=null;
       const valid=age>=7&&age<=47+EPS&&t>=d.blockedUntil&&(!d.motion||f.mode==="fixed"||f.mode==="outpost");
-      if(f.hit&&valid){settleDart(m,team,f.mode);if(f.mode==="randomFixed"||mobileDart(f.mode))moveDartTarget(d,t);}
+      if(f.hit&&valid){settleDart(m,team,f.mode);if(f.mode==="randomFixed"||mobileDart(f.mode))moveDartTarget(m,team,d,t);}
       else if(mobileDart(f.mode))d.resumeAt=t+7.5;
     }
     if(age>=47){d.offset=0;d.motion=null;}
-    else if(mobileDart(d.mode)&&!d.motion&&!d.flight&&t>=d.resumeAt)moveDartTarget(d,t);
+    else if(mobileDart(d.mode)&&!d.motion&&!d.flight&&t>=d.resumeAt)moveDartTarget(m,team,d,t);
   }
 }
 
@@ -955,8 +977,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
     const multiplier=armorMultiplier(match,shooter.team,enemy.team,hit);
     if(immune(match,enemy))return 0;
     const amount=Math.min(enemy.hp,Math.max(0,Math.round((shooter.heavy?200:20)*multiplier*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack)*robotDefense(match,enemy))));
-    enemy.hp-=amount;side.damage+=amount;enemy.lastCombat=match.elapsed;
-    if(enemy.hp===0)killRobot(match,enemy);
+    damageRobot(match,shooter.team,enemy,amount,"projectile");
     attackXp(match,shooter,amount*4,enemy);
     return amount;
   }
@@ -968,9 +989,9 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
   // conditions are satisfied. Physical base detector binding is pending.
   if(target.type==="base"&&(controlsOutpost(match,target.team,target.team,true)||!enemy.cover))return 0;
   const amount=Math.min(enemy[target.type],Math.round((shooter.heavy?200:20)*multiplier*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack)*(1-teamDefense(match,owner))));
-  damageStructure(match,shooter.team,target.team,target.type,amount);
-  attackXp(match,shooter,target.type==="outpost"?amount*2:Math.ceil(amount/2));
-  return amount;
+  const dealt=damageStructure(match,shooter.team,target.team,target.type,amount);
+  attackXp(match,shooter,target.type==="outpost"?dealt*2:Math.ceil(dealt/2));
+  return dealt;
 }
 export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
   if(match.phase!=="running")return;

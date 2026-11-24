@@ -573,3 +573,19 @@ test("workbench installation and removal require actual reach; calibration histo
  assert.ok(h.launcherCalibrated);assert.equal(h.maxHp,600);assert.equal(fireRound(m,"h"),null);
  assert.ok(installLauncher(m,"h",bench));updateMatch(m,.3);assert.ok(fireRound(m,"h"));assert.equal(h.maxHp,600);
 });
+
+test("damage events report only actual HP deduction and dead chassis reset without reviving",async()=>{
+ const {canDriveRobot,driveSpeed,canFire,openDart,selectDart,launchDart}=await import("./rmuc-3d-match.ts");
+ const m=createMatch(roster,1,1);startMatch(m);const [r,b]=m.robots,events=[];
+ m.onDamage=e=>events.push(e);
+ b.hp=15;b.powerBuffer=0;b.powerLockUntil=10;b.ammo=10;
+ assert.equal(damageTarget(m,r,{type:"robot",id:"b"}),15);
+ assert.equal(b.hp,0);assert.equal(b.powerBuffer,60);assert.equal(b.powerLockUntil,0);
+ assert.equal(canDriveRobot(m,b),false);assert.equal(driveSpeed(m,b,1),0);assert.equal(canFire(m,b),false);
+ assert.equal(damageTarget(m,r,{type:"robot",id:"b"}),0);assert.equal(damageTarget(m,r,{type:"robot",id:"r"}),0);
+ assert.deepEqual(events,[{target:{type:"robot",id:"b"},amount:15,at:0,source:"projectile"}]);
+ assert.ok(reviveRobot(m,"b",true));assert.equal(b.hp,b.maxHp);assert.equal(canDriveRobot(m,b),true);assert.equal(canFire(m,b),false);
+ updateMatch(m,30);assert.ok(selectDart(m,"red","fixed"));assert.ok(openDart(m,"red"));updateMatch(m,7);assert.ok(launchDart(m,"red"));updateMatch(m,2.5);
+ assert.equal(events.at(-1).source,"dart");assert.deepEqual(events.at(-1).target,{type:"base",team:"blue"});assert.equal(events.at(-1).amount,200);
+ assert.equal(events.reduce((n,e)=>n+e.amount,0),m.sides.red.damage);
+});

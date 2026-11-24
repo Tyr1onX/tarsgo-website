@@ -207,16 +207,47 @@ export function renderPublicRoomTerrain(room: RoomScene, campusTiles?: HTMLImage
 
 // Each object is prepared from the independently masked art atlas. The
 // existing per-object cache also supplies the exact alpha hit test.
-type PreparedSprite={canvas:HTMLCanvasElement;frames:HTMLCanvasElement[];bounds:{x:number;y:number;w:number;h:number}};
+type PreparedSprite={canvas:HTMLCanvasElement;frames:HTMLCanvasElement[];bounds:{x:number;y:number;w:number;h:number};marginX:number;marginY:number};
 const sprites=new WeakMap<RoomObject,PreparedSprite>();
 let studyChair: HTMLCanvasElement;
-function spriteKey(o:RoomObject){return o.decorative?`decor-${o.kind}`:o.id;}
+export function roomSpriteKey(o:RoomObject){return o.decorative?`decor-${o.kind}`:o.id;}
 function spriteBox(o:RoomObject,spriteIndex:Record<string,number[]>){
-  const source=spriteIndex[spriteKey(o)];
-  if(!source)throw new Error(`Missing room sprite: ${spriteKey(o)}`);
+  const source=spriteIndex[roomSpriteKey(o)];
+  if(!source)throw new Error(`Missing room sprite: ${roomSpriteKey(o)}`);
   const [sx,sy,sw,sh]=source;
   const w=o.width*TILE,h=Math.round(w*sh/sw);
   return {sx,sy,sw,sh,x:o.x*TILE,y:(o.y+o.height)*TILE-h,w,h};
+}
+const ARM_STEPS=8,ARM_PAD=12;
+function armFrames(atlas:HTMLImageElement,b:{sx:number;sy:number;sw:number;sh:number}){
+  const {sx,sy,sw,sh}=b;
+  return Array.from({length:ARM_STEPS+1},(_,i)=>{
+    const c=document.createElement("canvas");c.width=sw+ARM_PAD*2;c.height=sh+ARM_PAD*2;
+    const ctx=c.getContext("2d")!;ctx.imageSmoothingEnabled=false;
+    if(!i){ctx.drawImage(atlas,sx,sy,sw,sh,ARM_PAD,ARM_PAD,sw,sh);return c;}
+    // Original 51x115 art: fixed base (21,82), elbow (12,38).
+    const lower=-.24*i/ARM_STEPS,upper=.20*i/ARM_STEPS;
+    const baseX=21,baseY=82,elbowX=12,elbowY=38;
+    ctx.drawImage(atlas,sx,sy+76,sw,sh-76,ARM_PAD,ARM_PAD+76,sw,sh-76);
+    ctx.save();ctx.translate(ARM_PAD+baseX,ARM_PAD+baseY);ctx.rotate(lower);
+    ctx.drawImage(atlas,sx,sy+34,sw,51,-baseX,34-baseY,sw,51);ctx.restore();
+    const dx=elbowX-baseX,dy=elbowY-baseY;
+    const ex=baseX+Math.cos(lower)*dx-Math.sin(lower)*dy,ey=baseY+Math.sin(lower)*dx+Math.cos(lower)*dy;
+    ctx.save();ctx.translate(ARM_PAD+ex,ARM_PAD+ey);ctx.rotate(upper);
+    ctx.drawImage(atlas,sx,sy,sw,44,-elbowX,-elbowY,sw,44);ctx.restore();
+    return c;
+  });
+}
+// Only the turret region differs between the two authored robot poses.
+// Insert two native-pixel intermediate views, leaving the chassis and antenna untouched.
+function robotYawFrame(atlas:HTMLImageElement,box:number[],turn:boolean,w:number,h:number){
+  const [sx,sy,sw,sh]=box,c=document.createElement("canvas");c.width=sw;c.height=sh;
+  const ctx=c.getContext("2d")!;ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(atlas,sx,sy,sw,sh,0,0,sw,sh);
+  ctx.clearRect(22,2,37,22);
+  ctx.drawImage(atlas,sx+22,sy+2,37,22,turn?25:24,2,32,22);
+  const result=bitmap(w,h).canvas,paint=result.getContext("2d")!;
+  paint.imageSmoothingEnabled=false;paint.drawImage(c,0,0,w,h);return result;
 }
 export function preparePublicRoomArt(atlas:HTMLImageElement,rooms:RoomScene[],spriteIndex:Record<string,number[]>, communityAtlas:HTMLImageElement, communityIndex:Record<string,number[]>){
   for(const room of rooms){
@@ -240,7 +271,15 @@ export function preparePublicRoomArt(atlas:HTMLImageElement,rooms:RoomScene[],sp
         context.drawImage(communityAtlas,sx,sy,sw,sh,0,0,b.w,b.h);
         return frame;
       });
-      sprites.set(o,{canvas,frames:[canvas,...frames],bounds:b});
+      let preparedFrames=[canvas,...frames],marginX=0,marginY=0;
+      if(o.id==="machine"){
+        preparedFrames=armFrames(atlas,b);
+        marginX=ARM_PAD*b.w/b.sw;marginY=ARM_PAD*b.h/b.sh;
+      }else if(o.id==="test-robot"){
+        preparedFrames.push(robotYawFrame(communityAtlas,communityIndex[o.id],false,b.w,b.h),
+          robotYawFrame(communityAtlas,communityIndex["pose-robot-turn"],true,b.w,b.h));
+      }
+      sprites.set(o,{canvas,frames:preparedFrames,bounds:b,marginX,marginY});
       if(o.kind==="chair")studyChair=canvas;
     }
   }
@@ -254,9 +293,41 @@ export function drawStudyChair(ctx:CanvasRenderingContext2D,o:RoomObject,camera:
 }
 function sprite(o:RoomObject){
   const image=sprites.get(o);
-  if(!image)throw new Error(`Room sprite not prepared: ${spriteKey(o)}`);
+  if(!image)throw new Error(`Room sprite not prepared: ${roomSpriteKey(o)}`);
   return image;
 }
+// Work bursts have a start, work and return phase, with alternating idle gaps.
+const EQUIPMENT_CYCLES:Record<string,readonly [number,number,number]>={
+  machine:[6600,10500,3100],"test-robot":[5700,12500,1800],
+  assembly:[6500,15000,4600],cad:[8200,6000,1300],
+  oscilloscope:[9200,5000,800],"signal-wall":[8000,6500,2000],embedded:[6800,10000,4200],
+  dataset:[8400,6300,1600],compute:[9200,7000,5400],"lens-calibration":[5600,10500,2300],
+  models:[11500,8500,3600],planning:[7900,9300,5300],strategy:[9500,8500,3000],
+  simulation:[8500,12000,6200],"hello-terminal":[7000,11000,900],"decor-server":[10000,7000,7200],
+};
+export function equipmentProgress(key:string,time:number,triggeredAt?:number,hour=12):number{
+  const config=EQUIPMENT_CYCLES[key];if(!config)return -1;
+  const [duration,rest,offset]=config;
+  const age=triggeredAt===undefined?Infinity:time-triggeredAt;
+  // A late-night interaction still works; only the automatic work stops.
+  // Servers keep running while the workshop and public exhibition rest.
+  if((hour<5.5||hour>=23)&&key!=="compute"&&key!=="models"&&key!=="decor-server"){
+    return age>=0&&age<duration?age/duration:-1;
+  }
+  const clock=age>=0&&Number.isFinite(age)?age:time+offset;
+  const period=duration+rest,cycle=clock%(period*2+2700),phase=cycle<period?cycle:cycle-period;
+  return phase<duration?phase/duration:-1;
+}
+export function equipmentPose(key:string,progress:number):number{
+  if(progress<0||progress>=1)return 0;
+  if(key==="machine")return Math.round(Math.sin(Math.PI*progress)**2*ARM_STEPS);
+  if(key==="test-robot"){
+    const sweep=progress<.5?progress*2:(1-progress)*2;
+    return sweep<.17?2:sweep<.39?3:sweep<.64?4:1;
+  }
+  return 0;
+}
+export function hasEquipmentBehavior(key:string):boolean{return key in EQUIPMENT_CYCLES;}
 const LIGHT_POINTS:Record<string,number[][]>={
   assembly:[[.48,.12,3]],cad:[[.42,.24,2]],review:[[.77,.16,2]],
   calibration:[[.55,.19,2]],oscilloscope:[[.42,.43,2]],embedded:[[.87,.20,2]],
@@ -265,20 +336,86 @@ const LIGHT_POINTS:Record<string,number[][]>={
   models:[[.23,.34,1.5],[.74,.68,2]],planning:[[.5,.20,3],[.50,.65,2]],
   strategy:[[.3,.22,2]],simulation:[[.31,.22,2],[.77,.22,2]],"decor-server":[[.58,.37,1.5]],
 };
+// Registered against the visible interiors of room-props-v3, not object hitboxes.
+const SCREENS:Record<string,readonly number[][]>={
+  cad:[[.10,.09,.80,.35]],
+  oscilloscope:[[.18,.36,.58,.14]],"signal-wall":[[.07,.11,.86,.75]],
+  dataset:[[.15,.09,.10,.21],[.34,.10,.12,.23],[.68,.10,.13,.23]],
+  strategy:[[.15,.17,.24,.20],[.60,.17,.24,.20]],
+  simulation:[[.18,.14,.25,.23]],"hello-terminal":[[.20,.22,.37,.32]],
+};
+function drawEquipmentDisplay(ctx:CanvasRenderingContext2D,key:string,x:number,y:number,w:number,h:number,progress:number){
+  const screens=SCREENS[key];
+  if(!screens||progress<0)return;
+  const step=Math.floor(progress*48),p=painter(ctx);
+  ctx.save();
+  for(const [u,v,a,b] of screens){
+    const left=x+u*w,top=y+v*h,sw=a*w,sh=b*h;
+    ctx.save();ctx.beginPath();ctx.rect(left,top,sw,sh);ctx.clip();
+    if(key==="oscilloscope"||key==="signal-wall"){
+      // Moving waveform on the existing display, retaining its original art.
+      ctx.globalAlpha=.67;
+      const count=Math.min(32,Math.floor(sw/2)),scan=(progress*3)%1;
+      for(let i=0;i<count;i++){
+        const phase=i/count,age=(scan-phase+1)%1;
+        ctx.globalAlpha=.14+.6*(1-age);
+        const yy=top+sh*(.5+.22*Math.sin(i*.72+Math.floor(progress*3)*.8));
+        p(left+i*sw/count,yy,Math.max(1,sw/count),1,"#a8e9d7");
+      }
+      ctx.globalAlpha=.48;p(left+scan*sw,top,1,sh,"#9cd5c9");
+    }else if(key==="dataset"){
+      // Acquire, track, then lose the target before the next capture.
+      const scan=progress<.18||progress>.82;
+      ctx.globalAlpha=.48;
+      if(scan)p(left+sw*((progress*4)%1),top,1,sh,"#9bcbd3");
+      else{
+        const bx=left+sw*(.13+.12*Math.sin(step*.21+u*9)),by=top+sh*.23,bw=sw*.52,bh=sh*.51;
+        p(bx,by,bw,1,"#8ce3cd");p(bx,by+bh,bw,1,"#8ce3cd");
+        p(bx,by,1,bh,"#8ce3cd");p(bx+bw,by,1,bh,"#8ce3cd");
+      }
+    }else if(key==="simulation"){
+      ctx.globalAlpha=.65;
+      // A small simulated path follows its own fixed map, then clears.
+      const points=[[.17,.75],[.37,.75],[.37,.35],[.70,.35],[.70,.18]];
+      for(let i=1;i<points.length;i++){
+        const [ax,ay]=points[i-1],[bx,by]=points[i],u=Math.min(1,Math.max(0,progress*4-i+1));
+        if(u<=0)continue;
+        line(p,left+ax*sw,top+ay*sh,left+(ax+(bx-ax)*u)*sw,top+(ay+(by-ay)*u)*sh,"#a8d4ca",.5);
+        if(u<1)p(left+(ax+(bx-ax)*u)*sw-.5,top+(ay+(by-ay)*u)*sh-.5,1.5,1.5,"#ead4a4");
+      }
+    }else if(key==="hello-terminal"){
+      ctx.globalAlpha=.62;
+      const rows=Math.min(4,Math.floor(progress*6));
+      for(let i=0;i<rows;i++)p(left+sw*.10,top+sh*(.15+i*.18),sw*(.25+(i%3)*.18),1,"#9ed4a0");
+      if(step%4<2)p(left+sw*.13,top+sh*(.15+rows*.18),2,1,"#b7e3b2");
+    }else{
+      ctx.globalAlpha=.35;
+      const row=(step+Math.round(u*19))%5;
+      p(left+sw*.15,top+sh*(.16+row*.14),sw*.55,1,"#a4d9f4");
+      p(left+sw*.15,top+sh*.84,sw*(.25+row*.10),1,"#80b5d7");
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
 export function roomObjectVisualBounds(object:RoomObject):Position {
   const b=sprite(object).bounds;
   return {x:(b.x+b.w/2)/TILE,y:b.y/TILE};
 }
-export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt?:number){
+export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt:number|undefined,w:number,h:number,hour=12){
   const prepared=sprite(o),b=prepared.bounds;
   const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
-  const phase = motion ? Math.floor(elapsed / 650 + o.x) % prepared.frames.length : 0;
+  // Cull sprite work before the animation and screen drawing.
+  if(x+b.w+prepared.marginX<0||y+b.h+prepared.marginY<0||x-prepared.marginX>w||y-prepared.marginY>h)return;
+  const key=roomSpriteKey(o),progress=motion?equipmentProgress(key,elapsed,triggeredAt,hour):-1;
+  const phase = motion ? Math.floor(elapsed / (520+(Math.round(o.x*17+o.y*23)%240)) + o.x+o.y*.7) % prepared.frames.length : 0;
   const age=triggeredAt===undefined ? Infinity : elapsed-triggeredAt;
   const active=age>=0&&age<1500;
   const action=o.community?.interaction;
   const laugh=action==="laugh" || action==="poster-laugh";
-  const frame=active&&laugh&&motion?Math.min(prepared.frames.length-1,1+Math.floor(age/80)%Math.max(1,prepared.frames.length-1)):laugh?0:phase;
-  ctx.drawImage(prepared.frames[frame],x,y,b.w,b.h);
+  const frame=key==="machine"||key==="test-robot"?equipmentPose(key,progress):
+    active&&laugh&&motion?Math.min(prepared.frames.length-1,1+Math.floor(age/80)%Math.max(1,prepared.frames.length-1)):laugh?0:phase;
+  ctx.drawImage(prepared.frames[frame],x-prepared.marginX,y-prepared.marginY,b.w+2*prepared.marginX,b.h+2*prepared.marginY);
   if(active){
     const t=age/1500;
     ctx.save();
@@ -300,20 +437,21 @@ export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,c
     }
   }
   if (!motion) return;
-  const points=LIGHT_POINTS[spriteKey(o)];
+  drawEquipmentDisplay(ctx,key,x,y,b.w,b.h,progress);
+  const points=LIGHT_POINTS[key];
   if(!points)return;
   const p=painter(ctx),t=elapsed/1000;
   ctx.save();
   for(let i=0;i<points.length;i++){
     const [u,v,r]=points[i],xx=x+b.w*u,yy=y+b.h*v;
-    ctx.globalAlpha=.12+.26*Math.pow((Math.sin(t*1.3+i*2.3+o.x*.41)+1)/2,3);
+    ctx.globalAlpha=progress<0?.10:.15+.26*Math.pow((Math.sin(t*1.3+i*2.3+o.x*.41)+1)/2,3);
     p(xx-r/2,yy-r/2,r,r,"#d4f4fa");
   }
   ctx.restore();
 }
 // Windows show the same outside conditions as the campus without indoor precipitation.
 export function drawRoomWindows(ctx: CanvasRenderingContext2D, camera: Position, elapsed: number,
-  motion: boolean, climate: { weather: WeatherKind | null; night: number } | null) {
+  motion: boolean, climate: { weather: WeatherKind | null; night: number; temperature?:number|null } | null) {
   if (!climate) return;
   const p = painter(ctx), weather = climate.weather;
   ctx.save();
@@ -327,6 +465,11 @@ export function drawRoomWindows(ctx: CanvasRenderingContext2D, camera: Position,
       ctx.globalAlpha = Math.min(.65, climate.night * 1.3);
       p(left, top, w, 12, "#172b43");
     }
+    if((climate.temperature??0)<=-5){
+      ctx.globalAlpha=Math.min(.52,(-(climate.temperature??0)-4)*.045);
+      p(left,top,2,4,"#dae8e6");p(left+2,top,3,1,"#dae8e6");
+      if((i+j+x)%3===0)p(left+w-2,top+10,2,2,"#dce9e7");
+    }
     if (motion && (weather === "rain" || weather === "storm" || weather === "snow")) {
       const snow = weather === "snow", phase = (elapsed / (snow ? 230 : 85) + x + i * .9 + j * 1.7) % 10;
       ctx.globalAlpha = .38;
@@ -336,7 +479,7 @@ export function drawRoomWindows(ctx: CanvasRenderingContext2D, camera: Position,
   ctx.restore();
 }
 
-export type RoomClimate={weather:WeatherKind|null;night:number;sunX:number;sunY:number;sunHeight:number};
+export type RoomClimate={weather:WeatherKind|null;night:number;sunX:number;sunY:number;sunHeight:number;temperature?:number|null;hour?:number;minute?:number};
 export function drawRoomLight(ctx:CanvasRenderingContext2D,room:RoomScene,camera:Position,elapsed:number,
   climate:RoomClimate|null,motion:boolean) {
   const p=painter(ctx),t=motion?elapsed/1000:0;
@@ -355,13 +498,16 @@ export function drawRoomLight(ctx:CanvasRenderingContext2D,room:RoomScene,camera
   ctx.restore();
   ctx.save();
   for (const x of [132, 446]) {
-    ctx.globalAlpha=.14+(Math.sin(t*1.7+x)+1)*.07;
+    ctx.globalAlpha=.18+Math.min(.20,(climate?.night??0)*.5);
     p(x - 1 - camera.x, 38 - camera.y, 2, 5, "#fff1bf");
   }
-  if(motion)for (let i = 0; i < 5; i++) {
-    const a = (t * (.045 + i * .008) + i * .19) % 1;
-    ctx.globalAlpha = .16 * Math.sin(a * Math.PI);
-    p((4.6 + i * 6.3 + Math.sin(t * .28 + i) * .32) * TILE - camera.x, (17.4 - a * 8) * TILE - camera.y, 1, .5, room.theme.window);
+  if(motion&&strength>.08&&climate&&(room.id==="honors"||room.id==="guild")){
+    const length=Math.min(96,36/Math.max(.22,climate.sunHeight)),drift=-climate.sunX*length*.65;
+    for(let i=0;i<4;i++){
+      const a=(t*(.04+i*.008)+i*.23)%1;
+      ctx.globalAlpha=.18*Math.sin(a*Math.PI);
+      p(WINDOW_X[i]+16+drift*a+Math.sin(t*.3+i)*3-camera.x,80+a*length-camera.y,1,.5,"#f4e6c9");
+    }
   }
   ctx.restore();
 }

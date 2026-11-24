@@ -5,50 +5,30 @@ export function CommunityEditorDialog({ labelledBy, onClose, children }: {
   onClose: () => void;
   children: ReactNode;
 }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    window.requestAnimationFrame(() => {
-      const initialFocus = dialogRef.current?.querySelector<HTMLElement>("input:not([disabled]), textarea:not([disabled])")
-        ?? dialogRef.current?.querySelector<HTMLElement>("button:not([disabled])");
-      initialFocus?.focus();
-    });
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key === "Tab") {
-        const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
-        if (items.length === 0) return;
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
+    dialog.showModal();
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
+      dialog.close();
       document.body.style.overflow = previousOverflow;
-      previousFocus?.focus();
+      previousFocus?.focus({ preventScroll: true });
     };
-  }, [onClose]);
+  }, []);
 
-  return <div className="community-editor-dialog" onMouseDown={(event) => {
+  return <dialog ref={dialogRef} className="community-editor-dialog" aria-labelledby={labelledBy} onCancel={(event) => {
+    event.preventDefault();
+    onClose();
+  }} onMouseDown={(event) => {
     if (event.target === event.currentTarget) onClose();
   }}>
-    <div ref={dialogRef} className="community-editor-dialog__panel" role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
+    <div className="community-editor-dialog__panel">
       {children}
     </div>
-  </div>;
+  </dialog>;
 }
