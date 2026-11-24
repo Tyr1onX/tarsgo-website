@@ -1,3 +1,4 @@
+import { ArenaClock, SIM_STEP_MS, PATH_CHECKS_PER_STEP } from "./rmuc-3d-clock";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
@@ -25,6 +26,7 @@ export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
   start: () => void;
+  configureSeed: (value:number)=>boolean;
   buy: () => void;
   heal: () => void;
   revive: (paid:boolean) => void;
@@ -113,9 +115,9 @@ export function mountArena(
   let dartVisual:ReturnType<typeof createDartVisual>|null=null;
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
-  let matchTime: number | null = null;
+  const simClock=new ArenaClock();
+  let seed=crypto.getRandomValues(new Uint32Array(1))[0];
   let viewportHeight=1;
-  let motionDebt=0;
   let nextBotTurn = 0;
   let botCursor = 0;
   const shotRay = new THREE.Raycaster();
@@ -151,6 +153,7 @@ export function mountArena(
   let lastStatus = "";
   const keys = new Set<string>();
   const triggers = new Set<string>();
+  let shotRequested=false;
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
   const abort = new AbortController();
 
@@ -220,64 +223,62 @@ export function mountArena(
     updateVisibility();
   }
 
-  function render(time: number) {
-    frame = 0;
-    if (disposed) return;
-    const elapsed = matchTime===null||document.hidden?0:Math.max(0,(time-matchTime)/1000);
-    matchTime=time;
-    if(match&&mechanism&&match.phase==="running"){
-      // Advance all chassis at the same time resolution; strategic choices stay staggered.
-      // Keep the same clock for every subsystem. A delayed render may
-      // catch up over subsequent frames, not teleport through a whole second.
-      if(!document.hidden)motionDebt+=elapsed;
-      const budget=document.hidden?0:Math.min(motionDebt,.075),end=Math.min(420,match.elapsed+budget);
-      motionDebt=Math.max(0,motionDebt-budget);
-      const before=match.elapsed,oldRune=match.pose.runeAngle,oldOutpost={...match.pose.outpostAngle};
-      let synced=false;
-      while(match.elapsed<end&&match.phase==="running"){
-        const dt=Math.min(end-match.elapsed,.025);
-        advanceMotion(dt);
-        updateMatch(match,dt,positions);
-        if(projectiles.activeCount){
-          syncMechanisms();synced=true;
-          projectiles.advance(match,dt,shotRoots());
-        }else {
-          // Advance pooled impact flashes on the same simulation clock.
-          projectiles.advance(match,dt,[]);
-          synced=false;
-        }
-      }
-      if(!synced)syncMechanisms();
-      for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
-        if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
-        const d=match.sides[team].dart,status=dartStatus(match,team);
-        if(status.canOpen){selectDart(match,team,d.used===0&&match.sides[team==="red"?"blue":"red"].outpost>0?"outpost":"randomMoving");openDart(match,team);}
-        if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,"randomFixed");
-        if(status.canFire&&d.shots<d.used*2)launchDart(match,team);
-      }
-      if(match.phase==="running" && match.elapsed>=nextBotTurn){
-        nextBotTurn=match.elapsed+.12;
-        decisionShotIndex=undefined;updateBots();decisionShotIndex=undefined;
-      }
-      const searchBudget=performance.now()+4;
+  function simulate(tick:number){
+    if(!match||!mechanism||match.phase!=="running")return false;
+    const before=match.elapsed,oldRune=match.pose.runeAngle,oldOutpost={...match.pose.outpostAngle};
+    const dt=tick*SIM_STEP_MS/1000-before;
+    if(driving&&isPlaying(mode)&&!paused){
+      const h=Number(keys.has("ArrowRight"))-Number(keys.has("ArrowLeft")),v=Number(keys.has("ArrowDown"))-Number(keys.has("ArrowUp"));
+      if(h||v)look=turnView(look,h*dt*520,v*dt*520);
+    }
+    advanceMotion(dt);
+    updateMatch(match,dt,positions);
+    syncMechanisms();
+    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[]);
+    if(match.phase!=="running"){shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
+    for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
+      if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
+      const d=match.sides[team].dart,status=dartStatus(match,team);
+      if(status.canOpen){selectDart(match,team,d.used===0&&match.sides[team==="red"?"blue":"red"].outpost>0?"outpost":"randomMoving");openDart(match,team);}
+      if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,"randomFixed");
+      if(status.canFire&&d.shots<d.used*2)launchDart(match,team);
+    }
+    if(tick*SIM_STEP_MS>=nextBotTurn){
+      nextBotTurn+=120;
+      decisionShotIndex=undefined;updateBots();decisionShotIndex=undefined;
+    }
+    // Deterministic round-robin work across pending searches. Each yield
+    // is one actual CAD footprint check, never a wall-clock cutoff.
+    for(let remaining=PATH_CHECKS_PER_STEP;remaining>0;){
+      let worked=false;
       for(const [bot,route] of botPaths){
         if(bot===manualRobot()||!canDriveRobot(match,match.robots.find(r=>r.id===bot.object.name)!)){botPaths.delete(bot);continue;}
         if(!route.search)continue;
-        do{
-          const step=route.search.next();
-          if(step.done){route.points=step.value;route.search=undefined;break;}
-        }while(performance.now()<searchBudget);
-        if(performance.now()>=searchBudget)break;
+        worked=true;remaining--;
+        const step=route.search.next();
+        if(step.done){route.points=step.value;route.search=undefined;}
+        if(!remaining)break;
       }
-      if(match.phase==="running"){
-        const dt=match.elapsed-before;
-        advanceAiming(dt,dt>0?{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt}:undefined);
-      }
-      else {shotIntents.clear();motions.clear();motionDebt=0;projectiles.clear();}
-      if(match.phase!=="running"||activeRobot()?.hp===0)triggers.clear();
-      if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
-      if(triggers.size&&match.elapsed>before)fire();
-      updateVisibility();
+      if(!worked)break;
+    }
+    advanceAiming(dt,{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt});
+    if(activeRobot()?.hp===0)triggers.clear();
+    if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
+    if(triggers.size||shotRequested)fire();
+    shotRequested=false;
+    // Renderer-independent collision transforms, including the gimbal's
+    // siblings whose world matrices aimWeapon does not traverse.
+    for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
+    updateVisibility();
+    return true;
+  }
+
+  function render(time: number) {
+    frame = 0;
+    if (disposed) return;
+    if(match?.phase==="running"){
+      if(document.hidden)simClock.pause();
+      else{simClock.deposit(time);simClock.run(simulate);}
       invalidate();
     }
     if (ready && terrain && isPlaying(mode)) {
@@ -286,7 +287,7 @@ export function mountArena(
       const r = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
       const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
-      if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
+      if ((!driving||match?.phase!=="running")&&(horizontal || vertical)) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
       if(!driving&&(f||r)){
         const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.hypot(f,r);
         moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
@@ -304,7 +305,7 @@ export function mountArena(
     if(match)dartVisual?.update(match);
     projectiles.visual(camera,viewportHeight,isPlaying(mode));
     renderer.render(scene, camera);
-    if(match?.phase!=="running"&&!keys.size) matchTime=null;
+
   }
 
   function setView(next: ArenaView) {
@@ -337,7 +338,7 @@ export function mountArena(
 
   function start() {
     if(!match||match.phase!=="ready")return;
-    matchTime=null;motionDebt=0;
+    simClock.reset();
     startMatch(match);
     publish();invalidate();
   }
@@ -352,10 +353,11 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
+    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     damageFlashes.clear();match.onDamage=recordDamage;
-    nextBotTurn=0;botCursor=0;motionDebt=0;matchTime=null;botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
+    nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
+    for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
     projectiles.clear();dartVisual?.clear();
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
     mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyTechnology(match);updateVisibility();setView("first");publish();invalidate();
@@ -390,15 +392,13 @@ export function mountArena(
   function trigger(source:string,pressed:boolean){
     if(!pressed){triggers.delete(source);return;}
     if(!ready||paused||document.hidden||!isPlaying(mode)||!manualRobot()||match?.phase!=="running"||!activeRobot()?.hp||triggers.has(source))return;
-    const first=!triggers.size;
+    if(!triggers.size)shotRequested=true;
     triggers.add(source);
-    if(first)fire();
     invalidate();
   }
   function fire() {
     const robot=activeRobot();
     if(!ready||paused||document.hidden||!isPlaying(mode)||!driving||!manualRobot()||!match||!map||!robot||!canFire(match,robot))return;
-    syncCamera();
     const shot = aimWeapon(driving.object,driving.object.rotation.y+(driving.object.getObjectByName("gimbal")?.rotation.y??0),driving.object.getObjectByName("weapon-pitch")?.rotation.x??0);
     if (shot) shoot(driving,shot.origin,shot.direction);
   }
@@ -790,7 +790,7 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyM") setView(mode === "all" ? "first" : "all");
   }
   function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);else input(event.code, false); }
-  function clearInput() { triggers.clear();keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
+  function clearInput() { shotRequested=false;triggers.clear();keys.clear(); lastTime = null; if(driving)motions.delete(driving); if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
   function turn(dx: number, dy: number) {
     if (!ready || paused || !isPlaying(mode)) return;
     look = turnView(look, dx, dy);
@@ -832,7 +832,7 @@ export function mountArena(
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
   }
-  function visibilityChange(){matchTime=null;clearInput();invalidate();}
+  function visibilityChange(){simClock.pause();clearInput();invalidate();}
   function lockchange() { if (document.pointerLockElement !== canvas) clearInput(); }
 
   controls.addEventListener("change", invalidate);
@@ -931,7 +931,7 @@ export function mountArena(
       for(const overlay of overlays)aliasArmorFrames(overlay,plates);
       armorCenters.set(robot,list);
     }
-    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
+    match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     damageFlashes.clear();match.onDamage=recordDamage;
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
@@ -950,6 +950,7 @@ export function mountArena(
   });
 
   return {
+    configureSeed(value){if(!match||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;reset();return true;},
     view: setView, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset,performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
