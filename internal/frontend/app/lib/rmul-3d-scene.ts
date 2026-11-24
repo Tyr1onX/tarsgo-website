@@ -6,7 +6,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { MECHANISM_ASSET, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, robotLevel, reserveAmmo, type Match } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, activateRune, runeStatus, runeLights, robotLevel, reserveAmmo, driveSpeed, chassisStatus, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, resolveArenaShot } from "./rmuc-3d-shot";
 import { SHOT_STYLE, SHOT_LIFE } from "./pixel-jijia-shot-style";
 import { addRobotPreviews, aimWeapon, aimWeaponAt } from "./rmuc-3d-robots";
@@ -16,7 +16,7 @@ import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
 type SideStatus = { base:number; outpost:number; outpostOwner:Team; alive:number; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus>; cover:boolean };
-export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null } };
+export type ArenaStatus = { view: ArenaView; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: boolean; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
@@ -121,9 +121,10 @@ export function mountArena(
     };
     const offer=match&&vehicle?ammoOffer(match,vehicle):null;
     const rune=match&&vehicle?runeStatus(match,vehicle.team):null;
+    const power=match&&vehicle?chassisStatus(match,vehicle):null;
     const status: ArenaStatus = { view: mode, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
-        coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
+        coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!vehicle&&canPurchaseAmmo(match,vehicle),canFire:!!vehicle&&canFire(match,vehicle),
         heat:Math.ceil(vehicle?.heat??0),heatLimit:vehicle?.heatLimit??0,thermalLock:vehicle?.thermalLock??false,
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
@@ -187,10 +188,12 @@ export function mountArena(
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
       if (horizontal || vertical) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
       const { yaw } = look;
-      if ((f || r)&&activeRobot()?.hp!==0) {
+      const vehicle=activeRobot();
+      const boost=keys.has("ShiftLeft")||keys.has("ShiftRight");
+      const speed=match&&vehicle?driveSpeed(match,vehicle,f||r?boost?2:1:0):boost?3.6:2.2;
+      if ((f || r)&&vehicle?.hp!==0&&speed>0) {
         const target = driving?.position ?? explorer;
         const radius = driving?.radius ?? PLAYER_RADIUS;
-        const speed = driving ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 3.6 : 2.2;
         const norm = Math.hypot(f, r);
         const dx = (-Math.sin(yaw) * f + Math.cos(yaw) * r) * speed * dt / norm;
         const dz = (-Math.cos(yaw) * f - Math.sin(yaw) * r) * speed * dt / norm;
@@ -223,6 +226,7 @@ export function mountArena(
     if (!ready) return;
     keys.clear();
     lastTime = null;
+    if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);
     const previous = mode;
     mode = next;
     if (isPlaying(next)) {
@@ -298,6 +302,7 @@ export function mountArena(
     for(const bot of active){
       const state=match.robots.find(m=>m.id===bot.object.name)!;
       if(state.team===player.team)continue;
+      driveSpeed(match,state,0);
       const delta=target.clone().sub(bot.position);
       const distance=Math.hypot(delta.x,delta.z);
       const yaw=Math.atan2(-delta.x,-delta.z);
@@ -311,7 +316,8 @@ export function mountArena(
         if(!state.ammo)purchaseAmmo(match,state.id);
         shoot(bot,from,aim);
       }else if(distance>2){
-        const step=Math.min(.28,distance-2);
+        const speed=driveSpeed(match,state,1);
+        const step=Math.min(.28*speed/2.6,distance-2);
         moveOnArena(terrain,bot.position,delta.x/distance*step,delta.z/distance*step,bot.radius,.23,active.filter(r=>r!==bot));
         bot.object.rotation.y=yaw;
         aimWeapon(bot.object,yaw,0);
@@ -336,6 +342,7 @@ export function mountArena(
     if (!ready || paused || !terrain || !isPlaying(mode)) return;
     if (driving) {
       const robot = driving;
+      if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);
       for (let i = 0; i < 12; i++) {
         const angle = look.yaw + i * Math.PI / 6;
         const distance = robot.radius + PLAYER_RADIUS + .16;
@@ -379,7 +386,7 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyM") setView(mode === "all" ? "first" : "all");
   }
   function keyup(event: KeyboardEvent) { input(event.code, false); }
-  function clearInput() { keys.clear(); lastTime = null; }
+  function clearInput() { keys.clear(); lastTime = null; if(match&&activeRobot())driveSpeed(match,activeRobot()!,0); }
   function turn(dx: number, dy: number) {
     if (!ready || paused || !isPlaying(mode)) return;
     look = turnView(look, dx, dy);
