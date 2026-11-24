@@ -18,18 +18,20 @@ function materialStyle(mesh,blue){
   const red=color.r>color.g*1.8&&color.r>color.b*1.6;
   if(blue&&red)color.setRGB(.12,.28,.68);
   const neutral=(color.r+color.g+color.b)/3;
-  color.lerp(new THREE.Color(neutral,neutral,neutral),.24).multiplyScalar(.83);
+  color.lerp(new THREE.Color(neutral,neutral,neutral),.24).multiplyScalar(.98).addScalar(.028);
   return new THREE.MeshStandardMaterial({color,roughness:.94,metalness:0,side:THREE.DoubleSide});
  };
  mesh.material=Array.isArray(mesh.material)?mesh.material.map(transform):transform(mesh.material);
 }
-function makeSprite(source,names,maxSize,blue=false){
+function makeSprite(source,names,maxSize,blue=false,zUp=false){
  source.updateMatrixWorld(true);
  const group=new THREE.Group();
  for(const name of names){
   const node=source.getObjectByName(name);if(!node)throw Error("Missing CAD occurrence "+name);
   const item=node.clone(true);item.matrix.copy(node.matrixWorld);item.matrixAutoUpdate=false;group.add(item);
  }
+ // Full-map CAD is Z-up, unlike the standalone base mesh.
+ if(zUp)group.rotation.x=-Math.PI/2;
  group.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(group);
  if(bounds.isEmpty())throw Error("Empty CAD fixture");
  const center=bounds.getCenter(new THREE.Vector3());
@@ -38,13 +40,13 @@ function makeSprite(source,names,maxSize,blue=false){
  const normal=new THREE.Group();normal.add(group);group.position.sub(center);normal.scale.setScalar(scale);
  normal.traverse(m=>materialStyle(m,blue));normal.updateMatrixWorld(true);
  const scene=new THREE.Scene();scene.add(normal);
- scene.add(new THREE.HemisphereLight(0xfff5df,0x657269,1.35));
+ scene.add(new THREE.HemisphereLight(0xfff5df,0x87958e,1.85));
  const sun=new THREE.DirectionalLight(0xfff5db,2.15);sun.position.set(-3,6,4);scene.add(sun);
  const renderer=new THREE.WebGLRenderer({alpha:true,antialias:false,preserveDrawingBuffer:true});
  renderer.setClearColor(0,0);renderer.setPixelRatio(1);renderer.setSize(128,128);
  renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
  const camera=new THREE.OrthographicCamera(-.9,.9,.9,-.9,.01,10);
- camera.position.set(1.2,2.4,4.0);camera.lookAt(0,0,0);camera.updateProjectionMatrix();
+ camera.position.set(1.6,2.8,4.0);camera.lookAt(0,0,0);camera.updateProjectionMatrix();
  renderer.render(scene,camera);
  const c=document.createElement("canvas");c.width=c.height=128;const ctx=c.getContext("2d");
  ctx.drawImage(renderer.domElement,0,0);const pixels=ctx.getImageData(0,0,128,128).data;
@@ -70,8 +72,9 @@ window.generateFixtures=async()=>{
  return {
   "training-base-red":makeSprite(base,["source_4774244_0"],58),
   "training-base-blue":makeSprite(base,["source_4774244_0"],58,true),
-  "training-outpost":makeSprite(field,["centre-platform_0_source_1800898_10","centre-platform_0_source_2603236_11"],55),
-  "training-rune":makeSprite(field,["centre-platform_0_source_1354629_1"],58),
+  "training-outpost":makeSprite(field,["centre-platform_0_source_1800898_10","centre-platform_0_source_2603236_11"],55,false,true),
+  "training-rune":makeSprite(field,["centre-platform_0_source_1354629_1"],58,false,true),
+  "training-cover":makeSprite(field,["red-fortress_0_source_4059143_0"],46,false,true),
  };
 };
 </script>

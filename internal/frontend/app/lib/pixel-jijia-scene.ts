@@ -6,7 +6,7 @@ import { explorerFrameBox, EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT, type Exp
 import { nightLight, type Season, type ChangchunClimate, type WeatherKind, type SurfaceWeather } from "./pixel-jijia-climate.ts";
 import { drawAnimal, drawFishing, fishingReady, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
 
-import { drawCampusRobot, drawTrainingHealth, drawTrainingPulse, type CampusRobot, type TrainingSession } from "./pixel-jijia-robot.ts";
+import { drawCampusRobot, drawTrainingHealth, drawTrainingEffects, type CampusRobot, type TrainingSession } from "./pixel-jijia-robot.ts";
 
 export type SpriteBox = [number, number, number, number];
 export type SpriteIndex = Record<string, SpriteBox>;
@@ -15,7 +15,7 @@ const PROP_CELLS: Record<PropSprite, number> = {
   bench: 0, lamp: 1, sign: 2, planter: 3,
   oak: 4, lime_tree: 5, cherry: 6, rocks: 7,
   fence: 8, hydrangea: 9, statue: 10, arch: 11,
-  "training-base-red":12,"training-base-blue":13,"training-outpost":14,"training-rune":15,
+  "training-base-red":12,"training-base-blue":13,"training-outpost":14,"training-rune":15,"training-cover":16,
 };
 const PROP_CELL = 128;
 export const GROUND_PATCH=128,GROUND_TEXTURE_TILE=32,GROUND_ATLAS_HEIGHT=1376;
@@ -431,16 +431,27 @@ function drawTrainingGround(ctx:CanvasRenderingContext2D,camera:Position,w:numbe
   const f=TRAINING_FIELD,x=f.x*TILE-camera.x,y=f.y*TILE-camera.y,fw=f.width*TILE,fh=f.height*TILE;
   if(x>w||x+fw<0||y>h||y+fh<0)return;
   ctx.save();
-  ctx.fillStyle="rgba(65,73,76,.16)";ctx.fillRect(x,y,fw,fh);
-  ctx.strokeStyle="#b6ada0";ctx.lineWidth=1;ctx.strokeRect(x+3,y+3,fw-6,fh-6);
-  for(const [px,color] of [[x+5,"rgba(167,79,70,.26)"],[x+fw-85,"rgba(66,110,151,.26)"]] as const){
-    ctx.fillStyle=color;ctx.fillRect(px,y+5,80,fh-10);
-    ctx.strokeStyle=color.replace(".26","1");ctx.strokeRect(px+1,y+6,78,fh-12);
-    for(let i=0;i<3;i++)ctx.strokeRect(px+13+i*20,y+fh-29,15,15);
+  ctx.fillStyle="rgba(50,70,65,.18)";ctx.fillRect(x,y,fw,fh);
+  // The outer curb and open southern observation strip leave multiple entrances.
+  ctx.fillStyle="#596d64";ctx.fillRect(x,y,fw,4);ctx.fillRect(x,y,4,fh);ctx.fillRect(x+fw-4,y,4,fh);
+  ctx.fillStyle="#a5aa91";ctx.fillRect(x+4,y+4,fw-8,2);
+  ctx.fillStyle="rgba(46,62,59,.30)";ctx.fillRect(x+4,y+fh-17,fw-8,13);
+  for(const [px,color,edge] of [[x+5,"rgba(166,72,65,.34)","#b17761"],[x+fw-101,"rgba(53,101,157,.36)","#7698ba"]] as const){
+    ctx.fillStyle=color;ctx.fillRect(px,y+6,96,fh-25);
+    ctx.strokeStyle=edge;ctx.lineWidth=2;ctx.strokeRect(px+1,y+7,94,fh-27);
+    for(let i=0;i<3;i++){
+      ctx.strokeRect(px+12+i*25,y+fh-48,21,24);
+      ctx.fillStyle=edge;ctx.fillRect(px+14+i*25,y+fh-46,3,3);
+    }
+    ctx.fillStyle="#e5dcc6";ctx.font="bold 10px sans-serif";ctx.textAlign="center";
+    ctx.fillText(px===x+5?"RED":"BLUE",px+48,y+fh-54);
   }
-  ctx.strokeStyle="rgba(235,227,197,.6)";ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(x+fw/2,y+5);ctx.lineTo(x+fw/2,y+fh-5);ctx.stroke();ctx.setLineDash([]);
-  ctx.beginPath();ctx.ellipse(x+fw/2,y+fh*.72,19,11,0,0,Math.PI*2);ctx.stroke();
-  ctx.fillStyle="#c5bda4";ctx.font="bold 8px sans-serif";ctx.textAlign="center";ctx.fillText("RM · TRAINING",x+fw/2,y+fh-7);
+  ctx.strokeStyle="rgba(235,227,197,.64)";ctx.lineWidth=1;
+  ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(x+fw/2,y+7);ctx.lineTo(x+fw/2,y+fh-19);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();ctx.ellipse(x+fw/2,y+fh*.65,29,17,0,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="#d9d0b3";ctx.font="bold 8px sans-serif";ctx.textAlign="center";
+  ctx.fillText("RM · TRAINING",x+fw/2,y+fh-22);
+  for(let i=10;i<fw-10;i+=24){ctx.fillRect(x+i,y+fh-10,10,2);}
   ctx.restore();
 }
 
@@ -790,7 +801,13 @@ export function renderScene(
   const drawLand=(a:Animal|CampusRobot)=>{
     if("species" in a)drawAnimal(ctx,a,screenCamera,motion);
     else if(robotAtlas){
+      ctx.save();
+      const hp=training?(a===robot?training.hp:training.opponentHp):100;
+      const flash=training?(a===robot?training.hitFlash:training.opponentFlash):0;
+      if(hp===0)ctx.globalAlpha=.55;
+      else if(flash>0&&motion)ctx.globalAlpha=.55+.45*Math.min(1,flash/.18);
       drawCampusRobot(ctx,a,robotAtlas,screenCamera,w,h,motion,robotControlled&&a===robot);
+      ctx.restore();
       if(training)drawTrainingHealth(ctx,a,a===robot?training.hp:training.opponentHp,screenCamera,a!==robot);
     }
   };
@@ -822,7 +839,7 @@ export function renderScene(
   }
   while(index<land.length){const a=land[index++];if(!playerDrawn&&depth(a)>seatDepth){drawPlayer();playerDrawn=true;}drawLand(a);}
   if (!playerDrawn) drawPlayer();
-  if(training)drawTrainingPulse(ctx,training,screenCamera,motion);
+  if(training)drawTrainingEffects(ctx,training,screenCamera,motion);
   if(climate)drawAtmosphere(ctx,climate,w,h);
   if(cast)drawFishing(ctx,player,cast,screenCamera,time,motion,fishingReady(animals,cast,time));
 }

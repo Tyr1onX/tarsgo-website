@@ -13,7 +13,7 @@ import struct
 import zlib
 
 ROOT=Path(__file__).resolve().parents[1]
-W,H=64,56
+W,H=128,112
 INK=(26,33,33)
 METAL=(101,111,110)
 LIGHT=(177,184,174)
@@ -39,63 +39,74 @@ def cylinder(faces,x,y,z,r,d,axis,color,phase=0,roller=False):
     rings=[[vertex(i*math.tau/count,end) for i in range(count)] for end in (-1,1)]
     for i in range(count):
         j=(i+1)%count;shade=.72+.30*max(0,math.sin((i+.5)*math.tau/count))
-        if roller:shade+=.50 if (i+phase)%3==0 else 0
+        if roller:shade+=.42 if (i+phase)%4==0 else 0
         faces.append(([rings[0][i],rings[0][j],rings[1][j],rings[1][i]],color,shade))
     for end in (0,1):
         faces.append((rings[end],color,.82 if end else .95))
 
 def chassis(frame):
     f=[]
-    # Each visible side has the large roller profile and two sloped armor panels.
-    # Back-side symmetry and transverse arrangement are provisional.
+    # Relative visual measurements from the single side elevation:
+    # approximately 40 wide, 10.5 high chassis, 24 high overall.
+    # Hidden depth and symmetric far-side wheels are provisional.
     for side in (-1,1):
-        cylinder(f,0,side*9.8,5.7,6.0,3.3,"y",TYRE,frame,True)
-        cylinder(f,0,side*11.6,5.7,3.6,.8,"y",RIM)
-        cylinder(f,0,side*12.1,5.7,1.7,.5,"y",DARK)
+        cylinder(f,0,side*9.5,5.0,5.2,3.4,"y",TYRE,frame,True)
+        cylinder(f,0,side*11.3,5.0,3.65,.7,"y",RIM)
+        cylinder(f,0,side*11.8,5.0,2.65,.5,"y",DARK)
+        cylinder(f,0,side*12.1,5.0,1.35,.5,"y",LIGHT)
+    for end in (-1,1):
+        for side in (-1,1):
+            # Twin narrow rollers remain distinct at either end.
+            for offset in (-1.25,1.25):
+                cylinder(f,end*(17.4+offset),side*7.8,4.6,4.3,1.1,"x",TYRE,frame,True)
+                cylinder(f,end*(17.9+offset),side*7.8,4.6,2.0,.5,"x",RIM)
+        box(f,end*15.2,0,2.6,9.4,18,1.5,METAL)
+        box(f,end*13,0,4.1,5.2,14,4.8,DARK)
+    # Open low frame, with the central hub not hidden by a full-height block.
+    box(f,0,0,3.1,30,13,1.4,DARK)
+    box(f,0,0,8.0,25,12,1.6,DARK)
+    box(f,0,0,9.6,25,12,.9,METAL)
     for side in (-1,1):
-        for end in (-1,1):
-            # The end silhouette is a pair of narrow roller strips, not a track.
-            for offset in (-1.3,1.3):
-                cylinder(f,side*17.1,end*5.8+offset,4.2,4.0,1.9,"x",TYRE,frame,True)
-                cylinder(f,side*18.3,end*5.8+offset,4.2,2.1,.5,"x",RIM)
-        box(f,side*14,0,4.2,9,18,2.3,METAL)
-    box(f,0,0,4.4,29,16,3,DARK)
-    box(f,0,0,7.4,27,16,4.6,METAL)
-    box(f,0,0,12,28,15,1.4,LIGHT)
-    for side in (-1,1):
-        for x in (-10.1,10.1):
-            # Angled plates retain the visible sloping top/bottom profile.
-            # Panel front and recessed inset use the same plane.
+        box(f,0,side*9.1,3.0,39,1.3,1.2,METAL)
+        for x in (-10,10):
             def panel(w,h,c,depth):
-                y=side*(9.1+depth)
-                v=[(x-w/2,y,4.7),(x+w/2,y,4.7),(x+w/2-1,side*(7.9+depth),4.7+h),(x-w/2-1,side*(7.9+depth),4.7+h)]
+                z=2.1+(8.4-h)/2
+                y=side*(10.45+depth)
+                shift=(1.5 if x<0 else -1.5)*h/8.4
+                v=[(x-w/2,y,z),(x+w/2,y,z),
+                   (x+w/2+shift,side*(9.0+depth),z+h),
+                   (x-w/2+shift,side*(9.0+depth),z+h)]
                 f.append((v,c,1.0 if side==1 else .87))
-            panel(9.2,9.4,LIGHT,.75)
-            panel(7.7,8.1,PANEL,.90)
-            panel(5.2,5.9,METAL,1.05)
-            panel(4.0,4.7,DARK,1.20)
-    # Long raised rectangular rail prominent below the head in the drawing.
-    box(f,0,0,13.4,23,7,3.5,METAL)
-    box(f,0,-.3,16.9,22,6,1,LIGHT)
-    for x in (-10.8,10.8):box(f,x,0,13.2,1.4,7.5,4.7,LIGHT)
-    cylinder(f,0,0,17.8,3.2,1.5,"z",DARK)
+            panel(8.5,8.4,LIGHT,.55)
+            panel(7.3,7.1,METAL,.78)
+            panel(5.0,4.7,DARK,.98)
+            panel(4.1,3.8,PANEL,1.18)
+    # The elevated horizontal rail and its end caps are a separate silhouette.
+    box(f,0,0,10.5,6.5,5,1.8,DARK)
+    box(f,0,0,12.3,17.5,7,2.8,METAL)
+    box(f,0,0,15.1,17.5,6.6,.7,LIGHT)
+    for x in (-8.9,8.9):box(f,x,0,12.1,1.3,7.3,3.9,LIGHT)
+    for side in (-1,1):box(f,0,side*3.6,13,14.5,.7,1.5,PANEL)
+    cylinder(f,0,0,15.8,3.0,1.1,"z",DARK)
     return f
 
 def head():
     f=[]
-    # Elevated upright head and horizontal box; visual only.
-    box(f,0,0,17.9,4.8,4.8,7.8,METAL)
-    cylinder(f,0,0,22.8,3.3,5.5,"x",DARK)
-    cylinder(f,0,0,22.8,2.3,6.1,"x",LIGHT)
-    box(f,0,-3.8,24.0,6.5,13,4.8,PANEL)
-    box(f,0,-3.8,28.8,6.4,12,1,LIGHT)
-    box(f,0,5.0,24.6,2.8,5.3,1.8,METAL)
-    box(f,0,-9.5,24.3,6.3,1.5,4.3,DARK)
+    # Long offset horizontal upper housing on an upright joint. The shape
+    # is a visual interpretation only; the unseen thickness is provisional.
+    box(f,0,2.1,16.7,4.5,8.5,1.2,METAL)
+    box(f,0,4.5,17.6,3.5,4.2,5.6,METAL)
+    cylinder(f,0,4.5,21.5,2.4,5.0,"x",LIGHT)
+    cylinder(f,0,4.5,21.5,1.1,5.3,"x",DARK)
+    box(f,0,-1.7,21.0,5.2,15.2,3.0,PANEL)
+    box(f,0,-1.7,24.0,5.2,15.2,.7,LIGHT)
+    box(f,0,-9.5,21.2,5.4,1.0,2.8,METAL)
+    box(f,0,8.5,22.1,2.1,5.5,.9,METAL)
     return f
 
 def project(p,theta):
     x,y,z=p;rx=x*math.cos(theta)-y*math.sin(theta);ry=x*math.sin(theta)+y*math.cos(theta)
-    return (W/2+rx,39+ry*.58-z,ry+z*.58)
+    return (W/2+rx*2,78+ry*1.16-z*2,ry+z*.58)
 
 def paint(faces,angle):
     colors=[[CLEAR]*W for _ in range(H)]
@@ -126,11 +137,11 @@ def chunk(k,d):
 def main():
     # Columns: down, down-left, left, up-left, up, up-right, right, down-right.
     rows=[]
-    for faces in (chassis(0),chassis(1),head()):
+    for faces in (*(chassis(i) for i in range(4)),head()):
         cells=[paint(faces,i*math.pi/4) for i in range(8)]
         rows.extend([sum((c[y] for c in cells),[]) for y in range(H)])
     raw=b"".join(b"\0"+bytes(v for p in r for v in p) for r in rows)
-    data=b"\x89PNG\r\n\x1a\n"+chunk(b"IHDR",struct.pack(">IIBBBBB",W*8,H*3,8,6,0,0,0))+chunk(b"IDAT",zlib.compress(raw,9))+chunk(b"IEND",b"")
+    data=b"\x89PNG\r\n\x1a\n"+chunk(b"IHDR",struct.pack(">IIBBBBB",W*8,H*5,8,6,0,0,0))+chunk(b"IDAT",zlib.compress(raw,9))+chunk(b"IEND",b"")
     dst=ROOT/"public/assets/pixel-jijia/robot-guodong-study.png"
     dst.write_bytes(data)
     print(dst.name,len(data))

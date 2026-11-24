@@ -26,7 +26,7 @@ import roomSprites from "../assets/pixel-jijia/room-props-v3.json";
 import communityPropsUrl from "../assets/pixel-jijia/room-community-v31.png?url";
 import communitySprites from "../assets/pixel-jijia/room-community-v31.json";
 import { JOYSTICK_RADIUS, joystickIntent } from "~/lib/pixel-jijia-input";
-import { GUODONG, createCampusRobot, tickCampusRobot, robotInReach, robotBlocksPlayer, aimCampusRobot, releaseCampusRobot, inTrainingField, createTraining, tickTraining, fireTraining, type TrainingSession } from "~/lib/pixel-jijia-robot";
+import { GUODONG, createCampusRobot, tickCampusRobot, robotInReach, robotBlocksPlayer, aimTraining, releaseCampusRobot, inTrainingField, createTraining, tickTraining, fireTraining, type TrainingSession } from "~/lib/pixel-jijia-robot";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
@@ -523,8 +523,8 @@ export default function PixelJijiaPage() {
     if(seated||castRef.current||selectedRef.current||selectedRoom||catalogueDetail||
         !robotAtlasRef.current||!robotInReach(robotRef.current,playerRef.current))return false;
     clearInput();pilotZoomRef.current=zoomRef.current;setRobotControlled(true);
-    setMapZoom(Math.max(2.6,zoomRef.current));return true;
-  },[room,robotControlled,seated,selectedRoom,catalogueDetail,clearInput,setMapZoom]);
+    setMapZoom(Math.max(mobile&&stageRef.current&&stageRef.current.clientHeight>stageRef.current.clientWidth?1.65:2.6,zoomRef.current));return true;
+  },[room,robotControlled,seated,selectedRoom,catalogueDetail,clearInput,setMapZoom,mobile]);
   useEffect(() => {
     let active = true;
     const atlas = new Image(),robotAtlas=new Image();
@@ -558,9 +558,10 @@ export default function PixelJijiaPage() {
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 1376) {
           throw new Error("地面图集与场景版本不匹配");
         }
-        if (environment.naturalWidth !== 512 || environment.naturalHeight !== 512) {
+        if (environment.naturalWidth !== 512 || environment.naturalHeight !== 640) {
           throw new Error("场景美术素材与当前版本不匹配");
         }
+        if(robotImage.naturalWidth!==GUODONG.width*GUODONG.nativeScale*8||robotImage.naturalHeight!==GUODONG.height*GUODONG.nativeScale*(GUODONG.wheelFrames+1))throw new Error("机器人图集与当前版本不匹配");
         robotAtlasRef.current=robotImage;
         characterRef.current = explorer;
         artRef.current = image;
@@ -859,7 +860,7 @@ export default function PixelJijiaPage() {
         }
       }
       if(!walking)stepDistance=0;
-      const foot=playerRef.current,audio=worldAudioRef.current;
+      const foot=robotControlled?robotRef.current:playerRef.current,audio=worldAudioRef.current;
       const material=stepped?footstepMaterial(room?.id??null,groundAt(foot.x,foot.y),surfaceRef.current.wet,surfaceRef.current.snow):null;
       if(audio?.running&&!mutedRef.current&&!document.hidden){
         if(material)audio.step(material,sprinting);
@@ -877,6 +878,9 @@ export default function PixelJijiaPage() {
               volume=distanceVolume(Math.hypot(foot.x-FOUNTAIN.x,foot.y-FOUNTAIN.y),17)*.12;
               if(volume>0)kind="fountain";
             }
+            const motor=robotRef.current;
+            const hum=distanceVolume(Math.hypot(foot.x-motor.x,foot.y-motor.y),10)*(motor.moving?.065:.022);
+            if(hum>volume){volume=hum;kind="device";}
             for(const o of leafTrees){
               const gain=distanceVolume(Math.hypot(foot.x-o.x,foot.y-o.y),8)*(.028+Math.abs(wind)*.003);
               if(gain>volume){volume=gain;kind="trees";}
@@ -1000,7 +1004,7 @@ export default function PixelJijiaPage() {
       }
       const feature=room?nextRoom:nextNearby;
       const label=seated?"起身":room&&nextRoom?roomAction(nextRoom):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
-      if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!transitionRef.current&&label&&label!=="等待鱼咬钩"){
+      if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!transitionRef.current&&label&&label!=="等待鱼咬钩"&&!(robotControlled&&trainingRef.current)){
         const c=snapCamera(cameraRef.current);
         const anchor=nearRobot?{x:robotRef.current.x,y:robotRef.current.y-2.6}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
         const text=(mobile?"":"E ")+label;
@@ -1016,6 +1020,12 @@ export default function PixelJijiaPage() {
       canvas.dataset.trainingOpponentHp=String(trainingRef.current?.opponentHp??100);
       canvas.dataset.trainingOpponentX=String(trainingRef.current?.opponent.x??0);
       canvas.dataset.trainingOpponentY=String(trainingRef.current?.opponent.y??0);
+      canvas.dataset.trainingLights=String(trainingRef.current?.lights.length??0);
+      canvas.dataset.trainingResult=trainingRef.current?.lastResult??"";
+      canvas.dataset.trainingSparks=String(trainingRef.current?.sparks.length??0);
+      canvas.dataset.robotWaypoint=String(robotRef.current.waypoint);
+      canvas.dataset.robotSpeed=robotRef.current.speed.toFixed(2);
+      canvas.dataset.cameraY=cameraRef.current.y.toFixed(2);
       canvas.dataset.control=robotControlled?"robot":"player";
       canvas.dataset.robotX=robotRef.current.x.toFixed(3);
       canvas.dataset.robotY=robotRef.current.y.toFixed(3);
@@ -1101,8 +1111,8 @@ export default function PixelJijiaPage() {
     if(!room){
       const robot=robotRef.current;
       if(robotControlled){
-        aimCampusRobot(robot,{x,y});
-        if(fireTraining(trainingRef.current,robot,{x,y}))setTrainingPhase(trainingRef.current!.phase);
+        if(trainingRef.current)fireTraining(trainingRef.current,robot,{x,y});
+        else aimTraining(robot,{x,y});
         return;
       }
       if(Math.abs(x-robot.x)<1.5&&y>=robot.y-2.4&&y<=robot.y+.7&&toggleRobot())return;
@@ -1145,8 +1155,9 @@ export default function PixelJijiaPage() {
   };
   const handleTouchMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if(robotControlled&&event.pointerType==="mouse"){
+      if(trainingRef.current?.phase==="lost")return;
       const canvas=event.currentTarget,rect=canvas.getBoundingClientRect(),camera=snapCamera(cameraRef.current);
-      aimCampusRobot(robotRef.current,{x:((event.clientX-rect.left)/rect.width*canvas.width/roomScale+camera.x)/TILE,
+      aimTraining(robotRef.current,{x:((event.clientX-rect.left)/rect.width*canvas.width/roomScale+camera.x)/TILE,
         y:((event.clientY-rect.top)/rect.height*canvas.height/roomScale+camera.y)/TILE});
       return;
     }
@@ -1328,7 +1339,7 @@ export default function PixelJijiaPage() {
         {!mobile && weatherControls}
       </div>}
       {robotControlled&&trainingPhase&&!menuOpen&&!mapOpen&&<div className="pixel-world-training" role="status">
-        {trainingPhase==="playing"?<span>{mobile?"点击蓝方机器人进行虚拟训练":"微缩训练 · 点击蓝方机器人 · E 退出"}</span>:<>
+        {trainingPhase==="playing"?<span>{mobile?"点击瞄准 · 摇杆移动":"微缩训练 · 点击发射 · E 退出"}</span>:<>
           <span>{trainingPhase==="won"?"训练完成":"训练机器人失能"}</span>
           <button type="button" onClick={()=>{trainingRef.current=createTraining(robotRef.current,playerRef.current);setTrainingPhase(trainingRef.current?.phase??null);}}>重新训练</button>
         </>}
