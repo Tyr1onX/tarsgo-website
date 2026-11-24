@@ -8,6 +8,7 @@ import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match } from "./rmuc-3d-match";
 import { traceArenaShot, prepareArenaShots, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
+import { createDartVisual } from "./rmuc-3d-dart-visual";
 import { createProjectileSystem, projectileSpeed } from "./rmuc-3d-projectiles";
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
@@ -108,6 +109,7 @@ export function mountArena(
   let robots: Robot[] = [];
   let driving: Robot | null = null;
   let mechanism: ReturnType<typeof installMechanisms> | null = null;
+  let dartVisual:ReturnType<typeof createDartVisual>|null=null;
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   let matchTime: number | null = null;
@@ -287,6 +289,7 @@ export function mountArena(
       publish();
     } else if (controls.enabled) controls.update();
     publish();
+    if(match)dartVisual?.update(match);
     projectiles.visual(camera,viewportHeight,isPlaying(mode));
     renderer.render(scene, camera);
     if(match?.phase!=="running"&&!keys.size) matchTime=null;
@@ -340,7 +343,7 @@ export function mountArena(
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets);
     nextBotTurn=0;botCursor=0;motionDebt=0;matchTime=null;botPaths.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
-    projectiles.clear();
+    projectiles.clear();dartVisual?.clear();
     driving=null;clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
     mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyTechnology(match);updateVisibility();setView("first");publish();invalidate();
   }
@@ -879,6 +882,7 @@ export function mountArena(
     field.updateMatrixWorld(true);
     // Ground support uses the static CAD envelope without movable energy units.
     mechanism=installMechanisms(field,parts,dartParts);
+    dartVisual=createDartVisual(scene,mechanism);
     exhibit = addRobotPreviews(map, scene, terrain);
     robots = exhibit.children.map(object => {
       const group = object as THREE.Group;
@@ -956,7 +960,7 @@ export function mountArena(
       window.removeEventListener("pointercancel", pointerup);
       controls.removeEventListener("change", invalidate);
       controls.dispose();
-      projectiles.dispose();
+      projectiles.dispose();dartVisual?.dispose();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);
