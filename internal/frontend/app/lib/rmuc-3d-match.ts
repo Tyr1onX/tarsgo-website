@@ -17,8 +17,11 @@ function returnToRest(angle:number,direction:number,dt:number){
 }
 type Revival = {state:"dead"; progressTicks:number; required:number} | {state:"revived"; mode:"read"|"paid"; at:number; weak:boolean; immuneUntil:number};
 type Launcher = "locked"|"unlocked"|"test"|"ready";
+export type SentryMode = "attack"|"defense"|"move";
+type SentryStance = {mode:SentryMode; enhanced:boolean; switchedAt:number; ticks:Record<SentryMode,number>; enhancedTicks:Record<SentryMode,number>};
+const stanceTicks=():Record<SentryMode,number>=>({attack:0,defense:0,move:0});
 type RobotSpec = { id:string; team:Team; heavy:boolean; maxHp:number; sentry?:boolean };
-export type MatchRobot = RobotSpec & { hp:number; xp:number; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; launcher:Launcher };
+export type MatchRobot = RobotSpec & { hp:number; xp:number; powerBuffer:number; powerDemand:number; powerLockUntil:number; powerBoostUntil:number; ammo:number; cooldown:number; heat:number; heatLimit:number; cooling:number; thermalLock:boolean; lastCombat:number; pendingAmmoAt:number|null; pendingHealAt:number|null; zones:Partial<Record<ZoneId,number>>; fortressHold:number; fortressRetainUntil:number; paidRevives:number; revival:Revival|null; repairCarry:number; sentrySupplyMinutes:number; stance:SentryStance|null; launcher:Launcher };
 export type Territory = { controller:Team; full:boolean; progress:number };
 type Rune = {usedSmall:number;usedLarge:number;largeWins:number;attempt:null|{large:boolean;end:number;deadline:number;lit:number[];groups:number;rings:number[];second:boolean;completed?:number[];a:number;w:number};attack:number;defense:number;cooling:number;activatedUntil:number;xpBonusRemaining:number};
 type Side = { coins:number; purchased:number; purchased42:number; baseGap:number; controlGap:number; baseLow:number; fortressHolder:string|null; fortressSpent:number; base:number; outpost:number; outpostOwner:Team; outpostArea:Territory; baseArea:Territory; controlTicks:number; damage:number; cover:boolean; stopped:boolean; rune:Rune };
@@ -26,7 +29,7 @@ export type Match = { elapsed: number; phase: "ready" | "running" | "finished"; 
 export function createMatch(robots: readonly RobotSpec[], direction = Math.random()<.5?-1:1, outpostDirection = Math.random()<.5?-1:1): Match {
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,hp:r.maxHp,xp:0,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?100:40,cooling:r.heavy?0:r.sentry?10:12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready"})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -35,12 +38,37 @@ const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
 // The timed 42mm fallback does not grant assembly rewards.
 const levelFromXp=(xp:number)=>Math.min(5,XP_LEVELS.filter(x=>xp>=x).length);
 export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
+// §5.7.2 / table 5-28. All durations share the referee's 10 Hz ticks.
+export function sentryStatus(match:Match,r:MatchRobot){
+  const s=r.stance;
+  if(!s)return null;
+  const tick=Math.floor((match.elapsed+1e-8)*10);
+  return {mode:s.mode,enhanced:s.enhanced,cooldown:Math.max(0,(s.switchedAt+50-tick)/10),
+    degraded:s.ticks[s.mode]>1800,remaining:Object.fromEntries((["attack","defense","move"] as const).map(mode=>[mode,(150-s.enhancedTicks[mode])/10])) as Record<SentryMode,number>};
+}
+export function switchSentry(match:Match,id:string,mode:SentryMode,enhanced=false){
+  const r=match.robots.find(r=>r.id===id),s=r?.stance;
+  if(match.phase!=="running"||!r||!s||r.hp<=0||!["attack","defense","move"].includes(mode))return false;
+  const tick=Math.floor((match.elapsed+1e-8)*10);
+  if(tick<s.switchedAt+50||(s.mode===mode&&s.enhanced===enhanced)||(enhanced&&s.enhancedTicks[mode]>=150))return false;
+  s.mode=mode;s.enhanced=enhanced;s.switchedAt=tick;
+  if(mode==="attack"&&enhanced){r.heat=0;r.thermalLock=false;}
+  return true;
+}
+function advanceStance(r:MatchRobot){
+  const s=r.stance;if(!s||r.hp<=0)return;
+  s.ticks[s.mode]++;
+  if(s.enhanced&&++s.enhancedTicks[s.mode]>=150)s.enhanced=false;
+}
 // §5.1.4 / tables 5-16, 5-17; the current kinematic preview does not
 // measure motor current. Its movement command supplies an estimated demand.
 export function powerLimit(match:Match,r:MatchRobot,time=match.elapsed){
   const base=r.heavy?50:r.sentry?60:45+5*(robotLevel(r)-1);
   const paid=time<r.powerBoostUntil;
-  return Math.min(200,base*(paid?2:1));
+  const s=r.stance;
+  if(!s)return Math.min(200,base*(paid?2:1));
+  if(s.mode==="move")return s.enhanced?200:Math.round(Math.min(200,base*Math.max(paid?2:1,s.ticks.move>1800?1.2:1.5)));
+  return Math.round(Math.min(200,base*(paid?2:1))/2);
 }
 export function chassisStatus(match:Match,r:MatchRobot){
   return {limit:powerLimit(match,r),buffer:r.powerBuffer,locked:Math.max(0,r.powerLockUntil-match.elapsed)};
@@ -159,7 +187,10 @@ export function reserveAmmo(match:Match,r:MatchRobot){
 }
 function coolingRate(match:Match,r:MatchRobot){
   const side=match.sides[r.team];
-  return Math.max(r.cooling*side.rune.cooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
+  const s=r.stance;
+  const stanceCooling=s?.mode==="attack"?s.ticks.attack>1800?2:3:1;
+  const boosted=Math.max(r.cooling*side.rune.cooling,r.cooling*stanceCooling,r.cooling+(fortressActive(match,r)?Math.min(75,Math.floor(fortressLoss(side)/80)):0));
+  return s&&s.mode!=="attack"?Math.round(boosted/3):boosted;
 }
 export function canFire(match:Match,robot:MatchRobot) {
   return match.phase==="running"&&(!robot.heavy||robot.launcher==="test"||robot.launcher==="ready")&&robot.hp>0&&!weak(robot)&&(robot.ammo>0||reserveAmmo(match,robot)>0)&&robot.cooldown<=0&&!robot.thermalLock;
@@ -173,7 +204,8 @@ export function fireRound(match:Match,id:string) {
     return robot;
   }
   gainXp(match,robot,1);
-  robot.heat+=robot.heavy?100:10;
+  if(robot.stance?.enhanced&&robot.stance.mode==="attack"){robot.heat=0;robot.thermalLock=false;}
+  else robot.heat+=robot.heavy?100:10;
   if(robot.heat>robot.heatLimit)robot.thermalLock=true;
   return robot;
 }
@@ -223,12 +255,15 @@ function immune(match:Match,r:MatchRobot){
 function robotDefense(match:Match,robot:MatchRobot) {
   let defense=match.sides[robot.team].rune.defense;
   if(robot.heavy&&robot.launcher!=="ready"&&match.elapsed<180)defense=Math.max(defense,.5);
-  if(weak(robot))return 1-defense;
+  const stance=robot.stance;
+  if(stance?.mode==="defense")defense=Math.max(defense,stance.enhanced?.99:stance.ticks.defense>1800?.25:.5);
+  const stanceVulnerability=stance&&stance.mode!=="defense"?.25:0;
+  if(weak(robot))return 1-defense+stanceVulnerability;
   if(activeZone(match,robot,`${robot.team}-base`))defense=Math.max(defense,.5);
   if(teams.some(t=>activeZone(match,robot,`${t}-central`)))defense=Math.max(defense,.25);
   if(fortressActive(match,robot))defense=Math.max(defense,.5);
   const vulnerable=activeZone(match,robot,`${opponent(robot.team)}-fortress`)&&!match.sides[opponent(robot.team)].cover;
-  return 1-defense+(vulnerable?1:0);
+  return 1-defense+Math.max(stanceVulnerability,vulnerable?1:0);
 }
 function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,coverOpened:Partial<Record<Team,number>>){
   const active=(robot:MatchRobot,id:ZoneId)=>robot.hp>0&&(robot.zones[id]??0)>tick;
@@ -288,8 +323,9 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
   // steps cannot cool an entire interval using a stale fortress owner.
   for(const r of match.robots){
     advancePower(match,r,tick);
-    r.heat=Math.max(0,r.heat-coolingRate(match,r)/10);
+    r.heat=r.stance?.mode==="attack"&&r.stance.enhanced?0:Math.max(0,r.heat-coolingRate(match,r)/10);
     if(r.heat<1e-8){r.heat=0;r.thermalLock=false;}
+    advanceStance(r);
   }
   // Score the interval before applying transitions at its endpoint.
   for(const team of teams){
