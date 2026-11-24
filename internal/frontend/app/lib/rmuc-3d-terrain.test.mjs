@@ -8,7 +8,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { createArenaTerrain, insideField, moveOnArena, nearestDriveable, supportedHeight } from "./rmuc-3d-terrain.ts";
 import { ROBOT_PLACEMENTS, createRobotPreview } from "./rmuc-3d-robots.ts";
 
-let terrain;
+let terrain, sourceField;
 before(async () => {
   const data = gunzipSync(await readFile(new URL("../../../../public/assets/pixel-jijia/rmuc-2027-arena-3b2530d3.glb.gz", import.meta.url)));
   const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), "");
@@ -19,7 +19,29 @@ before(async () => {
   const bounds = new THREE.Box3().setFromObject(root);
   const center = bounds.getCenter(new THREE.Vector3());
   root.position.set(-center.x, -bounds.min.y, -center.z);
+  sourceField=root;
   terrain = createArenaTerrain(root);
+});
+
+test("sampled support heights agree with original CAD rays",()=>{
+ const surfaces=[];
+ sourceField.traverse(mesh=>{if(mesh.isMesh)surfaces.push({mesh,bounds:new THREE.Box3().setFromObject(mesh)});});
+ const ray=new THREE.Raycaster(),down=new THREE.Vector3(0,-1,0);
+ let seed=1234567;
+ const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/2**32);
+ for(let i=0;i<1500;i++){
+  const x=Math.round((rng()*28-14)*10)*.1,z=Math.round((rng()*15-7.5)*10)*.1;
+  ray.set(new THREE.Vector3(x,10,z),down);
+  let top=-Infinity;
+  for(const {mesh,bounds} of surfaces){
+   if(x<bounds.min.x||x>bounds.max.x||z<bounds.min.z||z>bounds.max.z)continue;
+   const hit=ray.intersectObject(mesh,false)[0];
+   if(hit)top=Math.max(top,hit.point.y);
+  }
+  const actual=terrain.heightAt(x,z);
+  assert.ok(actual===top||Math.abs(actual-top)<1e-6,`${x},${z}: ${actual} != ${top}`);
+ }
+ assert.equal(terrain.heightAt(20,0),-Infinity);
 });
 
 test("movement respects physical boundary, raised obstacles, support and other robots", () => {
