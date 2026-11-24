@@ -37,7 +37,8 @@ const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
 const infantry=(r:RobotSpec)=>!r.heavy&&!r.sentry;
 // Table 5-12 caps infantry at level 5 until real level-two assembly.
 // The timed 42mm fallback does not grant assembly rewards.
-const levelFromXp=(xp:number)=>Math.min(5,XP_LEVELS.filter(x=>xp>=x).length);
+const TRAINING_LEVEL_CAP=5;
+const levelFromXp=(xp:number)=>Math.min(TRAINING_LEVEL_CAP,XP_LEVELS.filter(x=>xp>=x).length);
 export const robotLevel=(r:MatchRobot)=>infantry(r)?levelFromXp(r.xp):1;
 // Tables 5-17/18. Selection is only possible before the round starts.
 const INFANTRY_CHASSIS={
@@ -111,8 +112,11 @@ function advancePower(match:Match,r:MatchRobot,tick:number){
 const roundedXp=(value:number)=>Math.round(value*10)/10;
 function gainXp(match:Match,r:MatchRobot,amount:number){
   if(!infantry(r)||r.hp<=0||amount<=0)return;
+  const remaining=Math.max(0,XP_LEVELS[TRAINING_LEVEL_CAP-1]-r.xp);
+  if(remaining===0)return;
+  amount=Math.min(amount,remaining);
   const rune=match.sides[r.team].rune;
-  const bonus=rune.activatedUntil>match.elapsed?Math.min(amount,rune.xpBonusRemaining):0;
+  const bonus=rune.activatedUntil>match.elapsed?Math.min(amount,rune.xpBonusRemaining,remaining-amount):0;
   rune.xpBonusRemaining=roundedXp(rune.xpBonusRemaining-bonus);
   const previous=robotLevel(r);
   r.xp=roundedXp(r.xp+amount+bonus);
