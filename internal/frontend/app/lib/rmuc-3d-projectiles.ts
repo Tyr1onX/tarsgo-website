@@ -141,12 +141,12 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
     for(const mesh of slot.trail)mesh.visible=false;
     active.push(slot);return true;
   }
-  function advance(match:Match,dt:number,roots:THREE.Object3D[]){
+  function advance(match:Match,dt:number,roots:THREE.Object3D[],prepare?:()=>ShotIndex){
     if(match.phase!=="running"){clear();return;}
     if(dt<=0)return;
     if(support)for(let i=residues.length-1;i>=0;i--){advanceResidue(residues[i],dt,support);if(residues[i].age>=RESIDUE_LIFE)residues.splice(i,1);}
     if(!active.length)return;
-    const index=active.some(s=>s.projectile)?prepareArenaShots(roots):undefined;
+    const index=active.some(s=>s.projectile)?(prepare?.()??prepareArenaShots(roots)):undefined;
     for(let i=active.length-1;i>=0;i--){
       const slot=active[i],p=slot.projectile;
       if(!p){

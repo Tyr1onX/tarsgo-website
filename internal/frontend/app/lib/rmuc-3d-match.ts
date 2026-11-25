@@ -1,3 +1,4 @@
+import {createRadar,advanceRadar,resetRadarDelta,radarVulnerability,type Radar,type RadarReport} from "./rmuc-3d-radar.ts";
 import type { Team, MechanismPose } from "./rmuc-3d-mechanisms.ts";
 import { ARENA_ZONES, zonesAtPosition, withinLauncherBench, crossingContacts, type CrossingContact, type ArenaPosition, type ZoneId } from "./rmuc-3d-zones.ts";
 export type { Team };
@@ -69,13 +70,13 @@ function random(state:Record<RandomStream,number>,key:RandomStream){
   t^=t+Math.imul(t^(t>>>7),t|61);
   return ((t^(t>>>14))>>>0)/4294967296;
 }
-export type Match = { seed:number;randomState:Record<RandomStream,number>;onDamage?:(event:DamageEvent)=>void; coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
+export type Match = { radar:Radar;seed:number;randomState:Record<RandomStream,number>;onDamage?:(event:DamageEvent)=>void; coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>; energyUnits:EnergyUnit[]; elapsed: number; phase: "ready" | "running" | "finished"; winner: Team | "draw" | null; sides: Record<Team, Side>; robots: MatchRobot[]; pose: MechanismPose; direction: number; outpostDirection: number };
 export function createMatch(robots: readonly RobotSpec[], direction?:number, outpostDirection?:number, energySpawns:readonly EnergySpawn[]=[], coreSockets:Readonly<Partial<Record<Team,CoreSocket>>>={}, seed=0): Match {
   seed=seed>>>0;const rng=randomState(seed);
   direction??=random(rng,"direction")<.5?-1:1;outpostDirection??=random(rng,"direction")<.5?-1:1;
   const area=(team:Team):Territory=>({controller:team,full:true,progress:0});
   const side = (team:Team): Side => ({armor:armor(),dart:dart(),blindUntil:0,runeDisabledUntil:0,baseZoneUntil:0,outpostZoneUntil:0,tech:technology(),coins:800,purchased:0,purchased42:0,baseGap:0,controlGap:0,baseLow:10000,fortressHolder:null,fortressSpent:0,base:10000,outpost:1000,outpostOwner:team,outpostArea:area(team),baseArea:area(team),controlTicks:0,damage:0,cover:false,stopped:false,rune:{usedSmall:0,usedLarge:0,largeWins:0,attempt:null,attack:1,defense:0,cooling:1,activatedUntil:0,xpBonusRemaining:0}});
-  return {seed,randomState:rng,coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,sentryControl:r.sentry?(r.sentryControl??"auto"):undefined,terrain:terrainState(),commandTarget:null,maxHp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,hp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?(r.sentryControl==="semi"?100:260):40,cooling:r.heavy?0:r.sentry?(r.sentryControl==="semi"?10:30):12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready",launcherCalibrated:false})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
+  return {radar:createRadar(robots.map(r=>({...r,hp:r.maxHp}))),seed,randomState:rng,coreSockets,energyUnits:energySpawns.map(u=>({id:u.id,team:u.team,location:{kind:"rack",position:copyPosition(u.position)}})),elapsed:0, phase:"ready", winner:null, sides:{red:side("red"),blue:side("blue")}, robots:robots.map(r=>({...r,sentryControl:r.sentry?(r.sentryControl??"auto"):undefined,terrain:terrainState(),commandTarget:null,maxHp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,hp:r.sentry?(r.sentryControl==="semi"?200:400):r.maxHp,xp:0,performance:!r.heavy&&!r.sentry?{chassis:"hp",launcher:"cooling"}:null,powerBuffer:60,powerDemand:0,powerLockUntil:0,powerBoostUntil:0,ammo:r.sentry?300:0,cooldown:0,heat:0,heatLimit:r.heavy?0:r.sentry?(r.sentryControl==="semi"?100:260):40,cooling:r.heavy?0:r.sentry?(r.sentryControl==="semi"?10:30):12,thermalLock:false,lastCombat:-6,pendingAmmoAt:null,pendingHealAt:null,zones:{},fortressHold:0,fortressRetainUntil:0,paidRevives:0,revival:null,repairCarry:0,sentrySupplyMinutes:0,stance:r.sentry?{mode:"move",enhanced:false,switchedAt:-50,ticks:stanceTicks(),enhancedTicks:stanceTicks()}:null,launcher:r.heavy?"locked":"ready",launcherCalibrated:false})), pose:{runeAngle:0,outpostAngle:{red:0,blue:0},cover:{red:0,blue:0}},direction,outpostDirection};
 }
 // V1.0.0 tables 5-15, 5-17 and 5-18: default HP/cooling priority.
 const XP_LEVELS=[0,550,1100,1650,2200,2750,3300,3850,4400,5000];
@@ -583,11 +584,15 @@ export function controlsOutpost(match:Match,location:Team,team:Team,full=false){
   return a.controller===team&&(!full||a.full);
 }
 const territoryZones=(location:Team,kind:"outpost"|"base"):ZoneId[]=>kind==="outpost"?[`${location}-outpost`,`${location}-central`]:[`${location}-base`,`${location}-fortress`];
+function territoryDirection(area:Territory,own:boolean,other:boolean){
+  return own&&other?0:(area.full?other:!own)?1:-1;
+}
 export function territoryStatus(match:Match,location:Team,kind:"outpost"|"base"){
   const area=kind==="outpost"?match.sides[location].outpostArea:match.sides[location].baseArea;
   const ids=territoryZones(location,kind);
-  const contested=teams.every(team=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>activeZone(match,r,id))));
-  return {...area,contested};
+  const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>activeZone(match,r,id)));
+  const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
+  return {...area,contested:direction===0,progressing:direction>0,enabled:zoneEnabled(match,`${location}-${kind}`)};
 }
 function rebuildOutpost(side:Side,team:Team){
   side.outpost=500;side.outpostOwner=team;side.stopped=true;
@@ -612,6 +617,7 @@ export function reviveRobot(match:Match,id:string,paid=false,commander=false) {
   robot.hp=paid?robot.maxHp:Math.round(robot.maxHp*.1);
   robot.revival={state:"revived",mode:paid?"paid":"read",at,weak:true,immuneUntil:at+(paid?30:300)};
   robot.repairCarry=0;
+  resetRadarDelta(match.radar,id);
   return true;
 }
 function immune(match:Match,r:MatchRobot){
@@ -623,7 +629,7 @@ function robotDefense(match:Match,robot:MatchRobot) {
   if(robot.heavy&&!robot.launcherCalibrated&&match.elapsed<180)defense=Math.max(defense,.5);
   const stance=robot.stance;
   if(stance?.mode==="defense")defense=Math.max(defense,stance.enhanced?.99:stance.ticks.defense>1800?.25:.5);
-  const stanceVulnerability=stance&&stance.mode!=="defense"?.25:0;
+  const stanceVulnerability=Math.max(stance&&stance.mode!=="defense"?.25:0,radarVulnerability(match.radar,opponent(robot.team),robot,match.elapsed));
   if(weak(robot))return 1-defense+stanceVulnerability;
   defense=Math.max(defense,terrainStatus(match,robot).defense);
   if(activeZone(match,robot,`${robot.team}-base`)||activeZone(match,robot,`${robot.team}-highpoint`))defense=Math.max(defense,.5);
@@ -710,10 +716,9 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
       ["base",side.baseArea,territoryZones(location,"base")],
     ] as const){
       const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>active(r,id)));
-      const own=present(area.controller),other=present(opponent(area.controller));
-      if(own&&other)continue;
-      const progressing=area.full?other:!own;
-      area.progress=Math.max(0,Math.min(50,area.progress+(progressing?1:-1)));
+      const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
+      if(direction===0)continue;
+      area.progress=Math.max(0,Math.min(50,area.progress+direction));
       if(area.progress<50)continue;
       area.controller=opponent(area.controller);area.full=!area.full;area.progress=0;
       if(kind==="outpost"&&area.full&&side.outpost===0)rebuildOutpost(side,area.controller);
@@ -993,7 +998,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
   attackXp(match,shooter,target.type==="outpost"?dealt*2:Math.ceil(dealt/2));
   return dealt;
 }
-export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map()) {
+export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string,ArenaPosition> = new Map(),sense?:()=>readonly RadarReport[]) {
   if(match.phase!=="running")return;
   const end=Math.min(MATCH_DURATION,match.elapsed+Math.max(0,dt));
   // Stop at rune state boundaries: cooling and shared-axis speed must not
@@ -1006,7 +1011,9 @@ export function updateMatch(match:Match, dt:number, positions:ReadonlyMap<string
         if(at!==undefined&&at>match.elapsed&&at<next)next=at;
       }
     }
-    advanceMatch(match,next-match.elapsed,positions);
+    const before=match.elapsed;
+    advanceMatch(match,next-before,positions);
+    advanceRadar(match.radar,match.robots,before,match.elapsed,next===end?sense?.():undefined,positions);
   }while(match.phase==="running"&&match.elapsed<end);
 }
 function advanceMatch(match:Match,dt:number,positions:ReadonlyMap<string,ArenaPosition>){

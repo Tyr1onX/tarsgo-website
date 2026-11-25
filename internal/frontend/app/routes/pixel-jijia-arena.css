@@ -4,7 +4,6 @@
 .rmul3d-canvas { position: absolute; inset: 0; }
 .rmul3d-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
 .rmul3d-header { display: contents; }
-.rmul3d-header > * { pointer-events: auto; }
 .rmul3d button, .rmul3d-back { font: 650 13px/1.3 inherit; font-family: inherit; font-size: 13px; font-weight: 650; cursor: pointer; color: #e1e8f0; background: #121c27e8; border: 1px solid #61738580; border-radius: 5px; min-height: 40px; padding: 8px 14px; text-decoration: none; touch-action: manipulation; }
 .rmul3d button:disabled { opacity: .4; cursor: not-allowed; }
 .rmul3d :is(button,a):focus-visible { outline: 2px solid #a5c9fb; outline-offset: 3px; }
@@ -36,45 +35,44 @@
   position: absolute; inset: 0; z-index: 2; pointer-events: none;
   display: grid; grid-template-columns: minmax(44px,1fr) minmax(0,8fr) minmax(44px,1fr);
   grid-template-rows: auto minmax(0,1fr) auto;
-  grid-template-areas: "back score menu" ". combat combat" "move actions actions";
+  grid-template-areas: "back score menu" "map combat combat" "move actions actions";
   gap: 6px;
   padding: max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));
 }
-.rmul3d-hud > *, .rmul3d-header > * { pointer-events: auto; }
-.rmul3d-hud { min-height:0; }
+.rmul3d-hud :is(button,a,select,input), .rmul3d-combat { pointer-events:auto; }
 .rmul3d-back { grid-area: back; justify-self: start; align-self: start; }
 .rmul3d-settings { grid-area: menu; justify-self: end; align-self: start; }
 .rmul3d-match { grid-area: score; display:flex; flex-direction:column; align-items:center; gap:4px; justify-self:center; min-width:0; max-width:100%; }
-.rmul3d-match:has(.rmul3d-score) { width:min(100%,960px); }
-.rmul3d-score { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:start; width:100%; gap:6px; padding:6px; background:#0b111ce8; border:1px solid #60708060; border-radius:5px; font-variant-numeric:tabular-nums; font-size:12px; }
+.rmul3d-match:has(.rmul3d-score) { width:min(100%,720px); pointer-events:none; }
+.rmul3d-score { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:start; width:100%; gap:8px; padding:7px 9px; background:#0b111cb8; border:1px solid #60708045; border-radius:5px; font-variant-numeric:tabular-nums; font-size:11px; line-height:1.2; }
 .rmul3d-team { --team:#fa5267; min-width:0; }
 .rmul3d-team.blue { --team:#4389f7; text-align:right; }
-.rmul3d-base-line,.rmul3d-outpost-line,.rmul3d-team-metrics,.rmul3d-robot-id,.rmul3d-robot-hp,.rmul3d-robot-state,.rmul3d-territory { display:flex; align-items:center; justify-content:space-between; gap:3px; min-width:0; }
-.rmul3d-team.blue :is(.rmul3d-base-line,.rmul3d-outpost-line,.rmul3d-team-metrics,.rmul3d-robot-id,.rmul3d-robot-hp,.rmul3d-robot-state,.rmul3d-territory) { flex-direction:row-reverse; }
-.rmul3d-base-line { color:var(--team); font-size:13px; }
-.rmul3d-base-line strong { font-size:clamp(17px,2.5vw,26px); line-height:1.1; color:#fff; }
-.rmul3d-health { position:relative; height:7px; overflow:visible; background:#293240; border-radius:2px; margin:3px 0; }
+.rmul3d-base-line,.rmul3d-team-metrics,.rmul3d-robot-id,.rmul3d-robot-hp { display:flex; align-items:center; justify-content:space-between; gap:3px; min-width:0; }
+.rmul3d-team.blue :is(.rmul3d-base-line,.rmul3d-team-metrics) { flex-direction:row-reverse; }
+.rmul3d-base-line { color:var(--team); font-weight:650; }
+.rmul3d-base-line strong { font-size:17px; line-height:1; color:#fff; }
+.rmul3d-health { position:relative; height:4px; overflow:visible; background:#293240; border-radius:2px; margin:2px 0; }
 .rmul3d-health i { display:block; height:100%; background:var(--team); border-radius:inherit; transition:width .12s linear; }
 .rmul3d-team.blue .rmul3d-health i { margin-left:auto; }
-.rmul3d-base-line + .rmul3d-health { height:10px; }
-.rmul3d-outpost-line { font-size:11px; color:#d3dfef; }
-.rmul3d-damage { position:absolute; right:0; bottom:100%; color:#ffd279; text-shadow:0 1px 3px #000,0 0 3px #000; white-space:nowrap; font-size:11px; z-index:2; }
+.rmul3d-base-line + .rmul3d-health { height:6px; }
+.rmul3d-damage { position:absolute; right:0; bottom:100%; color:#ffd279; text-shadow:0 1px 3px #000,0 0 3px #000; white-space:nowrap; font-size:10px; z-index:2; }
 .rmul3d-team.blue .rmul3d-damage { right:auto; left:0; }
-.rmul3d-team-metrics { font-size:11px; color:#a8b9c9; white-space:nowrap; margin:4px 0; }
+.rmul3d-team-metrics { font-size:10px; color:#b6c7d7; white-space:nowrap; margin:4px 0; }
 .rmul3d-team-metrics b { color:#fff; }
-.rmul3d-roster { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3px; }
+.rmul3d-outpost { flex:0 0 auto; min-width:39px; }
+.rmul3d-outpost .rmul3d-health { height:3px; margin:1px 0 0; }
+.rmul3d-area { color:#c9d5e1; }
+.rmul3d-roster { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
 .rmul3d-team.blue .rmul3d-roster { direction:rtl; }
-.rmul3d-robot-status { min-width:0; direction:ltr; padding:3px; border:1px solid #64748b66; background:#142130; border-top:2px solid var(--team); }
-.rmul3d-robot-status.dead { background:#20252c; border-top-color:#6b7280; }
-.rmul3d-robot-id { color:var(--team); }
-.rmul3d-robot-id svg { width:clamp(12px,2vw,24px); flex-shrink:0; }
-.rmul3d-robot-hp { font-size:10px; }
-.rmul3d-robot-hp span { color:#a8b9c9; }
-.rmul3d-robot-status .rmul3d-health { height:4px; }
-.rmul3d-robot-state { flex-wrap:wrap; color:#ffd279; font-size:10px; min-height:13px; line-height:1.1; white-space:nowrap; }
-.rmul3d-territory { font-size:10px; color:#a8b9c9; margin-top:3px; }
-.rmul3d-clock { text-align:center; padding-top:7px; min-width:55px; }
-.rmul3d-clock strong { display:block; color:#fff; font-size:clamp(22px,4vw,36px); letter-spacing:-.04em; line-height:1; }
+.rmul3d-robot-status { min-width:0; direction:ltr; }
+.rmul3d-robot-status.dead { --team:#8793a0; }
+.rmul3d-robot-id { color:var(--team); justify-content:flex-start; font-size:11px; }
+.rmul3d-robot-id svg { width:15px; height:12px; flex-shrink:0; }
+.rmul3d-level { margin-left:auto; color:#b6c7d7; font-size:9px; }
+.rmul3d-robot-hp { font-size:11px; line-height:1.2; }
+.rmul3d-robot-state { color:#ffd279; font-size:9px; white-space:nowrap; }
+.rmul3d-clock { text-align:center; align-self:start; min-width:44px; padding-top:3px; }
+.rmul3d-clock strong { display:block; color:#fff; font-size:24px; letter-spacing:-.04em; line-height:1; }
 .rmul3d-clock small { display:block; color:#a8b9c9; font-size:9px; margin-top:4px; }
 .rmul3d-combat { grid-area:combat; align-self:end; justify-self:end; width:min(100%,320px); min-height:0; max-height:100%; overflow:auto; overscroll-behavior:contain; display:flex; flex-wrap:wrap; align-content:start; align-items:center; justify-content:flex-end; gap:6px; background:#121c27e8; padding:8px; border-radius:6px; font-size:13px; }
 .rmul3d-combat form { display:flex; flex-wrap:wrap; gap:4px; max-width:100%; }
@@ -91,42 +89,53 @@
   .rmul3d-hud {
     grid-template-columns: minmax(146px,1fr) minmax(0,1fr);
     grid-template-rows: auto auto minmax(0,1fr) auto;
-    grid-template-areas: "back menu" "score score" ". combat" "move actions";
+    grid-template-areas: "back menu" "score score" "map combat" "move actions";
   }
   .rmul3d-actions { flex-direction:column; align-items:stretch; width:100%; }
-  .rmul3d-score { font-size:13px; }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   .rmul3d-hud { grid-template-columns: minmax(44px,1fr) minmax(0,9fr) minmax(44px,1fr); }
   .rmul3d-combat { width:min(100%,320px); }
   .rmul3d-touch { grid-column:1 / 3; width:max-content; }
-  .rmul3d-score { font-size:12px; gap:5px; padding:4px 6px; }
+  .rmul3d-match:has(.rmul3d-score) { width:min(100%,550px); }
+  .rmul3d-economy { display:none; }
 }
 .rmul3d-thermal-lock { position:absolute; inset:0; background:#101720; pointer-events:none; z-index:1; }
 
-@media (max-width: 700px) {
-  .rmul3d-score { gap:3px; padding:4px; }
-  .rmul3d-base-line,.rmul3d-team-metrics,.rmul3d-outpost-line { font-size:10px; }
-  .rmul3d-roster { gap:2px; }
-  .rmul3d-robot-status { padding:2px 1px; }
+@media (max-width: 700px), (orientation:landscape) and (max-height:500px) {
+  .rmul3d-score { gap:5px; padding:5px 6px; }
+  .rmul3d-team-metrics { gap:3px; font-size:9px; }
+  .rmul3d-roster { gap:3px; }
   .rmul3d-robot-id svg { display:none; }
-  .rmul3d-robot-hp { flex-wrap:wrap; gap:0; font-size:9px; line-height:1.15; }
-  .rmul3d-robot-state { flex-wrap:wrap; font-size:9px; gap:0; min-height:12px; }
-  .rmul3d-territory { font-size:9px; gap:2px; flex-wrap:wrap; }
-  .rmul3d-clock { min-width:41px; }
-  .rmul3d-clock small { font-size:8px; }
+  .rmul3d-clock { min-width:37px; }
+  .rmul3d-clock strong { font-size:20px; }
 }
-@media (orientation:landscape) and (max-height:500px) {
-  .rmul3d-territory { display:none; }
-  .rmul3d-robot-state { min-height:11px; }
+@media (max-width: 600px) {
+  .rmul3d-economy { display:none; }
+  .rmul3d-roster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px 5px; }
+  .rmul3d-robot-status { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:1px 3px; }
+  .rmul3d-robot-id,.rmul3d-robot-hp { font-size:10px; gap:2px; }
+  .rmul3d-robot-hp { flex-wrap:wrap; justify-content:flex-end; }
+  .rmul3d-robot-hp b { white-space:nowrap; }
+  .rmul3d-robot-status .rmul3d-health { grid-column:1 / -1; margin:1px 0; }
+  .rmul3d-level { margin-left:0; }
+  .rmul3d-team-metrics { margin:2px 0; }
 }
-
+@media (max-width: 360px) {
+  .rmul3d-score { gap:4px; padding:4px; }
+  .rmul3d-area { font-size:9px; }
+  .rmul3d-roster { column-gap:3px; }
+  .rmul3d-robot-status { column-gap:1px; }
+  .rmul3d-robot-id { gap:1px; }
+}
 .rmul3d-combat select { color:inherit; background:#121c27; border:1px solid #61738580; border-radius:5px; padding:6px; font:inherit; }
 
 .rmul3d .rmul3d-fire { touch-action: none; }
 .rmul3d .rmul3d-fire[aria-disabled="true"] { opacity: .4; }
-
-@media (max-width: 480px) and (orientation: portrait) {
-  .rmul3d-roster { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .rmul3d-robot-id svg { display:block; width:14px; }
-}
+.rmul3d-minimap {grid-area:map;min-width:0;align-self:start;justify-self:start;width:min(230px,25vw);background:#0b111cb8;border:1px solid #60708045;padding:4px;border-radius:5px;font-size:10px;pointer-events:none;}
+.rmul3d-minimap svg {width:100%;display:block}
+.rmul3d-map-head {display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap}
+.rmul3d-map-head select {max-width:100%;font:inherit;color:inherit;background:#202b35;border:0}
+@media (pointer:coarse) {.rmul3d-map-head select {min-height:44px;}}
+@media(max-width:600px) and (orientation:portrait){.rmul3d-minimap {width:min(100%,160px)}}
+@media(orientation:landscape) and (max-height:500px){.rmul3d-minimap {width:min(22vw,170px)}}
