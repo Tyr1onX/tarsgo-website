@@ -3,11 +3,13 @@ import { dartPose, coreFrame, territoryStatus, type EnergyUnit, type Match } fro
 
 export const MECHANISM_ASSET = {
   url: "/assets/pixel-jijia/rmuc-mechanisms-51f0d28d.glb.gz",
+  bytes: 3719068,
   sha256: "51f0d28d08fc36449004deb020c4a0c2733cc1854a2521ec969f05147c249af3",
 } as const;
-export const DART_ASSET = {url:"/assets/pixel-jijia/rmuc-dart-c871c084.glb.gz",sha256:"c871c0845dc3caac8e6302dd1b5ffb4b9773247ceb8d2fc0cd80ccc322860375"} as const;
+export const DART_ASSET = {url:"/assets/pixel-jijia/rmuc-dart-c871c084.glb.gz",bytes:6537619,sha256:"c871c0845dc3caac8e6302dd1b5ffb4b9773247ceb8d2fc0cd80ccc322860375"} as const;
 export const CORE_ASSET = {
   url: "/assets/pixel-jijia/rmuc-core-4a23964a.glb.gz",
+  bytes: 2412011,
   sha256: "4a23964ad0d25941aeb5c61b76b3a3e04cda89f0670453445b895b4c3f8144a8",
 } as const;
 export type Team = "red" | "blue";

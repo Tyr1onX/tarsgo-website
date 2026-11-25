@@ -15,7 +15,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView, flightBounds, flightStep } from "./rmuc-3d-camera";
-import { resolveCadModel } from "./rmul-3d-cad-assets";
+import { CAD_MODELS, resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, canSpinChassis, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent,type MatchEvent } from "./rmuc-3d-match";
 import { traceArenaShot, createArenaShotPreparer, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
@@ -27,6 +27,7 @@ import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLA
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
+import { arenaPixelRatio, type ArenaSettings } from "./rmuc-3d-settings";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third" | "follow" | "ai-first" | "detail";
@@ -36,10 +37,10 @@ type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Par
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
 export type ArenaStatus = { sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
+export type ArenaLoadProgress = { phase:"program"|"download"|"verify"|"parse"|"terrain"|"initialize"|"firstFrame"; received?:number; total?:number };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   director: (enabled:boolean)=>void;
-  sound:(enabled:boolean)=>void;
   cancelStart:()=>void;
   interact: () => void;
   observe:(id:string)=>void;
@@ -75,7 +76,8 @@ export interface ArenaController {
   performance:(value:InfantryPerformance)=>void;
   reset: () => void;
   input: (key: string, pressed: boolean) => void;
-  pauseInput: (paused: boolean) => void;
+  pause: (paused: boolean) => void;
+  settings: (value:ArenaSettings) => void;
   dispose: () => void;
 }
 
@@ -84,17 +86,21 @@ const isPlaying = (view: ArenaView) => view === "first";
 
 export function mountArena(
   host: HTMLDivElement,
-  onBusy: () => void,
+  initialSettings: ArenaSettings,
+  onProgress: (progress:ArenaLoadProgress) => void,
   onReady: () => void,
   onError: (message: string) => void,
   onStatus: (status: ArenaStatus) => void,
 ): ArenaController {
+  const programStarted=performance.now();
+  let settings=initialSettings;
+  const pixelRatio=()=>arenaPixelRatio(settings.quality,window.devicePixelRatio,navigator.hardwareConcurrency,(navigator as Navigator&{deviceMemory?:number}).deviceMemory);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111922);
   scene.fog = new THREE.Fog(0x111922, 65, 180);
   const camera = new THREE.PerspectiveCamera(72, 1, .025, 220);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setPixelRatio(pixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -130,7 +136,8 @@ export function mountArena(
   const stadium = createStadium();
   scene.add(stadium);
 
-  let disposed = false, ready = false, frame = 0;
+  let disposed = false, ready = false, frame = 0, firstFrameStarted=0;
+  const pendingAssets=new Set<THREE.Group>();
   let map: THREE.Group | null = null;
   let fieldBounds: THREE.Box3 | null = null;
   let exhibit: THREE.Group | null = null;
@@ -238,6 +245,9 @@ export function mountArena(
   const manualRobot=()=>activeRobot()?.sentryControl==="auto"?null:driving;
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   const eventFeed=createEventFeed(),director=createDirector(),audio=createMatchAudio(camera);
+  audio.setVolume(settings.volume);audio.setEnabled(!settings.muted);
+  function applySettings(value:ArenaSettings){settings=value;const ratio=pixelRatio();if(renderer.getPixelRatio()!==ratio)renderer.setPixelRatio(ratio);audio.setVolume(value.volume);audio.setEnabled(!value.muted);publish();invalidate();}
+  const turnWithSettings=(dx:number,dy:number)=>turnView(look,dx*settings.sensitivity,dy*settings.sensitivity*(settings.invertY?-1:1));
   let countdownCue=0;
   const audioPerspective=() => activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective;
   const worldCenter=(node:THREE.Object3D|undefined)=>node?new THREE.Box3().setFromObject(node,true).getCenter(new THREE.Vector3()):undefined;
@@ -263,11 +273,11 @@ export function mountArena(
     if(perspective!=="all"&&team!==perspective)return;
     audio.play(damage>0?"hit":"contact",hit.point);
   }
-  let countdownEnd=0,flightSpeed=6,flyBounds:THREE.Box3|null=null;
+  let countdownEnd=0,countdownPausedAt=0,flightSpeed=6,flyBounds:THREE.Box3|null=null;
   const canDirect=()=>!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
   function stopDirector(){if(!director.enabled)return;director.stop();controls.enabled=!paused&&mode!=="first"&&mode!=="third"&&mode!=="ai-first"&&mode!=="detail";}
   function enableDirector(){if(!canDirect())return;director.start(match!.elapsed);setView("all",true);}
-  function cancelStart(){if(!countdownEnd)return;countdownEnd=0;countdownCue=0;audio.stop();clearInput();publish();invalidate();}
+  function cancelStart(){if(!countdownEnd)return;countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();clearInput();publish();invalidate();}
   function showShot(shot:Shot){
     if(shot.kind==="all"){setView("all",true);return;}
     if(shot.kind==="follow"||shot.kind==="ai-first"){
@@ -336,7 +346,7 @@ export function mountArena(
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
     const events=eventFeed.view(perspective,performance.now());
     if(events.items.length&&!experiment?.running)invalidate();
-    const status: ArenaStatus = {sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-performance.now())/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    const status: ArenaStatus = {sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -417,7 +427,7 @@ export function mountArena(
     const dt=tick*SIM_STEP_MS/1000-before;
     if(driving&&isPlaying(mode)&&!paused){
       const h=Number(keys.has("ArrowRight"))-Number(keys.has("ArrowLeft")),v=Number(keys.has("ArrowDown"))-Number(keys.has("ArrowUp"));
-      if(h||v)look=turnView(look,h*dt*520,v*dt*520);
+      if(h||v)look=turnWithSettings(h*dt*520,v*dt*520);
     }
     advanceMotion(dt);
     updateMatch(match,dt,positions,tick%8===0?()=>{syncMechanisms();return sampleRadar();}:undefined);
@@ -467,24 +477,23 @@ export function mountArena(
   function render(time: number) {
     frame = 0;
     if (disposed) return;
-    if(countdownEnd){
+    if(countdownEnd&&!paused){
       if(document.hidden)cancelStart();
       else if(time>=countdownEnd){countdownEnd=0;beginMatch();time=performance.now();}
       else{const remaining=Math.ceil((countdownEnd-time)/1000);if(remaining!==countdownCue){countdownCue=remaining;audio.play("countdown");}invalidate();}
     }
     if(match?.phase==="running"&&!experiment?.running){
-      if(document.hidden)simClock.pause();
-      else{simClock.deposit(time);simClock.run(simulate);}
-      invalidate();
+      if(document.hidden||paused)simClock.pause();
+      else{simClock.deposit(time);simClock.run(simulate);invalidate();}
     }
-    if(director.enabled){
+    if(director.enabled&&!paused){
       if(!canDirect())stopDirector();
       else{const shot=director.choose(match!);if(shot)showShot(shot);}
     }
     if(ready&&mode==="third"&&flyBounds){
       const dt=lastTime===null?0:Math.min(.05,(time-lastTime)/1000);
       const h=Number(keys.has("ArrowRight"))-Number(keys.has("ArrowLeft")),v=Number(keys.has("ArrowDown"))-Number(keys.has("ArrowUp"));
-      if(h||v)look=turnView(look,h*dt*520,v*dt*520);
+      if(h||v)look=turnWithSettings(h*dt*520,v*dt*520);
       const moving=!paused&&!document.hidden&&flightStep(camera.position,look,keys,flightSpeed,dt,flyBounds);
       camera.lookAt(clock.copy(camera.position).add(lookDirection(look,forward)));
       lastTime=moving||h||v?time:null;if(lastTime!==null)invalidate();
@@ -494,7 +503,7 @@ export function mountArena(
       const r = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
       const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
-      if ((!driving||match?.phase!=="running")&&(horizontal || vertical)) look = turnView(look, horizontal * dt * 520, vertical * dt * 520);
+      if ((!driving||match?.phase!=="running")&&(horizontal || vertical)) look = turnWithSettings(horizontal * dt * 520, vertical * dt * 520);
       if(!driving&&(f||r)){
         const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.hypot(f,r);
         moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
@@ -517,7 +526,8 @@ export function mountArena(
     projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first");
     if(mode==="follow")followRendered.copy(camera.position);
     if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective);
-    try{renderer.render(scene, camera);}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
+    try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
+    if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
 
   }
 
@@ -583,7 +593,7 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    countdownEnd=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
+    countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
@@ -1127,7 +1137,7 @@ export function mountArena(
   function clearInput() { shotRequested=false;triggers.clear();keys.clear(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
   function turn(dx: number, dy: number) {
     if (!ready || paused || (!isPlaying(mode)&&mode!=="third")) return;
-    look = turnView(look, dx, dy);
+    look = turnWithSettings(dx, dy);
     invalidate();
   }
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
@@ -1168,12 +1178,19 @@ export function mountArena(
       try { const result = canvas.requestPointerLock(); if (result) void result.catch(() => {}); } catch { /* drag stays available */ }
     }
   }
-  function pauseInput(value: boolean) {
+  function pause(value: boolean) {
+    if(paused===value)return;
     paused = value;
-    if(value)cancelStart();clearInput();
+    if(!experiment?.running){
+      simClock.pause();
+      if(countdownEnd){if(value)countdownPausedAt=performance.now();else if(countdownPausedAt){countdownEnd+=performance.now()-countdownPausedAt;countdownPausedAt=0;}}
+      if(value)audio.stop();
+    }
+    clearInput();
     drag = null;observerPointer=null;
     controls.enabled = !value && !director.enabled&&!experiment?.running&&!isPlaying(mode)&&mode!=="ai-first"&&mode!=="third"&&mode!=="detail";
     if (value && document.pointerLockElement === canvas) document.exitPointerLock();
+    publish();invalidate();
   }
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
@@ -1213,12 +1230,56 @@ export function mountArena(
   window.addEventListener("blur", clearInput);
   window.addEventListener("pointerup", pointerup);
   window.addEventListener("pointercancel", pointerup);
-  onBusy();
-
-  async function loadAsset(asset:{url:string;sha256:string}) {
-    const response = await fetch(asset.url, { signal: abort.signal });
-    if (!response.ok) throw new Error("CAD asset unavailable");
-    const payload = await response.arrayBuffer();
+  performance.measure("arena:program",{start:programStarted,end:performance.now()});
+  type LoadAsset={url:string;sha256:string;bytes?:number};
+  type AssetProgress={phase:"download"|"verify"|"parse"|"done";received:number;total?:number};
+  const assetProgress=new Map<string,AssetProgress>();
+  let lastProgress=0;
+  function reportAssets(force=false){
+    if(disposed||abort.signal.aborted)return;
+    const now=performance.now();
+    if(!force&&now-lastProgress<80)return;
+    lastProgress=now;
+    const items=[...assetProgress.values()];
+    const phase=items.some(item=>item.phase==="download")?"download":items.some(item=>item.phase==="verify")?"verify":"parse";
+    const received=items.reduce((sum,item)=>sum+item.received,0);
+    const total=items.every(item=>item.total!==undefined)?items.reduce((sum,item)=>sum+item.total!,0):undefined;
+    onProgress({phase,received,total});
+  }
+  const yieldForPaint=()=>new Promise<void>(resolve=>setTimeout(resolve,0));
+  async function loadAsset(asset:LoadAsset) {
+    const item=assetProgress.get(asset.url)!;
+    const label=asset.url.split("/").pop();
+    let started=performance.now();
+    const response=await fetch(asset.url,{signal:abort.signal});
+    if(!response.ok)throw new Error("CAD asset unavailable");
+    const encoding=response.headers.get("content-encoding");
+    const length=Number(response.headers.get("content-length"));
+    item.total=encoding&&encoding!=="identity"?undefined:Number.isSafeInteger(length)&&length>0?length:asset.bytes;
+    reportAssets(true);
+    const chunks:Uint8Array[]=[];
+    if(response.body){
+      const reader=response.body.getReader();
+      for(;;){
+        const {done,value}=await reader.read();
+        if(done)break;
+        chunks.push(value);item.received+=value.byteLength;
+        if(item.total!==undefined&&item.received>item.total)item.total=undefined;
+        reportAssets();
+      }
+    }else{
+      const value=new Uint8Array(await response.arrayBuffer());
+      chunks.push(value);item.received=value.byteLength;
+    }
+    if(item.total!==item.received)item.total=undefined;
+    const payloadArray=new Uint8Array(item.received);
+    let offset=0;
+    for(const chunk of chunks){payloadArray.set(chunk,offset);offset+=chunk.byteLength;}
+    chunks.length=0;
+    performance.measure("arena:download:"+label,{start:started,end:performance.now()});
+    item.phase="verify";reportAssets(true);await yieldForPaint();abort.signal.throwIfAborted();
+    started=performance.now();
+    const payload=payloadArray.buffer;
     const signature = new Uint8Array(payload, 0, 2);
     const bytes = signature[0] === 0x1f && signature[1] === 0x8b
       ? await new Response(new Blob([payload]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()
@@ -1226,12 +1287,24 @@ export function mountArena(
     const digest = await crypto.subtle.digest("SHA-256", bytes);
     const actual = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
     if (actual !== asset.sha256) throw new Error("CAD mesh integrity mismatch");
-    return (await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(bytes,"")).scene;
+    performance.measure("arena:verify:"+label,{start:started,end:performance.now()});
+    item.phase="parse";reportAssets(true);await yieldForPaint();abort.signal.throwIfAborted();
+    started=performance.now();
+    const model=(await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(bytes,"")).scene;
+    performance.measure("arena:parse:"+label,{start:started,end:performance.now()});
+    if(disposed||abort.signal.aborted){disposeObjects(model);throw new DOMException("Cancelled","AbortError");}
+    pendingAssets.add(model);item.phase="done";reportAssets(true);
+    return model;
   }
   void (async () => {
     const asset=await resolveCadModel("rmucField");
-    const [field,parts,coreParts,dartParts]=await Promise.all([loadAsset(asset),loadAsset(MECHANISM_ASSET),loadAsset(CORE_ASSET),loadAsset(DART_ASSET)]);
-    if(disposed){disposeObjects(field);disposeObjects(parts);disposeObjects(coreParts);disposeObjects(dartParts);return;}
+    const assets=[{...asset,bytes:CAD_MODELS.rmucField.bytes},MECHANISM_ASSET,CORE_ASSET,DART_ASSET];
+    for(const item of assets)assetProgress.set(item.url,{phase:"download",received:0,total:item.bytes});
+    reportAssets(true);
+    const [field,parts,coreParts,dartParts]=await Promise.all(assets.map(loadAsset));
+    if(disposed)return;
+    onProgress({phase:"terrain"});await yieldForPaint();abort.signal.throwIfAborted();
+    let phaseStarted=performance.now();
     const root = new THREE.Group();
     root.add(field);
     root.rotation.x = -Math.PI / 2;
@@ -1255,6 +1328,9 @@ export function mountArena(
       pixels.data[k]=v;pixels.data[k+1]=Math.min(255,v+9);pixels.data[k+2]=Math.min(255,v+18);pixels.data[k+3]=255;
     }
     ctx.putImageData(pixels,0,0);mapImage=mini.toDataURL();
+    performance.measure("arena:terrain",{start:phaseStarted,end:performance.now()});
+    onProgress({phase:"initialize"});await yieldForPaint();abort.signal.throwIfAborted();
+    phaseStarted=performance.now();
     field.add(coreGeometry.group);
     field.updateMatrixWorld(true);
     // Ground support uses the static CAD envelope without movable energy units.
@@ -1313,11 +1389,14 @@ export function mountArena(
       mechanism.parts,coreGeometry.group,...coreGeometry.cores.map(c=>c.object),
       ...mechanism.dartBindings.flatMap(b=>[b.door,b.carriage]),benchModules,...fieldRobots.map(r=>r.object)
     ]));
+    performance.measure("arena:initialize",{start:phaseStarted,end:performance.now()});
+    pendingAssets.clear();
     ready = true;
+    firstFrameStarted=performance.now();onProgress({phase:"firstFrame"});
     setView("first");
-    onReady();
   })().catch(() => {
-    if (!disposed) onError("三维场地加载失败，请刷新重试");
+    abort.abort();
+    if (!disposed) onError("三维场地加载失败，请重试");
   });
 
   return {
@@ -1327,7 +1406,7 @@ export function mountArena(
     configureStrategies(value){if(!match||match.phase==="running"||experiment?.running||!validStrategy(value.red)||!validStrategy(value.blue))return false;strategies=structuredClone(value);return true;},
     startExperiment,cancelExperiment,
     configureSeed(value){if(!match||experiment?.running||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;reset();return true;},
-    sound:enabled=>{audio.setEnabled(enabled);publish();invalidate();},director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, input, pause, settings:applySettings, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
     armorFortify:(x,y)=>{const r=activeRobot();if(match&&r){const c=recommendedArmorCenter(match,r.team);fortifyArmor(match,r.team,{x:x??c.x,y:y??c.y});}publish();invalidate();},
@@ -1358,6 +1437,8 @@ export function mountArena(
       controls.removeEventListener("change", invalidate);
       controls.dispose();
       projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();robotFeedback?.dispose();
+      for(const asset of pendingAssets)if(!asset.parent)disposeObjects(asset);
+      pendingAssets.clear();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);

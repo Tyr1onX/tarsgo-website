@@ -6,6 +6,7 @@ export const CAD_MODELS = {
     // Official 2027 optimized visual GLB, then meshopt-encoded. Position/index streams and node
     // transforms stay exact; only shading normals use 12-bit oct encoding.
     url: "/assets/pixel-jijia/rmuc-2027-arena-5eb9e75a.glb.gz",
+    bytes: 17067815,
     sha256: "5eb9e75ae24eb4bd9fbd2e79ede6affd48b2cd784c5cbf699509d06d2ae50608",
     source: "RMUC2027_V1.0.0.stp（全场官方 CAD）",
     triangles: 1106828,

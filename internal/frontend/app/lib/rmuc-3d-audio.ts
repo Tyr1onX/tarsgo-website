@@ -43,7 +43,7 @@ export function cueSamples(cue:Cue,rate:number){
  return data;
 }
 export function createMatchAudio(camera:PerspectiveCamera){
- let enabled=true,context:AudioContext|null=null,master:DynamicsCompressorNode|null=null,disposed=false;
+ let enabled=true,volume=1,context:AudioContext|null=null,master:DynamicsCompressorNode|null=null,output:GainNode|null=null,disposed=false;
  const buffers=new Map<Cue,AudioBuffer>(),last=new Map<Cue,number>();
  const voices=new Map<AudioBufferSourceNode,()=>void>();
  function stop(){
@@ -52,7 +52,7 @@ export function createMatchAudio(camera:PerspectiveCamera){
  }
  function unlock(){
   if(!enabled||disposed||document.hidden)return;
-  try{if(!context){context=new AudioContext();master=context.createDynamicsCompressor();master.threshold.value=-12;master.ratio.value=5;master.connect(context.destination);}if(context.state==="suspended")void context.resume().catch(()=>{});}catch{}
+  try{if(!context){context=new AudioContext();master=context.createDynamicsCompressor();master.threshold.value=-12;master.ratio.value=5;output=context.createGain();output.gain.value=volume;master.connect(output);output.connect(context.destination);}if(context.state==="suspended")void context.resume().catch(()=>{});}catch{}
  }
  function play(cue:Cue,point?:Point){
   if(!enabled||disposed||document.hidden||context?.state!=="running"||!master)return;
@@ -74,5 +74,5 @@ export function createMatchAudio(camera:PerspectiveCamera){
    source.onended=cleanup;voices.set(source,cleanup);try{source.start();last.set(cue,now);}catch{cleanup();}
   }catch{}
  }
- return {get enabled(){return enabled;},get activeCount(){return voices.size;},get state(){return context?.state??"locked";},unlock,play,stop,setEnabled(value:boolean){enabled=value;if(value)unlock();else stop();},dispose(){disposed=true;stop();buffers.clear();master?.disconnect();master=null;if(context)void context.close().catch(()=>{});context=null;}};
+ return {get enabled(){return enabled;},get activeCount(){return voices.size;},get state(){return context?.state??"locked";},unlock,play,stop,setVolume(value:number){volume=Math.max(0,Math.min(1,value));if(output)output.gain.value=volume;},setEnabled(value:boolean){if(enabled===value)return;enabled=value;if(value)unlock();else stop();},dispose(){disposed=true;stop();buffers.clear();master?.disconnect();output?.disconnect();master=null;output=null;if(context)void context.close().catch(()=>{});context=null;}};
 }
