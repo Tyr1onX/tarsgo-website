@@ -18,8 +18,8 @@ export default function OperationsWorksPage() {
   const page = Math.max(1, Number(params.get("page")) || 1);
   const [board, setBoard] = useState<OperationsBoard | null>(null);
   const [works, setWorks] = useState<OperationsWorks | null>(null);
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
+  const query = params.get("q") ?? "";
+  const [search, setSearch] = useState(query.trim());
   const [error, setError] = useState("");
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
 
@@ -44,12 +44,12 @@ export default function OperationsWorksPage() {
     return () => { active = false; };
   }, [platform, page, tab, search]);
 
-  const updateParams = (changes: Record<string,string>) => {
+  const updateParams = (changes: Record<string,string>, replace = false) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(changes)) {
       if (value) next.set(key, value); else next.delete(key);
     }
-    setParams(next);
+    setParams(next, { replace, flushSync: true });
   };
   const production = useMemo(() => {
     const items = board?.items.filter((item) => item.kind === "video" || item.kind === "article") ?? [];
@@ -99,10 +99,7 @@ export default function OperationsWorksPage() {
       </nav>
       <input className="operations-progress__search" type="search" value={query}
         aria-label="搜索作品" placeholder={tab === "posts" ? "搜索发布标题" : "搜索标题、系列或负责人"}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          if (page !== 1) updateParams({ page: "" });
-        }} />
+        onChange={(event) => updateParams({ q: event.target.value, page: "" }, true)} />
     </div>
     {error ? <p className="operations-progress__error" role="alert">{error}</p> : null}
     {tab === "production" ? <>

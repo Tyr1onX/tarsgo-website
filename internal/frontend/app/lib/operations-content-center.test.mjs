@@ -146,6 +146,15 @@ test("quick launch starts planning without advancing to filming or forcing assig
   assert.match(css, /operations-progress__library-row/);
 });
 
+test("works search uses the existing URL filters and replaces history while typing", async () => {
+  const works = await read("../routes/dashboard/operations-works.tsx");
+  assert.match(works, /const query = params\.get\("q"\) \?\? ""/);
+  assert.match(works, /useState\(query\.trim\(\)\)/);
+  assert.match(works, /setParams\(next, \{ replace, flushSync: true \}\)/);
+  assert.match(works, /updateParams\(\{ q: event\.target\.value, page: "" \}, true\)/);
+  assert.doesNotMatch(works, /setQuery/);
+});
+
 test("operations overview shows compact platform snapshots and keeps full workflow in detail pages", async () => {
   const [overview, css, detail] = await Promise.all([
     read("../routes/dashboard/operations-progress.tsx"),
