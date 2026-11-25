@@ -240,12 +240,22 @@ export function mountArena(
   const eventFeed=createEventFeed(),director=createDirector(),audio=createMatchAudio(camera);
   let countdownCue=0;
   const audioPerspective=() => activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective;
+  const worldCenter=(node:THREE.Object3D|undefined)=>node?new THREE.Box3().setFromObject(node,true).getCenter(new THREE.Vector3()):undefined;
   function soundEvent(event:MatchEvent){
     if(!audioVisible(event.visibility,audioPerspective()))return;
     const cue=eventCue(event);if(!cue)return;
     const perspective=audioPerspective();
-    const position="team" in event&&perspective!=="all"&&event.team!==perspective?undefined:"position" in event?event.position:"robot" in event?positions.get(event.robot):undefined;
-    audio.play(cue,cue==="major"||cue==="start"||cue==="end"?undefined:position);
+    let position: {x:number;y:number;z:number}|undefined;
+    switch(event.type){
+      case "dart-launch":position=dartVisual?.soundPosition(event.team);break;
+      case "dart-hit":position=dartVisual?.soundPosition(event.location,event.mode);break;
+      case "outpost-destroyed":case "outpost-rebuilt":position=worldCenter(mechanism?.parts.getObjectByName(event.location+"-outpost-assembly"));break;
+      case "cover-opening":case "cover-open":position=worldCenter(mechanism?.parts.getObjectByName(event.location+"-base-assembly"));break;
+      case "rune-start":case "rune-success":position=worldCenter(mechanism?.banks[event.team==="red"?0:1]);break;
+      case "assembly-step-complete":case "assembly-end":position=worldCenter(coreGeometry?.cores[(event.core??event.team)==="red"?0:1]?.object);break;
+      default:position="team" in event&&perspective!=="all"&&event.team!==perspective?undefined:"position" in event?event.position:"robot" in event?positions.get(event.robot):undefined;
+    }
+    audio.play(cue,position);
   }
   function impactSound(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number){
     if(experiment?.running)return;
@@ -1088,7 +1098,7 @@ export function mountArena(
     if ((!movement.has(key)&&!flightKeys.has(key))||experiment?.running) return;
     if (!pressed) keys.delete(key);
     else if(ready&&!paused&&!countdownEnd){
-      if(director.enabled&&movement.has(key))setView("third");
+      if(director.enabled)setView("third");
       if(isPlaying(mode)&&movement.has(key)||mode==="third")keys.add(key);
     }
     invalidate();
@@ -1100,10 +1110,10 @@ export function mountArena(
     const motion=motionFor(bot);motion.spin=!motion.spin;publish();invalidate();
   }
   function keydown(event: KeyboardEvent) {
-    if (!ready || paused || event.metaKey || event.ctrlKey&&mode!=="third" || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+    if (!ready || paused || event.metaKey || event.ctrlKey&&mode!=="third"&&!(director.enabled&&flightKeys.has(event.code)) || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
     if(countdownEnd){if(event.code==="Escape")cancelStart();return;}
     if(event.code==="Escape"&&mode==="third"){clearInput();if(document.pointerLockElement===canvas)document.exitPointerLock();return;}
-    if ((movement.has(event.code)||mode==="third"&&flightKeys.has(event.code))&&(isPlaying(mode)||mode==="third"||director.enabled)) {
+    if ((movement.has(event.code)||(mode==="third"||director.enabled)&&flightKeys.has(event.code))&&(isPlaying(mode)||mode==="third"||director.enabled)) {
       event.preventDefault();
       input(event.code, true);
     } else if (event.code === "Space" && driving && isPlaying(mode)) {event.preventDefault();if(!event.repeat)trigger("space",true);}
@@ -1131,7 +1141,7 @@ export function mountArena(
     canvas.setPointerCapture(event.pointerId);
   }
   function pointermove(event: PointerEvent) {
-    if(director.enabled&&observerPointer?.id===event.pointerId&&Math.hypot(event.clientX-observerPointer.x,event.clientY-observerPointer.y)>=4){setView("third");drag={id:event.pointerId,x:event.clientX,y:event.clientY,moved:true};canvas.setPointerCapture(event.pointerId);return;}
+    if(director.enabled&&observerPointer?.id===event.pointerId&&Math.hypot(event.clientX-observerPointer.x,event.clientY-observerPointer.y)>=4){const {x,y}=observerPointer;setView("third");drag={id:event.pointerId,x:event.clientX,y:event.clientY,moved:true};canvas.setPointerCapture(event.pointerId);turn(event.clientX-x,event.clientY-y);return;}
     if (document.pointerLockElement === canvas || drag?.id !== event.pointerId) return;
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
     if (dx || dy) drag.moved = true;

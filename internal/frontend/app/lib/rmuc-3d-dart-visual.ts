@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {DART_FLIGHT_SECONDS,type Match,type DartMode} from "./rmuc-3d-match.ts";
+import {DART_FLIGHT_SECONDS,type Match,type DartMode,type Team} from "./rmuc-3d-match.ts";
 import {TEAMS,opposite,type installMechanisms} from "./rmuc-3d-mechanisms.ts";
 import {softGlowTexture} from "./rmuc-3d-projectiles.ts";
 
@@ -85,5 +85,11 @@ export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof i
     clear();group.removeFromParent();for(const g of [bodyGeo,noseGeo,finGeo,trailGeo])g.dispose();
     for(const m of [bodyMaterial,...noseMaterials,...trailMaterials,glowMaterial,missMaterial])m.dispose();glowTexture.dispose();
   }
-  return {group,update,clear,dispose};
+  function soundPosition(team:Team,mode?:DartMode){
+    const slot=slots.find(s=>s.team===team);if(!slot)return undefined;
+    if(!mode)return slot.start;
+    const anchor=mode==='outpost'?slot.outpost:slot.carriage;
+    return anchor.node.localToWorld(anchor.local.clone());
+  }
+  return {group,update,clear,dispose,soundPosition};
 }
