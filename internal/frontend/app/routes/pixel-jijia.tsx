@@ -14,6 +14,8 @@ import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFish
 import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds, hasEquipmentBehavior, equipmentProgress, roomSpriteKey } from "~/lib/pixel-jijia-room-art";
 import { PixelWorldAudio, footstepMaterial, distanceVolume, type LocalSound } from "~/lib/pixel-jijia-audio";
 import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityCreditRole, communityDiscoveryId } from "~/lib/pixel-jijia-community";
+import { BaseObjectDetail, SaveAchievement } from "~/components/pixel-jijia-base-detail";
+import { baseAction, carriedLabel, freshBaseRoom, transferItem, togglePower, RESEARCH_IDS, type Achievement } from "~/lib/pixel-jijia-base";
 import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
 import { apiRequest } from "~/lib/api-client";
 import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, type AuthUser } from "~/lib/auth-client";
@@ -35,7 +37,17 @@ const communityObjects = Object.values(COMMUNITY_ROOM_OBJECTS).flat();
 type Feature = Place | Scenery;
 const featureTitle = (feature: Feature) => "href" in feature ? feature.title : feature.story?.title ?? (feature.sprite === "bench" ? "石凳" : "发现");
 const featureAction=(feature:Feature)=>"href" in feature?"进入":feature.sprite==="bench"?"坐下":feature.story?.action??"观察";
-const roomAction=(object:RoomObject)=>object.kind==="chair"?"坐下":object.kind==="exit"?"离开":({senior:"对话",meeting:"落座",drive:"驾驶",assembly:"组装",terminal:"使用",silverwolf:"使用",memoir:"查看",memory:"查看"} as Record<string,string>)[object.community?.interaction??""]??(object.community?"互动":"查看");
+const roomAction=(object:RoomObject,roomId?:string,state= freshBaseRoom())=>{
+ const action=baseAction(roomId,object.id);
+ if(action==="power")return state.power[object.id]?"关闭设备":"开启设备";
+ if(action==="take")return state.item==="source"?"拿取零件":"归还零件";
+ if(action==="assembly")return "装配";
+ if(action==="drink")return state.drank?"查看外卖":"休息饮用";
+ if(action==="water")return state.watered.includes(object.id)?"已浇水":"浇水";
+ if(action==="game")return "落座";
+ if(action&&action!=="links")return action==="history"?"查看档案":"开始实验";
+ return object.kind==="chair"?"坐下":object.kind==="exit"?"离开":({senior:"对话",meeting:"落座",drive:"驾驶",assembly:"组装",terminal:"使用",silverwolf:"使用",memoir:"查看",memory:"查看"} as Record<string,string>)[object.community?.interaction??""]??(object.community?"互动":"查看");
+};
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
@@ -140,6 +152,10 @@ export default function PixelJijiaPage() {
 
   const [seated, setSeated] = useState<{ object:SeatObject; exit: Position } | null>(null);
   const effectsRef = useRef(new Map<string,number>());
+  const [baseState,setBaseState]=useState(freshBaseRoom);
+  const [freshFish,setFreshFish]=useState(false);
+  const [studyAchievements,setStudyAchievements]=useState<Achievement[]>([]);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const worldAudioRef=useRef<PixelWorldAudio|null>(null);
   const [muted, setMuted] = useState(false);
@@ -191,7 +207,7 @@ export default function PixelJijiaPage() {
   const resetStudy = useCallback(() => {
     studyAccessRef.current?.controller.abort();
     studyAccessRef.current=null;
-    setStudyItems([]);setStudyGuest(false);setStudyEditing(false);
+    setStudyItems([]);setStudyAchievements([]);setStudyGuest(false);setStudyEditing(false);
     setStudySaving(false);setStudyHasInvite(false);setStudyInvite("");setStudyNotice("");
   }, []);
   const invalidateOwnerStudy = useCallback(() => {
@@ -208,7 +224,7 @@ export default function PixelJijiaPage() {
       if(studyAccessRef.current&&studyAccessRef.current.ownerId!==user?.id)invalidateOwnerStudy();
     };
     const unsubscribe=subscribeAuthStateChange(onAuth);
-    const unsubscribeSession=subscribeAccountSessionChange(invalidateOwnerStudy);
+    const unsubscribeSession=subscribeAccountSessionChange(()=>{invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);});
     return()=>{unsubscribe();unsubscribeSession();studyAccessRef.current?.controller.abort();};
   }, [invalidateOwnerStudy]);
   const standUp = useCallback(() => {
@@ -232,7 +248,7 @@ export default function PixelJijiaPage() {
     if(cast){
       const fish=catchFish(wildlifeRef.current,cast,performance.now());
       if(!fish)return;
-      cast.caughtAt=0;recordDiscovery(fish,"钓到一条"+fish);return;
+      cast.caughtAt=0;recordDiscovery(fish,"钓到一条"+fish);setFreshFish(true);return;
     }
     const target=fishingTarget(player);
     if(target){castRef.current=beginFishing(wildlifeRef.current,target,performance.now());
@@ -332,7 +348,7 @@ export default function PixelJijiaPage() {
     if (transitionRef.current) return;
     clearInput();
     setMenuOpen(false);
-    audioRef.current?.pause();effectsRef.current.clear();targetRef.current=null;
+    audioRef.current?.pause();effectsRef.current.clear();targetRef.current=null;setBaseState(freshBaseRoom());setFreshFish(false);
     castRef.current=null;
     if (!canvasRef.current?.dataset.scene || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       swap();
@@ -370,13 +386,13 @@ export default function PixelJijiaPage() {
         studyAccessRef.current=access;
       }
       const data = await apiRequest<{
-        furniture: StudyFurniture[]; inviteActive?: boolean;
+        furniture: StudyFurniture[]; inviteActive?: boolean; achievements:Achievement[];
       }>(invitation ? `/api/pixel-home/visit?token=${encodeURIComponent(invitation)}`
         : "/api/pixel-home/me", { cache: "no-store",signal:access?.controller.signal });
       if(access?.controller.signal.aborted)return;
       transitionTo("study", () => {
         if(access?.controller.signal.aborted)return;
-        setStudyItems(data.furniture);setStudyEditing(false);
+        setStudyItems(data.furniture);setStudyAchievements(data.achievements??[]);setStudyEditing(false);
         setStudyHasInvite(Boolean(data.inviteActive));
         setStudyGuest(Boolean(invitation));
         setStudyInvite("");
@@ -425,6 +441,17 @@ export default function PixelJijiaPage() {
     } finally {
       if(!signal.aborted)setStudySaving(false);
     }
+  };
+  const toggleStudyAchievement=async(item:Achievement)=>{
+    const access=studyAccessRef.current;
+    if(!access||studyGuest||studySaving||getCachedCurrentUser()?.id!==access.ownerId)return;
+    const signal=access.controller.signal;
+    setStudySaving(true);setStudyNotice("");
+    try{
+      const rows=await apiRequest<Achievement[]>("/api/pixel-home/achievements/display",{method:"PUT",body:{id:item.id,displayed:!item.displayed},signal});
+      if(!signal.aborted)setStudyAchievements(rows);
+    }catch(error){if(!signal.aborted)setStudyNotice(error instanceof Error?error.message:"展示保存失败");}
+    finally{if(!signal.aborted)setStudySaving(false);}
   };
   const revokeStudyInvite = async () => {
     const access=studyAccessRef.current;
@@ -637,6 +664,22 @@ export default function PixelJijiaPage() {
     directionRef.current=directionToward(playerRef.current,{x:object.x+object.width/2,y:object.y+object.height/2},directionRef.current);
     poseRef.current={...poseRef.current,action:"idle",frame:0,since:performance.now()};
     const now=performance.now();
+    const action=baseAction(room.id,object.id);
+    if(action==="power"){
+      setBaseState(old=>togglePower(old,object.id));effectsRef.current.set(object.id,now);return;
+    }
+    if(action==="take"){
+      setBaseState(old=>transferItem(old,old.item==="source"?"held":"source"));return;
+    }
+    if(action==="assembly"&&baseState.item==="held")setBaseState(old=>transferItem(old,"placed"));
+    if(action==="drink"&&!baseState.drank){
+      setBaseState(old=>({...old,drank:true}));effectsRef.current.set(object.id,now);
+      poseRef.current={...poseRef.current,action:"observe",since:now};return;
+    }
+    if(action==="water"){
+      setBaseState(old=>old.watered.includes(object.id)?old:{...old,watered:[...old.watered,object.id]});
+      effectsRef.current.set(object.id,now);poseRef.current={...poseRef.current,action:"observe",since:now};return;
+    }
     if(hasEquipmentBehavior(object.id)&&equipmentProgress(object.id,now,effectsRef.current.get(object.id),(climateRef.current?.hour??12)+(climateRef.current?.minute??0)/60)<0)
       effectsRef.current.set(object.id,now);
     if (object.community) {
@@ -655,7 +698,7 @@ export default function PixelJijiaPage() {
       }
     }
     selectRoomObject(object);
-  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, muted]);
+  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, muted,baseState]);
   const interactFeature = useCallback((feature: Feature) => {
     if (room || transitionRef.current || waterDepthAt(playerRef.current.x, playerRef.current.y)) return;
     if ("href" in feature) {
@@ -885,7 +928,7 @@ export default function PixelJijiaPage() {
           let kind:LocalSound="none",volume=0;
           if(room){
             for(const o of room.objects){
-              if(equipmentProgress(roomSpriteKey(o),time,effectsRef.current.get(o.id),(climate?.hour??12)+(climate?.minute??0)/60)<0)continue;
+              if(equipmentProgress(roomSpriteKey(o),time,effectsRef.current.get(o.id),(climate?.hour??12)+(climate?.minute??0)/60,baseState.power[o.id])<0)continue;
               const gain=distanceVolume(Math.hypot(foot.x-o.x-o.width/2,foot.y-o.y-o.height),9)*.095;
               if(gain>volume){volume=gain;kind="device";}
             }
@@ -933,7 +976,7 @@ export default function PixelJijiaPage() {
         trailRef.current.length = 0;
         renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
           pose, cameraRef.current,
-          time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current);
+          time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current,baseState,studyAchievements,robotAtlasesRef.current.get("guodong"));
       } else {
         advanceSurfaceTrail(trailRef.current, previous, playerRef.current, dt, surfaceRef.current, !reducedMotion.matches);
         updateWildlife(wildlifeRef.current,playerRef.current,dt,(climate?.hour??12)+(climate?.minute??0)/60,climate?.weather??null,!reducedMotion.matches,castRef.current,walking);
@@ -1021,7 +1064,7 @@ export default function PixelJijiaPage() {
         setNearby(nextNearby);
       }
       const feature=room?nextRoom:nextNearby;
-      const label=seated?"起身":room&&nextRoom?roomAction(nextRoom):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
+      const label=seated?"起身":room&&nextRoom?roomAction(nextRoom,room.id,baseState):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
       if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!transitionRef.current&&label&&label!=="等待鱼咬钩"&&!(robotControlled&&trainingRef.current)){
         const c=snapCamera(cameraRef.current);
         const anchor=nearRobot?{x:nearRobot.x,y:nearRobot.y-nearRobot.model.anchorY/TILE}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
@@ -1032,6 +1075,8 @@ export default function PixelJijiaPage() {
         ctx.fillStyle="#263f39";ctx.fillRect(px-w/2,py-8,w,16);ctx.strokeStyle="#dfc58d";ctx.strokeRect(px-w/2,py-8,w,16);ctx.fillStyle="#fff0c5";ctx.fillText(text,px,py);ctx.restore();
       }
       canvas.dataset.interaction=label;
+      canvas.dataset.baseItem=baseState.item;
+      canvas.dataset.basePower=JSON.stringify(baseState.power);
       canvas.dataset.targetId=feature?("id" in feature?feature.id:feature.story?.title??feature.sprite):"";
       canvas.dataset.training=trainingRef.current?.phase??"off";
       canvas.dataset.trainingHp=String(trainingRef.current?.hp??100);
@@ -1096,7 +1141,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, controlledRobot,robots,activeRobot]);
+    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, controlledRobot,robots,activeRobot,baseState,studyAchievements]);
 
   const handleMapClick = (event: {clientX: number; clientY: number}) => {
     const canvas = canvasRef.current;
@@ -1325,6 +1370,8 @@ export default function PixelJijiaPage() {
         </div>}
       </aside>}
       {room && <div className="pixel-world-room-name">{room.title}</div>}
+      {room&&baseState.item==="held"&&!selectedRoom&&<div className="pixel-base-toolbelt"><span>{carriedLabel(room.id)}</span><button type="button" onClick={()=>setBaseState(old=>transferItem(old,"source"))}>归还</button></div>}
+      {!room&&freshFish&&!menuOpen&&!mapOpen&&<div className="pixel-base-fish"><SaveAchievement id="fish"/><button type="button" onClick={()=>setFreshFish(false)}>×</button></div>}
       {room?.id === "study" && !studyGuest && <div className="pixel-world-study-tools" role="group" aria-label="研究室家具布置">
         <button type="button" aria-pressed={studyEditing} onClick={()=>{standUp();setStudyEditing(!studyEditing);}}> {studyEditing?"完成布置":"布置家具"}</button>
         {studyEditing && <select aria-label="选择家具或删除" value={studyTool}
@@ -1347,6 +1394,11 @@ export default function PixelJijiaPage() {
         </>}
       </div>}
       {room?.id === "study" && studyGuest && <div className="pixel-world-study-guest">只读参观</div>}
+      {room?.id==="study"&&studyAchievements.length>0&&<details className="pixel-base-study-achievements">
+        <summary>{studyGuest?"展品":"个人成果"} · {studyAchievements.length}</summary>
+        {!studyGuest&&<p>研发纪念 · {RESEARCH_IDS.filter(id=>studyAchievements.some(row=>row.id===id)).length}/{RESEARCH_IDS.length}</p>}
+        {studyAchievements.map(item=><div key={item.id}><span>{item.title}</span>{!studyGuest&&<button type="button" disabled={studySaving} aria-pressed={item.displayed} onClick={()=>void toggleStudyAchievement(item)}>{item.displayed?"取消展示":"展示"}</button>}</div>)}
+      </details>}
       {studyNotice && <div className="pixel-world-study-notice" role="status">
         {studyNotice} {studyNotice.includes("未登录") && <Link to="/login">前往登录</Link>}
       </div>}
@@ -1363,6 +1415,7 @@ export default function PixelJijiaPage() {
       {robotControlled&&trainingPhase&&!menuOpen&&!mapOpen&&<div className="pixel-world-training" role="status">
         {trainingPhase==="playing"?<span>{mobile?"点击瞄准 · 摇杆移动":"微缩训练 · 点击发射 · E 退出"}</span>:<>
           <span>{trainingPhase==="won"?"训练完成":"训练机器人失能"}</span>
+          {trainingPhase==="won"&&activeRobot.model.id==="guodong"&&<SaveAchievement id="training-guodong"/>}
           <button type="button" onClick={()=>{trainingRef.current=createTraining(activeRobot,playerRef.current,robots);setTrainingPhase(trainingRef.current?.phase??null);}}>重新训练</button>
         </>}
       </div>}
@@ -1375,7 +1428,7 @@ export default function PixelJijiaPage() {
       </>}</div>}
       {mobile && !studyEditing && !menuOpen && !mapOpen && !selected && !selectedRoom && !catalogueDetail && (seated || nearbyRoom || nearby || (naturePrompt && naturePrompt!=="等待鱼咬钩")) &&
         <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : toggleRobot()?undefined:naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
-          {seated?"起身":nearbyRoom?roomAction(nearbyRoom):naturePrompt|| (nearby?featureAction(nearby):"")}
+          {seated?"起身":nearbyRoom?roomAction(nearbyRoom,room?.id,baseState):naturePrompt|| (nearby?featureAction(nearby):"")}
         </button>}
 
       {selected && (
@@ -1391,14 +1444,15 @@ export default function PixelJijiaPage() {
 
         </div></section>
       )}
-      {selectedRoom && <section ref={dialogRef} className={`pixel-world-detail${selectedRoom.community ? " pixel-world-community-detail" : ""}`} role="dialog"
+      {selectedRoom && <section ref={dialogRef} className={`pixel-world-detail${selectedRoom.community||baseAction(room?.id,selectedRoom.id) ? " pixel-world-community-detail" : ""}`} role="dialog"
         aria-label={selectedRoom.title} aria-modal="false">
         <button type="button" className="pixel-world-detail-close" aria-label="关闭介绍"
           onClick={() => selectRoomObject(null)}>×</button>
         <div className="pixel-world-detail-content">
         <h1>{selectedRoom.title}</h1>
-        {selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom}
+        {selectedRoom.community && baseAction(room?.id,selectedRoom.id)==="history" ? <CommunityCredits object={selectedRoom}/> : selectedRoom.community ? <CommunityObjectDetail key={selectedRoom.id} object={selectedRoom}
           returnTo={returnTo.startsWith("/dashboard") ? returnTo : "/pixel-jijia"} /> : null}
+        {baseAction(room?.id,selectedRoom.id)&&<BaseObjectDetail key={selectedRoom.id} action={baseAction(room?.id,selectedRoom.id)!} state={baseState} setState={setBaseState} objectId={selectedRoom.id}/>}
         {selectedRoom.href && <Link to={selectedRoom.href} className="pixel-world-detail-link">
           {selectedRoom.action ?? "查看详情"}<span aria-hidden="true">↗</span>
         </Link>}

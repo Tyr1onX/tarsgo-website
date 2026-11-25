@@ -383,7 +383,7 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(scene.includes("drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed)"));
-  assert.ok(art.includes("if (!motion) return;"));
+  assert.ok(art.includes("if (!motion&&manual===undefined) return;"));
   assert.ok(route.includes("time, !reducedMotion.matches, climate, seated?seatDepth"));
   assert.ok(!art.includes("requestAnimationFrame("));
   assert.ok(route.includes('transition.phase = "in"'));
@@ -393,14 +393,14 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   assert.equal(route.split("requestAnimationFrame(tick)").length - 1, 3);
 });
 
-test("实体脚底阻挡、装饰无操作、每栋入口及出口可通行", () => {
+test("实体脚底阻挡、非交互装饰无操作、每栋入口及出口可通行", () => {
   for (const {id} of PLACES) {
     const room = ROOMS[id];
     assert.ok(isRoomWalkable(room, room.entry.x, room.entry.y), id);
     for (const o of room.objects.filter(o => o.solid)) {
       const x = o.x + o.width / 2, y = o.y + o.height / 2;
       assert.equal(isRoomWalkable(room, x, y), false, id + ":" + o.id);
-      if (o.decorative && o.kind!=="chair") assert.notEqual(closestRoomObject(room, {x, y})?.id, o.id);
+      if (o.decorative && o.kind!=="chair" && !roomInteractable(room,o)) assert.notEqual(closestRoomObject(room, {x, y})?.id, o.id);
     }
     const door = room.objects.find(o => o.kind === "exit");
     const x = door.x + door.width / 2, y = door.y + door.height - .6;

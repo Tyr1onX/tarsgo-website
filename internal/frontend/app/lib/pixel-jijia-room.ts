@@ -1,3 +1,5 @@
+import { ROBOT_MODELS } from "./pixel-jijia-robot.ts";
+import { baseAction, type BaseRoomState, type Achievement, EXHIBIT_IDS } from "./pixel-jijia-base.ts";
 import { TILE, overlapsRect, snapCamera, benchSeat, benchExit, facingScore, type Scenery, type Direction, type Position } from "./pixel-jijia-world.ts";
 import { renderExplorer } from "./pixel-jijia-scene.ts";
 import type { ExplorerAnimation } from "./pixel-jijia-explorer.ts";
@@ -269,7 +271,7 @@ export function meetingChair(room:RoomScene,position:Position):RoomObject|null {
     .sort((a,b)=>Math.hypot(a.x+a.width/2-position.x,a.y+a.height/2-position.y)-Math.hypot(b.x+b.width/2-position.x,b.y+b.height/2-position.y))[0]??null;
 }
 export function roomInteractable(room: RoomScene, object: RoomObject) {
-  return object.kind==="chair"?!!chairExit(room,object):!object.decorative&&!!(object.community||object.href||object.kind==="exit");
+  return object.kind==="chair"?!!chairExit(room,object):!!baseAction(room.id,object.id)||!object.decorative&&!!(object.community||object.href||object.kind==="exit");
 }
 
 export function closestRoomObject(room: RoomScene, position: Position, facing?: Direction, previous?: RoomObject | null): RoomObject | null {
@@ -377,7 +379,7 @@ export function renderRoomScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
   elapsed: number, motionAllowed: boolean,
-  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>,
+  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement,
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -397,7 +399,7 @@ export function renderRoomScene(
     drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed);
     for (const object of room.objects) {
       if (!object.solid && !object.host && object.kind !== "exit")
-        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour);
+        drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour,base?.power[object.id]);
     }
   }
   let playerDrawn = false;
@@ -410,11 +412,42 @@ export function renderRoomScene(
     }
     if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
     else {
-      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour);
+      drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour,base?.power[object.id]);
       for (const child of room.objects) if (child.host === object.id)
-        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed, effects?.get(child.id),viewWidth,viewHeight,hour);
+        drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed, effects?.get(child.id),viewWidth,viewHeight,hour,base?.power[child.id]);
     }
   }
   if (!playerDrawn) renderExplorer(ctx, character, player, pose, screenCamera);
+  if(base?.drank&&elapsed-(effects?.get("burger")??-Infinity)<700){
+    const x=Math.round(player.x*TILE-screenCamera.x),y=Math.round(player.y*TILE-screenCamera.y)-19;
+    ctx.fillStyle="#e4d4a1";ctx.fillRect(x+3,y-6,5,8);ctx.fillStyle="#88aaa7";ctx.fillRect(x+4,y-5,3,4);
+  }
+  for(const id of base?.watered??[]){
+    const o=room.objects.find(o=>o.id===id);if(!o)continue;
+    const x=(o.x+o.width/2)*TILE-screenCamera.x,y=o.y*TILE-screenCamera.y;
+    ctx.fillStyle="#93b9ab";ctx.fillRect(x-2,y-2,4,3);
+  }
+  if(base?.item==="held"){
+    const x=Math.round(player.x*TILE-screenCamera.x),y=Math.round(player.y*TILE-screenCamera.y)-19;
+    ctx.fillStyle="#34443b";ctx.fillRect(x-5,y-4,10,7);ctx.fillStyle="#d4b283";ctx.fillRect(x-4,y-3,8,5);
+  }
+  if(base?.item==="placed"){
+    const host=room.objects.find(o=>o.id===(room.id==="mechanical"?"assembly":"embedded"));
+    if(host){const x=(host.x+host.width/2)*TILE-screenCamera.x,y=host.y*TILE-screenCamera.y;ctx.fillStyle="#594c39";ctx.fillRect(x-6,y,12,7);ctx.fillStyle="#c5a66b";ctx.fillRect(x-5,y-2,10,5);}
+  }
+  if(room.id==="study")for(const item of achievements){
+    if(!item.displayed)continue;
+    const slot=EXHIBIT_IDS.indexOf(item.id as typeof EXHIBIT_IDS[number]);if(slot<0)continue;
+    // Fixed wall slots between windows; not collidable furniture.
+    const x=(7+slot%3*10)*TILE-screenCamera.x,y=(.6+Math.floor(slot/3)*1.35)*TILE-screenCamera.y;
+    ctx.fillStyle="#a48255";ctx.fillRect(x,y,30,19);ctx.fillStyle="#d5c39a";ctx.fillRect(x+2,y+2,26,15);
+    if(item.id==="assembly-guodong"&&exhibitAtlas){
+      const model=ROBOT_MODELS.guodong,w=model.width*model.nativeScale,h=model.height*model.nativeScale;
+      ctx.drawImage(exhibitAtlas,2*w,0,w,h,x+3,y,24,21);
+      ctx.drawImage(exhibitAtlas,0,h*model.wheelFrames,w,h,x+3,y,24,21);
+    }else{
+      ctx.fillStyle="#48656a";ctx.fillRect(x+7,y+5,16,8);ctx.fillStyle="#acc8b4";ctx.fillRect(x+10,y+7,10,2);
+    }
+  }
   if(room.id!=="study")drawRoomAmbient(ctx,room,screenCamera,climate);
 }

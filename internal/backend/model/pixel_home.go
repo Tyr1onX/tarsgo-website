@@ -12,3 +12,13 @@ type PixelHome struct {
 }
 
 func (PixelHome) TableName() string { return "pixel_homes" }
+
+// PixelAchievement is a deduplicated account souvenir, not a gameplay attribute.
+type PixelAchievement struct {
+	UserID    uint64    `json:"-" gorm:"column:user_id;type:bigint unsigned;primaryKey;autoIncrement:false"`
+	Key       string    `json:"id" gorm:"column:achievement_key;size:48;primaryKey"`
+	Displayed bool      `json:"displayed" gorm:"column:displayed;not null;default:false"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null"`
+}
+
+func (PixelAchievement) TableName() string { return "pixel_achievements" }

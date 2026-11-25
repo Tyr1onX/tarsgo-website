@@ -439,3 +439,43 @@
 .pixel-world-training { position:absolute; left:50%; top:10px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; background:rgba(38,52,51,.91); color:#f5e9d1; padding:6px 10px; border:1px solid #b5a88b; font-size:12px; z-index:5; white-space:nowrap; }
 .pixel-world-training button { background:#ead7af; color:#34423c; border:0; padding:4px 8px; cursor:pointer; }
 .is-mobile .pixel-world-training { top:auto; bottom:78px; font-size:11px; }
+
+/* Base activities are scoped to the existing scene detail, never a second HUD. */
+.pixel-base-save{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+.pixel-base-save a,.pixel-base-study-achievements button{color:#f2deb0}
+.pixel-base-robot{position:relative;display:inline-block;image-rendering:pixelated;flex:none}
+.pixel-base-robot>span{position:absolute;inset:0;background-repeat:no-repeat}
+.pixel-base-assembly-board{display:grid;justify-items:center;gap:6px;padding:8px;background:#243e3e;border:1px solid #73958a}
+.pixel-base-assembly-slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:100%}
+.pixel-base-assembly-slots button{min-width:0;min-height:64px;display:grid;justify-items:center;align-content:center;gap:2px;background:#38534c;border:1px dashed #a1b1a1;color:#e6d8b5;font-size:11px}
+.pixel-base-assembly-slots button[data-installed="true"]{border-style:solid;background:#446b56}
+.pixel-base-screen{display:grid;gap:4px;padding:8px;background:#142d2a;color:#afcfb8;font-size:12px;border:1px solid #7f9f86}
+.pixel-base-screen svg{width:100%;height:80px}
+.pixel-base-cable{display:flex;align-items:center;justify-content:space-between;gap:6px;color:#e3dac0;font-size:12px}
+.pixel-base-cable>span:nth-child(2){flex:1;text-align:center;border-block:2px solid #c6a06e}
+.pixel-base-cable>span.connected{border-color:#85c7a0}
+.pixel-base-feed{height:162px;position:relative;overflow:hidden;background:repeating-linear-gradient(0deg,#415c4c 0 15px,#4a6355 15px 16px);border:2px solid #87a497}
+.pixel-base-feed[data-power="false"]{background:#182b2b}
+.pixel-base-feed[data-dark="true"]{filter:brightness(.45)}
+.pixel-base-feed-target{position:absolute;top:0;left:30%;padding:0;background:transparent;border:1px solid transparent;animation:pixel-base-observe 3s ease-in-out infinite alternate}
+.pixel-base-feed-target[aria-pressed="true"]{border-color:#9fe4a5}
+@keyframes pixel-base-observe{from{transform:translateX(-12px)}to{transform:translateX(24px)}}
+.pixel-base-cover{position:absolute;inset:8px 18% 12px 18%;background:#5f7370;pointer-events:none}
+.pixel-base-feed-caption{position:absolute;bottom:4px;left:6px;color:#e4eacb;font-size:11px}
+.pixel-base-grid-wrap{position:relative;width:min(100%,280px);margin:auto}
+.pixel-base-grid,.pixel-base-gomoku{display:grid;gap:2px;background:#30463c}
+.pixel-base-grid button,.pixel-base-gomoku button{padding:0;aspect-ratio:1;min-width:0;border:0;cursor:pointer;background:#6e8575;color:#e8efdc}
+.pixel-base-grid button[data-cell="wall"]{background:#2c3b37}
+.pixel-base-grid button[data-cell="path"]{background:#a9bb80}
+.pixel-base-grid button[data-cell="start"],.pixel-base-grid button[data-cell="goal"]{background:#b8a174;color:#293d36}
+.pixel-base-path-marker{width:12px;height:12px;background:#e5ce80;border:2px solid #43574e;position:absolute;transform:translate(-50%,-50%);pointer-events:none}
+.pixel-base-gomoku{background:#a4875e;width:min(100%,300px);margin:auto;gap:1px}
+.pixel-base-gomoku button{position:relative;background:#d3b78a}
+.pixel-base-gomoku button[data-piece="1"]::after,.pixel-base-gomoku button[data-piece="2"]::after{content:"";position:absolute;inset:12%;border-radius:50%;background:#293436;box-shadow:0 1px 1px #0005}
+.pixel-base-gomoku button[data-piece="2"]::after{background:#f6ead6}
+.pixel-base-toolbelt,.pixel-base-fish,.pixel-base-study-achievements{position:absolute;z-index:6;padding:6px 9px;background:#203d36ed;border:1px solid #c4ac76;color:#f9e6bf;font-size:12px}
+.pixel-base-toolbelt,.pixel-base-fish{bottom:115px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center}
+.pixel-base-study-achievements{left:10px;top:120px;max-width:min(280px,75vw);max-height:40vh;overflow:auto}
+.pixel-base-study-achievements>div{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:6px}
+.pixel-base-toolbelt button,.pixel-base-fish>button,.pixel-base-study-achievements button{background:#39594d;color:#f9e6bf;border:1px solid #a0b19c;padding:3px 5px}
+@media(prefers-reduced-motion:reduce){.pixel-base-feed-target{animation:none}}

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { COMMUNITY_POSES, communitySourceHref, communityCreditRole } from "~/lib/pixel-jijia-community";
 import type { RoomObject } from "~/lib/pixel-jijia-room";
@@ -23,26 +23,6 @@ export function CommunitySprite({ id, label, effect, maxWidth = 220, maxHeight =
     style["--pose-" + i] = `-${fx*scale}px -${fy*scale}px`;
   });
   return <span className={`pixel-community-sprite${frames ? " pixel-community-sprite--animated" : ""}${effect ? " pixel-community-sprite--" + effect : ""}`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} style={style} />;
-}
-
-const assemblyParts = { "底盘": "part-chassis", "动力系统": "part-drive", "云台": "part-turret", "装甲": "part-armor" };
-const assemblyOrder = Object.keys(assemblyParts) as (keyof typeof assemblyParts)[];
-function Assembly() {
-  const [step, setStep] = useState(0);
-  const [error, setError] = useState("");
-  const done = step === assemblyOrder.length;
-  return <div className="pixel-community-interaction">
-    {done ? <div className="pixel-community-started" role="status"><CommunitySprite id="test-robot" label="组装完成的机器人" effect="glow" /><span>装配完成 · 机器人已启动</span></div> :
-      <><p>装配进度 {step}/{assemblyOrder.length}</p>
-      <div className="pixel-community-controls" role="group" aria-label="机器人装配部件">
-        {(["云台", "装甲", "底盘", "动力系统"] as (keyof typeof assemblyParts)[]).map(part => <button type="button" key={part} disabled={assemblyOrder.slice(0, step).includes(part)} onClick={() => {
-          if (part !== assemblyOrder[step]) { setError("这个部件需要稍后安装。"); return; }
-          setStep(step + 1); setError("");
-        }}><CommunitySprite id={assemblyParts[part]} maxWidth={35} maxHeight={27} />{part}{assemblyOrder.slice(0, step).includes(part) ? " ✓" : ""}</button>)}
-      </div></>}
-    {error && <p role="status">{error}</p>}
-    {done && <button type="button" className="pixel-community-action" onClick={() => { setStep(0); setError(""); }}>重新组装</button>}
-  </div>;
 }
 
 const directions = ["up", "right", "down", "left"] as const;
@@ -87,7 +67,7 @@ function ArchiveImage({ src, alt }: { src: string; alt: string }) {
 }
 
 const historyPages = [...robotSeasons].reverse();
-function Memoir() {
+export function Memoir({collect}:{collect?:ReactNode}={}) {
   const [page, setPage] = useState(0);
   const season = historyPages[page], robot = season.robots[0];
   return <div className="pixel-community-interaction pixel-community-history">
@@ -99,6 +79,7 @@ function Memoir() {
       <span>{page + 1}/{historyPages.length}</span>
       <button data-page="next" type="button" disabled={page === historyPages.length - 1} onClick={() => setPage(page + 1)}>下一页</button>
     </div>
+    {season.season===2026&&collect}
     <Link to="/robots" className="pixel-world-detail-secondary-link">历年机器人完整档案</Link>
     <Link to="/about" className="pixel-world-detail-secondary-link">战队发展历程</Link>
     <Link to="/events-and-honors" className="pixel-world-detail-secondary-link">赛事与荣誉</Link>
@@ -156,7 +137,6 @@ export function CommunityObjectDetail({ object, returnTo }: { object: RoomObject
   return <>
     {action === "terminal" && <div className="pixel-community-terminal" role="status"><span className="pixel-community-typewriter">!!Hello World!!</span></div>}
     {action === "silverwolf" && <div className="pixel-community-terminal pixel-community-terminal--wolf" role="status">PLAYER // 银狼 LV.999<br /><strong>GAME NOT OVER</strong><br /><a href="https://sr.mihoyo.com/news/163575?type=news" target="_blank" rel="noreferrer">官方角色 PV</a></div>}
-    {action === "assembly" && <Assembly />}
     {action === "drive" && <Drive returnTo={returnTo} />}
     {action === "memoir" && <Memoir />}
     {action === "memory" && <Memory />}
