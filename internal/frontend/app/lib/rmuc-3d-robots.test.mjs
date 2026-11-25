@@ -115,9 +115,19 @@ test("red and blue LEDs retain their existing detector meshes and independent al
    const rgb=mat.emissive;assert.ok(r.userData.team==="red"?rgb.r>rgb.b:rgb.b>rgb.r);
    setArmorLight(r,false);assert.equal(mat.emissiveIntensity,0);
    assert.ok(lamps.every(o=>detectors.includes(o)));
-   assert.ok(active.filter(a=>a!==r).every(a=>{let lit=true;a.traverse(o=>{if(o.userData.armorLed)lit&&=o.material.emissiveIntensity===2.2;});return lit;}));
-   setArmorLight(r,true);assert.equal(mat.emissiveIntensity,2.2);
+   assert.ok(active.filter(a=>a!==r).every(a=>{let lit=true;a.traverse(o=>{if(o.userData.armorLed)lit&&=o.material.emissiveIntensity===.9;});return lit;}));
+   setArmorLight(r,true);assert.equal(mat.emissiveIntensity,.9);
  }
+});
+
+test("armor lens atlas has white center, translucent team rim and soft outer spill",async()=>{
+ const {armorLensTexture}=await import("./rmuc-3d-lighting.ts");
+ for(const team of ["red","blue"]){const t=armorLensTexture(team),{data,width,height}=t.image;
+ const pixel=(x,y)=>Array.from(data.slice((y*width+x)*4,(y*width+x)*4+4));
+ const core=pixel(64,32),rim=pixel(64,22),halo=pixel(64,13),outside=pixel(0,0);
+ assert.ok(core.slice(0,3).every(v=>v>245)&&core[3]>240);
+ assert.ok(team==="red"?rim[0]>rim[2]:rim[2]>rim[0]);
+ assert.ok(core[3]>rim[3]&&rim[3]>halo[3]&&halo[3]>outside[3]);t.dispose();}
 });
 
 test("local LED halo follows source world transform and never enters robot collision tree",async()=>{
@@ -129,12 +139,34 @@ test("local LED halo follows source world transform and never enters robot colli
  const robots=exhibit.children.filter(r=>r.userData.area==="field");
  scene.updateMatrixWorld(true);const original=new T.Box3().setFromObject(robots[0]),glow=createArmorGlow(scene,robots);
  glow.update();scene.updateMatrixWorld(true);
- assert.equal(glow.group.parent,scene);assert.ok(glow.group.children.length>0&&glow.group.children.length<=32);
- assert.ok(original.equals(new T.Box3().setFromObject(robots[0])));
- const first=glow.group.children[0],before=first.getWorldPosition(new T.Vector3());
- robots[0].position.x+=1;robots[0].updateMatrixWorld(true);glow.update();scene.updateMatrixWorld(true);
- assert.ok(first.getWorldPosition(new T.Vector3()).sub(before).distanceTo(new T.Vector3(1,0,0))<1e-7);
- setArmorLight(robots[0],false);glow.update();assert.equal(first.visible,false);
+ assert.equal(glow.group.parent,scene);assert.equal(glow.group.children.length,32);
+ let i=0;
+ for(const robot of robots){
+  const strips=[];robot.traverse(o=>{if(o.userData.armorLed)for(const box of o.userData.armorLedBounds)strips.push({source:o,box});});
+  assert.equal(strips.length,4);
+  const planes=glow.group.children.slice(i,i+4);i+=4;
+  function check(){
+   const center=robot.getWorldPosition(new T.Vector3());
+   for(const [j,{source,box}] of strips.entries()){
+    const point=source.localToWorld(box.getCenter(new T.Vector3())),size=box.getSize(new T.Vector3());
+    const plane=planes[j],normal=new T.Vector3(0,0,1).transformDirection(plane.matrixWorld);
+    const radial=point.clone().sub(center);radial.y=0;
+    assert.ok(Math.min(size.x,size.z)<.04);
+    assert.ok(normal.dot(radial.normalize())>.99);
+    const offset=plane.getWorldPosition(new T.Vector3()).sub(point);
+    assert.ok(offset.dot(normal)>0&&offset.length()<.03);
+    assert.ok(offset.clone().cross(normal).length()<1e-7);
+   }
+  }
+  check();const bounds=new T.Box3().setFromObject(robot);
+  robot.position.x+=1;robot.rotation.y+=.7;robot.updateMatrixWorld(true);glow.update();scene.updateMatrixWorld(true);check();
+  setArmorLight(robot,false);glow.update();assert.ok(planes.every(p=>!p.visible));
+  setArmorLight(robot,true);glow.update();assert.ok(planes.every(p=>p.visible));
+  robot.position.x-=1;robot.rotation.y-=.7;robot.updateMatrixWorld(true);glow.update();scene.updateMatrixWorld(true);
+  const restored=new T.Box3().setFromObject(robot);
+  assert.ok(bounds.min.distanceTo(restored.min)<1e-7&&bounds.max.distanceTo(restored.max)<1e-7);
+ }
+ assert.ok(original.min.distanceTo(new T.Box3().setFromObject(robots[0]).min)<1e-7);
  glow.dispose();assert.equal(glow.group.parent,null);
 });
 

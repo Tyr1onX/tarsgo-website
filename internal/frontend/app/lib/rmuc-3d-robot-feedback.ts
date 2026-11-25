@@ -24,8 +24,8 @@ export function mergeDamageBurst(old:Burst|undefined,amount:number,at:number):Bu
 // the robot hierarchy or replace detector geometry/collision materials in simulation.
 export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
   const group=new THREE.Group();group.name="robot-combat-feedback";scene.add(group);
-  const white=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:.85,roughness:.45});
-  const tintMaterials=new Map<THREE.Material,THREE.MeshStandardMaterial>();
+  const flashMaterials=new Map<THREE.Material,THREE.MeshStandardMaterial>();
+  const white=new THREE.Color(0xffffff);
   const slots=new Map(robots.map(robot=>{
     const identity=groundIdentity(robot.name)!;
     const bounds=new THREE.Box3().setFromObject(robot,true);
@@ -50,6 +50,17 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
     if(s&&mesh instanceof THREE.Mesh&&mesh.userData.armorSurface&&mesh.userData.target?.id===id)s.flashes.set(mesh,at+ARMOR_FLASH);
   }
   function restoreMaterials(){for(const [mesh,material] of restore)mesh.material=material;restore.length=0;}
+  function flash(mesh:THREE.Mesh){
+    const original=mesh.material;if(!(original instanceof THREE.MeshStandardMaterial))return;
+    let material=flashMaterials.get(original);
+    if(!material){
+      material=original.clone();
+      if(mesh.userData.armorSurface){material.color.lerp(white,.65);material.emissive.copy(white);material.emissiveIntensity=.85;}
+      else{material.emissive.setHex(0x6f1111);material.emissiveIntensity=.35;}
+      flashMaterials.set(original,material);
+    }
+    restore.push([mesh,original]);mesh.material=material;
+  }
   function update(match:Match,camera:THREE.PerspectiveCamera,height:number,perspective:"all"|Team){
     restoreMaterials();camera.updateMatrixWorld();
     const pixels=height*camera.projectionMatrix.elements[5]/2,at=match.elapsed;
@@ -84,17 +95,12 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
       // intact and restore base materials immediately after the render.
       for(const [mesh,until] of s.flashes){
         if(off||until<=at||match.phase!=="running"){s.flashes.delete(mesh);continue;}
-        if(visible){restore.push([mesh,mesh.material]);mesh.material=white;}
+        if(visible)flash(mesh);
       }
-      if(visible&&!off&&s.bodyUntil>at&&match.phase==="running")for(const mesh of s.body){
-        const original=mesh.material as THREE.MeshStandardMaterial;
-        let tint=tintMaterials.get(original);
-        if(!tint){tint=original.clone();tint.emissive.setHex(0x6f1111);tint.emissiveIntensity=.35;tintMaterials.set(original,tint);}
-        restore.push([mesh,original]);mesh.material=tint;
-      }
+      if(visible&&!off&&s.bodyUntil>at&&match.phase==="running")for(const mesh of s.body)flash(mesh);
     }
   }
   function clear(){restoreMaterials();for(const s of slots.values()){s.burst=undefined;s.bodyUntil=0;s.flashes.clear();s.hp=NaN;s.at=0;s.damage.sprite.visible=false;}}
-  function dispose(){clear();group.removeFromParent();white.dispose();for(const m of tintMaterials.values())m.dispose();for(const s of slots.values())for(const l of [s.label,s.damage]){l.texture.dispose();l.sprite.material.dispose();}slots.clear();}
+  function dispose(){clear();group.removeFromParent();for(const m of flashMaterials.values())m.dispose();flashMaterials.clear();for(const s of slots.values())for(const l of [s.label,s.damage]){l.texture.dispose();l.sprite.material.dispose();}slots.clear();}
   return {group,damage,amountFor,contact,update,restoreMaterials,clear,dispose};
 }
