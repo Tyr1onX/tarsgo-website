@@ -186,10 +186,10 @@ export function canDriveRobot(match:Match,r:MatchRobot){
 export function canSpinChassis(match:Match,r:MatchRobot){
   return match.phase==="running"&&infantry(r)&&r.hp>0&&!weak(r)&&match.elapsed>=r.powerLockUntil;
 }
-export function driveSpeed(match:Match,r:MatchRobot,command:0|1|2,spin=false){
+export function driveSpeed(match:Match,r:MatchRobot,command:0|1|2,spin=false,strength=1){
   // Explicit training approximation: normal motion commands the limit,
   // sprint commands twice that demand; speed scales with sqrt(power).
-  const spinning=spin&&canSpinChassis(match,r),translation=spinning?Math.min(command,1):command;
+  const spinning=spin&&canSpinChassis(match,r),translation=(spinning?Math.min(command,1):command)*Math.min(1,Math.max(0,strength))**2;
   r.powerDemand=match.phase==="running"&&r.hp>0&&match.elapsed>=r.powerLockUntil?translation+Number(spinning):0;
   return canDriveRobot(match,r)&&match.elapsed>=r.powerLockUntil?2.6*Math.sqrt(powerLimit(match,r)*translation/45):0;
 }

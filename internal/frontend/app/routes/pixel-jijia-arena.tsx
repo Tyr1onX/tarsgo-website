@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import {joystickVector} from "~/lib/rmuc-3d-input";
 import { Link, useLocation } from "react-router";
 import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-arena";
@@ -101,12 +102,34 @@ function SettingsPanel({value,onChange}:{value:ArenaSettings;onChange:(value:Are
     <button onClick={()=>onChange({...DEFAULT_ARENA_SETTINGS})}>恢复默认</button>
   </div>;
 }
+function TouchJoystick({controller,resetRef}:{controller:RefObject<ArenaController|null>;resetRef:RefObject<()=>void>}){
+  const owner=useRef<number|null>(null),base=useRef<HTMLDivElement>(null),thumb=useRef<HTMLSpanElement>(null);
+  function reset(){
+    const id=owner.current;owner.current=null;
+    if(thumb.current)thumb.current.style.transform="";
+    if(id!==null&&base.current?.hasPointerCapture(id))base.current.releasePointerCapture(id);
+  }
+  useEffect(()=>{resetRef.current=reset;return()=>{const id=owner.current;if(id!==null)controller.current?.move(id,null);reset();resetRef.current=()=>{};};},[controller,resetRef]);
+  function update(event:ReactPointerEvent<HTMLDivElement>,begin=false){
+    const rect=event.currentTarget.getBoundingClientRect(),radius=rect.width*.33;
+    const vector=joystickVector(event.clientX-rect.left-rect.width/2,event.clientY-rect.top-rect.height/2,radius);
+    if(!controller.current?.move(event.pointerId,vector,begin))return false;
+    if(thumb.current)thumb.current.style.transform=`translate(${vector.r*radius}px,${-vector.f*radius}px)`;
+    return true;
+  }
+  function end(event:ReactPointerEvent<HTMLDivElement>){if(owner.current!==event.pointerId)return;controller.current?.move(event.pointerId,null);reset();}
+  return <div className="rmul3d-joystick" ref={base} aria-label="移动摇杆"
+    onPointerDown={event=>{if(event.button!==0||owner.current!==null)return;event.preventDefault();if(update(event,true)){owner.current=event.pointerId;event.currentTarget.setPointerCapture(event.pointerId);}}}
+    onPointerMove={event=>{if(owner.current===event.pointerId&&!update(event))reset();}}
+    onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}><span ref={thumb}/></div>;
+}
 export default function PixelJijiaArenaPage() {
   const location=useLocation();
   const returnTo=getExperienceReturnTo(location.state);
   const pixelReturn=getPixelReturn(location.state);
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
+  const resetTouch=useRef<()=>void>(()=>{});
   const [status, setStatus] = useState<ArenaStatus>(INITIAL_STATUS);
   const [entry,setEntry]=useState<EntryMode|null>(null);
   const [attempt,setAttempt]=useState(0);
@@ -180,6 +203,7 @@ export default function PixelJijiaArenaPage() {
         },
         fail,
         value=>{if(active)setStatus(value);},
+        ()=>resetTouch.current(),
       );
     }).catch(() => fail("当前设备无法打开三维场景，请重试"));
     return () => {
@@ -201,7 +225,7 @@ export default function PixelJijiaArenaPage() {
     if(!open)setSettingsOpen(false);
   };
   const disabled = loading || !!error;
-  const touchKeys = [["KeyW", "↑"], ["KeyA", "←"], ["KeyS", "↓"], ["KeyD", "→"],...(flying?[["Space","升"],["ShiftLeft","降"]]:[])] as const;
+  const showTouch=!disabled&&!menu&&!status.countdown&&!experimentRunning&&!experimentOpen&&(flying||playing&&status.match?.stance?.control!=="auto"&&!status.match?.revival?.dead&&status.match?.phase!=="finished");
 
   const configFields=<>
     <StrategyEditor label="红方 A" value={strategies.red} onChange={red=>setStrategies(s=>({...s,red}))} disabled={experimentRunning||status.match?.phase==="running"}/>
@@ -220,6 +244,7 @@ export default function PixelJijiaArenaPage() {
     <main className="rmul3d">
       <section className="rmul3d-stage" aria-label="RMUC 2027 三维训练战场">
         <div ref={mountRef} className="rmul3d-canvas" />
+        {!disabled&&!menu&&<div className="rmul3d-orientation-hint">横屏操作更方便</div>}
         {loading && !error && <div className="rmul3d-loading"><div className="rmul3d-load-content"><strong role="status">{PHASE_LABELS[progress.phase]}</strong>{progress.phase==="download"&&<><progress aria-label="资源下载进度" max={progress.total} value={progress.total===undefined?undefined:progress.received}/><span>{((progress.received??0)/1000000).toFixed(1)} MB{progress.total!==undefined?` / ${(progress.total/1000000).toFixed(1)} MB`:""}</span></>}<button onClick={exitToMenu}>取消</button></div></div>}
         {error && <div className="rmul3d-error"><span role="alert">{error}</span><button onClick={retry}>重试</button><button onClick={exitToMenu}>返回主菜单</button></div>}
         {!disabled&&<><div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
@@ -309,6 +334,11 @@ export default function PixelJijiaArenaPage() {
           </>}
         </div>}
         <div className="rmul3d-actions">
+        {showTouch&&flying&&<div className="rmul3d-flight-actions">{([["Space","上升"],["ShiftLeft","下降"],["ControlLeft","加速"]] as const).map(([key,label])=><button key={key} type="button"
+          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,key,true);}}
+          onPointerUp={event=>controller.current?.touchAction(event.pointerId,key,false)}
+          onPointerCancel={event=>controller.current?.touchAction(event.pointerId,key,false)}
+          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,key,false)}>{label}</button>)}</div>}
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
           <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
             <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}
@@ -320,14 +350,7 @@ export default function PixelJijiaArenaPage() {
           onPointerCancel={event=>controller.current?.fire("button:"+event.pointerId,false)}
           onLostPointerCapture={event=>controller.current?.fire("button:"+event.pointerId,false)}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button>}
         </div>
-        {!disabled && !menu && !status.countdown && (flying||playing && status.match?.stance?.control!=="auto") && <div className="rmul3d-touch" aria-label="移动控制">
-          {touchKeys.map(([key, arrow]) => <button key={key} type="button"
-            aria-label={key === "KeyW" ? "前进" : key === "KeyS" ? "后退" : key === "KeyA" ? "左移" : key==="Space"?"上升":key==="ShiftLeft"?"下降":"右移"}
-            onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); controller.current?.input(key, true); }}
-            onPointerUp={() => controller.current?.input(key, false)}
-            onPointerCancel={() => controller.current?.input(key, false)}
-            onLostPointerCapture={() => controller.current?.input(key, false)}>{arrow}</button>)}
-        </div>}
+        {showTouch&&<div className="rmul3d-touch"><TouchJoystick controller={controller} resetRef={resetTouch}/></div>}
         </div>
         {!disabled && firstPerson && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
         {!disabled && !menu && firstPerson && (!focus||focus.sight&&status.match!.hp>0) && status.match?.thermalLock!=="cooling"&&!status.match?.dart?.blind && <div className="rmul3d-crosshair" aria-hidden="true" />}
