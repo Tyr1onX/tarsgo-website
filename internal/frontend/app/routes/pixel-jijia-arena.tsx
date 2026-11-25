@@ -95,6 +95,8 @@ export default function PixelJijiaArenaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState(false);
+  const [tacticsOpen,setTacticsOpen]=useState(false);
+  useEffect(()=>setTacticsOpen(false),[status.robot,status.match?.phase]);
   const [experimentOpen,setExperimentOpen]=useState(false);
   const [strategies,setStrategies]=useState({red:defaultStrategy(),blue:defaultStrategy()});
   const [seed,setSeed]=useState("2061");
@@ -144,7 +146,7 @@ export default function PixelJijiaArenaPage() {
         <div ref={mountRef} className="rmul3d-canvas" />
         {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
-        <div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")}>
+        <div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
         <header className="rmul3d-header">
           <Link to={returnTo} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
@@ -157,7 +159,7 @@ export default function PixelJijiaArenaPage() {
         </div>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           {focused&&<div className="rmul3d-ammo"><b>{status.match!.ammo}</b><span>{status.match!.reserve>0?" + "+status.match!.reserve:""} 弹药</span></div>}
-          <div className="rmul3d-map-head"><select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={!!status.robot||status.view==="ai-first"} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>
+          <div className="rmul3d-map-head">{status.robot?<span>{status.radarMap.perspective==="red"?"红方情报":"蓝方情报"}</span>:<select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={status.view==="ai-first"} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>}
           {Object.entries(status.radarMap.summary).map(([team,r])=><span key={team} title={"干扰难度 "+r.encryptionLevel}>{team==="red"?"红":"蓝"}雷达 {r.doubleUntil>0?"×2 "+r.doubleUntil+"s":r.opportunities+"次"}</span>)}</div>
           <svg viewBox="0 0 280 150" role="img" aria-label="CAD战场地图"><image href={status.radarMap.image} width="280" height="150"/>
             {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={!s.outpostArea.enabled?"#64748b":s.outpostArea.controller==="red"?"#fb7777":"#7bbdff"} strokeDasharray={!s.outpostArea.full?"3 2":undefined} opacity={s.outpostArea.enabled?1:.35} aria-label={teamName(team)+"方前哨阵地 "+areaText(s.outpostArea)}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
@@ -181,6 +183,7 @@ export default function PixelJijiaArenaPage() {
           {status.match.stance&&<span>{status.match.stance.control==="auto"?"全自动":"半自动"} · {{attack:"进攻",defense:"防御",move:"移动"}[status.match.stance.mode]}{status.match.stance.enhanced?"强化":""}</span>}
           {focus.kind==="heavy"&&status.match.technology&&status.match.technology.highest>0&&<span>科技 {status.match.technology.highest}级</span>}</div>
           {observed&&<nav className="rmul3d-observer-controls" aria-label="观战相机"><button onClick={()=>controller.current?.view("all")}>全场</button><button onClick={()=>controller.current?.view(status.view==="follow"?"ai-first":"follow")}>{status.view==="follow"?"AI第一人称":"第三人称"}</button><button disabled={!focus.canTakeControl} onClick={()=>controller.current?.takeControl()}>人工接管</button></nav>}
+          {status.robot&&status.match.phase==="running"&&<button className="rmul3d-tactics-toggle" type="button" aria-expanded={tacticsOpen} aria-controls="rmul3d-live-tactics" onClick={()=>setTacticsOpen(open=>!open)}>{tacticsOpen?"关闭战术":"战术操作"}</button>}
         </section>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.performance && <div className="rmul3d-combat">
           <label>底盘 <select value={status.match.performance.chassis} onChange={e=>controller.current?.performance({...status.match!.performance!,chassis:e.target.value as "hp"|"power"})}><option value="hp">血量优先</option><option value="power">功率优先</option></select></label>
@@ -189,7 +192,7 @@ export default function PixelJijiaArenaPage() {
         {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.stance && <div className="rmul3d-combat">
           <label>哨兵控制 <select value={status.match.stance.control} onChange={e=>controller.current?.sentryControl(e.target.value as "auto"|"semi")}><option value="auto">全自动</option><option value="semi">半自动</option></select></label>
         </div>}
-        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div className="rmul3d-combat">
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div id="rmul3d-live-tactics" className="rmul3d-combat rmul3d-combat-live">
           <span>{status.match.coins} 金币</span>
           {status.match.revival?.dead?<>{status.match.technology?.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>退出装配</button>}<span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活 {status.match.revival.fee>0&&`${status.match.revival.fee}金币`}</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
           {status.match.rune&&<button disabled={status.match.rune.active||status.match.rune.buff>0||status.match.rune.available<=0||!!status.match.revival?.weak} onClick={()=>controller.current?.rune()}>{status.match.rune.active?"机关 "+status.match.rune.groups+"/5":(status.match.rune.large?"大":"小")+"能量机关 "+status.match.rune.available}</button>}
