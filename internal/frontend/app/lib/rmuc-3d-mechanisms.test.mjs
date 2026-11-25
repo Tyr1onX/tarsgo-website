@@ -590,6 +590,20 @@ test("actual dart parts replace original assemblies and move both doors and dete
  assert.ok(installed.dartBindings.every(b=>b.carriage.position.equals(b.carriageRest)));
  installed.applyDart(createMatch([]));
  assert.ok(installed.dartBindings.every((b,i)=>b.door.getWorldPosition(new THREE.Vector3()).distanceTo(closed[i])<1e-7));
+ // Base carriage health indication is independent of territory indication.
+ const indicators=TEAMS.map(team=>meshes(installed.dartBindings.find(b=>b.team===team).carriage).filter(o=>o.material instanceof THREE.MeshStandardMaterial&&o.material.emissiveIntensity===1.6));
+ assert.ok(indicators.every(side=>side.length>0));
+ const dark=createMatch([]);dark.sides.red.outpost=0;dark.sides.red.base=0;installed.applyDart(dark);installed.setOutpostLights(dark);
+ assert.ok(indicators[0].every(o=>o.material.emissiveIntensity===0));
+ assert.ok(indicators[1].every(o=>o.material.emissiveIntensity===1.6));
+ const outpost=meshes(field.getObjectByName("red-outpost-fixed-upper")).filter(o=>o.userData.outpostIndicator);
+ assert.equal(outpost.length,1);assert.equal(outpost[0].material.emissive.getHex(),0xff4055);assert.equal(outpost[0].material.emissiveIntensity,2);
+ installed.setRuneLights([0],[1]);
+ for(const [bank,index] of [["a",0],["b",1]]){
+   assert.ok(meshes(field.getObjectByName("rune-arm-"+bank+"-"+index)).some(o=>o.material.emissiveIntensity===2));
+ }
+ installed.setRuneLights([],[]);
+ assert.ok(["a","b"].every(bank=>[0,1,2,3,4].every(i=>meshes(field.getObjectByName("rune-arm-"+bank+"-"+i)).every(o=>o.material.emissiveIntensity!==2))));
 });
 
 test("both virtual dart models use real CAD guides and the single referee flight result",async()=>{

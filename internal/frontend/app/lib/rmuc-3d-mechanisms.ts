@@ -214,7 +214,9 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
   }));
   function setRuneLights(red:readonly number[],blue:readonly number[]){
     for(const a of runeArms)for(const m of a.lights){
-      m.emissive.copy(m.color);m.emissiveIntensity=(a.team==="red"?red:blue).includes(a.i)?1.5:0;
+      const on=(a.team==="red"?red:blue).includes(a.i);
+      m.color.setHex(on?(a.team==="red"?0xff303b:0x326cff):(a.team==="red"?0x591b22:0x1e305b));
+      m.emissive.setHex(a.team==="red"?0xff2435:0x2865ff);m.emissiveIntensity=on?2:0;m.toneMapped=false;
     }
   }
   // The six base detector faces have not been bound to verified source geometry.
@@ -240,7 +242,23 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
       dartBindings.push({team,door,guides:gate.getObjectByName("dart-guides")!,carriage,doorRest:door.position.clone(),carriageRest:carriage.position.clone()});
     }
   }
+  // The base carriage retains its health indicator; the outpost has exactly
+  // one territory-driven indicator below, independent of building health.
+  const baseLights:{team:Team;material:THREE.MeshStandardMaterial}[]=[];
+  for(const {team,carriage} of dartBindings){
+    carriage.traverse(node=>{
+      if(!(node instanceof THREE.Mesh)||!(node.material instanceof THREE.MeshStandardMaterial))return;
+      const c=node.material.color;
+      if(c.g<.8||c.r>.1||c.b>.1)return;
+      const material=node.material.clone();node.material=material;material.toneMapped=false;
+      baseLights.push({team,material});
+    });
+  }
   function applyDart(match:Match){
+    for(const {team,material} of baseLights){
+      const on=match.sides[team].base>0;
+      material.color.setHex(on?0x36ef36:0x193b19);material.emissive.setHex(0x45ff45);material.emissiveIntensity=on?1.6:0;
+    }
     for(const b of dartBindings){
       const p=dartPose(match,b.team);
       b.door.position.copy(b.doorRest).addScaledVector(new THREE.Vector3(0,-.9659258262890824,.25881904510246795),-1.157991188781261*(1-p.door));

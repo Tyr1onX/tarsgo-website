@@ -119,3 +119,21 @@ test("red and blue LEDs retain their existing detector meshes and independent al
    setArmorLight(r,true);assert.equal(mat.emissiveIntensity,2.2);
  }
 });
+
+test("local LED halo follows source world transform and never enters robot collision tree",async()=>{
+ const {createArmorGlow}=await import("./rmuc-3d-lighting.ts");
+ const {addRobotPreviews,setArmorLight}=await import("./rmuc-3d-robots.ts");
+ const T=await import("three"),scene=new T.Scene(),field=new T.Group();
+ globalThis.document={createElement:()=>({getContext:()=>null})};
+ let exhibit;try{exhibit=addRobotPreviews(field,scene,{heightAt:()=>0});}finally{delete globalThis.document;}
+ const robots=exhibit.children.filter(r=>r.userData.area==="field");
+ scene.updateMatrixWorld(true);const original=new T.Box3().setFromObject(robots[0]),glow=createArmorGlow(scene,robots);
+ glow.update();scene.updateMatrixWorld(true);
+ assert.equal(glow.group.parent,scene);assert.ok(glow.group.children.length>0&&glow.group.children.length<=32);
+ assert.ok(original.equals(new T.Box3().setFromObject(robots[0])));
+ const first=glow.group.children[0],before=first.getWorldPosition(new T.Vector3());
+ robots[0].position.x+=1;robots[0].updateMatrixWorld(true);glow.update();scene.updateMatrixWorld(true);
+ assert.ok(first.getWorldPosition(new T.Vector3()).sub(before).distanceTo(new T.Vector3(1,0,0))<1e-7);
+ setArmorLight(robots[0],false);glow.update();assert.equal(first.visible,false);
+ glow.dispose();assert.equal(glow.group.parent,null);
+});
