@@ -24,10 +24,10 @@ type AreaStatus = NonNullable<ArenaStatus["match"]>["sides"]["red"]["baseArea"];
 const teamName=(team:"red"|"blue")=>team==="red"?"红":"蓝";
 const visualStyle={"--arena-red":ARENA_VISUAL.red,"--arena-blue":ARENA_VISUAL.blue,"--arena-damage":ARENA_VISUAL.damage,"--arena-recovery":ARENA_VISUAL.recovery,"--arena-track":ARENA_VISUAL.track} as CSSProperties;
 const areaText=(area:AreaStatus)=>!area.enabled?"失效":teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争":area.progressing?"·夺":area.progress>0?"·退":"")+(area.progress>0?Math.floor(area.progress*2)+"%":"");
-function HealthBar({value,max,damage=0,label}:{value:number;max:number;damage?:number;label:string}){
+function DamageValue({value=0}:{value?:number}){return <span className="rmul3d-damage" aria-hidden="true">{value>0?"−"+value:""}</span>;}
+function HealthBar({value,max,label}:{value:number;max:number;label:string}){
   return <div className="rmul3d-health" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
     <i style={{transform:`scaleX(${Math.max(0,Math.min(1,value/max))})`}}/>
-    {damage>0&&<b className="rmul3d-damage">−{damage}</b>}
   </div>;
 }
 function RobotIcon({kind}:{kind:"heavy"|"infantry"|"sentry"}){
@@ -36,24 +36,29 @@ function RobotIcon({kind}:{kind:"heavy"|"infantry"|"sentry"}){
     {kind==="heavy"?<path d="M8 7V3h7v4M15 4h8v2h-8"/>:kind==="sentry"?<path d="M10 7V2h4v5M7 2h10"/>:<path d="M9 7V4h6v3m0-2h7"/>}
   </svg>;
 }
+function ControlIcon({kind}:{kind:"up"|"down"|"boost"|"fire"|"interact"}){
+  return <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind==="fire"?<><circle cx="16" cy="16" r="9"/><path d="M16 3v7m0 12v7M3 16h7m12 0h7"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/></>:kind==="interact"?<><path d="M15 5H6v22h9M17 9l7 7-7 7M10 16h14"/></>:kind==="boost"?<><path d="m8 17 8-8 8 8M8 24l8-8 8 8"/><path d="M16 4v2"/></>:<path d={kind==="up"?"m7 17 9-9 9 9M16 8v16":"m7 15 9 9 9-9M16 8v16"}/>}
+  </svg>;
+}
 function TeamScore({team,side,select,selected}:{team:"red"|"blue";side:NonNullable<ArenaStatus["match"]>["sides"]["red"];select?:(id:string)=>void;selected?:string|null}){
   return <section className={"rmul3d-team "+team} aria-label={teamName(team)+"方"}>
-    <div className="rmul3d-base-line"><span>基地</span><strong>{side.base}</strong></div>
-    <HealthBar value={side.base} max={10000} damage={side.baseDamage} label={teamName(team)+"方基地血量"}/>
+    <div className="rmul3d-base-line"><span className="rmul3d-team-identity"><i aria-hidden="true"/>{teamName(team)}方 · 基地</span><DamageValue value={side.baseDamage}/><strong>{side.base}</strong></div>
+    <HealthBar value={side.base} max={10000} label={teamName(team)+"方基地血量"}/>
     <div className="rmul3d-team-metrics">
       <div className="rmul3d-outpost" title={"建筑归属："+teamName(side.outpostOwner)+"方 · 阵地："+areaText(side.outpostArea)}>
-        <span>哨 <b>{side.outpost}</b></span>
-        <HealthBar value={side.outpost} max={1000} damage={side.outpostDamage} label={teamName(team)+"方前哨血量"}/>
+        <span>前哨 <b>{side.outpost}</b><DamageValue value={side.outpostDamage}/></span>
+        <HealthBar value={side.outpost} max={1000} label={teamName(team)+"方前哨血量"}/>
       </div>
-      <span className="rmul3d-area" title="前哨阵地控制权">阵 {areaText(side.outpostArea)}</span>
+      <span className="rmul3d-area" title="前哨阵地控制权">{areaText(side.outpostArea)}</span>
       <span className="rmul3d-economy">币 <b>{side.coins??"—"}</b></span><span className="rmul3d-economy">科 <b>{side.technology??"—"}</b></span><span className="rmul3d-economy">控 <b>{side.control}</b></span>
     </div>
     <div className="rmul3d-roster">{side.robots.map(r=>{
       const d=r.detail,labels=d?(r.hp===0?[d.powerOff?"战亡":"撤离"]:[d.powerOff?"断电":"",d.launcherLocked?"枪锁":"",d.weak?"虚弱":"",d.immune?"无敌":""].filter(Boolean)):[],label=labels.join(" ");
       return <div className={"rmul3d-robot-status"+(r.hp===0?" dead":"")+(selected===r.id?" selected":"")} key={r.id} role={select?"button":undefined} tabIndex={select?0:undefined} aria-pressed={select?selected===r.id:undefined} onClick={select?()=>select(r.id):undefined} onKeyDown={select?e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();select(r.id);}}:undefined} aria-label={teamName(team)+r.number+"号 "+r.hp+"/"+r.maxHp+(d?" 级别"+d.level+" "+label:"")}>
         <div className="rmul3d-robot-id"><RobotIcon kind={r.kind}/><b>{r.number}</b>{d&&<span className="rmul3d-level">L{d.level}</span>}</div>
-        <div className="rmul3d-robot-hp"><b>{r.hp}</b>{d&&(label||d.revival!==null)&&<span className="rmul3d-robot-state" title={label}>{d.revival!==null?`${d.powerOff?"亡":"撤"}${d.revival}%`:labels.map(text=>text[0]).join("")}</span>}</div>
-        <HealthBar value={r.hp} max={r.maxHp} damage={d?.damage} label={teamName(team)+r.number+"号血量"}/>
+        <div className="rmul3d-robot-hp"><b>{r.hp}</b><DamageValue value={d?.damage}/>{d&&(label||d.revival!==null)&&<span className="rmul3d-robot-state" title={label}>{d.revival!==null?`${d.powerOff?"亡":"撤"}${d.revival}%`:labels.map(text=>text[0]).join("")}</span>}</div>
+        <HealthBar value={r.hp} max={r.maxHp} label={teamName(team)+r.number+"号血量"}/>
       </div>;
     })}</div>
   </section>;
@@ -96,12 +101,12 @@ const INITIAL_STATUS:ArenaStatus={view:"first",robot:null,nearby:null};
 const PHASE_LABELS:Record<ArenaLoadProgress["phase"],string>={program:"初始化三维程序",download:"下载战场资源",verify:"解压与完整性校验",parse:"解析模型",terrain:"生成地形与地图",initialize:"初始化机器人与机关",firstFrame:"准备首个画面"};
 function SettingsPanel({value,onChange}:{value:ArenaSettings;onChange:(value:ArenaSettings)=>void}){
   return <div className="rmul3d-options">
-    <label>画质<select value={value.quality} onChange={e=>onChange({...value,quality:e.target.value as ArenaSettings["quality"]})}><option value="auto">自动推荐</option><option value="low">流畅</option><option value="medium">均衡</option><option value="high">精细</option></select></label>
-    <label>静音<input type="checkbox" checked={value.muted} onChange={e=>onChange({...value,muted:e.target.checked})}/></label>
+    <fieldset><legend>画面</legend><label>画质<select value={value.quality} onChange={e=>onChange({...value,quality:e.target.value as ArenaSettings["quality"]})}><option value="auto">自动推荐</option><option value="low">流畅</option><option value="medium">均衡</option><option value="high">精细</option></select></label>
+    </fieldset><fieldset><legend>声音</legend><label>静音<input type="checkbox" checked={value.muted} onChange={e=>onChange({...value,muted:e.target.checked})}/></label>
     <label>总音量<input type="range" min="0" max="1" step=".05" value={value.volume} onChange={e=>onChange({...value,volume:Number(e.target.value)})}/><output>{Math.round(value.volume*100)}%</output></label>
-    <label>视角灵敏度<input type="range" min=".25" max="2" step=".05" value={value.sensitivity} onChange={e=>onChange({...value,sensitivity:Number(e.target.value)})}/><output>{Math.round(value.sensitivity*100)}%</output></label>
+    </fieldset><fieldset><legend>操作</legend><label>视角灵敏度<input type="range" min=".25" max="2" step=".05" value={value.sensitivity} onChange={e=>onChange({...value,sensitivity:Number(e.target.value)})}/><output>{Math.round(value.sensitivity*100)}%</output></label>
     <label>纵向反转<input type="checkbox" checked={value.invertY} onChange={e=>onChange({...value,invertY:e.target.checked})}/></label>
-    <button onClick={()=>onChange({...DEFAULT_ARENA_SETTINGS})}>恢复默认</button>
+    </fieldset><button onClick={()=>onChange({...DEFAULT_ARENA_SETTINGS})}>恢复默认</button>
   </div>;
 }
 function TouchJoystick({controller,resetRef}:{controller:RefObject<ArenaController|null>;resetRef:RefObject<()=>void>}){
@@ -226,6 +231,14 @@ export default function PixelJijiaArenaPage() {
     setMenu(open);
     if(!open)setSettingsOpen(false);
   };
+  function restart(){
+    if(experimentRunning||!controller.current)return;
+    if(status.match?.phase==="running"&&!window.confirm("重新开始将结束当前比赛，确定继续？"))return;
+    const startMatch=entry==="match"||status.match?.phase==="running"||status.match?.phase==="finished";
+    controller.current.reset();toggleMenu(false);
+    if(startMatch)controller.current.start();
+    else if(entry==="explore")controller.current.view("third");
+  }
   const disabled = loading || !!error;
   const showTouch=!disabled&&!menu&&!status.countdown&&!experimentRunning&&!experimentOpen&&(flying||playing&&status.match?.stance?.control!=="auto"&&!status.match?.revival?.dead&&status.match?.phase!=="finished");
 
@@ -238,19 +251,23 @@ export default function PixelJijiaArenaPage() {
     <section className="rmul3d-entry-panel">
       <Link to={returnTo} state={returnTo==="/pixel-jijia"&&pixelReturn?{pixelReturn}:undefined} className="rmul3d-entry-back" aria-label={experienceReturnLabel(returnTo)}>← 返回上一层</Link>
       <div className="rmul3d-entry-title"><span>TARS-GO / RMUC 2027</span><h1>战场模拟</h1></div>
-      {settingsOpen?<><h2>设置</h2><SettingsPanel value={settings} onChange={updateSettings}/><button onClick={()=>setSettingsOpen(false)}>返回菜单</button></>:experimentOpen?<><h2>策略实验</h2>{configFields}<div className="rmul3d-entry-actions"><button className="rmul3d-primary" disabled={!validConfig} onClick={()=>launch("experiment")}>运行配对实验</button><button onClick={()=>setExperimentOpen(false)}>返回菜单</button></div></>:<nav className="rmul3d-entry-actions" aria-label="模拟器主菜单"><button className="rmul3d-primary" onClick={()=>launch("match")}>开始模拟</button><button onClick={()=>launch("explore")}>自由探索</button><button onClick={()=>setExperimentOpen(true)}>策略实验</button><button onClick={()=>setSettingsOpen(true)}>设置</button></nav>}
+      {settingsOpen?<><h2>设置</h2><SettingsPanel value={settings} onChange={updateSettings}/><button onClick={()=>setSettingsOpen(false)}>返回菜单</button></>:experimentOpen?<><h2>策略实验</h2>{configFields}<div className="rmul3d-entry-actions"><button className="rmul3d-primary" disabled={!validConfig} onClick={()=>launch("experiment")}>运行配对实验</button><button onClick={()=>setExperimentOpen(false)}>返回菜单</button></div></>:<nav className="rmul3d-entry-actions" aria-label="模拟器主菜单"><button className="rmul3d-primary" onClick={()=>launch("match")}>开始模拟<span aria-hidden="true">›</span></button><button onClick={()=>launch("explore")}>自由探索<span aria-hidden="true">›</span></button><button onClick={()=>setExperimentOpen(true)}>策略实验<span aria-hidden="true">›</span></button><button onClick={()=>setSettingsOpen(true)}>设置<span aria-hidden="true">›</span></button></nav>}
     </section>
   </main>;
 
   return (
     <main className="rmul3d" style={visualStyle}>
       <section className="rmul3d-stage" aria-label="RMUC 2027 三维训练战场">
-        <div ref={mountRef} className="rmul3d-canvas" />
-        {!disabled&&!menu&&<div className="rmul3d-orientation-hint">横屏操作更方便</div>}
-        {loading && !error && <div className="rmul3d-loading"><div className="rmul3d-load-content"><strong role="status">{PHASE_LABELS[progress.phase]}</strong>{progress.phase==="download"&&<><progress aria-label="资源下载进度" max={progress.total} value={progress.total===undefined?undefined:progress.received}/><span>{((progress.received??0)/1000000).toFixed(1)} MB{progress.total!==undefined?` / ${(progress.total/1000000).toFixed(1)} MB`:""}</span></>}<button onClick={exitToMenu}>取消</button></div></div>}
+        <div ref={mountRef} className="rmul3d-canvas" data-ready={!disabled} />
+        {showTouch&&<div className="rmul3d-orientation-hint">横屏操作更方便</div>}
+        {loading && !error && <div className="rmul3d-loading"><div className="rmul3d-load-content"><div className="rmul3d-load-brand"><span>TARS-GO</span><b>RMUC 2027</b></div><strong key={progress.phase} role="status">{PHASE_LABELS[progress.phase]}</strong>{progress.phase==="download"&&<><progress aria-label="资源下载进度" max={progress.total} value={progress.total===undefined?undefined:progress.received}/><span>{((progress.received??0)/1000000).toFixed(1)} MB{progress.total!==undefined?` / ${(progress.total/1000000).toFixed(1)} MB · ${Math.min(100,Math.floor((progress.received??0)/Math.max(1,progress.total)*100))}%`:""}</span></>}<button onClick={exitToMenu}>取消</button></div></div>}
         {error && <div className="rmul3d-error"><span role="alert">{error}</span><button onClick={retry}>重试</button><button onClick={exitToMenu}>返回主菜单</button></div>}
-        {!disabled&&<><div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
+        {!disabled&&<><div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(flying?" is-flight":"")+(tacticsOpen||status.match?.revival?.dead?" is-tactics-open":"")}>
         <header className="rmul3d-header">
+          {!menu&&!status.robot&&<div className="rmul3d-view-dock"><select aria-label="观战视角" value={status.view} disabled={experimentRunning} onChange={e=>controller.current?.view(e.target.value as ArenaView)}>
+            {!CAMERA_VIEWS.some(v=>v.id===status.view)&&<option value={status.view} disabled>{status.view==="detail"?"赛事特写":status.view==="ai-first"?"AI第一人称":"跟随观战"}</option>}
+            {CAMERA_VIEWS.filter(({id})=>(!experimentRunning||id==="all")&&(id!=="third"||status.radarMap?.perspective==="all")).map(({id,label})=><option key={id} value={id}>{label}</option>)}
+          </select>{entry==="experiment"&&!experimentOpen&&<button onClick={()=>setExperimentOpen(true)}>实验结果</button>}</div>}
           <div className="rmul3d-header-actions">
             <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
             {!disabled&&!menu&&<button className="rmul3d-sound" aria-label={status.sound?"静音":"开启声音"} aria-pressed={!!status.sound} onClick={()=>updateSettings({...settings,muted:!settings.muted})}>{status.sound?"声音开":"声音关"}</button>}
@@ -258,25 +275,30 @@ export default function PixelJijiaArenaPage() {
           </div>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
-          {status.match.phase === "ready" ? status.countdown?<div className="rmul3d-countdown" role="status"><div><b>红方</b><span>VS</span><b>蓝方</b></div><strong key={status.countdown}>{status.countdown}</strong><button onClick={()=>controller.current?.cancelStart()}>取消</button></div>:<><button onClick={() => controller.current?.start()}>开始模拟</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
-            <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} select={legalTeam("red")?select:undefined} selected={focus?.id??status.selected}/><div className="rmul3d-clock"><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong>{status.match.phase==="finished"&&<small>结束</small>}</div><TeamScore team="blue" side={status.match.sides.blue} select={legalTeam("blue")?select:undefined} selected={focus?.id??status.selected}/></div>
-            {status.match.phase === "finished" && <><strong className={"rmul3d-result "+status.match.winner}>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方胜利":"蓝方胜利"}</strong><button onClick={() => {controller.current?.reset();controller.current?.start();}}>再来一局</button></>}
+          {status.match.phase === "ready" ? status.countdown?<div className="rmul3d-countdown" role="status"><div><b>红方</b><span>VS</span><b>蓝方</b></div><small>比赛即将开始</small><strong key={status.countdown}>{status.countdown}</strong><button onClick={()=>controller.current?.cancelStart()}>取消</button></div>:<><button onClick={() => controller.current?.start()}>开始模拟</button></> : <>
+            <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} select={legalTeam("red")?select:undefined} selected={focus?.id??status.selected}/><div className="rmul3d-clock" data-final={status.match.seconds<=60}><small>RMUC 2027</small><strong>{String(Math.floor(status.match.seconds/60)).padStart(2,"0")}:{String(status.match.seconds%60).padStart(2,"0")}</strong><small>{status.match.phase==="finished"?"比赛结束":"剩余时间"}</small></div><TeamScore team="blue" side={status.match.sides.blue} select={legalTeam("blue")?select:undefined} selected={focus?.id??status.selected}/></div>
+            {status.match.phase === "finished" && <section className={"rmul3d-result "+status.match.winner} aria-label="比赛结算">
+              <small>RMUC 2027 · 比赛结束</small><h2>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方胜利":"蓝方胜利"}</h2>
+              <div className="rmul3d-result-stats"><b>红方</b><span>比赛统计</span><b>蓝方</b>
+              {(["base","outpost","control"] as const).map(key=><div className="rmul3d-result-row" key={key}><strong>{status.match!.sides.red[key]}</strong><span>{{base:"基地血量",outpost:"前哨血量",control:"控制度"}[key]}</span><strong>{status.match!.sides.blue[key]}</strong></div>)}</div>
+              <div className="rmul3d-result-actions"><button className="rmul3d-primary" onClick={() => {controller.current?.reset();controller.current?.start();}}>再来一局</button><button onClick={exitToMenu}>返回主菜单</button></div>
+            </section>}
           </>}
         </div>}
-        {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(Math.ceil(420-item.event.at)/60)}:{String(Math.ceil(420-item.event.at)%60).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
-        {!disabled&&!menu&&!experimentRunning&&status.match?.phase!=="finished"&&status.events?.banner&&<div key={status.events.banner.id} className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
+        {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><i aria-hidden="true"/><time>{Math.floor(Math.ceil(420-item.event.at)/60)}:{String(Math.ceil(420-item.event.at)%60).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
+        {!disabled&&!menu&&!experimentRunning&&status.match?.phase!=="finished"&&status.events?.banner&&<div key={status.events.banner.id} className="rmul3d-event-banner" role="status"><small>赛事动态</small><strong>{status.events.banner.text}</strong></div>}
         {!disabled&&!menu&&flying&&<span className="rmul3d-flight-speed">{status.flightSpeed?.toFixed(1)} m/s</span>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           {focused&&<div className="rmul3d-ammo"><b>{status.match!.ammo}</b><span>{status.match!.reserve>0?" + "+status.match!.reserve:""} 弹药</span></div>}
           <div className="rmul3d-map-head">{status.robot?<span>{status.radarMap.perspective==="red"?"红方情报":"蓝方情报"}</span>:<select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={status.view==="ai-first"} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>}
-          {Object.entries(status.radarMap.summary).map(([team,r])=><span key={team} title={"干扰难度 "+r.encryptionLevel}>{team==="red"?"红":"蓝"}雷达 {r.doubleUntil>0?"×2 "+r.doubleUntil+"s":r.opportunities+"次"}</span>)}</div>
+          {!flying&&Object.entries(status.radarMap.summary).map(([team,r])=><span key={team} title={"干扰难度 "+r.encryptionLevel}>{team==="red"?"红":"蓝"}雷达 {r.doubleUntil>0?"×2 "+r.doubleUntil+"s":r.opportunities+"次"}</span>)}</div>
           <svg viewBox="0 0 280 150" role="img" aria-label="CAD战场地图"><image href={status.radarMap.image} width="280" height="150"/>
             {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={!s.outpostArea.enabled?"#64748b":s.outpostArea.controller==="red"?"#fb7777":"#7bbdff"} strokeDasharray={!s.outpostArea.full?"3 2":undefined} opacity={s.outpostArea.enabled?1:.35} aria-label={teamName(team)+"方前哨阵地 "+areaText(s.outpostArea)}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
             {status.air?.map(a=><g key={a.team+"-air"} fill={a.team==="red"?"#fb7777":"#7bbdff"}><rect x={(14-a.x)*10-3} y={(7.5-a.z)*10-3} width="6" height="6" stroke="white"/>{a.airborne.map(v=><circle key={v.id} cx={(14-v.x)*10} cy={(7.5-v.z)*10} r="2.5" stroke="white"/>)}</g>)}
-            {status.radarMap.tracks.map(r=><g key={r.id} transform={`translate(${(14-r.x)*10} ${(7.5-r.z)*10})`} opacity={r.stale?.4:1} aria-label={r.team+" "+r.id+" P="+r.progress} role={legalTeam(r.team)?"button":undefined} tabIndex={legalTeam(r.team)?0:undefined} aria-pressed={legalTeam(r.team)?focus?.id===r.id:undefined} onClick={legalTeam(r.team)?()=>select(r.id):undefined} onKeyDown={legalTeam(r.team)?e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();select(r.id);}}:undefined}><circle r="4.5" fill={ARENA_VISUAL[r.team]} stroke={r.localized?"white":"#222"} strokeDasharray={r.stale?"2 2":undefined}/><text textAnchor="middle" y="2.2" fontSize="6" fill="white">{r.number}</text></g>)}
+            {status.radarMap.tracks.map(r=><g key={r.id} transform={`translate(${(14-r.x)*10} ${(7.5-r.z)*10})`} opacity={r.stale?.4:1} aria-label={r.team+" "+r.id+" P="+r.progress} role={legalTeam(r.team)?"button":undefined} tabIndex={legalTeam(r.team)?0:undefined} aria-pressed={legalTeam(r.team)?focus?.id===r.id:undefined} onClick={legalTeam(r.team)?()=>select(r.id):undefined} onKeyDown={legalTeam(r.team)?e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();select(r.id);}}:undefined}><circle r="5" fill={ARENA_VISUAL[r.team]} stroke={r.localized?"white":"#222"} strokeDasharray={r.stale?"2 2":undefined}/><text textAnchor="middle" y="2.2" fontSize="6" fill="white">{r.number}</text></g>)}
           </svg>
-          {status.air?.map(a=><span key={a.team}>{teamName(a.team)}机库 {a.powered?a.docked+"/"+a.total:"已停桨"}</span>)}
-          {!experimentRunning&&!focused&&!status.robot&&status.radarMap.perspective==="all"&&status.air?.filter(a=>a.powered).map(a=><button key={a.team} onClick={()=>controller.current?.airStop(a.team)}>{teamName(a.team)}方安全员停桨</button>)}
+          {!flying&&status.air?.map(a=><span key={a.team}>{teamName(a.team)}机库 {a.powered?a.docked+"/"+a.total:"已停桨"}</span>)}
+          {!flying&&!experimentRunning&&!focused&&!status.robot&&status.radarMap.perspective==="all"&&status.air?.some(a=>a.powered)&&<details className="rmul3d-map-safety"><summary>安全员操作</summary>{status.air.filter(a=>a.powered).map(a=><button key={a.team} onClick={()=>controller.current?.airStop(a.team)}>{teamName(a.team)}方停桨</button>)}</details>}
           {status.robot&&status.radarMap.perspective!=="all"&&!status.match.dart?.blind&&status.radarMap.summary[status.radarMap.perspective]!.opportunities>0&&<button disabled={status.radarMap.summary[status.radarMap.perspective]!.doubleUntil>0} onClick={()=>controller.current?.radarDouble()}>双倍易伤</button>}
         </aside>}
         {!disabled&&!menu&&focus&&status.match&&<section className={"rmul3d-focus-panel "+focus.team} aria-label="单机器人状态">
@@ -287,13 +309,13 @@ export default function PixelJijiaArenaPage() {
             {status.match.heatLimit>0&&<span>热量 <b>{status.match.heat}/{status.match.heatLimit}</b></span>}
             {status.match.power&&<><span>能量 <b>{Math.round(status.match.power.buffer)}/60J</b></span><span>功率 <b>{Math.round(focus.demand)}/{status.match.power.limit}W</b></span></>}
           </div>
-          <div className="rmul3d-focus-states">{focus.spin&&<span>小陀螺</span>}{status.match.revival?.dead?<span>战亡 · 复活 {Math.floor(status.match.revival.progress*100)}%</span>:<>{!!status.match.power?.locked&&<span>断电 {status.match.power.locked}s</span>}{status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}{status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}{status.match.thermalLock&&<span>发射锁定</span>}</>}
+          <div className="rmul3d-focus-states" data-dead={!!status.match.revival?.dead}>{focus.spin&&<span>小陀螺</span>}{status.match.revival?.dead?<span className="rmul3d-revival-state">战亡 · 复活 {Math.floor(status.match.revival.progress*100)}%<progress aria-label="复活进度" value={status.match.revival.progress} max={1}/></span>:<>{!!status.match.power?.locked&&<span>断电 {status.match.power.locked}s</span>}{status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}{status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}{status.match.thermalLock&&<span>发射锁定</span>}</>}
           {status.match.launcher&&<span>42mm {{locked:"锁定",unlocked:"未装配",test:"测试",ready:"就绪"}[status.match.launcher.state]}</span>}
           {status.match.stance&&<span>{status.match.stance.control==="auto"?"全自动":"半自动"} · {{attack:"进攻",defense:"防御",move:"移动"}[status.match.stance.mode]}{status.match.stance.enhanced?"强化":""}</span>}
           {focus.kind==="heavy"&&status.match.technology&&status.match.technology.highest>0&&<span>科技 {status.match.technology.highest}级</span>}</div>
-          {observed&&status.match.technology?.level&&focus.kind==="heavy"&&<div className="rmul3d-assembly-progress">{status.match.technology.level}级装配 · {status.match.technology.completed}/{status.match.technology.total}{status.match.technology.pending?" · 动作中":""}</div>}
+          {observed&&status.match.technology?.level&&focus.kind==="heavy"&&<div className="rmul3d-assembly-progress">{status.match.technology.level}级装配 · {status.match.technology.completed}/{status.match.technology.total}{status.match.technology.pending?" · 动作中":""}<progress aria-label="装配进度" value={status.match.technology.completed} max={status.match.technology.total}/></div>}
           {observed&&<nav className="rmul3d-observer-controls" aria-label="观战相机"><button onClick={()=>controller.current?.view("all")}>全场</button><button onClick={()=>controller.current?.view(status.view==="follow"?"ai-first":"follow")}>{status.view==="follow"?"AI第一人称":"第三人称"}</button><button disabled={!focus.canTakeControl} onClick={()=>controller.current?.takeControl()}>人工接管</button></nav>}
-          {status.robot&&status.match.phase==="running"&&<button className="rmul3d-tactics-toggle" type="button" aria-expanded={tacticsOpen} aria-controls="rmul3d-live-tactics" onClick={()=>setTacticsOpen(open=>!open)}>{tacticsOpen?"关闭战术":"战术操作"}</button>}
+          {status.robot&&status.match.phase==="running"&&!status.match.revival?.dead&&<button className="rmul3d-tactics-toggle" type="button" aria-expanded={tacticsOpen} aria-controls="rmul3d-live-tactics" onClick={()=>setTacticsOpen(open=>!open)}>{tacticsOpen?"关闭战术":"战术操作"}</button>}
         </section>}
         {!disabled && !menu && !status.countdown && playing && status.robot && status.match?.phase==="ready" && status.match.performance && <div className="rmul3d-combat">
           <label>底盘 <select value={status.match.performance.chassis} onChange={e=>controller.current?.performance({...status.match!.performance!,chassis:e.target.value as "hp"|"power"})}><option value="hp">血量优先</option><option value="power">功率优先</option></select></label>
@@ -336,26 +358,31 @@ export default function PixelJijiaArenaPage() {
           </>}
         </div>}
         <div className="rmul3d-actions">
-        {showTouch&&flying&&<div className="rmul3d-flight-actions">{([["Space","上升"],["ShiftLeft","下降"],["ControlLeft","加速"]] as const).map(([key,label])=><button key={key} type="button"
+        {showTouch&&!flying&&<button className="rmul3d-ground-boost" type="button" aria-label="加速" title="加速"
+          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,"ShiftLeft",true);}}
+          onPointerUp={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false)}
+          onPointerCancel={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false)}
+          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false)}><ControlIcon kind="boost"/></button>}
+        {showTouch&&flying&&<div className="rmul3d-flight-actions">{([["Space","上升"],["ShiftLeft","下降"],["ControlLeft","加速"]] as const).map(([key,label])=><button key={key} type="button" aria-label={label} title={label}
           onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,key,true);}}
           onPointerUp={event=>controller.current?.touchAction(event.pointerId,key,false)}
           onPointerCancel={event=>controller.current?.touchAction(event.pointerId,key,false)}
-          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,key,false)}>{label}</button>)}</div>}
+          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,key,false)}><ControlIcon kind={key==="Space"?"up":key==="ShiftLeft"?"down":"boost"}/></button>)}</div>}
         {!disabled && !menu && playing && (status.robot || status.nearby) && (
-          <button className="rmul3d-interact" onClick={() => controller.current?.interact()}>
-            <kbd>E</kbd> {status.robot ? "退出 " + status.robot : "接管 " + status.nearby}
+          <button className="rmul3d-interact" aria-label={status.robot?"退出机器人":"接管机器人"} title={status.robot?"退出机器人":"接管机器人"} onClick={() => controller.current?.interact()}>
+            <kbd>E</kbd><ControlIcon kind="interact"/><span className="rmul3d-interact-long">{status.robot ? "退出 " + status.robot : "接管 " + status.nearby}</span><span className="rmul3d-interact-short">{status.robot?"退出":"接管"}</span>
           </button>
         )}
-        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && !status.match.revival?.dead && status.match.stance?.control!=="auto" && <button type="button" className="rmul3d-fire" aria-disabled={!status.match.canFire}
+        {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && !status.match.revival?.dead && status.match.stance?.control!=="auto" && <button type="button" className="rmul3d-fire" aria-label="开火" aria-disabled={!status.match.canFire}
           onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.fire("button:"+event.pointerId,true);}}
           onPointerUp={event=>controller.current?.fire("button:"+event.pointerId,false)}
           onPointerCancel={event=>controller.current?.fire("button:"+event.pointerId,false)}
-          onLostPointerCapture={event=>controller.current?.fire("button:"+event.pointerId,false)}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button>}
+          onLostPointerCapture={event=>controller.current?.fire("button:"+event.pointerId,false)}><ControlIcon kind="fire"/><span>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</span></button>}
         </div>
         {showTouch&&<div className="rmul3d-touch"><TouchJoystick controller={controller} resetRef={resetTouch}/></div>}
         </div>
-        {!disabled && firstPerson && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
-        {!disabled && !menu && firstPerson && (!focus||focus.sight&&status.match!.hp>0) && status.match?.thermalLock!=="cooling"&&!status.match?.dart?.blind && <div className="rmul3d-crosshair" aria-hidden="true" />}
+        {!disabled && firstPerson && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" role="status"><strong>图传中断</strong><span>{status.match.dart?.blind?"飞镖命中 · 图传遮挡":"热量超限 · 冷却中"}</span></div>}
+        {!disabled && !menu && firstPerson && (!focus||focus.sight&&status.match!.hp>0) && status.match?.thermalLock!=="cooling"&&!status.match?.dart?.blind && <svg className="rmul3d-crosshair" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3v10m0 14v10M3 20h10m14 0h10" stroke="currentColor" strokeWidth="1.6" fill="none"/><circle cx="20" cy="20" r="1.5" fill="currentColor"/>{status.impact&&<path key={status.impact.serial} className={"rmul3d-impact "+status.impact.kind} d="m8 8 6 6m12 12 6 6M32 8l-6 6M14 26l-6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none"/>}</svg>}
         {experimentRunning&&!experimentOpen&&!menu&&<div className="rmul3d-experiment-progress"><span>实验 {status.experiment!.completed+1}/{status.experiment!.total} · {Math.floor(status.experiment!.elapsed)}s</span><button onClick={()=>setExperimentOpen(true)}>进度</button><button onClick={()=>controller.current?.cancelExperiment()}>停止</button></div>}
         {experimentOpen&&!menu&&<aside className="rmul3d-help rmul3d-experiment" aria-label="策略与实验">
           <button className="rmul3d-close" onClick={()=>setExperimentOpen(false)} aria-label="关闭实验">×</button>
@@ -368,37 +395,16 @@ export default function PixelJijiaArenaPage() {
           <button className="rmul3d-close" onClick={() => toggleMenu(false)} aria-label="关闭">×</button>
           {settingsOpen?<><h2>设置</h2><SettingsPanel value={settings} onChange={updateSettings}/><button onClick={()=>setSettingsOpen(false)}>返回菜单</button></>:<>
           <h2>{experimentRunning?"战场菜单":status.match?.phase==="running"||status.countdown?"比赛已暂停":"战场菜单"}</h2>
-          <div className="rmul3d-menu-actions"><button onClick={()=>toggleMenu(false)}>继续</button><button onClick={()=>setSettingsOpen(true)}>设置</button><button onClick={exitToMenu}>返回主菜单</button></div>
-          <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }} onClick={e=>{if(!canLeave())e.preventDefault();}}>战术演练</Link>
-          <h2>视角</h2>
-          <nav className="rmul3d-views" aria-label="校准视角">
-            {CAMERA_VIEWS.filter(({id})=>(!status.robot||id==="first")&&(!experimentRunning||id==="all")&&(id!=="third"||status.radarMap?.perspective==="all")).map(({ id, label }) => (
-              <button key={id} type="button" disabled={disabled}
-                aria-pressed={status.view === id} className={status.view === id ? "is-active" : ""}
-                onClick={() => { controller.current?.view(id); toggleMenu(false); }}>{label}</button>
-            ))}
-          </nav>
-          <h2>训练</h2>
-          <button disabled={disabled||experimentRunning} onClick={()=>{if(status.match?.phase==="running"&&!window.confirm("确定重置当前比赛？"))return;controller.current?.reset();toggleMenu(false);}}>重置比赛</button><button disabled={disabled} onClick={()=>{toggleMenu(false);setExperimentOpen(true);}}>策略与实验</button>
-          <h2>操作</h2>
-          <dl>
-            <dt>W A S D</dt><dd>移动</dd>
-            <dt>单击画面 / 鼠标</dt><dd>锁定并转向</dd>
-            <dt>拖动 / 方向键</dt><dd>转向</dd>
-            <dt>自由飞行</dt><dd>WASD移动，空格上升，Shift下降，Ctrl加速，滚轮调速</dd>
-            <dt>Shift</dt><dd>加速行走 / 底盘超功率训练</dd>
-            <dt>E</dt><dd>接管 / 退出机器人</dd>
-            <dt>左键 / 空格</dt><dd>按住持续开火</dd>
-            <dt>R</dt><dd>步兵小陀螺开关</dd>
-            <dt>B</dt><dd>远程补弹</dd>
-            <dt>V / M</dt><dd>切换视角 / 全场</dd>
-            <dt>Esc</dt><dd>释放鼠标</dd>
-          </dl>
-          <h2>资产来源</h2>
-          <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
-          <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
-          <Link to="/robots">TARS-Go 2026 定妆照</Link>
-          <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击尚未实现；飞镖为虚拟检测训练，装配机构与护甲行程、场地交互模块卡覆盖范围为训练近似。</p>
+          <div className="rmul3d-menu-actions"><button className="rmul3d-primary" onClick={()=>toggleMenu(false)}>继续{status.match?.phase==="running"||status.countdown?"比赛":""}</button><button onClick={()=>setSettingsOpen(true)}>设置</button>{entry!=="experiment"&&<button disabled={disabled||experimentRunning} onClick={restart}>重新开始</button>}<button onClick={exitToMenu}>返回主菜单</button></div>
+          <details className="rmul3d-menu-detail"><summary>操作说明</summary>
+            {flying?<><p>键盘：WASD 移动，鼠标转向，空格上升，Shift 下降，Ctrl 加速，滚轮调速。</p><p className="rmul3d-touch-help">触屏：左侧摇杆移动，右侧滑动转向，箭头升降，双箭头加速。</p></>:playing?<><p>键盘：WASD 移动，鼠标转向，Shift 加速，E 接管或退出，左键 / 空格开火，R 小陀螺，B 补弹，Esc 释放鼠标。</p><p className="rmul3d-touch-help">触屏：摇杆移动，右侧滑动转向，双箭头加速，准星按钮开火。</p></>:<p>选择机器人查看状态，切换跟随视角或人工接管；通过左上角视角菜单切换观战模式。</p>}
+          </details>
+          <details className="rmul3d-menu-detail"><summary>资产与规则覆盖</summary>
+            <a href="https://bbs.robomaster.com/article/1970956" target="_blank" rel="noreferrer">RoboMaster 2027 官方 CAD</a>
+            <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
+            <Link to="/robots" onClick={e=>{if(!canLeave())e.preventDefault();}}>TARS-Go 2026 定妆照</Link>
+            <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击尚未实现；飞镖为虚拟检测训练，装配机构与护甲行程、场地交互模块卡覆盖范围为训练近似。</p>
+          </details>
           </>}
         </aside>}
         </>}

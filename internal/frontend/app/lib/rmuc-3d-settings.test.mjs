@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {statSync} from "node:fs";
-import {DEFAULT_ARENA_SETTINGS,normalizeArenaSettings,arenaPixelRatio,loadArenaSettings} from "./rmuc-3d-settings.ts";
+import {DEFAULT_ARENA_SETTINGS,normalizeArenaSettings,arenaPixelRatio,calibratedArenaPixelRatio,loadArenaSettings} from "./rmuc-3d-settings.ts";
 import {CAD_MODELS} from "./rmul-3d-cad-assets.ts";
 import {MECHANISM_ASSET,CORE_ASSET,DART_ASSET} from "./rmuc-3d-mechanisms.ts";
 test("invalid or unavailable local settings fall back to safe defaults",()=>{
@@ -22,4 +22,11 @@ test("download totals match the actual pinned compressed files",()=>{
   for(const asset of [CAD_MODELS.rmucField,MECHANISM_ASSET,CORE_ASSET,DART_ASSET]){
     assert.equal(statSync(new URL(`../../../../public${asset.url}`,import.meta.url)).size,asset.bytes);
   }
+});
+
+test("automatic calibration only lowers render ratio after sustained slow frames",()=>{
+  assert.equal(calibratedArenaPixelRatio(1.5,Array(89).fill(40)),1.5);
+  assert.equal(calibratedArenaPixelRatio(1.5,[...Array(85).fill(16),...Array(5).fill(80)]),1.5);
+  assert.equal(calibratedArenaPixelRatio(1.5,Array(90).fill(33)),1);
+  assert.equal(calibratedArenaPixelRatio(1,Array(90).fill(33)),1);
 });

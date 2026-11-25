@@ -25,3 +25,12 @@ export function arenaPixelRatio(quality:ArenaQuality,dpr:number,cores:number,mem
   const recommended=cores<=4||memory!==undefined&&memory<=4?1:1.5;
   return Math.min(dpr,quality==="low"?1:quality==="medium"?1.5:quality==="high"?2:recommended);
 }
+
+
+// One stable sample window per automatic-quality selection. Never change
+// simulation cadence or oscillate between pixel ratios.
+export function calibratedArenaPixelRatio(ratio:number,intervals:readonly number[]){
+  if(ratio<=1||intervals.length<90)return ratio;
+  const sorted=[...intervals].sort((a,b)=>a-b);
+  return sorted[Math.floor(sorted.length*.5)]>22&&sorted[Math.floor(sorted.length*.9)]>28?1:ratio;
+}
