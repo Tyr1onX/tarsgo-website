@@ -180,7 +180,7 @@ export default function PixelJijiaArenaPage() {
             {status.match.heatLimit>0&&<span>热量 <b>{status.match.heat}/{status.match.heatLimit}</b></span>}
             {status.match.power&&<><span>能量 <b>{status.match.power.buffer}/60J</b></span><span>功率 <b>{focus.demand}/{status.match.power.limit}W</b></span></>}
           </div>
-          <div className="rmul3d-focus-states">{status.match.revival?.dead?<span>战亡 · 复活 {Math.floor(status.match.revival.progress*100)}%</span>:<>{!!status.match.power?.locked&&<span>断电 {status.match.power.locked}s</span>}{status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}{status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}{status.match.thermalLock&&<span>发射锁定</span>}</>}
+          <div className="rmul3d-focus-states">{focus.spin&&<span>小陀螺</span>}{status.match.revival?.dead?<span>战亡 · 复活 {Math.floor(status.match.revival.progress*100)}%</span>:<>{!!status.match.power?.locked&&<span>断电 {status.match.power.locked}s</span>}{status.match.revival?.weak&&<span>虚弱</span>}{status.match.revival?.immune&&<span>无敌</span>}{status.match.buff>0&&<span>能量增益 {status.match.buff}s</span>}{status.match.thermalLock&&<span>发射锁定</span>}</>}
           {status.match.launcher&&<span>42mm {{locked:"锁定",unlocked:"未装配",test:"测试",ready:"就绪"}[status.match.launcher.state]}</span>}
           {status.match.stance&&<span>{status.match.stance.control==="auto"?"全自动":"半自动"} · {{attack:"进攻",defense:"防御",move:"移动"}[status.match.stance.mode]}{status.match.stance.enhanced?"强化":""}</span>}
           {focus.kind==="heavy"&&status.match.technology&&status.match.technology.highest>0&&<span>科技 {status.match.technology.highest}级</span>}</div>
@@ -196,6 +196,7 @@ export default function PixelJijiaArenaPage() {
         </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div id="rmul3d-live-tactics" className="rmul3d-combat rmul3d-combat-live">
           <span>{status.match.coins} 金币</span>
+          {focus?.kind==="infantry"&&focus.manual&&<button disabled={!focus.canSpin} aria-pressed={focus.spin} onClick={()=>controller.current?.toggleSpin()}>{focus.spin?"关闭小陀螺":"小陀螺"}</button>}
           {status.match.revival?.dead?<>{status.match.technology?.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>退出装配</button>}<span>复活读条 {Math.floor(status.match.revival.progress*100)}%</span><button disabled={!status.match.revival.canConfirm} onClick={()=>controller.current?.revive(false)}>确认复活 {status.match.revival.fee>0&&`${status.match.revival.fee}金币`}</button><button disabled={!status.match.revival.canPay} onClick={()=>controller.current?.revive(true)}>立即复活 {status.match.revival.cost}金币</button></>:<>
           {status.match.rune&&<button disabled={status.match.rune.active||status.match.rune.buff>0||status.match.rune.available<=0||!!status.match.revival?.weak} onClick={()=>controller.current?.rune()}>{status.match.rune.active?"机关 "+status.match.rune.groups+"/5":(status.match.rune.large?"大":"小")+"能量机关 "+status.match.rune.available}</button>}
           {status.match.stance&&(()=>{
@@ -281,6 +282,7 @@ export default function PixelJijiaArenaPage() {
             <dt>Shift</dt><dd>加速行走 / 底盘超功率训练</dd>
             <dt>E</dt><dd>接管 / 退出机器人</dd>
             <dt>左键 / 空格</dt><dd>按住持续开火</dd>
+            <dt>R</dt><dd>步兵小陀螺开关</dd>
             <dt>B</dt><dd>远程补弹</dd>
             <dt>V / M</dt><dd>切换视角 / 全场</dd>
             <dt>Esc</dt><dd>释放鼠标</dd>
