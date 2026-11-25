@@ -139,3 +139,17 @@
 @media (pointer:coarse) {.rmul3d-map-head select {min-height:44px;}}
 @media(max-width:600px) and (orientation:portrait){.rmul3d-minimap {width:min(100%,160px)}}
 @media(orientation:landscape) and (max-height:500px){.rmul3d-minimap {width:min(22vw,170px)}}
+
+.rmul3d-experiment{width:min(540px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;}
+.rmul3d-strategy{margin:10px 0;padding:8px;border:1px solid #ffffff33;border-radius:6px;min-width:0;}
+.rmul3d-strategy label,.rmul3d-experiment-config label{display:flex;align-items:center;gap:8px;margin:5px 0;}
+.rmul3d-strategy input[type=range]{flex:1;min-width:60px;}
+.rmul3d-strategy output{min-width:26px;text-align:right;}
+.rmul3d-presets{display:flex;flex-wrap:wrap;gap:5px;}
+.rmul3d-experiment-config input{width:8em;}
+.rmul3d-experiment progress{width:100%;display:block;margin:10px 0;}
+.rmul3d-experiment-table{overflow:auto;}
+.rmul3d-experiment-table table{font-size:12px;white-space:nowrap;border-collapse:collapse;}
+.rmul3d-experiment-table th,.rmul3d-experiment-table td{padding:5px;border-bottom:1px solid #ffffff22;}
+.rmul3d-experiment-progress{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#101924e8;padding:8px;border-radius:6px;z-index:5;white-space:nowrap;}
+
