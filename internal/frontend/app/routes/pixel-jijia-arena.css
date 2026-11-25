@@ -224,3 +224,5 @@
 @media(prefers-reduced-motion:reduce){.rmul3d-result{animation:none}}
 .rmul3d .rmul3d-director {position:absolute;right:10px;bottom:12px;font-size:11px;pointer-events:auto;}
 .rmul3d-flight-speed {position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:11px;background:#101822d9;padding:4px 8px;}
+
+.rmul3d .rmul3d-sound {grid-area:menu;justify-self:end;align-self:start;margin-top:50px;font-size:11px;padding:4px 7px;}

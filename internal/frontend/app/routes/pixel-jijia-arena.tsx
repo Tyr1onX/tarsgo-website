@@ -151,6 +151,7 @@ export default function PixelJijiaArenaPage() {
         <div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
         <header className="rmul3d-header">
           <Link to={returnTo} state={returnTo==="/pixel-jijia"&&pixelReturn?{pixelReturn}:undefined} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
+          {!disabled&&<button className="rmul3d-sound" aria-label={status.sound?"静音":"开启声音"} aria-pressed={!!status.sound} onClick={()=>controller.current?.sound(!status.sound)}>{status.sound?"声音开":"声音关"}</button>}
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
