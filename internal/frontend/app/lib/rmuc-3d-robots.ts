@@ -59,8 +59,8 @@ weave.generateMipmaps = true;
 weave.needsUpdate = true;
 const materials = {
   frame: new THREE.MeshStandardMaterial({ color: 0x191b1f, metalness: .75, roughness: .46 }),
-  armour: new THREE.MeshStandardMaterial({ color: 0x343b43, map: weave, metalness: .36, roughness: .56 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0xa0a4a3, metalness: .75, roughness: .33 }),
+  armour: new THREE.MeshStandardMaterial({ color: 0x343b39, map: weave, metalness: .52, roughness: .49 }),
+  metal: new THREE.MeshStandardMaterial({ color: 0xb1b5af, metalness: .82, roughness: .30 }),
   white: new THREE.MeshStandardMaterial({ color: 0xd5d9d3, metalness: .25, roughness: .42 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x101114, roughness: .83 }),
   orange: new THREE.MeshStandardMaterial({ color: 0xef802f, roughness: .5 }),

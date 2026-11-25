@@ -103,21 +103,21 @@ export function mountArena(
   const pixelRatio=()=>Math.min(autoRatio??Infinity,arenaPixelRatio(settings.quality,window.devicePixelRatio,navigator.hardwareConcurrency,(navigator as Navigator&{deviceMemory?:number}).deviceMemory));
   function resetQualitySample(){qualitySampleAt=0;qualityWarmup=0;qualitySamples.length=0;}
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x111922);
-  scene.fog = new THREE.Fog(0x111922, 65, 180);
+  scene.background = new THREE.Color(0x0b0e0e);
+  scene.fog = new THREE.Fog(0x0b0e0e, 65, 180);
   const camera = new THREE.PerspectiveCamera(72, 1, .025, 220);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(pixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = .99;
   // A small generated environment makes metal surfaces readable without any
   // downloaded textures. Direct lights still determine arena illumination.
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
   const environment = pmrem.fromScene(room, .04, .1, 100, { size: 128 });
   scene.environment = environment.texture;
-  scene.environmentIntensity = .48;
+  scene.environmentIntensity = .58;
   room.dispose();
   pmrem.dispose();
   const canvas = renderer.domElement;
@@ -130,12 +130,13 @@ export function mountArena(
   controls.dampingFactor = .12;
   controls.enablePan = true;
   controls.enabled = false;
-  const hemisphere=new THREE.HemisphereLight(0xdceaff, 0x50515b, 1.0);scene.add(hemisphere);
-  const sun = new THREE.DirectionalLight(0xfff4e7, 2.3);
+  const hemisphere=new THREE.HemisphereLight(0xd8e1d9, 0x42413b, .60);scene.add(hemisphere);
+  const sun = new THREE.DirectionalLight(0xffe9c8, 2.55);
   sun.position.set(-6, 13, 9);
   scene.add(sun);
+  const rim=new THREE.DirectionalLight(0xcbdce6,.95);rim.position.set(7,6,-11);scene.add(rim);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(STADIUM_WIDTH + 8, STADIUM_DEPTH + 8),
-    new THREE.MeshStandardMaterial({ color: 0x202b35, roughness: .85 }));
+    new THREE.MeshStandardMaterial({ color: 0x252d2b, roughness: .85 }));
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -.06;
   scene.add(ground);
@@ -224,6 +225,7 @@ export function mountArena(
   const botObserved=new Map<Robot,{position:THREE.Vector3;radius:number}[]>();
   const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number}>();
   const motions=new Map<Robot,ChassisMotion>();
+  const spinning=(object:THREE.Object3D)=>!!motions.get(fieldRobots.find(r=>r.object===object)!)?.spin;
   const defeatedPush=new Map<Robot,number>();
   const shotIntents=new Map<Robot,{point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3}>();
   const wheels=new Map<Robot,THREE.Object3D[]>();
@@ -291,8 +293,9 @@ export function mountArena(
     audio.play(cue,position);
   }
   let impactFeedback:{kind:"damage"|"contact";serial:number;at:number;robot:string}|null=null,impactSerial=0;
-  function projectileImpact(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:Match["robots"][number]){
+  function projectileImpact(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:Match["robots"][number],shielded:boolean){
     if(experiment?.running)return;
+    if(shielded&&target?.type==="robot")robotFeedback?.shieldContact(target.id,hit.point,match!.elapsed);
     if(manualRobot()&&activeRobot()?.id===shooter.id&&match?.phase==="running")
       impactFeedback={kind:damage>0?"damage":"contact",serial:++impactSerial,at:match.elapsed,robot:shooter.id};
     const perspective=audioPerspective(),team=target?.type==="robot"?groundIdentity(target.id)?.team:target?.team;
@@ -548,9 +551,9 @@ export function mountArena(
     if(hidden)hidden.object.visible=false;
     armorGlow?.update();
     if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match);}
-    projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first");
+    projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first",reducedMotion.matches);
     if(mode==="follow")followRendered.copy(camera.position);
-    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches);
+    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{focus:observed?.object.name??driving?.object.name,firstPerson:mode==="first"||mode==="ai-first",spinning});
     try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
     if(settings.quality==="auto"&&autoRatio===null&&renderer.getPixelRatio()>1){

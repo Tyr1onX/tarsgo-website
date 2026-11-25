@@ -30,16 +30,16 @@ function surfaceTexture(kind: "steel" | "concrete") {
 export function createStadium() {
   const stadium = new THREE.Group();
   stadium.name = "arena-stadium";
-  const steel = new THREE.MeshStandardMaterial({ color: 0x384651, metalness: .6, roughness: .54, map: surfaceTexture("steel") });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x343d3a, metalness: .6, roughness: .54, map: surfaceTexture("steel") });
   const concrete = surfaceTexture("concrete");
-  const wall = new THREE.MeshStandardMaterial({ color: 0x293640, roughness: .92, map: concrete });
-  const concourse = new THREE.MeshStandardMaterial({ color: 0x485563, roughness: .94, map: concrete });
-  const seat = new THREE.MeshStandardMaterial({ color: 0x37434d, roughness: .9 });
+  const wall = new THREE.MeshStandardMaterial({ color: 0x222a28, roughness: .92, map: concrete });
+  const concourse = new THREE.MeshStandardMaterial({ color: 0x454e49, roughness: .94, map: concrete });
+  const seat = new THREE.MeshStandardMaterial({ color: 0x343c39, roughness: .9 });
   const redSeat = new THREE.MeshStandardMaterial({ color: 0x63323b, roughness: .88 });
   const blueSeat = new THREE.MeshStandardMaterial({ color: 0x304a73, roughness: .88 });
   const red = new THREE.MeshStandardMaterial({ color: 0xa72b39, emissive: 0x8a1824, emissiveIntensity: .85, roughness: .45 });
   const blue = new THREE.MeshStandardMaterial({ color: 0x2454ad, emissive: 0x1b499f, emissiveIntensity: .95, roughness: .45 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xe6edf5, emissive: 0xc5d9ff, emissiveIntensity: 2.2 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xf2eee1, emissive: 0xffebc9, emissiveIntensity: 2.2 });
   const clear = new THREE.MeshStandardMaterial({ color: 0x9ac2dc, transparent: true, opacity: .14, roughness: .19, metalness: .05, depthWrite: false });
   const cube = new THREE.BoxGeometry(1, 1, 1);
   const parts = new Map<THREE.Material, THREE.Matrix4[]>();

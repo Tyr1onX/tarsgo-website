@@ -47,15 +47,15 @@ export function advanceProjectile(match:Match,p:Projectile,dt:number,ray:THREE.R
   const actual=hit?.distance??length,used=dt*actual/distance;
   p.position.addScaledVector(direction,actual);p.velocity.y-=PROJECTILE_GRAVITY*used;p.age+=used;p.distance+=actual;
   const target=arenaHitTarget(hit,direction);
-  let damage=0;
+  let damage=0,shielded=false;
   if(target&&!p.calibration){
     // Normal velocity is a virtual approximation using the actual hit triangle.
     // The official thresholds are strict >12m/s (17mm) and >8m/s (42mm).
     const normal=hit?.face?.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
     if(!normal||Math.abs(p.velocity.dot(normal))>(p.shooter.heavy?8:12))
-      damage=damageTarget(match,p.shooter,target,armorHit(hit));
+      damage=damageTarget(match,p.shooter,target,armorHit(hit),()=>{shielded=true;});
   }
-  return {done:!!hit||p.distance>=SHOT_RANGE-1e-8||p.age>=3,damage,hit,target,to:p.position};
+  return {done:!!hit||p.distance>=SHOT_RANGE-1e-8||p.age>=3,damage,hit,target,to:p.position,shielded};
 }
 
 
@@ -109,11 +109,12 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
   const group=new THREE.Group();group.name="virtual-projectiles";scene.add(group);
   const sphere=new THREE.SphereGeometry(.5,10,8),shaft=new THREE.CylinderGeometry(.5,.5,1,6);
   const ball=new THREE.MeshBasicMaterial({color:0xe4ff42,toneMapped:false});
-  const impact=new THREE.MeshBasicMaterial({color:0xeaff9a,toneMapped:false,transparent:true,opacity:.75,depthWrite:false});
-  const damageImpact=new THREE.MeshBasicMaterial({color:0xffe0a0,toneMapped:false,transparent:true,opacity:.9,depthWrite:false});
+  const impact=new THREE.MeshBasicMaterial({color:0xaab4b2,toneMapped:false,transparent:true,opacity:.65,depthWrite:false});
+  const damageImpact=new THREE.MeshBasicMaterial({color:0xf1d794,toneMapped:false,transparent:true,opacity:.9,depthWrite:false});
   const glow=softGlowTexture(),haloMaterial=new THREE.SpriteMaterial({map:glow,color:0xc8ff24,opacity:.72,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
+  const muzzleMaterial=new THREE.SpriteMaterial({map:glow,color:0xffe3a1,opacity:.8,transparent:true,depthWrite:false,depthTest:true,toneMapped:false});
   const trailMaterials=[.8,.63,.45,.29,.15,.07].map(opacity=>new THREE.MeshBasicMaterial({color:0xc7ff25,toneMapped:false,transparent:true,opacity,depthWrite:false}));
-  type Slot={body:THREE.Mesh;halo:THREE.Sprite;trail:THREE.Mesh[];history:THREE.Vector3[];projectile:Projectile|null;owner:THREE.Object3D|null;flash:number};
+  type Slot={body:THREE.Mesh;halo:THREE.Sprite;muzzle:THREE.Sprite;muzzleTime:number;trail:THREE.Mesh[];history:THREE.Vector3[];projectile:Projectile|null;owner:THREE.Object3D|null;flash:number};
   const slots:Slot[]=[],active:Slot[]=[],ray=new THREE.Raycaster(),up=new THREE.Vector3(0,1,0),delta=new THREE.Vector3(),view=new THREE.Vector3();
   // Four opacity bands keep the fixed-capacity residue rendering on native
   // Three materials, with no extra shader or per-pellet scene objects.
@@ -124,31 +125,31 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
   function acquire(){
     const available=slots.find(s=>!s.projectile&&!s.flash);
     if(available)return available;
-    const body=new THREE.Mesh(sphere,ball),halo=new THREE.Sprite(haloMaterial),trail=trailMaterials.map(m=>new THREE.Mesh(shaft,m));
+    const body=new THREE.Mesh(sphere,ball),halo=new THREE.Sprite(haloMaterial),muzzle=new THREE.Sprite(muzzleMaterial),trail=trailMaterials.map(m=>new THREE.Mesh(shaft,m));
     body.name="projectile-core";halo.name="projectile-halo";
-    group.add(body,halo,...trail);
-    const slot:Slot={body,halo,trail,history:[],projectile:null,owner:null,flash:0};slots.push(slot);return slot;
+    muzzle.name="projectile-muzzle";muzzle.visible=false;group.add(body,halo,muzzle,...trail);
+    const slot:Slot={body,halo,muzzle,muzzleTime:0,trail,history:[],projectile:null,owner:null,flash:0};slots.push(slot);return slot;
   }
   function release(slot:Slot){
-    slot.projectile=null;slot.owner=null;slot.flash=0;slot.body.visible=false;slot.halo.visible=false;slot.history.length=0;
+    slot.projectile=null;slot.owner=null;slot.flash=0;slot.muzzleTime=0;slot.muzzle.visible=false;slot.body.visible=false;slot.halo.visible=false;slot.history.length=0;
     for(const mesh of slot.trail)mesh.visible=false;
   }
   function fire(match:Match,id:string,from:THREE.Vector3,aim:THREE.Vector3,owner:THREE.Object3D){
     const projectile=launchProjectile(match,id,from,aim);if(!projectile)return false;
     const slot=acquire();slot.projectile=projectile;slot.owner=owner;slot.body.position.copy(from);
     slot.body.material=ball;slot.body.scale.setScalar(projectileDiameter(projectile.shooter.heavy));slot.body.visible=true;
-    slot.halo.visible=false;slot.history.push(from.clone());
+    slot.halo.visible=false;slot.muzzleTime=.07;slot.muzzle.position.copy(from).addScaledVector(aim,.025);slot.muzzle.scale.setScalar(projectile.shooter.heavy?.26:.13);slot.history.push(from.clone());
     for(const mesh of slot.trail)mesh.visible=false;
     active.push(slot);return true;
   }
-  function advance(match:Match,dt:number,roots:THREE.Object3D[],prepare?:()=>ShotIndex,onContact?:(id:string,hit:THREE.Intersection,at:number)=>void,onImpact?:(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:MatchRobot)=>void){
+  function advance(match:Match,dt:number,roots:THREE.Object3D[],prepare?:()=>ShotIndex,onContact?:(id:string,hit:THREE.Intersection,at:number)=>void,onImpact?:(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:MatchRobot,shielded:boolean)=>void){
     if(match.phase!=="running"){clear();return;}
     if(dt<=0)return;
     if(support)for(let i=residues.length-1;i>=0;i--){advanceResidue(residues[i],dt,support);if(residues[i].age>=RESIDUE_LIFE)residues.splice(i,1);}
     if(!active.length)return;
     const index=active.some(s=>s.projectile)?(prepare?.()??prepareArenaShots(roots)):undefined;
     for(let i=active.length-1;i>=0;i--){
-      const slot=active[i],p=slot.projectile;
+      const slot=active[i],p=slot.projectile;slot.muzzleTime=Math.max(0,slot.muzzleTime-dt);
       if(!p){
         slot.flash=Math.max(0,slot.flash-dt);
         if(!slot.flash){release(slot);active.splice(i,1);}
@@ -160,7 +161,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
         slot.projectile=null;slot.owner=null;slot.halo.visible=false;slot.history.length=0;
         for(const mesh of slot.trail)mesh.visible=false;
         if(result.hit){
-          onImpact?.(result.hit,result.target,result.damage,p.shooter);
+          onImpact?.(result.hit,result.target,result.damage,p.shooter,result.shielded??false);
           if(result.damage>0&&result.target?.type==="robot")onContact?.(result.target.id,result.hit,match.elapsed);
           if(support&&!result.target){const r=groundResidue(result.hit,p,support);if(r){if(residues.length===RESIDUE_LIMIT)residues.shift();residues.push(r);}}
           const structureHit=result.damage>0&&(result.target?.type==="outpost"||result.target?.type==="base");
@@ -173,10 +174,11 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
       if(p.position.distanceToSquared(last)>1e-10){slot.history.push(p.position.clone());if(slot.history.length>slot.trail.length+1)slot.history.shift();}
     }
   }
-  function visual(camera:THREE.PerspectiveCamera,height:number,first:boolean){
+  function visual(camera:THREE.PerspectiveCamera,height:number,first:boolean,reducedMotion=false){
     camera.updateMatrixWorld();
     const pixels=height*camera.projectionMatrix.elements[5]/2;
     for(const slot of active){
+      slot.muzzle.visible=!reducedMotion&&slot.muzzleTime>0&&(!first||slot.muzzle.position.distanceToSquared(camera.position)>.35);
       const p=slot.projectile;if(!p)continue;
       const physical=projectileDiameter(p.shooter.heavy);
       const diameter=projectileVisualDiameter(physical,-view.copy(p.position).applyMatrix4(camera.matrixWorldInverse).z,pixels,first);
@@ -202,7 +204,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
   }
   function clear(){for(const slot of active)release(slot);active.length=0;residues.length=0;for(const mesh of residueMeshes)mesh.count=0;}
   function dispose(){
-    clear();group.removeFromParent();sphere.dispose();shaft.dispose();ball.dispose();impact.dispose();damageImpact.dispose();glow.dispose();haloMaterial.dispose();
+    clear();group.removeFromParent();sphere.dispose();shaft.dispose();ball.dispose();impact.dispose();damageImpact.dispose();glow.dispose();haloMaterial.dispose();muzzleMaterial.dispose();
     for(const material of trailMaterials)material.dispose();
     for(const mesh of residueMeshes)mesh.dispose();for(const material of residueMaterials)material.dispose();slots.length=0;
   }

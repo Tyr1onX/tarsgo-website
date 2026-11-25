@@ -59,3 +59,45 @@ export function createArmorGlow(scene:THREE.Scene,robots:THREE.Object3D[]){
   function dispose(){group.removeFromParent();geometry.dispose();for(const material of Object.values(materials)){material.map!.dispose();material.dispose();}}
   return {group,update,dispose};
 }
+
+
+// Shared, render-only shell. The exact referee branch determines whether a
+// contact can produce a ripple; the mesh never participates in ray roots.
+export function createIonShieldMaterial(){
+  return new THREE.ShaderMaterial({
+    transparent:true,depthTest:true,depthWrite:false,side:THREE.FrontSide,
+    uniforms:{strength:{value:0},time:{value:0},rippleAge:{value:2},rippleDirection:{value:new THREE.Vector3(0,1,0)}},
+    vertexShader:`
+      varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal;
+      void main(){
+        vLocal=normalize(position);
+        vec4 p=modelViewMatrix*vec4(position,1.);
+        vNormal=normalize(normalMatrix*normal);vView=normalize(-p.xyz);
+        gl_Position=projectionMatrix*p;
+      }`,
+    fragmentShader:`
+      uniform float strength,time,rippleAge;
+      uniform vec3 rippleDirection;
+      varying vec3 vNormal,vView,vLocal;
+      float hexEdge(vec2 p){
+        vec2 r=vec2(1.,1.7320508);
+        vec2 a=mod(p,r)-r*.5;
+        vec2 b=mod(p-r*.5,r)-r*.5;
+        vec2 h=dot(a,a)<dot(b,b)?a:b;
+        return max(abs(h.x),dot(abs(h),normalize(r)));
+      }
+      void main(){
+        vec3 n=normalize(vLocal);
+        float edge=pow(1.-max(0.,dot(normalize(vNormal),normalize(vView))),2.6);
+        vec2 uv=vec2(atan(n.z,n.x)*3.82,asin(n.y)*3.82);
+        float grid=smoothstep(.43,.49,hexEdge(uv));
+        float wave=.5+.5*sin(n.y*11.-time*2.);
+        float dist=acos(clamp(dot(n,rippleDirection),-1.,1.));
+        float ripple=(1.-smoothstep(.0,.65,rippleAge))*exp(-pow((dist-rippleAge*4.)/.12,2.));
+        float alpha=strength*(.012+edge*.52+grid*(.068+.10*edge)+wave*.008+ripple*.52);
+        vec3 color=mix(vec3(.008,.18,.68),vec3(.12,.68,1.),clamp(edge*.85+ripple*.5,0.,1.));
+        gl_FragColor=vec4(color,clamp(alpha,0.,.7));
+        #include <colorspace_fragment>
+      }`
+  });
+}
