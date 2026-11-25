@@ -9,7 +9,7 @@ export function createDirector(){
  function event(e:MatchEvent){
   if(!enabled)return;
   switch(e.type){
-   case 'assembly-start':offer({kind:'detail',team:e.team,object:'core'},8,e.at,14);break;
+   case 'assembly-start':case 'assembly-step-start':case 'assembly-step-complete':offer({kind:'detail',team:e.core??e.team,object:'core'},8,e.at,14);break;
    case 'assembly-end':offer({kind:'detail',team:e.team,object:'core'},8,e.at);break;
    case 'rune-start':case 'rune-success':offer({kind:'detail',team:e.team,object:'rune'},7,e.at,10);break;
    case 'outpost-destroyed':case 'outpost-rebuilt':offer({kind:'detail',team:e.location,object:'outpost'},9,e.at);break;
@@ -24,18 +24,18 @@ export function createDirector(){
   if(!enabled||m.phase!=='running')return null;
   const at=m.elapsed,age=at-since;
   if(pending&&pending.until<at)pending=null;
+  const shot=current;
+  if(shot.kind==='detail'&&shot.object==='core'&&Object.values(m.sides).some(s=>s.tech.attempt?.deadAt===null&&s.tech.attempt.slots.some(slot=>slot.core===shot.team)))return null;
   if(age<4&&!(age>=2&&pending&&pending.priority>=9))return null;
   let next:Shot={kind:'all'};
   if(pending){
-   if(current.kind==="detail"&&current.object==="core"&&m.sides[current.team].tech.attempt&&age<8&&pending.priority<9)return null;
    if(current.kind==="detail"&&current.object==="rune"&&m.sides[current.team].rune.attempt&&age<8&&pending.priority<9)return null;
    next=pending.shot;pending=null;
   }
-  else if(current.kind==='detail'&&current.object==='core'&&m.sides[current.team].tech.attempt&&age<14)return null;
   else if(current.kind==='detail'&&current.object==='rune'&&m.sides[current.team].rune.attempt&&age<14)return null;
   else if(age<7)return null;
   if(next.kind==="ai-first"){const id=next.robot;if(!m.robots.some(r=>r.id===id&&r.hp>0))next={kind:"follow",robot:id};}
-  if(JSON.stringify(next)===JSON.stringify(current)){if(age<8)return null;next={kind:"all"};if(current.kind==="all")return null;}
+  if(JSON.stringify(next)===JSON.stringify(current)){if(current.kind!=="all")since=at;return null;}
   current=next;since=at;return next;
  }
  return {get enabled(){return enabled;},start(at:number){enabled=true;current={kind:'all'};since=at;pending=null;combat=null;},stop(){enabled=false;pending=null;combat=null;},event,damage,choose};

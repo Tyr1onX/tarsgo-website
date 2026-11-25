@@ -163,7 +163,9 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
           onImpact?.(result.hit,result.target,result.damage,p.shooter);
           if(result.damage>0&&result.target?.type==="robot")onContact?.(result.target.id,result.hit,match.elapsed);
           if(support&&!result.target){const r=groundResidue(result.hit,p,support);if(r){if(residues.length===RESIDUE_LIMIT)residues.shift();residues.push(r);}}
-          slot.flash=result.damage>0?.14:.075;slot.body.material=result.damage>0?damageImpact:impact;slot.body.scale.setScalar((p.shooter.heavy?.09:.055)*(result.damage>0?1.6:1));
+          const structureHit=result.damage>0&&(result.target?.type==="outpost"||result.target?.type==="base");
+          slot.flash=structureHit?.2:result.damage>0?.14:.075;slot.body.material=result.damage>0?damageImpact:impact;
+          slot.body.scale.setScalar(structureHit?.22:(p.shooter.heavy?.09:.055)*(result.damage>0?1.6:1));
         }else{release(slot);active.splice(i,1);}
         continue;
       }

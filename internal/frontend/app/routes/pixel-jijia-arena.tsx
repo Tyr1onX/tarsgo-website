@@ -151,8 +151,11 @@ export default function PixelJijiaArenaPage() {
         <div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
         <header className="rmul3d-header">
           <Link to={returnTo} state={returnTo==="/pixel-jijia"&&pixelReturn?{pixelReturn}:undefined} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
-          {!disabled&&<button className="rmul3d-sound" aria-label={status.sound?"静音":"开启声音"} aria-pressed={!!status.sound} onClick={()=>controller.current?.sound(!status.sound)}>{status.sound?"声音开":"声音关"}</button>}
-          <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
+          <div className="rmul3d-header-actions">
+            <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
+            {!disabled&&!menu&&<button className="rmul3d-sound" aria-label={status.sound?"静音":"开启声音"} aria-pressed={!!status.sound} onClick={()=>controller.current?.sound(!status.sound)}>{status.sound?"声音开":"声音关"}</button>}
+            {!disabled&&!menu&&(status.canDirect||status.director)&&<button className="rmul3d-director" aria-pressed={!!status.director} onClick={()=>controller.current?.director(!status.director)}>导播{status.director?"开":"关"}</button>}
+          </div>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
           {status.match.phase === "ready" ? status.countdown?<div className="rmul3d-countdown" role="status"><div><b>红方</b><span>VS</span><b>蓝方</b></div><strong>{status.countdown}</strong><button onClick={()=>controller.current?.cancelStart()}>取消</button></div>:<><button onClick={() => controller.current?.start()}>开始自主对抗训练</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
@@ -161,8 +164,7 @@ export default function PixelJijiaArenaPage() {
           </>}
         </div>}
         {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(Math.ceil(420-item.event.at)/60)}:{String(Math.ceil(420-item.event.at)%60).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
-        {!disabled&&!menu&&!experimentRunning&&status.events?.banner&&<div className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
-        {!disabled&&!menu&&(status.canDirect||status.director)&&<button className="rmul3d-director" aria-pressed={!!status.director} onClick={()=>controller.current?.director(!status.director)}>自动导播 {status.director?"开":"关"}</button>}
+        {!disabled&&!menu&&!experimentRunning&&status.match?.phase!=="finished"&&status.events?.banner&&<div className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
         {!disabled&&!menu&&flying&&<span className="rmul3d-flight-speed">{status.flightSpeed?.toFixed(1)} m/s</span>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           {focused&&<div className="rmul3d-ammo"><b>{status.match!.ammo}</b><span>{status.match!.reserve>0?" + "+status.match!.reserve:""} 弹药</span></div>}

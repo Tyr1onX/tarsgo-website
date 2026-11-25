@@ -12,6 +12,18 @@ test("director respects dwell and major events, stops until explicitly restarted
  d.stop();d.event({type:"outpost-rebuilt",location:"red",at:8});m.elapsed=15;assert.equal(d.choose(m),null);assert.equal(d.enabled,false);
  d.start(m.elapsed);m.elapsed=20;assert.equal(d.choose(m),null);
 });
+test("assembly steps restore candidate coverage; active assembly is not interrupted and duplicate shots stay stable",()=>{
+ const m=match(),d=createDirector();d.start(0);
+ m.sides.red.tech.attempt={robot:"r",deadAt:null,slots:[{core:"red"}]};
+ d.event({type:"assembly-step-complete",team:"red",core:"red",at:1});m.elapsed=4;
+ assert.deepEqual(d.choose(m),{kind:"detail",team:"red",object:"core"});
+ d.event({type:"cover-opening",location:"blue",at:5});m.elapsed=6;assert.equal(d.choose(m),null);
+ m.elapsed=10;assert.equal(d.choose(m),null);
+ m.sides.red.tech.attempt=null;assert.deepEqual(d.choose(m),{kind:"detail",team:"blue",object:"base"});
+ d.start(20);d.damage({target:{type:"robot",id:"r"},at:21});m.elapsed=24;assert.deepEqual(d.choose(m),{kind:"follow",robot:"r"});
+ d.damage({target:{type:"robot",id:"r"},at:31});m.elapsed=32;assert.equal(d.choose(m),null);
+ m.elapsed=39;assert.deepEqual(d.choose(m),{kind:"all"});
+});
 test("sustained actual damage selects AI first person; stale events expire; dead robot does not become first person",()=>{
  const m=match(),d=createDirector();d.start(0);
  for(const at of [3,3.5,4])d.damage({target:{type:"robot",id:"r"},amount:20,at,source:"projectile"});

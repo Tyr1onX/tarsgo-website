@@ -41,19 +41,24 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
     const anchor=bounds.getCenter(new THREE.Vector3());anchor.y=bounds.max.y+.22;
     return [s.key,{...s,anchor,label:s.kind==="base"||s.kind==="outpost"?label(group,256,96):null,damage:label(group,256,64),burst:undefined as Burst|undefined}];
   }));
-  const localEvents=new Map<string,MatchEvent>();
+  const localEvents=new Map<string,{event:MatchEvent;text:string;priority:number}>();
   function event(e:MatchEvent){
-    if(!eventMessage(e)?.local)return;
+    const text=eventMessage(e)?.local;if(!text)return;
     const key="robot" in e?e.robot:e.type==="dart-hit"?e.location+"-"+(e.mode==="outpost"?"outpost":"base"):e.type==="dart-launch"||e.type==="dart-miss"?e.team+"-dart":e.type==="rune-start"||e.type==="rune-success"||e.type==="rune-failed"?e.team+"-rune":e.type==="outpost-destroyed"||e.type==="outpost-rebuilt"?e.location+"-outpost":e.type==="cover-opening"||e.type==="cover-open"?e.location+"-base":null;
-    if(key&&(slots.has(key)||structureSlots.has(key)))localEvents.set(key,e);
+    if(!key||!slots.has(key)&&!structureSlots.has(key))return;
+    const priority=e.type==="outpost-destroyed"||e.type==="outpost-rebuilt"||e.type==="robot-dead"||e.type==="robot-revived"||e.type==="assembly-end"||e.type==="cover-opening"||e.type==="cover-open"?3:eventMessage(e)?.broadcast?2:1;
+    const old=localEvents.get(key);
+    if(old&&e.at-old.event.at<2&&old.priority>priority)return;
+    const combined=e.type==="outpost-rebuilt"&&old?.event.type==="outpost-destroyed"&&e.at-old.event.at<2?"摧毁 · "+text:text;
+    localEvents.set(key,{event:e,text:combined,priority});
   }
   function localMessage(key:string,at:number,perspective:"all"|Team){
-    const e=localEvents.get(key);if(!e)return null;
-    if(at-e.at>=2){localEvents.delete(key);return null;}
-    return visibleEvent(e,perspective)?eventMessage(e)?.local??null:null;
+    const entry=localEvents.get(key);if(!entry)return null;
+    if(at-entry.event.at>=2){localEvents.delete(key);return null;}
+    return visibleEvent(entry.event,perspective)?entry.text:null;
   }
-  function localText(l:Label,text:string){
-    draw(l,text,c=>{c.textAlign="center";c.textBaseline="middle";c.font="bold 24px sans-serif";c.fillStyle="rgba(10,16,24,.88)";c.fillRect(0,0,l.canvas.width,l.canvas.height);c.fillStyle="#eef6ff";c.fillText(text,l.canvas.width/2,l.canvas.height/2,l.canvas.width-8);});
+  function localText(l:Label,text:string,damage?:number){
+    draw(l,text+":"+damage,c=>{c.textAlign="center";c.textBaseline="middle";c.font="bold 24px sans-serif";c.fillStyle="rgba(10,16,24,.88)";c.fillRect(0,0,l.canvas.width,l.canvas.height);c.fillStyle="#eef6ff";c.fillText(text,l.canvas.width/2,damage?18:l.canvas.height/2,l.canvas.width-8);if(damage){c.fillStyle="#ffd7aa";c.fillText("-"+damage,l.canvas.width/2,l.canvas.height-16,l.canvas.width-8);}});
   }
   const restore:[THREE.Mesh,THREE.Material|THREE.Material[]][]=[];
   const point=new THREE.Vector3(),view=new THREE.Vector3();
@@ -107,19 +112,18 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       const width=Math.min(2.5,Math.max(.38,52*Math.max(0,depth)/Math.max(1,pixels)));
       s.label.sprite.visible=showIntel&&depth>0&&depth<100;
       s.label.sprite.position.copy(point);s.label.sprite.scale.set(width,width*96/256,1);
-      const burst=s.burst,age=burst?at-burst.last:Infinity;
+      const burst=s.burst,age=burst?at-burst.last:Infinity,message=localMessage(s.identity.id,at,perspective);
       s.damage.sprite.visible=s.label.sprite.visible&&!!burst&&age<DAMAGE_LIFE&&match.phase==="running";
-      if(s.damage.sprite.visible&&burst){
+      if(s.label.sprite.visible&&message&&match.phase==="running"){
+        localText(s.damage,message,age<DAMAGE_LIFE?burst?.amount:undefined);s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;
+        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.42;s.damage.sprite.scale.set(width*1.35,width*.45,1);
+      }else if(s.damage.sprite.visible&&burst){
         draw(s.damage,String(burst.amount),c=>{c.textAlign="center";c.textBaseline="middle";c.font="bold 50px sans-serif";c.lineWidth=6;c.strokeStyle="#17191d";c.fillStyle="#ffd7aa";c.strokeText("-"+burst.amount,96,32);c.fillText("-"+burst.amount,96,32);});
         s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.35+age*.42;s.damage.sprite.scale.set(width*.95,width*.95/3,1);
         s.damage.sprite.material.opacity=Math.min(1,(DAMAGE_LIFE-age)/.26);
       }else{
         if(age>=DAMAGE_LIFE)s.burst=undefined;
-        const message=localMessage(s.identity.id,at,perspective);
-        if(s.label.sprite.visible&&message&&match.phase==="running"){
-          localText(s.damage,message);s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;
-          s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.42;s.damage.sprite.scale.set(width*1.35,width*.45,1);
-        }
+
       }
       // Death/power-off suppress all active material flashes. Keep team LEDs
       // intact and restore base materials immediately after the render.
@@ -145,10 +149,10 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       s.label.sprite.visible=visible;s.label.sprite.position.copy(s.anchor);s.label.sprite.scale.set(width,width*96/256,1);
       }
       const burst=s.burst,age=burst?at-burst.last:Infinity;
-      const message=burst&&age<DAMAGE_LIFE?"-"+burst.amount:localMessage(s.key,at,perspective);
+      const local=localMessage(s.key,at,perspective),message=local??(burst&&age<DAMAGE_LIFE?"-"+burst.amount:null);
       if(age>=DAMAGE_LIFE)s.burst=undefined;
       s.damage.sprite.visible=visible&&!!message;
-      if(message&&visible){localText(s.damage,message);s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(s.anchor);s.damage.sprite.position.y+=width*.4;s.damage.sprite.scale.set(width,width/4,1);}
+      if(message&&visible){localText(s.damage,message,local&&age<DAMAGE_LIFE?burst?.amount:undefined);s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(s.anchor);s.damage.sprite.position.y+=width*.4;s.damage.sprite.scale.set(width,width/4,1);}
     }
   }
   function clear(){restoreMaterials();localEvents.clear();for(const s of structureSlots.values()){s.burst=undefined;s.damage.sprite.visible=false;if(s.label)s.label.sprite.visible=false;}for(const s of slots.values()){s.burst=undefined;s.bodyUntil=0;s.flashes.clear();s.hp=NaN;s.at=0;s.damage.sprite.visible=false;}}
