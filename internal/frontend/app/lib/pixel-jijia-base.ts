@@ -1,16 +1,16 @@
-export type BaseAction="power"|"take"|"assembly"|"communication"|"vision"|"planning"|"history"|"drink"|"water"|"game"|"links";
+export type BaseAction="power"|"take"|"assembly"|"communication"|"vision"|"planning"|"history"|"drink"|"water"|"links";
 const ACTIONS:Record<string,Record<string,BaseAction>>={
  mechanical:{"tool-storage":"take",assembly:"assembly","assembly-kit":"assembly",machine:"power",calibration:"power"},
  electrical:{components:"take",oscilloscope:"power",embedded:"communication",solder:"power"},
  vision:{camera:"power",compute:"power","lens-calibration":"vision",dataset:"vision"},
  ai:{models:"power",planning:"planning"},
  honors:{history:"history",trophies:"history",memoir:"history"},
- guild:{"weekly-meeting":"game",burger:"drink","decor-3":"water","decor-4":"water","welcome-wall":"links",board:"links","journey-map":"links"},
+ guild:{burger:"drink","decor-3":"water","decor-4":"water","welcome-wall":"links",board:"links","journey-map":"links"},
 };
 export function baseAction(room:string|undefined,id:string):BaseAction|undefined{return room?ACTIONS[room]?.[id]:undefined;}
 export type BaseRoomState={power:Record<string,boolean>;item:"source"|"held"|"placed";watered:string[];drank:boolean};
 export const freshBaseRoom=():BaseRoomState=>({power:{},item:"source",watered:[],drank:false});
-export function togglePower(state:BaseRoomState,id:string):BaseRoomState{return {...state,power:{...state.power,[id]:!(state.power[id]??false)}};}
+export function togglePower(state:BaseRoomState,id:string,automatic=false):BaseRoomState{return {...state,power:{...state.power,[id]:!(state.power[id]??automatic)}};}
 export function transferItem(state:BaseRoomState,to:BaseRoomState["item"]):BaseRoomState{return {...state,item:to};}
 export const carriedLabel=(room:string|undefined)=>room==="mechanical"?"装配零件盒":room==="electrical"?"数据连接线":"";
 export type Achievement={id:string;title:string;displayed:boolean;createdAt:string};

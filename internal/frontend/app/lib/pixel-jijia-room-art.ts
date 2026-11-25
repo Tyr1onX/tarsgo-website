@@ -408,7 +408,7 @@ export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,c
   const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
   // Cull sprite work before the animation and screen drawing.
   if(x+b.w+prepared.marginX<0||y+b.h+prepared.marginY<0||x-prepared.marginX>w||y-prepared.marginY>h)return;
-  const key=roomSpriteKey(o),progress=motion?equipmentProgress(key,elapsed,triggeredAt,hour,manual):manual===true?0:-1;
+  const key=roomSpriteKey(o),effective=equipmentProgress(key,elapsed,triggeredAt,hour,manual),progress=motion?effective:effective>=0?0:-1;
   const phase = motion ? Math.floor(elapsed / (520+(Math.round(o.x*17+o.y*23)%240)) + o.x+o.y*.7) % prepared.frames.length : 0;
   const age=triggeredAt===undefined ? Infinity : elapsed-triggeredAt;
   const active=age>=0&&age<1500;
@@ -441,7 +441,7 @@ export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,c
     ctx.fillStyle="#202b2d";
     for(const [u,v,a,c] of SCREENS[key]??[])ctx.fillRect(x+b.w*u,y+b.h*v,b.w*a,b.h*c);
   }
-  if (!motion&&manual===undefined) return;
+  if (!motion&&effective<0&&manual===undefined) return;
   drawEquipmentDisplay(ctx,key,x,y,b.w,b.h,progress);
   const points=LIGHT_POINTS[key];
   if(!points)return;

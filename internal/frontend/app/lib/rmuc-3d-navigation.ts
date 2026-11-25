@@ -42,23 +42,26 @@ export function* findArenaPath(terrain:Pick<ArenaTerrain,"heightAt">, start:THRE
 
 // Training chassis dynamics, independent of strategic decision cadence.
 // Position is the same authoritative position consumed by collision and referee.
-export type ChassisMotion = { speed:number; yaw:number };
+export type ChassisMotion = { speed:number; yaw:number; spin?:boolean };
 export const angleDelta=(from:number,to:number)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
 export function turnTowards(from:number,to:number,limit:number){
   const d=angleDelta(from,to);
   return from+Math.max(-limit,Math.min(limit,d));
 }
 export function stepChassis(terrain:Pick<ArenaTerrain,"heightAt">,bot:Occupant,motion:ChassisMotion,
-  target:THREE.Vector3|null,speed:number,dt:number,occupants:readonly Occupant[],stopDistance?:number){
+  target:THREE.Vector3|null,speed:number,dt:number,occupants:readonly Occupant[],stopDistance?:number,spin=false){
   if(dt<=0)return 0;
+  // The same conservative circular footprint covers every chassis heading.
+  // Spin changes the authoritative yaw even without translation.
+  if(spin)motion.yaw+=Math.PI*2*dt;
   if(speed<=0){motion.speed=0;return 0;}
   const dx=target?target.x-bot.position.x:0,dz=target?target.z-bot.position.z:0;
   const distance=Math.hypot(dx,dz);
   if(target&&distance>Math.max(.001,stopDistance??0)){
     const desired=Math.atan2(-dx,-dz);
-    motion.yaw=turnTowards(motion.yaw,desired,Math.PI*3*dt);
+    if(!spin)motion.yaw=turnTowards(motion.yaw,desired,Math.PI*3*dt);
     const remaining=distance-(stopDistance??0);
-    const limit=Math.min(speed,stopDistance===undefined?speed:Math.sqrt(2*12*remaining))*Math.max(0,Math.cos(angleDelta(motion.yaw,desired)));
+    const limit=Math.min(speed,stopDistance===undefined?speed:Math.sqrt(2*12*remaining))*(spin?1:Math.max(0,Math.cos(angleDelta(motion.yaw,desired))));
     const oldSpeed=motion.speed;
     motion.speed=limit>oldSpeed?Math.min(limit,oldSpeed+8*dt):Math.max(limit,oldSpeed-12*dt);
     const length=Math.min(remaining,(oldSpeed+motion.speed)*.5*dt,limit*dt);

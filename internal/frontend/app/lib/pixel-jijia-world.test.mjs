@@ -383,7 +383,7 @@ test("公开室内微动效和场景淡入淡出共用一条动画循环", () =>
   const art = readFileSync(new URL("./pixel-jijia-room-art.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../routes/pixel-jijia.tsx", import.meta.url), "utf8");
   assert.ok(scene.includes("drawRoomLight(ctx,room,screenCamera,elapsed,climate,motionAllowed)"));
-  assert.ok(art.includes("if (!motion&&manual===undefined) return;"));
+  assert.ok(art.includes("if (!motion&&effective<0&&manual===undefined) return;"));
   assert.ok(route.includes("time, !reducedMotion.matches, climate, seated?seatDepth"));
   assert.ok(!art.includes("requestAnimationFrame("));
   assert.ok(route.includes('transition.phase = "in"'));

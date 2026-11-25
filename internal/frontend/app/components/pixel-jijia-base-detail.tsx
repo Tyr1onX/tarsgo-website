@@ -1,32 +1,41 @@
-import {useEffect,useRef,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 import {Link} from "react-router";
 import {CommunitySprite,Memoir} from "./pixel-jijia-community-detail";
 import {apiRequest} from "~/lib/api-client";
-import {getCurrentUser,getCachedCurrentUser,subscribeAccountSessionChange} from "~/lib/auth-client";
+import {getCurrentUser,getCachedCurrentUser,subscribeAuthStateChange,subscribeAccountSessionChange} from "~/lib/auth-client";
 import {ROBOT_MODELS} from "~/lib/pixel-jijia-robot";
-import {BOARD_SIZE,GRID_SIZE,hasFive,replyMove,planRoute,communicationState,type Achievement,type BaseAction,type BaseRoomState} from "~/lib/pixel-jijia-base";
+import {GRID_SIZE,planRoute,communicationState,type Achievement,type BaseAction,type BaseRoomState} from "~/lib/pixel-jijia-base";
 
 export function SaveAchievement({id}:{id:string}){
- const [status,setStatus]=useState<"idle"|"saving"|"saved">("idle"),[error,setError]=useState("");
- const pending=useRef<AbortController|null>(null),title=useRef("");
- useEffect(()=>{
-  const stop=subscribeAccountSessionChange(()=>{pending.current?.abort();setStatus("idle");setError("");});
-  return()=>{stop();pending.current?.abort();};
+ const [status,setStatus]=useState<"checking"|"idle"|"saving"|"saved">("checking"),[error,setError]=useState("");
+ const pending=useRef<AbortController|null>(null),owner=useRef<number|null>(null),title=useRef("");
+ const reset=useCallback(()=>{
+  pending.current?.abort();pending.current=null;owner.current=null;title.current="";
+  setStatus("idle");setError("");
  },[]);
- async function save(){
+ const request=useCallback(async(save:boolean)=>{
   if(pending.current)return;
-  const controller=new AbortController();pending.current=controller;setStatus("saving");setError("");
+  const controller=new AbortController();pending.current=controller;setStatus(save?"saving":"checking");setError("");
   try{
-   const user=await getCurrentUser();if(controller.signal.aborted||getCachedCurrentUser()?.id!==user.id)return;
-   const rows=await apiRequest<Achievement[]>("/api/pixel-home/achievements",{method:"POST",body:{id},signal:controller.signal});
+   const user=await getCurrentUser();
    if(controller.signal.aborted||getCachedCurrentUser()?.id!==user.id)return;
-   const row=rows.find(row=>row.id===id);if(!row)throw new Error("成果未保存");
+   owner.current=user.id;
+   const rows=await apiRequest<Achievement[]>("/api/pixel-home/achievements",save?{method:"POST",body:{id},signal:controller.signal}:{cache:"no-store",signal:controller.signal});
+   if(controller.signal.aborted||getCachedCurrentUser()?.id!==user.id)return;
+   const row=rows.find(row=>row.id===id);
+   if(!row){if(save)throw new Error("成果未保存");return;}
    title.current=row.title;setStatus("saved");
-  }catch(e){if(!controller.signal.aborted){setStatus("idle");setError(e instanceof Error?e.message:"保存失败");}}
-  finally{if(pending.current===controller){pending.current=null;if(!controller.signal.aborted)setStatus(s=>s==="saving"?"idle":s);}}
- }
+  }catch(e){if(save&&!controller.signal.aborted)setError(e instanceof TypeError?"网络连接失败，请重试":e instanceof Error?e.message:"保存失败");}
+  finally{if(pending.current===controller){pending.current=null;if(!controller.signal.aborted)setStatus(s=>s==="saving"||s==="checking"?"idle":s);}}
+ },[id]);
+ useEffect(()=>{
+  const stopAuth=subscribeAuthStateChange(user=>{if(owner.current!==null&&owner.current!==user?.id)reset();});
+  const stopSession=subscribeAccountSessionChange(reset);
+  void request(false);
+  return()=>{stopAuth();stopSession();pending.current?.abort();pending.current=null;owner.current=null;title.current="";};
+ },[request,reset]);
  return <div className="pixel-base-save">
-  <button type="button" className="pixel-community-action" disabled={status!=="idle"} onClick={()=>void save()}>{status==="saved"?"已保存至个人成果":status==="saving"?"保存中…":"保存纪念成果"}</button>
+  <button type="button" className="pixel-community-action" disabled={status!=="idle"} onClick={()=>void request(true)}>{status==="saved"?"已保存至个人成果":status==="saving"?"保存中…":status==="checking"?"检查中…":"保存纪念成果"}</button>
   {error&&<span role="status">{error}</span>}
   {status==="saved"&&<><button type="button" className="pixel-community-action" onClick={()=>void navigator.clipboard.writeText("我在像素吉甲完成了一项基地纪念成果："+title.current+"，欢迎来我的研究室参观。").catch(()=>setError("复制失败"))}>复制分享内容</button><Link to="/dashboard">前往社区</Link></>}
  </div>;
@@ -53,7 +62,11 @@ function Assembly({ready,returnKit}:{ready:boolean;returnKit:()=>void}){
  if(!ready)return <p>先从工具储藏柜拿取零件盒，再回到工作台。</p>;
  return <div className="pixel-community-interaction">
   <div className="pixel-base-assembly-board">
-   <RobotSprite body={installed.includes(0)&&installed.includes(1)&&installed.includes(3)} upper={installed.includes(2)}/>
+   <div className="pixel-base-assembly-preview">
+    <RobotSprite body={installed.includes(0)&&installed.includes(1)&&installed.includes(3)} upper={installed.includes(2)}/>
+    {!(installed.includes(0)&&installed.includes(1)&&installed.includes(3))&&[0,1,3].filter(i=>installed.includes(i)).map(i=>
+     <span key={i} className="pixel-base-installed-part" data-part={i}><CommunitySprite id={PARTS[i][1]} maxWidth={i===0?100:50} maxHeight={i===0?48:38}/></span>)}
+   </div>
    <div className="pixel-base-assembly-slots">
     {PARTS.map(([name,sprite],i)=><button type="button" key={name} aria-label={`安装位置：${name}`} data-installed={installed.includes(i)} disabled={installed.includes(i)} onClick={()=>place(i)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const value=e.dataTransfer.getData("text/plain");if(/^[0-3]$/.test(value))place(i,Number(value));}}>
      <CommunitySprite id={sprite} maxWidth={44} maxHeight={33}/><span>{installed.includes(i)?"已安装":name}</span>
@@ -106,10 +119,10 @@ function Vision({state,setState}:RoomProps){
   else if(acquired)setLost(true);
  }
  return <div className="pixel-community-interaction">
-  <div className="pixel-base-feed" data-dark={dark} data-cover={cover} data-power={power}>
-   {power&&<button type="button" aria-label={visible==="guodong"?"标注过洞步兵":"标注轮腿机器人"} className="pixel-base-feed-target" aria-pressed={marked===visible} onClick={()=>{setMarked(visible);setResult("");}}><RobotSprite model={ROBOT_MODELS[visible]}/></button>}
+  <div className="pixel-base-feed" data-dark={dark} data-cover={cover} data-power={power} data-tracked={tracked}>
+   {power&&<button type="button" aria-label={visible==="guodong"?"标注过洞步兵":"标注轮腿机器人"} className="pixel-base-feed-target" aria-pressed={marked===visible} disabled={dark||cover} onClick={()=>{setMarked(visible);setResult("");}}><RobotSprite model={ROBOT_MODELS[visible]}/></button>}
    {cover&&power&&<span className="pixel-base-cover"/>}
-   <span className="pixel-base-feed-caption">{!power?"CAM OFF":direction==="left"?"CAM · 西":"CAM · 东"}</span>
+   <span className="pixel-base-feed-caption">{!power?"CAM OFF":(direction==="left"?"CAM · 西":"CAM · 东")+(tracked?" · 追踪中":acquired?" · 目标丢失":" · 搜索目标")}</span>
   </div>
   <div className="pixel-community-controls">
    <button type="button" onClick={()=>{setState({...state,power:{...state.power,camera:!power}});setResult("");}}>{power?"关闭摄像头":"开启摄像头"}</button>
@@ -154,30 +167,12 @@ function Planning({state,setState}:RoomProps){
   {done&&<SaveAchievement id="planning"/>}
  </div>;
 }
-function Gomoku(){
- const [board,setBoard]=useState<number[]>(()=>Array(BOARD_SIZE*BOARD_SIZE).fill(0)),[result,setResult]=useState("");
- function play(i:number){
-  if(board[i]||result)return;
-  const next=[...board];next[i]=1;
-  if(hasFive(next,i))setResult("黑棋获胜");
-  else if(next.every(Boolean))setResult("和棋");
-  else {const j=replyMove(next);if(j>=0){next[j]=2;if(hasFive(next,j))setResult("白棋获胜");else if(next.every(Boolean))setResult("和棋");}}
-  setBoard(next);
- }
- return <div className="pixel-community-interaction">
-  <div className="pixel-base-gomoku" style={{gridTemplateColumns:`repeat(${BOARD_SIZE},1fr)`}}>
-   {board.map((v,i)=><button key={i} type="button" aria-label={`${Math.floor(i/BOARD_SIZE)+1}行${i%BOARD_SIZE+1}列 ${v===1?"黑":v===2?"白":"空"}`} data-piece={v} disabled={!!v||!!result} onClick={()=>play(i)}/>)}
-  </div>
-  <div className="pixel-community-controls"><span role="status">{result||"黑棋 · 轮到你"}</span><button type="button" onClick={()=>{setBoard(Array(BOARD_SIZE*BOARD_SIZE).fill(0));setResult("");}}>重新开始</button></div>
- </div>;
-}
 export function BaseObjectDetail({action,state,setState,objectId}:RoomProps&{action:BaseAction;objectId:string}){
  if(action==="assembly")return <Assembly ready={state.item==="placed"} returnKit={()=>setState({...state,item:"source"})}/>;
  if(action==="communication")return <Communication state={state} setState={setState}/>;
  if(action==="vision")return <Vision state={state} setState={setState}/>;
  if(action==="planning")return <Planning state={state} setState={setState}/>;
  if(action==="history")return <Memoir collect={<SaveAchievement id="history-2026"/>}/>;
- if(action==="game")return <Gomoku/>;
  if(action==="links")return <div className="pixel-community-interaction">
   {objectId==="board"?<Link className="pixel-world-detail-link" to="/programs">查看公开活动</Link>:objectId==="journey-map"?<><Link className="pixel-world-detail-link" to="/dashboard/assignments">新人作业</Link><Link className="pixel-world-detail-secondary-link" to="/dashboard/workbench">成员工作台</Link></>:<Link className="pixel-world-detail-link" to="/dashboard">成员社区</Link>}
  </div>;

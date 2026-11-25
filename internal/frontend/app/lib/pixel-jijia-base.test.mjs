@@ -4,9 +4,14 @@ import {baseAction,freshBaseRoom,togglePower,transferItem,communicationState,pla
 import {equipmentProgress} from "./pixel-jijia-room-art.ts";
 import {ROOMS,roomInteractable} from "./pixel-jijia-room.ts";
 test("六馆的新增入口复用原物件且可交互",()=>{
- for(const [room,id] of [["mechanical","tool-storage"],["mechanical","assembly-kit"],["electrical","embedded"],["vision","lens-calibration"],["ai","planning"],["honors","history"],["guild","weekly-meeting"],["guild","decor-3"]]){
+ for(const [room,id] of [["mechanical","tool-storage"],["mechanical","assembly-kit"],["electrical","embedded"],["vision","lens-calibration"],["ai","planning"],["honors","history"],["guild","decor-3"]]){
   assert.ok(baseAction(room,id));assert.ok(roomInteractable(ROOMS[room],ROOMS[room].objects.find(o=>o.id===id)));
  }
+});
+test("共创周会仍由原社区物件管理",()=>{
+ const object=ROOMS.guild.objects.find(o=>o.id==="weekly-meeting");
+ assert.equal(object.community.interaction,"meeting");assert.ok(roomInteractable(ROOMS.guild,object));
+ assert.equal(baseAction("guild",object.id),undefined);
 });
 test("临时物件唯一位置及场景恢复",()=>{
  const empty=freshBaseRoom(),held=transferItem(empty,"held"),placed=transferItem(held,"placed");
@@ -14,7 +19,12 @@ test("临时物件唯一位置及场景恢复",()=>{
  assert.equal(freshBaseRoom().item,"source");assert.equal(transferItem(placed,"source").item,"source");
 });
 test("手动开关优先于昼夜自动行为，关闭后不再运行",()=>{
- const s=togglePower(freshBaseRoom(),"machine");
+ const automatic=equipmentProgress("machine",1000,undefined,12)>=0;
+ assert.equal(automatic,true);
+ const stopped=togglePower(freshBaseRoom(),"machine",automatic);
+ assert.equal(stopped.power.machine,false);
+ assert.equal(equipmentProgress("machine",1000,undefined,12,stopped.power.machine),-1);
+ const s=togglePower(stopped,"machine",automatic);
  assert.equal(s.power.machine,true);assert.ok(equipmentProgress("machine",21000,1000,1,true)>=0);
  const off=togglePower(s,"machine");assert.equal(equipmentProgress("machine",21000,1000,12,off.power.machine),-1);
 });

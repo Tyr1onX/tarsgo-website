@@ -39,12 +39,11 @@ const featureTitle = (feature: Feature) => "href" in feature ? feature.title : f
 const featureAction=(feature:Feature)=>"href" in feature?"进入":feature.sprite==="bench"?"坐下":feature.story?.action??"观察";
 const roomAction=(object:RoomObject,roomId?:string,state= freshBaseRoom())=>{
  const action=baseAction(roomId,object.id);
- if(action==="power")return state.power[object.id]?"关闭设备":"开启设备";
+ if(action==="power")return state.power[object.id]===undefined?"切换设备":state.power[object.id]?"关闭设备":"开启设备";
  if(action==="take")return state.item==="source"?"拿取零件":"归还零件";
  if(action==="assembly")return "装配";
  if(action==="drink")return state.drank?"查看外卖":"休息饮用";
  if(action==="water")return state.watered.includes(object.id)?"已浇水":"浇水";
- if(action==="game")return "落座";
  if(action&&action!=="links")return action==="history"?"查看档案":"开始实验";
  return object.kind==="chair"?"坐下":object.kind==="exit"?"离开":({senior:"对话",meeting:"落座",drive:"驾驶",assembly:"组装",terminal:"使用",silverwolf:"使用",memoir:"查看",memory:"查看"} as Record<string,string>)[object.community?.interaction??""]??(object.community?"互动":"查看");
 };
@@ -666,10 +665,18 @@ export default function PixelJijiaPage() {
     const now=performance.now();
     const action=baseAction(room.id,object.id);
     if(action==="power"){
-      setBaseState(old=>togglePower(old,object.id));effectsRef.current.set(object.id,now);return;
+      const hour=(climateRef.current?.hour??12)+(climateRef.current?.minute??0)/60;
+      const automatic=equipmentProgress(roomSpriteKey(object),now,effectsRef.current.get(object.id),hour)>=0;
+      setBaseState(old=>togglePower(old,object.id,automatic));effectsRef.current.set(object.id,now);return;
     }
     if(action==="take"){
       setBaseState(old=>transferItem(old,old.item==="source"?"held":"source"));return;
+    }
+    const device=action==="communication"?"oscilloscope":action==="vision"?"camera":action==="planning"?"models":null;
+    if(device&&baseState.power[device]===undefined){
+      const hour=(climateRef.current?.hour??12)+(climateRef.current?.minute??0)/60;
+      const powered=equipmentProgress(device,now,effectsRef.current.get(device),hour)>=0;
+      setBaseState(old=>({...old,power:{...old.power,[device]:powered}}));
     }
     if(action==="assembly"&&baseState.item==="held")setBaseState(old=>transferItem(old,"placed"));
     if(action==="drink"&&!baseState.drank){
@@ -1372,7 +1379,8 @@ export default function PixelJijiaPage() {
       {room && <div className="pixel-world-room-name">{room.title}</div>}
       {room&&baseState.item==="held"&&!selectedRoom&&<div className="pixel-base-toolbelt"><span>{carriedLabel(room.id)}</span><button type="button" onClick={()=>setBaseState(old=>transferItem(old,"source"))}>归还</button></div>}
       {!room&&freshFish&&!menuOpen&&!mapOpen&&<div className="pixel-base-fish"><SaveAchievement id="fish"/><button type="button" onClick={()=>setFreshFish(false)}>×</button></div>}
-      {room?.id === "study" && !studyGuest && <div className="pixel-world-study-tools" role="group" aria-label="研究室家具布置">
+      {room?.id === "study" && <div className="pixel-world-study-panel">
+      {!studyGuest && <div className="pixel-world-study-tools" role="group" aria-label="研究室家具布置">
         <button type="button" aria-pressed={studyEditing} onClick={()=>{standUp();setStudyEditing(!studyEditing);}}> {studyEditing?"完成布置":"布置家具"}</button>
         {studyEditing && <select aria-label="选择家具或删除" value={studyTool}
           onChange={event => setStudyTool(event.target.value as StudyFurnitureKind | "erase")}>
@@ -1393,12 +1401,13 @@ export default function PixelJijiaPage() {
           }}>复制</button>
         </>}
       </div>}
-      {room?.id === "study" && studyGuest && <div className="pixel-world-study-guest">只读参观</div>}
-      {room?.id==="study"&&studyAchievements.length>0&&<details className="pixel-base-study-achievements">
+      {studyGuest && <div className="pixel-world-study-guest">只读参观</div>}
+      {studyAchievements.length>0&&<details className="pixel-base-study-achievements">
         <summary>{studyGuest?"展品":"个人成果"} · {studyAchievements.length}</summary>
         {!studyGuest&&<p>研发纪念 · {RESEARCH_IDS.filter(id=>studyAchievements.some(row=>row.id===id)).length}/{RESEARCH_IDS.length}</p>}
         {studyAchievements.map(item=><div key={item.id}><span>{item.title}</span>{!studyGuest&&<button type="button" disabled={studySaving} aria-pressed={item.displayed} onClick={()=>void toggleStudyAchievement(item)}>{item.displayed?"取消展示":"展示"}</button>}</div>)}
       </details>}
+      </div>}
       {studyNotice && <div className="pixel-world-study-notice" role="status">
         {studyNotice} {studyNotice.includes("未登录") && <Link to="/login">前往登录</Link>}
       </div>}

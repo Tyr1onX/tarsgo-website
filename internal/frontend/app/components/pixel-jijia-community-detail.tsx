@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { COMMUNITY_POSES, communitySourceHref, communityCreditRole } from "~/lib/pixel-jijia-community";
+import {BOARD_SIZE,hasFive,replyMove} from "~/lib/pixel-jijia-base";
 import type { RoomObject } from "~/lib/pixel-jijia-room";
 import { robotSeasons } from "~/data/robot-seasons";
 import communityAtlas from "../assets/pixel-jijia/room-community-v31.png?url";
@@ -96,6 +97,16 @@ function Memory() {
 }
 const meetingTopics = ["研发：确认本周需要验证的结构与控制方案。", "协作：记录问题、明确负责人和下一步。", "运营：把可公开的成果整理成资料和内容。"];
 function Meeting() {
+  const [activity,setActivity]=useState<"meeting"|"game">("meeting");
+  return <div className="pixel-community-interaction">
+    <div className="pixel-community-controls" role="group" aria-label="共创周会活动">
+      <button type="button" aria-pressed={activity==="meeting"} onClick={()=>setActivity("meeting")}>周会交流</button>
+      <button type="button" aria-pressed={activity==="game"} onClick={()=>setActivity("game")}>五子棋</button>
+    </div>
+    {activity==="meeting"?<MeetingConversation/>:<Gomoku/>}
+  </div>;
+}
+function MeetingConversation() {
   const [topic, setTopic] = useState(0);
   return <div className="pixel-community-interaction">
     <p role="status">{meetingTopics[topic]}</p>
@@ -103,6 +114,23 @@ function Meeting() {
       <button type="button" onClick={() => setTopic((topic + 1) % meetingTopics.length)}>听下一段</button>
     </div>
   </div>;
+}
+function Gomoku(){
+ const [board,setBoard]=useState<number[]>(()=>Array(BOARD_SIZE*BOARD_SIZE).fill(0)),[result,setResult]=useState("");
+ function play(i:number){
+  if(board[i]||result)return;
+  const next=[...board];next[i]=1;
+  if(hasFive(next,i))setResult("黑棋获胜");
+  else if(next.every(Boolean))setResult("和棋");
+  else {const j=replyMove(next);if(j>=0){next[j]=2;if(hasFive(next,j))setResult("白棋获胜");else if(next.every(Boolean))setResult("和棋");}}
+  setBoard(next);
+ }
+ return <div className="pixel-community-interaction">
+  <div className="pixel-base-gomoku" style={{gridTemplateColumns:`repeat(${BOARD_SIZE},1fr)`}}>
+   {board.map((v,i)=><button key={i} type="button" aria-label={`${Math.floor(i/BOARD_SIZE)+1}行${i%BOARD_SIZE+1}列 ${v===1?"黑":v===2?"白":"空"}`} data-piece={v} disabled={!!v||!!result} onClick={()=>play(i)}/>)}
+  </div>
+  <div className="pixel-community-controls"><span role="status">{result||"黑棋 · 轮到你"}</span><button type="button" onClick={()=>{setBoard(Array(BOARD_SIZE*BOARD_SIZE).fill(0));setResult("");}}>重新开始</button></div>
+ </div>;
 }
 const seniorTopics = [
   { label: "认识战队", answer: "先了解机械、电控、视觉、AI 等组别的工作，再找到自己感兴趣的方向。", href: "/about", action: "认识吉甲" },
