@@ -157,8 +157,8 @@ html[data-theme-transition] :is(
   .site-navbar
 ) {
   transition-property: background-color, border-color;
-  transition-duration: 180ms;
-  transition-timing-function: ease;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-ease-standard);
 }
 
 @media (prefers-reduced-motion: reduce) {

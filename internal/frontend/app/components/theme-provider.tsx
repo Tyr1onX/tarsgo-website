@@ -50,18 +50,27 @@ function readStoredPreference(): ThemePreference {
   }
 }
 
-function beginThemeTransition() {
-  const root = document.documentElement;
-  root.dataset.themeTransition = "true";
-  window.setTimeout(() => {
-    delete root.dataset.themeTransition;
-  }, 240);
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>("system");
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("dark");
   const preferenceRef = useRef<ThemePreference>("system");
+  const transitionTimer = useRef<number | undefined>(undefined);
+
+  const clearThemeTransition = useCallback(() => {
+    window.clearTimeout(transitionTimer.current);
+    transitionTimer.current = undefined;
+    delete document.documentElement.dataset.themeTransition;
+  }, []);
+
+  const beginThemeTransition = useCallback(() => {
+    window.clearTimeout(transitionTimer.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      clearThemeTransition();
+      return;
+    }
+    document.documentElement.dataset.themeTransition = "true";
+    transitionTimer.current = window.setTimeout(clearThemeTransition, 240);
+  }, [clearThemeTransition]);
 
   useEffect(() => {
     const storedPreference = readStoredPreference();
@@ -89,8 +98,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => {
       mediaQuery.removeEventListener("change", syncSystemTheme);
       window.removeEventListener("storage", syncOtherTabPreference);
+      clearThemeTransition();
     };
-  }, []);
+  }, [beginThemeTransition, clearThemeTransition]);
 
   const setPreference = useCallback((nextPreference: ThemePreference) => {
     preferenceRef.current = nextPreference;
@@ -102,7 +112,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       // Keep the current tab usable when storage is unavailable.
     }
-  }, []);
+  }, [beginThemeTransition]);
 
   return (
     <ThemeContext.Provider value={{ preference, resolvedTheme, setPreference }}>
