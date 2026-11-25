@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useNavigation, useSearchParams } from "react-router";
 import {
   deleteOperationsPost, formatOperationsDate, getOperationsAttention, getOperationsBoard, getOperationsWorks,
   operationsAttentionLabel, operationsPlatformNames,
@@ -12,7 +12,13 @@ export function meta() { return [{ title: "运营作品库 | TARSGO" }]; }
 const platforms = ["", "douyin", "bilibili", "wechat_video", "wechat"];
 
 export default function OperationsWorksPage() {
-  const [params, setParams] = useSearchParams();
+  const [committedParams, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navigation = useNavigation();
+  // Keep the input responsive while the parent dashboard loader revalidates.
+  const params = navigation.location?.pathname === location.pathname
+    ? new URLSearchParams(navigation.location.search) : committedParams;
   const platform = params.get("platform") || "";
   const tab = params.get("tab") === "posts" ? "posts" : "production";
   const page = Math.max(1, Number(params.get("page")) || 1);
@@ -49,7 +55,7 @@ export default function OperationsWorksPage() {
     for (const [key, value] of Object.entries(changes)) {
       if (value) next.set(key, value); else next.delete(key);
     }
-    setParams(next, { replace, flushSync: true });
+    setParams(next, { replace, flushSync: true, preventScrollReset: true });
   };
   const production = useMemo(() => {
     const items = board?.items.filter((item) => item.kind === "video" || item.kind === "article") ?? [];
@@ -108,7 +114,16 @@ export default function OperationsWorksPage() {
       {board && !production.length ? <p className="operations-progress__muted">没有匹配的作品</p> : null}
       {board && production.length > 0 ? <div className="operations-progress__library-list">
         {production.map((item) => <Link className="operations-progress__library-row" key={item.id}
-          to={"/dashboard/workbench/operations/works/" + item.id}>
+          to={"/dashboard/workbench/operations/works/" + item.id}
+          onClick={async (event) => {
+            if (params === committedParams || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            const detailPath = event.currentTarget.pathname;
+            const search = `?${params.toString()}`;
+            // Commit the latest filters before pushing the detail history entry.
+            await navigate({ pathname: location.pathname, search }, { replace: true, preventScrollReset: true });
+            if (window.location.pathname === location.pathname && window.location.search === (search === "?" ? "" : search)) void navigate(detailPath);
+          }}>
           <div className="operations-progress__library-main">
             <strong>{item.title}</strong>
             <small>{item.kind === "article" ? "图文" : "视频"}{item.seriesName ? " · " + item.seriesName : ""}
