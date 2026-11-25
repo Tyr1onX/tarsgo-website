@@ -20,3 +20,16 @@ test("virtual dart opportunity, opening, flight, switch, cooldown, second opport
 test("virtual miss consumes a dart but does not grant damage or experience",()=>{
  const m=game();updateMatch(m,30);assert.ok(selectDart(m,"red","randomMoving"));assert.ok(openDart(m,"red"));updateMatch(m,7);assert.ok(launchDart(m,"red",false));updateMatch(m,2.5);assert.equal(m.sides.blue.base,10000);assert.equal(m.robots[0].xp,0);assert.equal(dartStatus(m,"red").remaining,3);assert.ok(Math.abs(dartPose(m,"blue").target)<=.28);
 });
+
+test("dart launch is not a hit; cover starts once and reports actual completion",()=>{
+ const m=game(),events=[],damage=[];m.onEvent=e=>events.push(e);m.onDamage=e=>damage.push(e);
+ updateMatch(m,240);assert.ok(selectDart(m,"red","terminalMoving"));assert.ok(openDart(m,"red"));updateMatch(m,7);
+ assert.ok(launchDart(m,"red"));assert.equal(events.at(-1).type,"dart-launch");assert.equal(damage.length,0);
+ updateMatch(m,2.5);
+ const hit=events.find(e=>e.type==="dart-hit");assert.ok(hit);assert.equal(hit.damage,damage.reduce((n,e)=>n+e.amount,0));
+ assert.equal(events.filter(e=>e.type==="cover-opening").length,1);
+ // Current referee advances the cover in the same update interval as the dart settlement.
+ updateMatch(m,1);
+ assert.equal(m.pose.cover.blue,1);assert.equal(events.filter(e=>e.type==="cover-open").length,1);
+ updateMatch(m,1);assert.equal(events.filter(e=>e.type==="cover-open").length,1);
+});

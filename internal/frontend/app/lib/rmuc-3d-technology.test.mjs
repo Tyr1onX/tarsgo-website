@@ -124,3 +124,25 @@ test("cancel, leave-zone timeout, real damage death, revival and no duplicate re
  assert.ok(revivalStatus(f.m,r).canPay);assert.ok(reviveRobot(f.m,"r",true));
  assert.equal(technologyLevel(f.m,"red"),0);assert.equal(assemblyStatus(f.m,r,outside).income,0);
 });
+
+test("assembly notifications distinguish accepted timed steps from completion and final rewards",()=>{
+ const f=fixture(),{m,robot,advance,pickup}=f,events=[];
+ m.onEvent=e=>events.push(e);
+ pickup("red");assert.equal(events.filter(e=>e.type==="energy-picked").length,1);
+ assert.ok(beginAssembly(m,"r",zone.red,1));assert.equal(technologyLevel(m,"red"),0);
+ assert.equal(assemblyAction(m,"r",zone.red,"red",2),false);
+ assert.equal(events.filter(e=>e.type==="assembly-step-start").length,0);
+ advance(1);
+ assert.ok(assemblyAction(m,"r",zone.red,"red",2));assert.equal(events.at(-1).type,"assembly-step-start");
+ assert.equal(events.at(-1).completed,0);assert.equal(events.at(-1).total,2);
+ assert.equal(assemblyAction(m,"r",zone.red,"red",2),false);
+ advance(.6);assert.equal(events.at(-1).type,"assembly-step-complete");assert.equal(events.at(-1).completed,1);
+ assert.equal(technologyLevel(m,"red"),0);
+ assert.ok(assemblyAction(m,"r",zone.red,"red",6));assert.equal(events.at(-1).type,"assembly-end");assert.equal(events.at(-1).technology,1);assert.equal(events.at(-1).completed,2);
+ assert.equal(events.filter(e=>e.type==="energy-spent").length,1);
+ assert.equal(events.filter(e=>e.type==="assembly-end").length,1);
+ pickup("red");assert.ok(beginAssembly(m,"r",zone.red,1));assert.ok(cancelAssembly(m,"r"));
+ assert.equal(events.at(-1).reason,"已取消装配");assert.equal(events.at(-1).technology,undefined);
+ assert.equal(technologyLevel(m,"red"),1);
+ assert.ok(events.every(e=>e.visibility==="red"));
+});

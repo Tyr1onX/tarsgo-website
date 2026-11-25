@@ -159,6 +159,8 @@ export default function PixelJijiaArenaPage() {
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}
+        {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(item.event.at/60)}:{String(Math.floor(item.event.at%60)).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
+        {!disabled&&!menu&&!experimentRunning&&status.events?.banner&&<div className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           {focused&&<div className="rmul3d-ammo"><b>{status.match!.ammo}</b><span>{status.match!.reserve>0?" + "+status.match!.reserve:""} 弹药</span></div>}
           <div className="rmul3d-map-head">{status.robot?<span>{status.radarMap.perspective==="red"?"红方情报":"蓝方情报"}</span>:<select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={status.view==="ai-first"} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>}
@@ -184,6 +186,7 @@ export default function PixelJijiaArenaPage() {
           {status.match.launcher&&<span>42mm {{locked:"锁定",unlocked:"未装配",test:"测试",ready:"就绪"}[status.match.launcher.state]}</span>}
           {status.match.stance&&<span>{status.match.stance.control==="auto"?"全自动":"半自动"} · {{attack:"进攻",defense:"防御",move:"移动"}[status.match.stance.mode]}{status.match.stance.enhanced?"强化":""}</span>}
           {focus.kind==="heavy"&&status.match.technology&&status.match.technology.highest>0&&<span>科技 {status.match.technology.highest}级</span>}</div>
+          {observed&&status.match.technology?.level&&focus.kind==="heavy"&&<div className="rmul3d-assembly-progress">{status.match.technology.level}级装配 · {status.match.technology.completed}/{status.match.technology.total}{status.match.technology.pending?" · 动作中":""}</div>}
           {observed&&<nav className="rmul3d-observer-controls" aria-label="观战相机"><button onClick={()=>controller.current?.view("all")}>全场</button><button onClick={()=>controller.current?.view(status.view==="follow"?"ai-first":"follow")}>{status.view==="follow"?"AI第一人称":"第三人称"}</button><button disabled={!focus.canTakeControl} onClick={()=>controller.current?.takeControl()}>人工接管</button></nav>}
           {status.robot&&status.match.phase==="running"&&<button className="rmul3d-tactics-toggle" type="button" aria-expanded={tacticsOpen} aria-controls="rmul3d-live-tactics" onClick={()=>setTacticsOpen(open=>!open)}>{tacticsOpen?"关闭战术":"战术操作"}</button>}
         </section>}
@@ -213,7 +216,7 @@ export default function PixelJijiaArenaPage() {
           {status.match.energy&&status.match.energy.carrying>0&&<span>能量单元 {status.match.energy.carrying}/2</span>}
           {status.match.technology?.available.map(level=><button key={level} onClick={()=>controller.current?.assembly(level)}>装配 {level}级</button>)}
           {status.match.technology?.level&&status.match.energy&&<>
-            <span>{status.match.technology.level}级装配{status.match.technology.remaining!==null&&` · ${status.match.technology.remaining}s`}{status.match.technology.pending&&" · 动作中"}</span>
+            <span>{status.match.technology.level}级装配 · {status.match.technology.completed}/{status.match.technology.total}{status.match.technology.remaining!==null&&` · ${status.match.technology.remaining}s`}{status.match.technology.pending&&" · 动作中"}</span>
             {status.match.technology.actions.map(action=><button key={action.core} onClick={()=>controller.current?.assemblyStep(action.core,action.step,action.angle)}>{status.match!.technology!.level===4?(action.core==="red"?"红核心 ":"蓝核心 "):""}{({2:"对准并插入",3:"上移100mm",4:"向上翻转90°",5:`旋转至 ${action.angle}°`,6:"确认装配"})[action.step]}</button>)}
             {status.match.technology.canCancel&&<button onClick={()=>controller.current?.cancelAssembly()}>取消装配</button>}
           </>}

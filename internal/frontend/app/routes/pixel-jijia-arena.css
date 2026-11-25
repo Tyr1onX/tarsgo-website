@@ -192,3 +192,24 @@
   .rmul3d-focus-hp span {margin-left:0;}
   .rmul3d-observer-controls button {min-width:44px;}
 }
+
+.rmul3d-event-feed {grid-column:2 / 4;grid-row:2;align-self:start;justify-self:end;width:min(280px,35vw);display:grid;gap:4px;pointer-events:none;font-size:11px;line-height:1.35;z-index:3;}
+.rmul3d-event-feed>div {display:flex;gap:7px;padding:6px 8px;border-left:3px solid #9ca3af;background:#101822e8;border-radius:3px;color:#eef6ff;}
+.rmul3d-event-feed>div.red {border-color:#fa5267;}
+.rmul3d-event-feed>div.blue {border-color:#4389f7;}
+.rmul3d-event-feed time {color:#aab9c9;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.rmul3d-event-banner {position:absolute;left:50%;top:24%;transform:translateX(-50%);max-width:70%;padding:8px 18px;background:#101822ed;border-block:1px solid #8ea3b866;color:#fff;font-size:clamp(13px,2vw,23px);font-weight:750;text-align:center;pointer-events:none;}
+.rmul3d-hud.is-manual .rmul3d-event-feed {display:none;}
+.rmul3d-assembly-progress {font-size:11px;color:#e0eaf6;}
+@media (max-width:600px),(orientation:landscape) and (max-height:500px){
+ .rmul3d-event-feed {width:min(180px,45vw);font-size:10px;}
+ .rmul3d-event-feed>div {padding:4px 5px;gap:4px;}
+ .rmul3d-event-banner {top:38%;padding:5px 12px;}
+}
+
+@media (max-width:600px) and (orientation:portrait){
+ .rmul3d-event-feed {grid-column:2;grid-row:3;width:100%;}
+}
+@media (orientation:landscape) and (max-height:500px){
+ .rmul3d-hud.is-focused .rmul3d-event-feed {grid-column:2;justify-self:center;}
+}
