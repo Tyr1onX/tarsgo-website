@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useNavigation, useSearchParams } from "react-router";
 import {
   deleteOperationsPost, formatOperationsDate, getOperationsAttention, getOperationsBoard, getOperationsWorks,
   operationsAttentionLabel, operationsPlatformNames,
@@ -12,14 +12,20 @@ export function meta() { return [{ title: "运营作品库 | TARSGO" }]; }
 const platforms = ["", "douyin", "bilibili", "wechat_video", "wechat"];
 
 export default function OperationsWorksPage() {
-  const [params, setParams] = useSearchParams();
+  const [committedParams, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navigation = useNavigation();
+  // Keep the input responsive while the parent dashboard loader revalidates.
+  const params = navigation.location?.pathname === location.pathname
+    ? new URLSearchParams(navigation.location.search) : committedParams;
   const platform = params.get("platform") || "";
   const tab = params.get("tab") === "posts" ? "posts" : "production";
   const page = Math.max(1, Number(params.get("page")) || 1);
   const [board, setBoard] = useState<OperationsBoard | null>(null);
   const [works, setWorks] = useState<OperationsWorks | null>(null);
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
+  const query = params.get("q") ?? "";
+  const [search, setSearch] = useState(query.trim());
   const [error, setError] = useState("");
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
 
@@ -44,12 +50,12 @@ export default function OperationsWorksPage() {
     return () => { active = false; };
   }, [platform, page, tab, search]);
 
-  const updateParams = (changes: Record<string,string>) => {
+  const updateParams = (changes: Record<string,string>, replace = false) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(changes)) {
       if (value) next.set(key, value); else next.delete(key);
     }
-    setParams(next);
+    setParams(next, { replace, flushSync: true, preventScrollReset: true });
   };
   const production = useMemo(() => {
     const items = board?.items.filter((item) => item.kind === "video" || item.kind === "article") ?? [];
@@ -99,10 +105,7 @@ export default function OperationsWorksPage() {
       </nav>
       <input className="operations-progress__search" type="search" value={query}
         aria-label="搜索作品" placeholder={tab === "posts" ? "搜索发布标题" : "搜索标题、系列或负责人"}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          if (page !== 1) updateParams({ page: "" });
-        }} />
+        onChange={(event) => updateParams({ q: event.target.value, page: "" }, true)} />
     </div>
     {error ? <p className="operations-progress__error" role="alert">{error}</p> : null}
     {tab === "production" ? <>
@@ -111,7 +114,16 @@ export default function OperationsWorksPage() {
       {board && !production.length ? <p className="operations-progress__muted">没有匹配的作品</p> : null}
       {board && production.length > 0 ? <div className="operations-progress__library-list">
         {production.map((item) => <Link className="operations-progress__library-row" key={item.id}
-          to={"/dashboard/workbench/operations/works/" + item.id}>
+          to={"/dashboard/workbench/operations/works/" + item.id}
+          onClick={async (event) => {
+            if (params === committedParams || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            const detailPath = event.currentTarget.pathname;
+            const search = `?${params.toString()}`;
+            // Commit the latest filters before pushing the detail history entry.
+            await navigate({ pathname: location.pathname, search }, { replace: true, preventScrollReset: true });
+            if (window.location.pathname === location.pathname && window.location.search === (search === "?" ? "" : search)) void navigate(detailPath);
+          }}>
           <div className="operations-progress__library-main">
             <strong>{item.title}</strong>
             <small>{item.kind === "article" ? "图文" : "视频"}{item.seriesName ? " · " + item.seriesName : ""}
