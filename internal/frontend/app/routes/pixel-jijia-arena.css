@@ -153,3 +153,33 @@
 .rmul3d-experiment-table th,.rmul3d-experiment-table td{padding:5px;border-bottom:1px solid #ffffff22;}
 .rmul3d-experiment-progress{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#101924e8;padding:8px;border-radius:6px;z-index:5;white-space:nowrap;}
 
+
+.rmul3d-robot-status[role=button],.rmul3d-minimap g[role=button] {pointer-events:auto;cursor:pointer;}
+.rmul3d-robot-status.selected {outline:1px solid var(--team);outline-offset:1px;border-radius:2px;}
+.rmul3d-minimap g[role=button]:focus-visible {outline:1px solid white;}
+.rmul3d-focus-panel {--team:#fa5267;grid-column:1 / 3;grid-row:2;align-self:end;justify-self:start;width:min(270px,44vw);max-height:100%;overflow:auto;padding:8px 10px;background:#101924d9;border-left:3px solid var(--team);border-radius:4px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:auto;}
+.rmul3d-focus-panel.blue {--team:#4389f7;}
+.rmul3d-focus-title,.rmul3d-focus-hp {display:flex;align-items:center;gap:6px;}
+.rmul3d-focus-title strong {font-size:20px;color:var(--team);}
+.rmul3d-focus-title small,.rmul3d-focus-hp span {margin-left:auto;color:#b6c7d7;font-size:10px;}
+.rmul3d-focus-hp b {font-size:22px;line-height:1.15;color:white;}
+.rmul3d-focus-hp b small {font-size:11px;color:#b6c7d7;}
+.rmul3d-focus-panel .rmul3d-health {height:6px;margin:3px 0 6px;}
+.rmul3d-focus-metrics {display:flex;gap:5px 10px;flex-wrap:wrap;color:#b6c7d7;}
+.rmul3d-focus-metrics b {color:white;font-weight:600;}
+.rmul3d-focus-states {display:flex;flex-wrap:wrap;gap:4px 8px;color:#ffd279;font-size:10px;margin-top:3px;}
+.rmul3d-focus-states:empty {display:none;}
+.rmul3d-observer-controls {display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;}
+.rmul3d-observer-controls button {flex:1;padding:4px 6px;font-size:11px;white-space:nowrap;}
+.rmul3d-hud.is-focused .rmul3d-minimap {grid-column:2 / 4;grid-row:2;align-self:end;justify-self:end;}
+.rmul3d-hud.is-focused.is-manual .rmul3d-combat {align-self:start;max-height:calc(100% - 180px);}
+.rmul3d-ammo {display:flex;align-items:baseline;justify-content:flex-end;gap:5px;padding:0 5px;}
+.rmul3d-ammo b {font-size:22px;color:white;}
+@media (max-width:600px) and (orientation:portrait){
+  .rmul3d-focus-panel {grid-column:1;grid-row:3;width:100%;padding:6px;font-size:10px;}
+  .rmul3d-focus-title {gap:3px;}
+  .rmul3d-focus-hp b {font-size:18px;}
+  .rmul3d-hud.is-focused .rmul3d-minimap {grid-column:2;grid-row:3;}
+  .rmul3d-hud.is-focused.is-manual .rmul3d-combat {max-height:calc(100% - 180px);}
+  .rmul3d-observer-controls button {min-width:44px;}
+}

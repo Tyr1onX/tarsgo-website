@@ -33,7 +33,7 @@ test("actual projectile damage drives one robot's feedback; geometry, team LEDs 
  assert.notEqual(plate.material,plateMaterial);assert.notEqual(body.material,bodyMaterial);assert.equal(led.material,ledMaterial);
  assert.ok(drawTexts.includes("-20"));assert.ok(feedback.group.children.every(o=>o.material.depthTest&&o.material.depthWrite===false));assert.equal(feedback.group.children.length,4);
  feedback.restoreMaterials();assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);assert.equal(g.children.length,count);assert.equal(plate.geometry,geometry);
- feedback.update(m,camera,720,"red");assert.equal(feedback.group.children[2].visible,false);assert.equal(feedback.group.children[3].visible,false);assert.equal(plate.material,plateMaterial);
+ feedback.update(m,camera,720,"red");assert.equal(feedback.group.children[2].visible,false);assert.equal(feedback.group.children[3].visible,false);assert.notEqual(plate.material,plateMaterial);feedback.restoreMaterials();
  m.robots[1].hp=0;feedback.update(m,camera,720,"all");assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);
  m.robots[1].hp=200;m.elapsed+=1;feedback.update(m,camera,720,"all");assert.equal(feedback.group.children[3].visible,false);
  feedback.clear();assert.equal(feedback.group.children[3].visible,false);feedback.dispose();projectile.dispose();assert.equal(feedback.group.parent,null);

@@ -55,7 +55,8 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
     const pixels=height*camera.projectionMatrix.elements[5]/2,at=match.elapsed;
     for(const s of slots.values()){
       const state=match.robots.find(r=>r.id===s.identity.id)!;
-      const visible=s.robot.visible&&(perspective==="all"||perspective===state.team);
+      const visible=s.robot.visible;
+      const showIntel=visible&&(perspective==="all"||perspective===state.team);
       const alive=state.hp>0,off=!alive||state.powerLockUntil>at;
       const dt=Math.max(0,at-s.at);s.at=at;
       s.hp=!Number.isFinite(s.hp)||dt>.3||!alive||s.hp===0?state.hp:s.hp+(state.hp-s.hp)*Math.min(1,dt/.24);
@@ -70,7 +71,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
       s.robot.getWorldPosition(point);point.y+=s.height;
       const depth=-view.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
       const width=Math.min(2.5,Math.max(.38,52*Math.max(0,depth)/Math.max(1,pixels)));
-      s.label.sprite.visible=visible&&depth>0&&depth<100;
+      s.label.sprite.visible=showIntel&&depth>0&&depth<100;
       s.label.sprite.position.copy(point);s.label.sprite.scale.set(width,width*96/256,1);
       const burst=s.burst,age=burst?at-burst.last:Infinity;
       s.damage.sprite.visible=s.label.sprite.visible&&!!burst&&age<DAMAGE_LIFE&&match.phase==="running";
