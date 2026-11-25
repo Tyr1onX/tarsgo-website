@@ -17,7 +17,7 @@ export function meta({}: Route.MetaArgs) {
 
 type AreaStatus = NonNullable<ArenaStatus["match"]>["sides"]["red"]["baseArea"];
 const teamName=(team:"red"|"blue")=>team==="red"?"红":"蓝";
-const areaText=(area:AreaStatus)=>teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争夺":area.progress>0?"·"+Math.floor(area.progress/5)*10+"%":"");
+const areaText=(area:AreaStatus)=>!area.enabled?"失效":teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争":area.progressing?"·夺":area.progress>0?"·退":"")+(area.progress>0?Math.floor(area.progress*2)+"%":"");
 function HealthBar({value,max,damage=0,label}:{value:number;max:number;damage?:number;label:string}){
   return <div className="rmul3d-health" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
     <i style={{width:Math.max(0,Math.min(100,value/max*100))+"%"}}/>
@@ -122,7 +122,7 @@ export default function PixelJijiaArenaPage() {
           <div className="rmul3d-map-head"><select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={!!status.robot} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>
           {Object.entries(status.radarMap.summary).map(([team,r])=><span key={team} title={"干扰难度 "+r.encryptionLevel}>{team==="red"?"红":"蓝"}雷达 {r.doubleUntil>0?"×2 "+r.doubleUntil+"s":r.opportunities+"次"}</span>)}</div>
           <svg viewBox="0 0 280 150" role="img" aria-label="CAD战场地图"><image href={status.radarMap.image} width="280" height="150"/>
-            {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={s.outpostOwner==="red"?"#fb7777":"#7bbdff"} opacity={s.outpost?1:.25}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
+            {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={!s.outpostArea.enabled?"#64748b":s.outpostArea.controller==="red"?"#fb7777":"#7bbdff"} strokeDasharray={!s.outpostArea.full?"3 2":undefined} opacity={s.outpostArea.enabled?1:.35} aria-label={teamName(team)+"方前哨阵地 "+areaText(s.outpostArea)}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
             {status.radarMap.tracks.map(r=><g key={r.id} transform={`translate(${(14-r.x)*10} ${(7.5-r.z)*10})`} opacity={r.stale?.4:1} aria-label={r.team+" "+r.id+" P="+r.progress}><circle r="4.5" fill={r.team==="red"?"#d94b4b":"#287de0"} stroke={r.localized?"white":"#222"} strokeDasharray={r.stale?"2 2":undefined}/><text textAnchor="middle" y="2.2" fontSize="6" fill="white">{r.id.slice(-2)}</text></g>)}
           </svg>
           {status.robot&&status.radarMap.perspective!=="all"&&!status.match.dart?.blind&&status.radarMap.summary[status.radarMap.perspective]!.opportunities>0&&<button disabled={status.radarMap.summary[status.radarMap.perspective]!.doubleUntil>0} onClick={()=>controller.current?.radarDouble()}>双倍易伤</button>}

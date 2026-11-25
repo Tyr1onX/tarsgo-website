@@ -11,7 +11,7 @@ import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMe
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent } from "./rmuc-3d-match";
 import { traceArenaShot, createArenaShotPreparer, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { createDartVisual } from "./rmuc-3d-dart-visual";
-import { createProjectileSystem, projectileSpeed } from "./rmuc-3d-projectiles";
+import { createProjectileSystem, projectileSpeed, softGlowTexture } from "./rmuc-3d-projectiles";
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
@@ -334,7 +334,7 @@ export function mountArena(
       syncCamera();
     } else if (controls.enabled) controls.update();
     publish();
-    if(match)dartVisual?.update(match);
+    if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode));
     renderer.render(scene, camera);
 
@@ -986,7 +986,7 @@ export function mountArena(
     field.add(coreGeometry.group);
     field.updateMatrixWorld(true);
     // Ground support uses the static CAD envelope without movable energy units.
-    mechanism=installMechanisms(field,parts,dartParts);
+    mechanism=installMechanisms(field,parts,dartParts,{scene,texture:softGlowTexture()});
     dartVisual=createDartVisual(scene,mechanism);
     exhibit = addRobotPreviews(map, scene, terrain);
     robots = exhibit.children.map(object => {

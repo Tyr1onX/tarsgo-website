@@ -10,7 +10,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { installMechanisms, installCoreGeometry, CORE_ASSET, DART_ASSET, MECHANISM_ASSET, REPLACEMENTS, TEAMS } from "./rmuc-3d-mechanisms.ts";
 
-import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose, armorStatus, fortifyArmor } from "./rmuc-3d-match.ts";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, energyStatus, pickupEnergy, dropEnergy, damageTarget, assemblyStatus, beginAssembly, assemblyAction, coreFrame, technologyLevel, openDart, selectDart, launchDart, dartPose, armorStatus, fortifyArmor, territoryStatus } from "./rmuc-3d-match.ts";
 import { traceArenaShot, createArenaShotPreparer, bindArmorFrame, armorHit } from "./rmuc-3d-shot.ts";
 import { createArenaTerrain, supportedHeight, moveOnArena } from "./rmuc-3d-terrain.ts";
 import { createRobotPreview, ROBOT_PLACEMENTS, aimWeaponAt, addRobotPreviews } from "./rmuc-3d-robots.ts";
@@ -620,4 +620,64 @@ test("both virtual dart models use real CAD guides and the single referee flight
  updateMatch(m,.3);visual.update(m);assert.ok(visual.group.children.every(o=>!o.visible));
  visual.update(createMatch([]));assert.ok(visual.group.children.every(o=>!o.visible));
  visual.dispose();assert.equal(visual.group.parent,null);
+});
+
+test("actual outpost CAD indicators follow referee control, contention, reversal, rebuild, disable and reset",async()=>{
+ const [field,parts]=await Promise.all([load(CAD_MODELS.rmucField.url,CAD_MODELS.rmucField.sha256),load(MECHANISM_ASSET.url,MECHANISM_ASSET.sha256)]);
+ const scene=new THREE.Scene(),root=new THREE.Group();scene.add(root);root.add(field);root.rotation.x=-Math.PI/2;root.updateMatrixWorld(true);
+ const texture=new THREE.Texture(),installed=installMechanisms(field,parts,undefined,{scene,texture});
+ const lights=Object.fromEntries(TEAMS.map(team=>{
+   const indicators=meshes(parts.getObjectByName(team+"-outpost-fixed-upper")).filter(m=>m.userData.outpostIndicator);
+   assert.equal(indicators.length,1);
+   const indicator=indicators[0],halo=scene.getObjectByName(team+"-outpost-control-glow");
+   assert.ok(halo.isSprite&&halo.parent===scene&&halo.material.depthTest&&!halo.material.depthWrite);
+   assert.ok(!field.getObjectByName(halo.name));
+   const upper=new THREE.Box3().setFromObject(parts.getObjectByName(team+"-outpost-fixed-upper"),true),center=upper.getCenter(new THREE.Vector3());center.y=upper.max.y+.08;
+   assert.ok(halo.position.distanceTo(center)<1e-8);
+   return [team,{indicator,halo}];
+ }));
+ const geometry=meshes(field).map(m=>[m,m.geometry,m.matrixWorld.clone()]);
+ const detectorMaterials=TEAMS.flatMap(t=>Array.from({length:3},(_,i)=>meshes(parts.getObjectByName(t+"-outpost-armor-"+i)))).flat().map(m=>[m.material,m.material.color?.clone(),m.material.emissiveIntensity]);
+ const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
+ const fresh=()=>{const m=createMatch(roster,1,1);startMatch(m);return m;};
+ const color=team=>team==="red"?0xff4055:0x397dff;
+ const assertLight=(m,location,owner,brightness)=>{
+   installed.setOutpostLights(m);
+   const {indicator,halo}=lights[location],material=indicator.material;
+   assert.equal(material.emissive.getHex(),color(owner));
+   assert.ok(Math.abs(material.emissiveIntensity-2*brightness)<1e-8,`${location} intensity ${material.emissiveIntensity} expected ${2*brightness}`);
+   assert.equal(halo.visible,brightness>0);
+   assert.ok(Math.abs(halo.material.opacity-.9*brightness)<1e-8);
+   assert.equal(halo.material.color.getHex(),color(owner));
+ };
+ const pulse=(t,p,min)=>min+(1-min)*(.5+.5*Math.cos(2*Math.PI*t/p));
+ for(const location of TEAMS){
+   const other=location==="red"?"blue":"red",sign=location==="red"?1:-1,attacker=other==="red"?"r":"b",defender=location==="red"?"r":"b";
+   const entry={x:3.23*sign,y:.601,z:0},defense={x:2.4*sign,y:.495,z:-4*sign};
+   const attackers=new Map([[attacker,entry]]),both=new Map([[attacker,entry],[defender,defense]]);
+   const m=fresh();
+   assertLight(m,"red","red",1);assertLight(m,"blue","blue",1);
+   updateMatch(m,2.5,attackers);
+   let a=territoryStatus(m,location,"outpost");assert.equal(a.progress,25);assert.ok(a.progressing&&!a.contested&&a.enabled);
+   assertLight(m,location,location,pulse(m.elapsed,1,.15));
+   updateMatch(m,1,both);a=territoryStatus(m,location,"outpost");assert.equal(a.progress,25);assert.ok(a.contested&&!a.progressing);
+   assertLight(m,location,location,pulse(m.elapsed,2.4,.18));
+   updateMatch(m,2.9);a=territoryStatus(m,location,"outpost");assert.ok(a.progress>0&&!a.progressing&&!a.contested);
+   assertLight(m,location,location,1);
+   updateMatch(m,2.5);a=territoryStatus(m,location,"outpost");assert.equal(a.progress,0);
+   updateMatch(m,5,attackers);a=territoryStatus(m,location,"outpost");assert.equal(a.controller,other);assert.ok(!a.full&&!a.progressing);
+   assert.equal(m.sides[location].outpostOwner,location);assertLight(m,location,other,pulse(m.elapsed,2,.45));
+   updateMatch(m,1,attackers);assertLight(m,location,other,pulse(m.elapsed,2,.45));
+   for(let i=0;i<50;i++)damageTarget(m,m.robots.find(r=>r.id===attacker),{type:"outpost",team:location});
+   a=territoryStatus(m,location,"outpost");assert.equal(m.sides[location].outpost,500);assert.equal(m.sides[location].outpostOwner,other);assert.ok(a.full);assertLight(m,location,other,1);
+   const destroyed=fresh();
+   for(let i=0;i<50;i++)damageTarget(destroyed,destroyed.robots.find(r=>r.id===attacker),{type:"outpost",team:location});
+   a=territoryStatus(destroyed,location,"outpost");assert.equal(destroyed.sides[location].outpost,0);assert.ok(a.enabled&&!a.full);assertLight(destroyed,location,location,pulse(destroyed.elapsed,1,.15));
+   const disabled=fresh();updateMatch(disabled,30);assert.ok(openDart(disabled,other));updateMatch(disabled,7);assert.ok(launchDart(disabled,other));updateMatch(disabled,2.5);
+   a=territoryStatus(disabled,location,"outpost");assert.ok(!a.enabled);assertLight(disabled,location,a.controller,0);
+   updateMatch(disabled,30);a=territoryStatus(disabled,location,"outpost");assert.ok(a.enabled);assertLight(disabled,location,other,1);
+   const reset=createMatch(roster,1,1);assertLight(reset,"red","red",1);assertLight(reset,"blue","blue",1);
+ }
+ assert.ok(geometry.every(([m,g,matrix])=>m.geometry===g&&m.matrixWorld.equals(matrix)));
+ assert.ok(detectorMaterials.every(([m,c,i])=>m.color?.equals(c)&&m.emissiveIntensity===i));
 });
