@@ -164,7 +164,7 @@ export default function PixelJijiaArenaPage() {
           </>}
         </div>}
         {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(Math.ceil(420-item.event.at)/60)}:{String(Math.ceil(420-item.event.at)%60).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
-        {!disabled&&!menu&&!experimentRunning&&status.events?.banner&&<div className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
+        {!disabled&&!menu&&!experimentRunning&&status.match?.phase!=="finished"&&status.events?.banner&&<div className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
         {!disabled&&!menu&&flying&&<span className="rmul3d-flight-speed">{status.flightSpeed?.toFixed(1)} m/s</span>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           {focused&&<div className="rmul3d-ammo"><b>{status.match!.ammo}</b><span>{status.match!.reserve>0?" + "+status.match!.reserve:""} 弹药</span></div>}
