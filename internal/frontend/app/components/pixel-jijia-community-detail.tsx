@@ -1,6 +1,7 @@
-import { useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { COMMUNITY_POSES, communitySourceHref, communityCreditRole } from "~/lib/pixel-jijia-community";
+import {BOARD_SIZE,hasFive,replyMove} from "~/lib/pixel-jijia-base";
 import type { RoomObject } from "~/lib/pixel-jijia-room";
 import { robotSeasons } from "~/data/robot-seasons";
 import communityAtlas from "../assets/pixel-jijia/room-community-v31.png?url";
@@ -23,26 +24,6 @@ export function CommunitySprite({ id, label, effect, maxWidth = 220, maxHeight =
     style["--pose-" + i] = `-${fx*scale}px -${fy*scale}px`;
   });
   return <span className={`pixel-community-sprite${frames ? " pixel-community-sprite--animated" : ""}${effect ? " pixel-community-sprite--" + effect : ""}`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} style={style} />;
-}
-
-const assemblyParts = { "底盘": "part-chassis", "动力系统": "part-drive", "云台": "part-turret", "装甲": "part-armor" };
-const assemblyOrder = Object.keys(assemblyParts) as (keyof typeof assemblyParts)[];
-function Assembly() {
-  const [step, setStep] = useState(0);
-  const [error, setError] = useState("");
-  const done = step === assemblyOrder.length;
-  return <div className="pixel-community-interaction">
-    {done ? <div className="pixel-community-started" role="status"><CommunitySprite id="test-robot" label="组装完成的机器人" effect="glow" /><span>装配完成 · 机器人已启动</span></div> :
-      <><p>装配进度 {step}/{assemblyOrder.length}</p>
-      <div className="pixel-community-controls" role="group" aria-label="机器人装配部件">
-        {(["云台", "装甲", "底盘", "动力系统"] as (keyof typeof assemblyParts)[]).map(part => <button type="button" key={part} disabled={assemblyOrder.slice(0, step).includes(part)} onClick={() => {
-          if (part !== assemblyOrder[step]) { setError("这个部件需要稍后安装。"); return; }
-          setStep(step + 1); setError("");
-        }}><CommunitySprite id={assemblyParts[part]} maxWidth={35} maxHeight={27} />{part}{assemblyOrder.slice(0, step).includes(part) ? " ✓" : ""}</button>)}
-      </div></>}
-    {error && <p role="status">{error}</p>}
-    {done && <button type="button" className="pixel-community-action" onClick={() => { setStep(0); setError(""); }}>重新组装</button>}
-  </div>;
 }
 
 const directions = ["up", "right", "down", "left"] as const;
@@ -87,7 +68,7 @@ function ArchiveImage({ src, alt }: { src: string; alt: string }) {
 }
 
 const historyPages = [...robotSeasons].reverse();
-function Memoir() {
+export function Memoir({collect}:{collect?:ReactNode}={}) {
   const [page, setPage] = useState(0);
   const season = historyPages[page], robot = season.robots[0];
   return <div className="pixel-community-interaction pixel-community-history">
@@ -99,6 +80,7 @@ function Memoir() {
       <span>{page + 1}/{historyPages.length}</span>
       <button data-page="next" type="button" disabled={page === historyPages.length - 1} onClick={() => setPage(page + 1)}>下一页</button>
     </div>
+    {season.season===2026&&collect}
     <Link to="/robots" className="pixel-world-detail-secondary-link">历年机器人完整档案</Link>
     <Link to="/about" className="pixel-world-detail-secondary-link">战队发展历程</Link>
     <Link to="/events-and-honors" className="pixel-world-detail-secondary-link">赛事与荣誉</Link>
@@ -115,6 +97,16 @@ function Memory() {
 }
 const meetingTopics = ["研发：确认本周需要验证的结构与控制方案。", "协作：记录问题、明确负责人和下一步。", "运营：把可公开的成果整理成资料和内容。"];
 function Meeting() {
+  const [activity,setActivity]=useState<"meeting"|"game">("meeting");
+  return <div className="pixel-community-interaction">
+    <div className="pixel-community-controls" role="group" aria-label="共创周会活动">
+      <button type="button" aria-pressed={activity==="meeting"} onClick={()=>setActivity("meeting")}>周会交流</button>
+      <button type="button" aria-pressed={activity==="game"} onClick={()=>setActivity("game")}>五子棋</button>
+    </div>
+    {activity==="meeting"?<MeetingConversation/>:<Gomoku/>}
+  </div>;
+}
+function MeetingConversation() {
   const [topic, setTopic] = useState(0);
   return <div className="pixel-community-interaction">
     <p role="status">{meetingTopics[topic]}</p>
@@ -122,6 +114,23 @@ function Meeting() {
       <button type="button" onClick={() => setTopic((topic + 1) % meetingTopics.length)}>听下一段</button>
     </div>
   </div>;
+}
+function Gomoku(){
+ const [board,setBoard]=useState<number[]>(()=>Array(BOARD_SIZE*BOARD_SIZE).fill(0)),[result,setResult]=useState("");
+ function play(i:number){
+  if(board[i]||result)return;
+  const next=[...board];next[i]=1;
+  if(hasFive(next,i))setResult("黑棋获胜");
+  else if(next.every(Boolean))setResult("和棋");
+  else {const j=replyMove(next);if(j>=0){next[j]=2;if(hasFive(next,j))setResult("白棋获胜");else if(next.every(Boolean))setResult("和棋");}}
+  setBoard(next);
+ }
+ return <div className="pixel-community-interaction">
+  <div className="pixel-base-gomoku" style={{gridTemplateColumns:`repeat(${BOARD_SIZE},1fr)`}}>
+   {board.map((v,i)=><button key={i} type="button" aria-label={`${Math.floor(i/BOARD_SIZE)+1}行${i%BOARD_SIZE+1}列 ${v===1?"黑":v===2?"白":"空"}`} data-piece={v} disabled={!!v||!!result} onClick={()=>play(i)}/>)}
+  </div>
+  <div className="pixel-community-controls"><span role="status">{result||"黑棋 · 轮到你"}</span><button type="button" onClick={()=>{setBoard(Array(BOARD_SIZE*BOARD_SIZE).fill(0));setResult("");}}>重新开始</button></div>
+ </div>;
 }
 const seniorTopics = [
   { label: "认识战队", answer: "先了解机械、电控、视觉、AI 等组别的工作，再找到自己感兴趣的方向。", href: "/about", action: "认识吉甲" },
@@ -156,7 +165,6 @@ export function CommunityObjectDetail({ object, returnTo }: { object: RoomObject
   return <>
     {action === "terminal" && <div className="pixel-community-terminal" role="status"><span className="pixel-community-typewriter">!!Hello World!!</span></div>}
     {action === "silverwolf" && <div className="pixel-community-terminal pixel-community-terminal--wolf" role="status">PLAYER // 银狼 LV.999<br /><strong>GAME NOT OVER</strong><br /><a href="https://sr.mihoyo.com/news/163575?type=news" target="_blank" rel="noreferrer">官方角色 PV</a></div>}
-    {action === "assembly" && <Assembly />}
     {action === "drive" && <Drive returnTo={returnTo} />}
     {action === "memoir" && <Memoir />}
     {action === "memory" && <Memory />}

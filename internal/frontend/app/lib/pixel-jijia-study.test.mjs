@@ -39,8 +39,11 @@ test("owner edits existing API; guest visits render without editing controls", (
   assert.ok(route.includes('/api/pixel-home/invite'));
   assert.ok(router.includes('homeAPI.Use(middleware.RequireAuthenticated(authService))'));
   assert.ok(router.includes('homeAPI.PUT("/me", requireSameOriginRequest(cfg), pixelHomeHandler.Save)'));
-  assert.ok(route.includes('room?.id === "study" && !studyGuest'));
-  assert.ok(route.includes('room?.id === "study" && studyGuest'));
+  const panel = route.slice(route.indexOf('room?.id === "study" && <div className="pixel-world-study-panel"'), route.indexOf('{studyNotice &&'));
+  assert.ok(panel.startsWith('room?.id === "study"'));
+  assert.ok(panel.includes('{!studyGuest && <div className="pixel-world-study-tools"'));
+  assert.ok(panel.includes('{studyGuest && <div className="pixel-world-study-guest"'));
+  assert.ok(panel.includes('{!studyGuest&&<button type="button" disabled={studySaving} aria-pressed={item.displayed}'));
   assert.ok(route.includes('studyHasInvite'));
   assert.ok(route.includes('revokeStudyInvite'));
 });

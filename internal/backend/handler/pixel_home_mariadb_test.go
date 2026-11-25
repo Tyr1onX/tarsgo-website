@@ -39,10 +39,29 @@ func TestMariaDBPixelHomePersistence(t *testing.T) {
 	if err = tx.Where("user_id = ?", user.ID).Delete(&model.PixelHome{}).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err = tx.Where("user_id = ?", user.ID).Delete(&model.PixelAchievement{}).Error; err != nil {
+		t.Fatal(err)
+	}
+	var other model.User
+	if err = tx.Where("id <> ?", user.ID).First(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Where("user_id = ?", other.ID).Delete(&model.PixelAchievement{}).Error; err != nil {
+		t.Fatal(err)
+	}
+	activeID := user.ID
 	h := NewPixelHomeHandler(tx)
 	r := gin.New()
-	r.Use(func(c *gin.Context) { c.Set("sessionUser", &auth.SessionUser{ID: user.ID}); c.Next() })
+	r.Use(func(c *gin.Context) {
+		if activeID != 0 {
+			c.Set("sessionUser", &auth.SessionUser{ID: activeID})
+		}
+		c.Next()
+	})
 	r.GET("/me", h.Mine)
+	r.GET("/achievements", h.Achievements)
+	r.POST("/achievements", h.Earn)
+	r.PUT("/achievements/display", h.DisplayAchievement)
 	r.PUT("/me", h.Save)
 	r.POST("/invite", h.Invite)
 	r.DELETE("/invite", h.Revoke)
@@ -57,12 +76,21 @@ func TestMariaDBPixelHomePersistence(t *testing.T) {
 			t.Fatalf("%s %s: status %d, want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		var response struct {
-			Data map[string]json.RawMessage `json:"data"`
+			Data json.RawMessage `json:"data"`
 		}
 		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 			t.Fatal(err)
 		}
-		return response.Data
+		if strings.HasPrefix(string(response.Data), "[") {
+			return map[string]json.RawMessage{"rows": response.Data}
+		}
+		var obj map[string]json.RawMessage
+		if len(response.Data) > 0 && string(response.Data) != "null" {
+			if err := json.Unmarshal(response.Data, &obj); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return obj
 	}
 	if string(request(http.MethodGet, "/me", "", 200)["furniture"]) != "[]" {
 		t.Fatal("new room not empty")
@@ -89,6 +117,38 @@ func TestMariaDBPixelHomePersistence(t *testing.T) {
 	if err := tx.Where("user_id = ?", user.ID).First(&home).Error; err != nil || len(home.InviteHash) != 64 || home.InviteHash == token {
 		t.Fatal("invite must store only its hash")
 	}
+	// Owner-scoped achievements are deduplicated and independent of furniture.
+	request(http.MethodPost, "/achievements", `{"id":"assembly-guodong"}`, 200)
+	request(http.MethodPost, "/achievements", `{"id":"assembly-guodong"}`, 200)
+	request(http.MethodPost, "/achievements", `{"id":"unknown"}`, 400)
+	request(http.MethodPut, "/achievements/display", `{"id":"vision","displayed":true}`, 404)
+	var rows []pixelAchievementView
+	if err := json.Unmarshal(request(http.MethodGet, "/achievements", "", 200)["rows"], &rows); err != nil || len(rows) != 1 || rows[0].Displayed {
+		t.Fatal("duplicate or incorrect default visibility")
+	}
+	if string(request(http.MethodGet, "/visit?token="+token, "", 200)["achievements"]) != "[]" {
+		t.Fatal("private souvenir leaked")
+	}
+	request(http.MethodPut, "/achievements/display", `{"id":"assembly-guodong","displayed":true}`, 200)
+	if err := json.Unmarshal(request(http.MethodGet, "/visit?token="+token, "", 200)["achievements"], &rows); err != nil || len(rows) != 1 || !rows[0].Displayed {
+		t.Fatal("visitor missing shared souvenir")
+	}
+	activeID = other.ID
+	request(http.MethodPut, "/achievements/display", `{"id":"assembly-guodong","displayed":false}`, 404)
+	if string(request(http.MethodGet, "/achievements", "", 200)["rows"]) != "[]" {
+		t.Fatal("cross-account souvenir leak")
+	}
+	activeID = 0
+	request(http.MethodPost, "/achievements", `{"id":"planning"}`, 401)
+	activeID = user.ID
+	request(http.MethodPut, "/achievements/display", `{"id":"assembly-guodong","displayed":false}`, 200)
+	if string(request(http.MethodGet, "/visit?token="+token, "", 200)["achievements"]) != "[]" {
+		t.Fatal("hidden souvenir leaked")
+	}
+	if string(request(http.MethodGet, "/me", "", 200)["furniture"]) != next {
+		t.Fatal("achievement modified furniture")
+	}
+
 	request(http.MethodDelete, "/invite", "", 200)
 	request(http.MethodGet, "/visit?token="+token, "", 404)
 	if string(request(http.MethodGet, "/me", "", 200)["furniture"]) != next {

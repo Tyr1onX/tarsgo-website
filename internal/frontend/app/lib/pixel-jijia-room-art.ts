@@ -305,9 +305,10 @@ const EQUIPMENT_CYCLES:Record<string,readonly [number,number,number]>={
   models:[11500,8500,3600],planning:[7900,9300,5300],strategy:[9500,8500,3000],
   simulation:[8500,12000,6200],"hello-terminal":[7000,11000,900],"decor-server":[10000,7000,7200],
 };
-export function equipmentProgress(key:string,time:number,triggeredAt?:number,hour=12):number{
-  const config=EQUIPMENT_CYCLES[key];if(!config)return -1;
+export function equipmentProgress(key:string,time:number,triggeredAt?:number,hour=12,manual?:boolean):number{
+  const config=EQUIPMENT_CYCLES[key];if(!config)return manual===true?0:-1;
   const [duration,rest,offset]=config;
+  if(manual!==undefined)return manual?((time-(triggeredAt??0))%duration+duration)%duration/duration:-1;
   const age=triggeredAt===undefined?Infinity:time-triggeredAt;
   // A late-night interaction still works; only the automatic work stops.
   // Servers keep running while the workshop and public exhibition rest.
@@ -329,7 +330,7 @@ export function equipmentPose(key:string,progress:number):number{
 }
 export function hasEquipmentBehavior(key:string):boolean{return key in EQUIPMENT_CYCLES;}
 const LIGHT_POINTS:Record<string,number[][]>={
-  assembly:[[.48,.12,3]],cad:[[.42,.24,2]],review:[[.77,.16,2]],
+  camera:[[.60,.35,2]],solder:[[.40,.18,2]],assembly:[[.48,.12,3]],cad:[[.42,.24,2]],review:[[.77,.16,2]],
   calibration:[[.55,.19,2]],oscilloscope:[[.42,.43,2]],embedded:[[.87,.20,2]],
   "signal-wall":[[.53,.5,3]],dataset:[[.22,.2,2],[.52,.22,2],[.86,.22,2]],
   compute:[[.58,.37,1.5]],"lens-calibration":[[.68,.23,2]],
@@ -402,12 +403,12 @@ export function roomObjectVisualBounds(object:RoomObject):Position {
   const b=sprite(object).bounds;
   return {x:(b.x+b.w/2)/TILE,y:b.y/TILE};
 }
-export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt:number|undefined,w:number,h:number,hour=12){
+export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,camera:Position,elapsed:number,motion:boolean, triggeredAt:number|undefined,w:number,h:number,hour=12,manual?:boolean){
   const prepared=sprite(o),b=prepared.bounds;
   const x=Math.round(b.x-camera.x),y=Math.round(b.y-camera.y);
   // Cull sprite work before the animation and screen drawing.
   if(x+b.w+prepared.marginX<0||y+b.h+prepared.marginY<0||x-prepared.marginX>w||y-prepared.marginY>h)return;
-  const key=roomSpriteKey(o),progress=motion?equipmentProgress(key,elapsed,triggeredAt,hour):-1;
+  const key=roomSpriteKey(o),effective=equipmentProgress(key,elapsed,triggeredAt,hour,manual),progress=motion?effective:effective>=0?0:-1;
   const phase = motion ? Math.floor(elapsed / (520+(Math.round(o.x*17+o.y*23)%240)) + o.x+o.y*.7) % prepared.frames.length : 0;
   const age=triggeredAt===undefined ? Infinity : elapsed-triggeredAt;
   const active=age>=0&&age<1500;
@@ -436,15 +437,19 @@ export function drawPublicRoomObject(ctx:CanvasRenderingContext2D,o:RoomObject,c
       ctx.fillStyle="#ffdf92";ctx.fillText(text,x+b.w/2,y-4);ctx.restore();
     }
   }
-  if (!motion) return;
+  if(manual===false){
+    ctx.fillStyle="#202b2d";
+    for(const [u,v,a,c] of SCREENS[key]??[])ctx.fillRect(x+b.w*u,y+b.h*v,b.w*a,b.h*c);
+  }
+  if (!motion&&effective<0&&manual===undefined) return;
   drawEquipmentDisplay(ctx,key,x,y,b.w,b.h,progress);
   const points=LIGHT_POINTS[key];
   if(!points)return;
-  const p=painter(ctx),t=elapsed/1000;
+  const p=painter(ctx),t=motion?elapsed/1000:0;
   ctx.save();
   for(let i=0;i<points.length;i++){
     const [u,v,r]=points[i],xx=x+b.w*u,yy=y+b.h*v;
-    ctx.globalAlpha=progress<0?.10:.15+.26*Math.pow((Math.sin(t*1.3+i*2.3+o.x*.41)+1)/2,3);
+    ctx.globalAlpha=manual===false?0:progress<0?.10:.15+.26*Math.pow((Math.sin(t*1.3+i*2.3+o.x*.41)+1)/2,3);
     p(xx-r/2,yy-r/2,r,r,"#d4f4fa");
   }
   ctx.restore();

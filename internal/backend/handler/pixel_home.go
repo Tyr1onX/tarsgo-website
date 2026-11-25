@@ -70,10 +70,15 @@ func (h *PixelHomeHandler) Mine(c *gin.Context) {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
+	rows, achievementErr := h.achievements(c, user.ID, false)
+	if achievementErr != nil {
+		writeAPIError(c, http.StatusInternalServerError, "成果加载失败")
+		return
+	}
 	var home model.PixelHome
 	err := h.db.WithContext(c.Request.Context()).Where("user_id = ?", user.ID).First(&home).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		writeAPI(c, http.StatusOK, "研究室尚未布置", gin.H{"furniture": []pixelFurniture{}, "inviteActive": false})
+		writeAPI(c, http.StatusOK, "研究室尚未布置", gin.H{"furniture": []pixelFurniture{}, "inviteActive": false, "achievements": rows})
 		return
 	}
 	if err != nil {
@@ -88,7 +93,7 @@ func (h *PixelHomeHandler) Mine(c *gin.Context) {
 	if items == nil {
 		items = []pixelFurniture{}
 	}
-	writeAPI(c, http.StatusOK, "研究室加载成功", gin.H{"furniture": items, "inviteActive": home.InviteHash != ""})
+	writeAPI(c, http.StatusOK, "研究室加载成功", gin.H{"furniture": items, "inviteActive": home.InviteHash != "", "achievements": rows})
 }
 
 func (h *PixelHomeHandler) Save(c *gin.Context) {
@@ -113,7 +118,7 @@ func (h *PixelHomeHandler) Save(c *gin.Context) {
 	}
 	home := model.PixelHome{UserID: user.ID, Layout: string(layout), UpdatedAt: time.Now().UTC()}
 	result := h.db.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "user_id"}},
+		Columns:   []clause.Column{{Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"layout", "updated_at"}),
 	}).Create(&home)
 	if result.Error != nil {
@@ -139,7 +144,7 @@ func (h *PixelHomeHandler) Invite(c *gin.Context) {
 	home := model.PixelHome{UserID: user.ID, Layout: "[]",
 		InviteHash: hex.EncodeToString(hash[:]), UpdatedAt: time.Now().UTC()}
 	err := h.db.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "user_id"}},
+		Columns:   []clause.Column{{Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"invite_hash", "updated_at"}),
 	}).Create(&home).Error
 	if err != nil {
@@ -157,8 +162,8 @@ func (h *PixelHomeHandler) Revoke(c *gin.Context) {
 	}
 	if err := h.db.WithContext(c.Request.Context()).Model(&model.PixelHome{}).
 		Where("user_id = ?", user.ID).Updates(map[string]any{
-			"invite_hash": "", "updated_at": time.Now().UTC(),
-		}).Error; err != nil {
+		"invite_hash": "", "updated_at": time.Now().UTC(),
+	}).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "撤销邀请失败")
 		return
 	}
@@ -192,5 +197,119 @@ func (h *PixelHomeHandler) Visit(c *gin.Context) {
 	if items == nil {
 		items = []pixelFurniture{}
 	}
-	writeAPI(c, http.StatusOK, "只读参观", gin.H{"furniture": items})
+	rows, achievementErr := h.achievements(c, home.UserID, true)
+	if achievementErr != nil {
+		writeAPIError(c, http.StatusInternalServerError, "成果加载失败")
+		return
+	}
+	writeAPI(c, http.StatusOK, "只读参观", gin.H{"furniture": items, "achievements": rows})
+}
+
+var pixelAchievementTitles = map[string]string{
+	"assembly-guodong": "过洞步兵 · 装配纪念",
+	"communication":    "通信诊断实验",
+	"vision":           "视觉感知实验",
+	"planning":         "自主导航实验",
+	"training-guodong": "过洞步兵 · 微缩训练纪念",
+	"history-2026":     "2026 赛季机器人纪念",
+	"fish":             "吉甲水域 · 垂钓纪念",
+}
+
+type pixelAchievementView struct {
+	model.PixelAchievement
+	Title string `json:"title"`
+}
+
+func (h *PixelHomeHandler) achievements(c *gin.Context, userID uint64, displayedOnly bool) ([]pixelAchievementView, error) {
+	var rows []model.PixelAchievement
+	query := h.db.WithContext(c.Request.Context()).Where("user_id = ?", userID)
+	if displayedOnly {
+		query = query.Where("displayed = ?", true)
+	}
+	if err := query.Order("achievement_key").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make([]pixelAchievementView, 0, len(rows))
+	for _, row := range rows {
+		if title, ok := pixelAchievementTitles[row.Key]; ok {
+			result = append(result, pixelAchievementView{row, title})
+		}
+	}
+	return result, nil
+}
+func (h *PixelHomeHandler) Achievements(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	rows, err := h.achievements(c, user.ID, false)
+	if err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "成果加载失败")
+		return
+	}
+	writeAPI(c, http.StatusOK, "成果", rows)
+}
+func (h *PixelHomeHandler) Earn(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1024)
+	var input struct {
+		ID string `json:"id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "成果不合法")
+		return
+	}
+	if _, ok := pixelAchievementTitles[input.ID]; !ok {
+		writeAPIError(c, http.StatusBadRequest, "成果不合法")
+		return
+	}
+	row := model.PixelAchievement{UserID: user.ID, Key: input.ID, CreatedAt: time.Now().UTC()}
+	if err := h.db.WithContext(c.Request.Context()).Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "成果保存失败")
+		return
+	}
+	h.Achievements(c)
+}
+func (h *PixelHomeHandler) DisplayAchievement(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1024)
+	var input struct {
+		ID        string `json:"id"`
+		Displayed *bool  `json:"displayed"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || input.Displayed == nil {
+		writeAPIError(c, http.StatusBadRequest, "展示设置不合法")
+		return
+	}
+	if _, ok := pixelAchievementTitles[input.ID]; !ok {
+		writeAPIError(c, http.StatusBadRequest, "成果不合法")
+		return
+	}
+	// Each known achievement has exactly one fixed wall display slot.
+	// No client coordinates, user IDs or other people's records are accepted.
+	var row model.PixelAchievement
+	db := h.db.WithContext(c.Request.Context())
+	err := db.Where("user_id = ? AND achievement_key = ?", user.ID, input.ID).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		writeAPIError(c, http.StatusNotFound, "未获得该成果")
+		return
+	}
+	if err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "成果加载失败")
+		return
+	}
+	if err = db.Model(&row).Update("displayed", *input.Displayed).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "展示保存失败")
+		return
+	}
+	h.Achievements(c)
 }
