@@ -340,8 +340,9 @@ const inAssembly=(r:MatchRobot,p:ArenaPosition)=>zonesAtPosition(p).includes(`${
 const assemblyActive=(m:Match,r:MatchRobot)=>m.sides[r.team].tech.attempt?.robot===r.id;
 function teamDefense(m:Match,t:Team){const n=technologyLevel(m,t);return Math.max(m.sides[t].runeDisabledUntil>m.elapsed?0:m.sides[t].rune.defense,n===4?.5:n===3?.25:0);}
 const requiredSteps=(level:Difficulty):AssemblyStep[]=>level===1?[2,6]:level===2?[2,3,6]:[2,3,4,5,6];
+function assemblyProgress(a:AssemblyAttempt|null){const steps=a?requiredSteps(a.level):[];return {completed:a?.slots.reduce((n,s)=>n+steps.filter(step=>s.done[step]!==undefined).length,0)??0,total:(a?.slots.length??0)*steps.length};}
 function assemblyEvent(m:Match,team:Team,type:"assembly-start"|"assembly-step-start"|"assembly-step-complete"|"assembly-end",a:AssemblyAttempt,extra:{core?:Team;step?:AssemblyStep;reason?:string;technology?:number}={},at=m.elapsed){
-  notify(m,{type,team,robot:a.robot,level:a.level,completed:a.slots.reduce((n,s)=>n+requiredSteps(a.level).filter(step=>s.done[step]!==undefined).length,0),total:a.slots.length*requiredSteps(a.level).length,...extra},team,at);
+  notify(m,{type,team,robot:a.robot,level:a.level,...assemblyProgress(a),...extra},team,at);
 }
 function nextStep(a:AssemblyAttempt,s:AssemblySlot){return requiredSteps(a.level).find(step=>s.done[step]===undefined);}
 function mountedUnit(m:Match,owner:Team,core:Team){return m.energyUnits.find(u=>u.location.kind==="mounted"&&u.location.owner===owner&&u.location.core===core);}
@@ -389,7 +390,7 @@ export function assemblyStatus(m:Match,r:MatchRobot,p:ArenaPosition){
     if(step===undefined||!assemblyReach(m,r,p,s.core)||step===2&&!held||step!==2&&!mountedUnit(m,r.team,s.core)||step===6&&m.elapsed<a.confirmAfter)return [];
     return [{core:s.core,step,angle:s.angle}];
   }):[];
-  return {completed:a?a.slots.reduce((n,s)=>n+requiredSteps(a.level).filter(step=>s.done[step]!==undefined).length,0):0,total:a?a.slots.length*requiredSteps(a.level).length:0,highest,cap:infantryCap(m,r.team),income:t.payments.reduce((n,p)=>n+p.amount,0),defense:highest===4?50:highest===3?25:0,
+  return {...assemblyProgress(a),highest,cap:infantryCap(m,r.team),income:t.payments.reduce((n,p)=>n+p.amount,0),defense:highest===4?50:highest===3?25:0,
     available,level:a?.level??null,actions,pending:a?.pending?.step??null,slots:a?.slots.map(s=>({core:s.core,step:nextStep(a,s)??7,angle:s.angle}))??[],
     remaining:a?.level===4?Math.max(0,Math.ceil(a.start+CORE_MOVE+45-m.elapsed)):null,canCancel:!!a&&a.robot===r.id&&(a.deadAt===null||!inAssembly(r,p)),failure:t.failure};
 }

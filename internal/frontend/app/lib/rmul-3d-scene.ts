@@ -1187,7 +1187,7 @@ export function mountArena(
     }
     fieldRobots=robots.filter(r=>!!groundIdentity(r.object.name));
     armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
-    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object),(["red","blue"] as const).flatMap(team=>(["base","outpost"] as const).map(kind=>({key:team+"-"+kind,team,kind,object:mechanism!.parts.getObjectByName(team+"-"+kind+"-assembly")!}))));
+    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object),(["red","blue"] as const).flatMap((team,i)=>[...(["base","outpost"] as const).map(kind=>({key:team+"-"+kind,team,kind,object:mechanism!.parts.getObjectByName(team+"-"+kind+"-assembly")!})),{key:team+"-rune",team,kind:"rune" as const,object:mechanism!.banks[i]},{key:team+"-dart",team,kind:"dart" as const,object:mechanism!.dartBindings.find(b=>b.team===team)!.guides}]));
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
