@@ -589,3 +589,35 @@ test("damage events report only actual HP deduction and dead chassis reset witho
  assert.equal(events.at(-1).source,"dart");assert.deepEqual(events.at(-1).target,{type:"base",team:"blue"});assert.equal(events.at(-1).amount,200);
  assert.equal(events.reduce((n,e)=>n+e.amount,0),m.sides.red.damage);
 });
+
+test("same-tick outpost destruction and rebuild emit ordered real transitions without duplicating damage",()=>{
+ const m=createMatch(roster,1,1),events=[],damage=[];
+ m.onEvent=e=>events.push(e);m.onDamage=e=>damage.push(e);
+ startMatch(m);startMatch(m);
+ const side=m.sides.blue;
+ side.outpost=20;side.outpostOwner="blue";side.outpostArea={controller:"red",full:false,progress:0};
+ assert.equal(damageTarget(m,m.robots[0],{type:"outpost",team:"blue"}),20);
+ assert.equal(side.outpost,500);assert.equal(side.outpostOwner,"red");
+ assert.deepEqual(events.map(e=>e.type),["match-start","outpost-destroyed","territory","outpost-rebuilt"]);
+ assert.deepEqual(events.filter(e=>e.type.startsWith("outpost-")).map(e=>[e.team,e.location,e.hp]),[["blue","blue",0],["red","blue",500]]);
+ assert.equal(damage.length,1);assert.equal(damage[0].amount,20);
+ assert.equal(damageTarget(m,m.robots[0],{type:"outpost",team:"blue"}),0);
+ assert.equal(events.length,4);assert.equal(damage.length,1);
+});
+test("event consumer does not change actual referee state or damage; phase and supply transitions are single-shot",()=>{
+ function run(listen){
+  const m=createMatch(roster,1,1,[],{},2061),events=[],damage=[];
+  if(listen)m.onEvent=e=>events.push(structuredClone(e));
+  m.onDamage=e=>damage.push(e);
+  startMatch(m);startMatch(m);assert.ok(purchaseAmmo(m,"r"));
+  updateMatch(m,5.9);assert.equal(m.robots[0].ammo,0);
+  updateMatch(m,.1);assert.equal(m.robots[0].ammo,100);
+  for(let i=0;i<10;i++)damageTarget(m,m.robots[0],{type:"robot",id:"b"});
+  assert.equal(m.robots[1].hp,0);assert.ok(reviveRobot(m,"b",true));
+  updateMatch(m,420);updateMatch(m,1);
+  return {state:JSON.parse(JSON.stringify(m)),events,damage};
+ }
+ const a=run(false),b=run(true);assert.deepEqual(a.state,b.state);assert.deepEqual(a.damage,b.damage);
+ assert.deepEqual(b.events.filter(e=>e.type==="ammo").map(e=>[e.status,e.amount]),[["requested",100],["completed",100]]);
+ for(const type of ["match-start","match-end","robot-dead","robot-revived"])assert.equal(b.events.filter(e=>e.type===type).length,1,type);
+});

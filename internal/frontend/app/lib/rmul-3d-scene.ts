@@ -1,3 +1,4 @@
+import {createEventFeed} from "./rmuc-3d-events";
 import {readRobotSight,followOffset,translatedOrbit} from "./rmuc-3d-spectator";
 import {createRobotFeedback} from "./rmuc-3d-robot-feedback";
 import { GROUND_ROSTER, groundIdentity } from "./rmuc-3d-identity";
@@ -14,7 +15,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView } from "./rmuc-3d-camera";
 import { resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
-import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, canSpinChassis, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent } from "./rmuc-3d-match";
+import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, canSpinChassis, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent,type MatchEvent } from "./rmuc-3d-match";
 import { traceArenaShot, createArenaShotPreparer, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
 import { createArmorGlow } from "./rmuc-3d-lighting";
 import { createDartVisual } from "./rmuc-3d-dart-visual";
@@ -32,7 +33,7 @@ type RadarSummary={opportunities:number;doubleUntil:number;encryptionLevel:numbe
 type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Partial<Record<Team,RadarSummary>>};
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
-export type ArenaStatus = { experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
+export type ArenaStatus = { events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   interact: () => void;
@@ -231,18 +232,20 @@ export function mountArena(
 
   const manualRobot=()=>activeRobot()?.sentryControl==="auto"?null:driving;
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
-  const damageFlashes=new Map<string,{amount:number;until:number}>();
+  const eventFeed=createEventFeed();
+  function recordEvent(event:MatchEvent){
+    if(experiment?.running)return;
+    eventFeed.add(event,performance.now());robotFeedback?.event(event);
+  }
   function recordDamage(event:DamageEvent){
     if(experiment?.running)experiment.telemetry?.damage(event);
     robotFeedback?.damage(event);
-    const target=event.target,key=target.type==="robot"?target.id:target.team+"-"+target.type;
-    if(target.type!=="robot"){const old=damageFlashes.get(key);damageFlashes.set(key,{amount:event.amount+(old&&old.until>event.at?old.amount:0),until:event.at+.65});}
+    const target=event.target;
     if(target.type==="robot"&&target.id===activeRobot()?.id&&activeRobot()?.hp===0)clearInput();
   }
   function damageFor(key:string){
     if(match?.phase!=="running")return 0;
-    const entry=damageFlashes.get(key);
-    return entry&&entry.until>match.elapsed?entry.amount:robotFeedback?.amountFor(key,match.elapsed)??0;
+    return robotFeedback?.amountFor(key,match.elapsed)??0;
   }
   function mapTracks(team:"all"|Team,operator=false):MapTrack[]{
     if(!match)return [];
@@ -276,7 +279,9 @@ export function mountArena(
     const power=match&&vehicle?chassisStatus(match,vehicle):null;
     const stance=match&&vehicle?sentryStatus(match,vehicle):null;
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
-    const status: ArenaStatus = { air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    const events=eventFeed.view(perspective,performance.now());
+    if(events.items.length&&!experiment?.running)invalidate();
+    const status: ArenaStatus = { events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -497,7 +502,7 @@ export function mountArena(
   function reset() {
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
-    damageFlashes.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;
+    eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
@@ -1182,7 +1187,7 @@ export function mountArena(
     }
     fieldRobots=robots.filter(r=>!!groundIdentity(r.object.name));
     armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
-    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object));
+    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object),(["red","blue"] as const).flatMap(team=>(["base","outpost"] as const).map(kind=>({key:team+"-"+kind,team,kind,object:mechanism!.parts.getObjectByName(team+"-"+kind+"-assembly")!}))));
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
@@ -1201,7 +1206,7 @@ export function mountArena(
       armorCenters.set(robot,list);
     }
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
-    damageFlashes.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;
+    eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});
