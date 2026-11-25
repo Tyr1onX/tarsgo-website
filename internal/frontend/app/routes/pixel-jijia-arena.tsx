@@ -56,7 +56,7 @@ function TeamScore({team,side,select,selected}:{team:"red"|"blue";side:NonNullab
 }
 const CAMERA_VIEWS = [
   { id: "first", label: "第一人称" },
-  { id: "third", label: "自由视角" },
+  { id: "third", label: "自由飞行" },
   { id: "all", label: "全场" },
   { id: "red", label: "红方" },
   { id: "blue", label: "蓝方" },
@@ -129,7 +129,7 @@ export default function PixelJijiaArenaPage() {
     };
   }, []);
 
-  const playing = status.view === "first";
+  const playing = status.view === "first", flying=status.view==="third";
   const firstPerson=playing||status.view==="ai-first";
   const focus=status.focus,focused=!!focus&&!!status.match;
   const observed=focused&&!status.robot;
@@ -140,7 +140,7 @@ export default function PixelJijiaArenaPage() {
     setMenu(open);
   };
   const disabled = loading || !!error;
-  const touchKeys = [["KeyW", "↑"], ["KeyA", "←"], ["KeyS", "↓"], ["KeyD", "→"]] as const;
+  const touchKeys = [["KeyW", "↑"], ["KeyA", "←"], ["KeyS", "↓"], ["KeyD", "→"],...(flying?[["Space","升"],["ShiftLeft","降"]]:[])] as const;
 
   return (
     <main className="rmul3d">
@@ -154,13 +154,15 @@ export default function PixelJijiaArenaPage() {
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
-          {status.match.phase === "ready" ? <><button onClick={() => controller.current?.start()}>开始自主对抗训练</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
+          {status.match.phase === "ready" ? status.countdown?<div className="rmul3d-countdown" role="status"><div><b>红方</b><span>VS</span><b>蓝方</b></div><strong>{status.countdown}</strong><button onClick={()=>controller.current?.cancelStart()}>取消</button></div>:<><button onClick={() => controller.current?.start()}>开始自主对抗训练</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
             <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} select={legalTeam("red")?select:undefined} selected={focus?.id??status.selected}/><div className="rmul3d-clock"><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong>{status.match.phase==="finished"&&<small>结束</small>}</div><TeamScore team="blue" side={status.match.sides.blue} select={legalTeam("blue")?select:undefined} selected={focus?.id??status.selected}/></div>
-            {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
+            {status.match.phase === "finished" && <><strong className={"rmul3d-result "+status.match.winner}>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方胜利":"蓝方胜利"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
         </div>}
-        {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(item.event.at/60)}:{String(Math.floor(item.event.at%60)).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
+        {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(Math.ceil(420-item.event.at)/60)}:{String(Math.ceil(420-item.event.at)%60).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
         {!disabled&&!menu&&!experimentRunning&&status.events?.banner&&<div className="rmul3d-event-banner" role="status">{status.events.banner.text}</div>}
+        {!disabled&&!menu&&(status.canDirect||status.director)&&<button className="rmul3d-director" aria-pressed={!!status.director} onClick={()=>controller.current?.director(!status.director)}>自动导播 {status.director?"开":"关"}</button>}
+        {!disabled&&!menu&&flying&&<span className="rmul3d-flight-speed">{status.flightSpeed?.toFixed(1)} m/s</span>}
         {!disabled&&!menu&&status.radarMap&&status.match?.phase==="running"&&<aside className="rmul3d-minimap">
           {focused&&<div className="rmul3d-ammo"><b>{status.match!.ammo}</b><span>{status.match!.reserve>0?" + "+status.match!.reserve:""} 弹药</span></div>}
           <div className="rmul3d-map-head">{status.robot?<span>{status.radarMap.perspective==="red"?"红方情报":"蓝方情报"}</span>:<select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={status.view==="ai-first"} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>}
@@ -190,11 +192,11 @@ export default function PixelJijiaArenaPage() {
           {observed&&<nav className="rmul3d-observer-controls" aria-label="观战相机"><button onClick={()=>controller.current?.view("all")}>全场</button><button onClick={()=>controller.current?.view(status.view==="follow"?"ai-first":"follow")}>{status.view==="follow"?"AI第一人称":"第三人称"}</button><button disabled={!focus.canTakeControl} onClick={()=>controller.current?.takeControl()}>人工接管</button></nav>}
           {status.robot&&status.match.phase==="running"&&<button className="rmul3d-tactics-toggle" type="button" aria-expanded={tacticsOpen} aria-controls="rmul3d-live-tactics" onClick={()=>setTacticsOpen(open=>!open)}>{tacticsOpen?"关闭战术":"战术操作"}</button>}
         </section>}
-        {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.performance && <div className="rmul3d-combat">
+        {!disabled && !menu && !status.countdown && playing && status.robot && status.match?.phase==="ready" && status.match.performance && <div className="rmul3d-combat">
           <label>底盘 <select value={status.match.performance.chassis} onChange={e=>controller.current?.performance({...status.match!.performance!,chassis:e.target.value as "hp"|"power"})}><option value="hp">血量优先</option><option value="power">功率优先</option></select></label>
           <label>发射机构 <select value={status.match.performance.launcher} onChange={e=>controller.current?.performance({...status.match!.performance!,launcher:e.target.value as "cooling"|"burst"})}><option value="cooling">冷却优先</option><option value="burst">爆发优先</option></select></label>
         </div>}
-        {!disabled && !menu && playing && status.robot && status.match?.phase==="ready" && status.match.stance && <div className="rmul3d-combat">
+        {!disabled && !menu && !status.countdown && playing && status.robot && status.match?.phase==="ready" && status.match.stance && <div className="rmul3d-combat">
           <label>哨兵控制 <select value={status.match.stance.control} onChange={e=>controller.current?.sentryControl(e.target.value as "auto"|"semi")}><option value="auto">全自动</option><option value="semi">半自动</option></select></label>
         </div>}
         {!disabled && !menu && playing && status.robot && status.match?.phase==="running" && <div id="rmul3d-live-tactics" className="rmul3d-combat rmul3d-combat-live">
@@ -242,9 +244,9 @@ export default function PixelJijiaArenaPage() {
           onPointerCancel={event=>controller.current?.fire("button:"+event.pointerId,false)}
           onLostPointerCapture={event=>controller.current?.fire("button:"+event.pointerId,false)}>{status.match.thermalLock==="permanent"?"发射机构已锁定":status.match.thermalLock?"冷却中":status.match.launcher?.state==="test"?"测试射击":"开火"}</button>}
         </div>
-        {!disabled && !menu && playing && status.match?.stance?.control!=="auto" && <div className="rmul3d-touch" aria-label="移动控制">
+        {!disabled && !menu && !status.countdown && (flying||playing && status.match?.stance?.control!=="auto") && <div className="rmul3d-touch" aria-label="移动控制">
           {touchKeys.map(([key, arrow]) => <button key={key} type="button"
-            aria-label={key === "KeyW" ? "前进" : key === "KeyS" ? "后退" : key === "KeyA" ? "左移" : "右移"}
+            aria-label={key === "KeyW" ? "前进" : key === "KeyS" ? "后退" : key === "KeyA" ? "左移" : key==="Space"?"上升":key==="ShiftLeft"?"下降":"右移"}
             onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); controller.current?.input(key, true); }}
             onPointerUp={() => controller.current?.input(key, false)}
             onPointerCancel={() => controller.current?.input(key, false)}
@@ -268,7 +270,7 @@ export default function PixelJijiaArenaPage() {
           <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }}>战术演练</Link>
           <h2>视角</h2>
           <nav className="rmul3d-views" aria-label="校准视角">
-            {CAMERA_VIEWS.filter(({id})=>(!status.robot||id==="first")&&(!experimentRunning||id!=="first")).map(({ id, label }) => (
+            {CAMERA_VIEWS.filter(({id})=>(!status.robot||id==="first")&&(!experimentRunning||id==="all")&&(id!=="third"||status.radarMap?.perspective==="all")).map(({ id, label }) => (
               <button key={id} type="button" disabled={disabled}
                 aria-pressed={status.view === id} className={status.view === id ? "is-active" : ""}
                 onClick={() => { controller.current?.view(id); toggleMenu(false); }}>{label}</button>
@@ -281,7 +283,7 @@ export default function PixelJijiaArenaPage() {
             <dt>W A S D</dt><dd>移动</dd>
             <dt>单击画面 / 鼠标</dt><dd>锁定并转向</dd>
             <dt>拖动 / 方向键</dt><dd>转向</dd>
-            <dt>自由视角</dt><dd>拖动旋转、右键平移、滚轮缩放</dd>
+            <dt>自由飞行</dt><dd>WASD移动，空格上升，Shift下降，Ctrl加速，滚轮调速</dd>
             <dt>Shift</dt><dd>加速行走 / 底盘超功率训练</dd>
             <dt>E</dt><dd>接管 / 退出机器人</dd>
             <dt>左键 / 空格</dt><dd>按住持续开火</dd>

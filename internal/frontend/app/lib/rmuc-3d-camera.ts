@@ -40,3 +40,12 @@ export function lookDirection(look: LookAngles, target = new THREE.Vector3()) {
   const { yaw, pitch } = look;
   return target.set(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
 }
+
+export function flightBounds(bounds:THREE.Box3){const result=bounds.clone();const size=result.getSize(new THREE.Vector3());result.expandByVector(new THREE.Vector3(5,0,5));result.min.y-=.5;result.max.y+=Math.max(12,Math.max(size.x,size.z));return result;}
+export function flightStep(position:THREE.Vector3,look:LookAngles,keys:ReadonlySet<string>,speed:number,dt:number,bounds:THREE.Box3){
+ const f=Number(keys.has('KeyW'))-Number(keys.has('KeyS')),r=Number(keys.has('KeyD'))-Number(keys.has('KeyA')),u=Number(keys.has('Space'))-Number(keys.has('ShiftLeft')||keys.has('ShiftRight'));
+ const norm=Math.hypot(f,r,u);if(!norm)return false;
+ const d=lookDirection(look).multiplyScalar(f).add(new THREE.Vector3(Math.cos(look.yaw)*r,u,-Math.sin(look.yaw)*r));
+ if(d.lengthSq()>0)d.normalize().multiplyScalar(speed*(keys.has('ControlLeft')||keys.has('ControlRight')?3:1)*Math.min(.05,Math.max(0,dt)));
+ position.add(d).clamp(bounds.min,bounds.max);return true;
+}

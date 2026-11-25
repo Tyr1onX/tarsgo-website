@@ -213,3 +213,14 @@
 @media (orientation:landscape) and (max-height:500px){
  .rmul3d-hud.is-focused .rmul3d-event-feed {grid-column:2;justify-self:center;}
 }
+
+.rmul3d-countdown {display:grid;justify-items:center;gap:8px;padding:14px 28px;background:#101822ed;border-radius:6px;pointer-events:auto;}
+.rmul3d-countdown>div {display:flex;gap:20px;align-items:center;font-size:18px;}
+.rmul3d-countdown b:first-child,.rmul3d-result.red {color:#fa5267;}
+.rmul3d-countdown b:last-child,.rmul3d-result.blue {color:#4389f7;}
+.rmul3d-countdown>strong {font-size:54px;line-height:1.1;color:white;}
+.rmul3d-result {font-size:24px;padding:8px 18px;background:#101822ed;animation:rmul-result .35s ease-out;}
+@keyframes rmul-result {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.rmul3d-result{animation:none}}
+.rmul3d .rmul3d-director {position:absolute;right:10px;bottom:12px;font-size:11px;pointer-events:auto;}
+.rmul3d-flight-speed {position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:11px;background:#101822d9;padding:4px 8px;}
