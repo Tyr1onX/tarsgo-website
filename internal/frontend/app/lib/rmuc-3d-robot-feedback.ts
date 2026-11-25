@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {ARENA_VISUAL} from "./rmuc-3d-visual.ts";
 import {groundIdentity} from "./rmuc-3d-identity.ts";
 import {eventMessage,visibleEvent} from "./rmuc-3d-events.ts";
 import type {Match,DamageEvent,MatchEvent,Team} from "./rmuc-3d-match.ts";
@@ -55,10 +56,10 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
   function localMessage(key:string,at:number,perspective:"all"|Team){
     const entry=localEvents.get(key);if(!entry)return null;
     if(at-entry.event.at>=2){localEvents.delete(key);return null;}
-    return visibleEvent(entry.event,perspective)?entry.text:null;
+    return visibleEvent(entry.event,perspective)?entry:null;
   }
-  function localText(l:Label,text:string,damage?:number){
-    draw(l,text+":"+damage,c=>{c.textAlign="center";c.textBaseline="middle";c.font="bold 24px sans-serif";c.fillStyle="rgba(10,16,24,.88)";c.fillRect(0,0,l.canvas.width,l.canvas.height);c.fillStyle="#eef6ff";c.fillText(text,l.canvas.width/2,damage?18:l.canvas.height/2,l.canvas.width-8);if(damage){c.fillStyle="#ffd7aa";c.fillText("-"+damage,l.canvas.width/2,l.canvas.height-16,l.canvas.width-8);}});
+  function localText(l:Label,text:string,damage?:number,color:string=ARENA_VISUAL.text){
+    draw(l,text+":"+damage+":"+color,c=>{c.textAlign="center";c.textBaseline="middle";c.font="600 24px system-ui, sans-serif";c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(0,0,l.canvas.width,l.canvas.height);c.fillStyle=color;c.fillText(text,l.canvas.width/2,damage?18:l.canvas.height/2,l.canvas.width-8);if(damage){c.fillStyle=ARENA_VISUAL.damage;c.fillText("−"+damage,l.canvas.width/2,l.canvas.height-16,l.canvas.width-8);}});
   }
   const restore:[THREE.Mesh,THREE.Material|THREE.Material[]][]=[];
   const point=new THREE.Vector3(),view=new THREE.Vector3();
@@ -89,7 +90,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
     }
     restore.push([mesh,original]);mesh.material=material;
   }
-  function update(match:Match,camera:THREE.PerspectiveCamera,height:number,perspective:"all"|Team){
+  function update(match:Match,camera:THREE.PerspectiveCamera,height:number,perspective:"all"|Team,reducedMotion=false){
     restoreMaterials();camera.updateMatrixWorld();
     const pixels=height*camera.projectionMatrix.elements[5]/2,at=match.elapsed;
     for(const s of slots.values()){
@@ -98,14 +99,14 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       const showIntel=visible&&(perspective==="all"||perspective===state.team);
       const alive=state.hp>0,off=!alive||state.powerLockUntil>at;
       const dt=Math.max(0,at-s.at);s.at=at;
-      s.hp=!Number.isFinite(s.hp)||dt>.3||!alive||s.hp===0?state.hp:s.hp+(state.hp-s.hp)*Math.min(1,dt/.24);
+      s.hp=reducedMotion||!Number.isFinite(s.hp)||dt>.3||!alive||s.hp===0?state.hp:s.hp+(state.hp-s.hp)*Math.min(1,dt/.24);
       if(Math.abs(s.hp-state.hp)<.5)s.hp=state.hp;
       const fraction=Math.round(Math.max(0,Math.min(1,s.hp/state.maxHp))*100);
-      const color=state.team==="red"?"#f05258":"#428dff";
+      const color=ARENA_VISUAL[state.team];
       draw(s.label,fraction+":"+off,c=>{
-        c.fillStyle="rgba(10,16,24,.86)";c.fillRect(28,8,200,78);
-        c.font="bold 46px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle=color;c.fillText(s.identity.number,128,34);
-        c.fillStyle="#303b47";c.fillRect(40,62,176,13);c.fillStyle=off?"#697582":color;c.fillRect(40,62,176*fraction/100,13);
+        c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(28,8,200,78);
+        c.font="700 46px system-ui, sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle=color;c.fillText(s.identity.number,128,34);
+        c.fillStyle=ARENA_VISUAL.track;c.fillRect(40,62,176,13);c.fillStyle=off?ARENA_VISUAL.inactive:color;c.fillRect(40,62,176*fraction/100,13);
       });
       s.robot.getWorldPosition(point);point.y+=s.height;
       const depth=-view.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
@@ -115,12 +116,12 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       const burst=s.burst,age=burst?at-burst.last:Infinity,message=localMessage(s.identity.id,at,perspective);
       s.damage.sprite.visible=s.label.sprite.visible&&!!burst&&age<DAMAGE_LIFE&&match.phase==="running";
       if(s.label.sprite.visible&&message&&match.phase==="running"){
-        localText(s.damage,message,age<DAMAGE_LIFE?burst?.amount:undefined);s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;
+        localText(s.damage,message.text,age<DAMAGE_LIFE?burst?.amount:undefined,message.event.type==="heal"||message.event.type==="robot-revived"?ARENA_VISUAL.recovery:ARENA_VISUAL.text);s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;
         s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.42;s.damage.sprite.scale.set(width*1.35,width*.45,1);
       }else if(s.damage.sprite.visible&&burst){
-        draw(s.damage,String(burst.amount),c=>{c.textAlign="center";c.textBaseline="middle";c.font="bold 50px sans-serif";c.lineWidth=6;c.strokeStyle="#17191d";c.fillStyle="#ffd7aa";c.strokeText("-"+burst.amount,96,32);c.fillText("-"+burst.amount,96,32);});
-        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.35+age*.42;s.damage.sprite.scale.set(width*.95,width*.95/3,1);
-        s.damage.sprite.material.opacity=Math.min(1,(DAMAGE_LIFE-age)/.26);
+        draw(s.damage,String(burst.amount),c=>{c.textAlign="center";c.textBaseline="middle";c.font="700 50px system-ui, sans-serif";c.lineWidth=6;c.strokeStyle="#17191d";c.fillStyle=ARENA_VISUAL.damage;c.strokeText("−"+burst.amount,96,32);c.fillText("−"+burst.amount,96,32);});
+        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.35+(reducedMotion?0:age*.42);s.damage.sprite.scale.set(width*.95,width*.95/3,1);
+        s.damage.sprite.material.opacity=reducedMotion?1:Math.min(1,(DAMAGE_LIFE-age)/.26);
       }else{
         if(age>=DAMAGE_LIFE)s.burst=undefined;
 
@@ -129,9 +130,9 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       // intact and restore base materials immediately after the render.
       for(const [mesh,until] of s.flashes){
         if(off||until<=at||match.phase!=="running"){s.flashes.delete(mesh);continue;}
-        if(visible)flash(mesh);
+        if(visible&&!reducedMotion)flash(mesh);
       }
-      if(visible&&!off&&s.bodyUntil>at&&match.phase==="running")for(const mesh of s.body)flash(mesh);
+      if(visible&&!reducedMotion&&!off&&s.bodyUntil>at&&match.phase==="running")for(const mesh of s.body)flash(mesh);
     }
     for(const s of structureSlots.values()){
       const depth=-view.copy(s.anchor).applyMatrix4(camera.matrixWorldInverse).z;
@@ -139,20 +140,20 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       const visible=depth>0&&depth<100&&match.phase==="running";
       if(s.label&&(s.kind==="base"||s.kind==="outpost")){
       const state=match.sides[s.team],hp=state[s.kind],max=s.kind==="base"?10000:1000,owner=s.kind==="outpost"?state.outpostOwner:s.team;
-      const color=owner==="red"?"#f05258":"#428dff";
+      const color=ARENA_VISUAL[owner];
       draw(s.label,hp+":"+owner,c=>{
-        c.fillStyle="rgba(10,16,24,.86)";c.fillRect(8,4,240,88);
-        c.fillStyle=color;c.font="bold 25px sans-serif";c.textAlign="center";c.textBaseline="middle";
+        c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(8,4,240,88);
+        c.fillStyle=color;c.font="700 25px system-ui, sans-serif";c.textAlign="center";c.textBaseline="middle";
         c.fillText((s.team==="red"?"红":"蓝")+(s.kind==="base"?"方基地":"方前哨")+" "+hp,128,31);
-        c.fillStyle="#303b47";c.fillRect(20,62,216,13);c.fillStyle=color;c.fillRect(20,62,216*hp/max,13);
+        c.fillStyle=ARENA_VISUAL.track;c.fillRect(20,62,216,13);c.fillStyle=color;c.fillRect(20,62,216*hp/max,13);
       });
       s.label.sprite.visible=visible;s.label.sprite.position.copy(s.anchor);s.label.sprite.scale.set(width,width*96/256,1);
       }
       const burst=s.burst,age=burst?at-burst.last:Infinity;
-      const local=localMessage(s.key,at,perspective),message=local??(burst&&age<DAMAGE_LIFE?"-"+burst.amount:null);
+      const local=localMessage(s.key,at,perspective),message=local?.text??(burst&&age<DAMAGE_LIFE?"−"+burst.amount:null);
       if(age>=DAMAGE_LIFE)s.burst=undefined;
       s.damage.sprite.visible=visible&&!!message;
-      if(message&&visible){localText(s.damage,message,local&&age<DAMAGE_LIFE?burst?.amount:undefined);s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(s.anchor);s.damage.sprite.position.y+=width*.4;s.damage.sprite.scale.set(width,width/4,1);}
+      if(message&&visible){localText(s.damage,message,local&&age<DAMAGE_LIFE?burst?.amount:undefined,local?.event.type==="outpost-rebuilt"?ARENA_VISUAL.recovery:local?ARENA_VISUAL.text:ARENA_VISUAL.damage);s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(s.anchor);s.damage.sprite.position.y+=width*.4;s.damage.sprite.scale.set(width,width/4,1);}
     }
   }
   function clear(){restoreMaterials();localEvents.clear();for(const s of structureSlots.values()){s.burst=undefined;s.damage.sprite.visible=false;if(s.label)s.label.sprite.visible=false;}for(const s of slots.values()){s.burst=undefined;s.bodyUntil=0;s.flashes.clear();s.hp=NaN;s.at=0;s.damage.sprite.visible=false;}}

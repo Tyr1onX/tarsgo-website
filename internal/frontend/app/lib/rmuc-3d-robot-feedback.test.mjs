@@ -31,8 +31,11 @@ test("actual projectile damage drives one robot's feedback; geometry, team LEDs 
  assert.equal(m.robots[1].hp,180);
  feedback.update(m,camera,720,"all");
  assert.notEqual(plate.material,plateMaterial);assert.equal(plate.material.map,plateMaterial.map);assert.equal(plate.material.roughness,plateMaterial.roughness);assert.equal(plate.material.metalness,plateMaterial.metalness);assert.notEqual(body.material,bodyMaterial);assert.equal(led.material,ledMaterial);
- assert.ok(drawTexts.includes("-20"));assert.ok(feedback.group.children.every(o=>o.material.depthTest&&o.material.depthWrite===false));assert.equal(feedback.group.children.length,4);
+ assert.ok(drawTexts.includes("−20"));assert.ok(feedback.group.children.every(o=>o.material.depthTest&&o.material.depthWrite===false));assert.equal(feedback.group.children.length,4);
  feedback.restoreMaterials();assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);assert.equal(g.children.length,count);assert.equal(plate.geometry,geometry);
+ feedback.update(m,camera,720,"all",true);assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);
+ const damageSprite=feedback.group.children[3],fixedY=damageSprite.position.y;assert.equal(damageSprite.visible,true);assert.equal(damageSprite.material.opacity,1);
+ m.elapsed+=.05;feedback.update(m,camera,720,"all",true);assert.equal(damageSprite.position.y,fixedY);assert.equal(damageSprite.material.opacity,1);
  feedback.update(m,camera,720,"red");assert.equal(feedback.group.children[2].visible,false);assert.equal(feedback.group.children[3].visible,false);assert.notEqual(plate.material,plateMaterial);feedback.restoreMaterials();
  m.robots[1].hp=0;feedback.update(m,camera,720,"all");assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);
  m.robots[1].hp=200;m.elapsed+=1;feedback.update(m,camera,720,"all");assert.equal(feedback.group.children[3].visible,false);
@@ -63,6 +66,6 @@ test("same-tick structural destruction and rebuild stay visible beside damage an
  feedback.damage({target:{type:"outpost",team:"blue"},amount:20,at:20,source:"projectile"});
  feedback.event({type:"dart-hit",team:"red",location:"blue",mode:"outpost",damage:20,at:20,visibility:"all"});
  feedback.update(m,camera,720,"all");
- assert.ok(texts.includes("摧毁 · 重建 +500"));assert.ok(texts.includes("-20"));
+ assert.ok(texts.includes("摧毁 · 重建 +500"));assert.ok(texts.includes("−20"));
  assert.equal(feedback.amountFor("blue-outpost",20),20);feedback.dispose();
 });

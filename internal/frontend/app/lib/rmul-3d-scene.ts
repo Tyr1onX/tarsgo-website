@@ -96,6 +96,7 @@ export function mountArena(
   onInputReset:()=>void,
 ): ArenaController {
   const programStarted=performance.now();
+  const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
   let settings=initialSettings;
   const pixelRatio=()=>arenaPixelRatio(settings.quality,window.devicePixelRatio,navigator.hardwareConcurrency,(navigator as Navigator&{deviceMemory?:number}).deviceMemory);
   const scene = new THREE.Scene();
@@ -542,7 +543,7 @@ export function mountArena(
     if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first");
     if(mode==="follow")followRendered.copy(camera.position);
-    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective);
+    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches);
     try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
 
@@ -1250,6 +1251,7 @@ export function mountArena(
   window.addEventListener("keyup", keyup);
   window.addEventListener("blur", clearInput);
   window.addEventListener("orientationchange",clearInput);
+  reducedMotion.addEventListener("change",invalidate);
   window.addEventListener("pointerup", pointerup);
   window.addEventListener("pointercancel", pointerup);
   performance.measure("arena:program",{start:programStarted,end:performance.now()});
@@ -1454,6 +1456,7 @@ export function mountArena(
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", clearInput);
       window.removeEventListener("orientationchange",clearInput);
+      reducedMotion.removeEventListener("change",invalidate);
       window.removeEventListener("pointerup", pointerup);
       window.removeEventListener("pointercancel", pointerup);
       countdownEnd=0;audio.dispose();stopDirector();canvas.removeEventListener("wheel",wheel);controls.removeEventListener("start",orbitStart);
