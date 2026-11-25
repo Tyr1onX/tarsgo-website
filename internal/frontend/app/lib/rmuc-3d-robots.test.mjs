@@ -137,3 +137,23 @@ test("local LED halo follows source world transform and never enters robot colli
  setArmorLight(robots[0],false);glow.update();assert.equal(first.visible,false);
  glow.dispose();assert.equal(glow.group.parent,null);
 });
+
+
+test("2027 identities derive from table 3-1 independently of legacy asset labels",async()=>{
+ const {GROUND_ROSTER,SYSTEM_NUMBERS,systemIdentity}=await import("./rmuc-3d-identity.ts");
+ assert.deepEqual(SYSTEM_NUMBERS,{air:6,dart:8,radar:9});
+ assert.equal(systemIdentity("red","air").id,"red-2027-air-06");
+ assert.deepEqual(ROBOT_PLACEMENTS.filter(r=>r.area==="field").map(r=>r.identity),GROUND_ROSTER);
+ assert.ok(ROBOT_PLACEMENTS.filter(r=>r.area==="pit").every(r=>r.identity===null));
+ for(const team of ["blue","red"]){
+  assert.deepEqual(GROUND_ROSTER.filter(r=>r.team===team).map(r=>[r.number,r.kind]),[["01","heavy"],["03","infantry"],["04","infantry"],["07","sentry"]]);
+ }
+ const {addRobotPreviews}=await import("./rmuc-3d-robots.ts");
+ const scene=new THREE.Scene(),field=new THREE.Group(),labels=[];
+ globalThis.document={createElement:()=>({getContext:()=>({fillRect(){},fillText(value){labels.push(value);}})})};
+ let exhibit;try{exhibit=addRobotPreviews(field,scene,{heightAt:()=>0});}finally{delete globalThis.document;}
+ assert.deepEqual(exhibit.children.filter(r=>r.userData.identity).map(r=>r.name),GROUND_ROSTER.map(r=>r.id));
+ for(const [i,r] of exhibit.children.entries())if(r.userData.identity){
+  assert.equal(labels[i],r.userData.identity.number);assert.equal(r.userData.assetId,r.userData.identity.assetId);
+ }
+});

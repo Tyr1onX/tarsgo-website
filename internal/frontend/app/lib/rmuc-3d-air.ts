@@ -1,3 +1,4 @@
+import {systemIdentity} from "./rmuc-3d-identity.ts";
 import * as THREE from "three";
 import type {Team} from "./rmuc-3d-mechanisms";
 export const AIR_PAD_PRODUCT=1754789;
@@ -33,7 +34,7 @@ export function createAirSystem(scene:THREE.Object3D,pads:Record<Team,THREE.Vect
     const vehicles:AirVehicle[]=[];
     for(let i=0;i<AIR_COUNT;i++){
       const home=pads[team].clone().add(new THREE.Vector3((i%2-.5)*.14,.057,(Math.floor(i/2)-.5)*.14));
-      const object=new THREE.Group();object.name=team+"-air-"+(i+1);
+      const object=new THREE.Group();object.name=systemIdentity(team,"air").id+"-"+(i+1);
       const body=new THREE.Mesh(bodyGeo,frame);object.add(body);
       for(const x of [-.039,.039])for(const z of [-.039,.039]){
         const ring=new THREE.Mesh(guardGeo,guard);ring.position.set(x,0,z);ring.rotation.x=Math.PI/2;object.add(ring);
