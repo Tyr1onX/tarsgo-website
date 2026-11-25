@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import * as T from "three";
-import {createMatch,startMatch,updateMatch} from "./rmuc-3d-match.ts";
+import {createMatch,startMatch,updateMatch,damageTarget,reviveRobot} from "./rmuc-3d-match.ts";
 import {launchProjectile,advanceProjectile,ballisticAim,projectileSpeed,projectileDiameter,projectileVisualDiameter,RESIDUE_LIMIT,createProjectileSystem} from "./rmuc-3d-projectiles.ts";
 import {createRobotPreview,previewWeaponAt,aimWeapon} from "./rmuc-3d-robots.ts";
 import {traceArenaShot,prepareArenaShots,createArenaShotPreparer} from "./rmuc-3d-shot.ts";
@@ -123,4 +123,18 @@ test("cached CAD plan preserves traversal, moving bounds, layer changes and laun
  bench.attach(launcher);launcher.position.x=12;root.updateMatrixWorld(true);assert.equal(compare(),body);
  body.layers.disable(0);assert.equal(compare(),wall);
  body.layers.enable(0);assert.equal(compare(),body);
+});
+
+test("physical immune impact is distinct from a wall or defeated/friendly target",()=>{
+ const {m,target,from}=fixture();const enemy=m.robots[1];
+ while(enemy.hp>0)damageTarget(m,m.robots[0],{type:"robot",id:"b"});
+ assert.ok(reviveRobot(m,"b",true));
+ const ray=new T.Raycaster(),aim=ballisticAim(from,target.position,25);
+ const p=launchProjectile(m,"r",from,aim.direction);
+ let result;for(let i=0;i<20;i++){result=advanceProjectile(m,p,.025,ray,[target]);if(result.done)break;}
+ assert.equal(result.damage,0);assert.equal(result.shielded,true);assert.equal(result.hit.object,target);
+ const wall=new T.Mesh(new T.BoxGeometry(.1,2,2),new T.MeshBasicMaterial());wall.position.set(2,1,0);wall.updateMatrixWorld(true);
+ updateMatch(m,.3);const q=launchProjectile(m,"r",from,aim.direction);
+ for(let i=0;i<20;i++){result=advanceProjectile(m,q,.025,ray,[wall,target]);if(result.done)break;}
+ assert.equal(result.hit.object,wall);assert.equal(result.shielded,false);
 });

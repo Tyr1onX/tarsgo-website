@@ -665,7 +665,7 @@ function immune(match:Match,r:MatchRobot){
   return r.hp>0&&((r.revival?.state==="revived"&&r.revival.immuneUntil>Math.floor((match.elapsed+1e-8)*10))||
     (r.heavy&&inSupply(match,r)&&!weak(r))||(assemblyActive(match,r)&&activeZone(match,r,`${r.team}-assembly`)&&match.sides[r.team].tech.immuneTicks<450));
 }
-function robotDefense(match:Match,robot:MatchRobot,withRadar=true) {
+export function robotDefense(match:Match,robot:MatchRobot,withRadar=true) {
   let defense=teamDefense(match,robot.team);
   if(robot.heavy&&!robot.launcherCalibrated&&match.elapsed<180)defense=Math.max(defense,.5);
   const stance=robot.stance;
@@ -1019,7 +1019,7 @@ function armorMultiplier(m:Match,attacker:Team,owner:Team,hit?:ArmorHit){
 }
 
 export type Target = {type:"robot";id:string}|{type:"outpost"|"base";team:Team}|{type:"rune";team:Team;arm:number;ring:number};
-export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:ArmorHit) {
+export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:ArmorHit,onImmune?:()=>void) {
   if(match.phase!=="running") return 0;
   const side=match.sides[shooter.team];
   if(target.type==="rune"){hitRune(match,shooter,target);return 0;}
@@ -1027,7 +1027,7 @@ export function damageTarget(match:Match,shooter:MatchRobot,target:Target,hit?:A
     const enemy=match.robots.find(r=>r.id===target.id);
     if(!enemy||enemy.team===shooter.team||enemy.hp<=0)return 0;
     const multiplier=armorMultiplier(match,shooter.team,enemy.team,hit);
-    if(immune(match,enemy))return 0;
+    if(immune(match,enemy)){onImmune?.();return 0;}
     const raw=(shooter.heavy?200:20)*multiplier*(side.runeDisabledUntil>match.elapsed?1:side.rune.attack);
     const amount=Math.min(enemy.hp,Math.max(0,Math.round(raw*robotDefense(match,enemy))));
     const withoutRadar=match.onDamage&&radarVulnerability(match.radar,shooter.team,enemy,match.elapsed)>0?Math.min(enemy.hp,Math.max(0,Math.round(raw*robotDefense(match,enemy,false)))):amount;

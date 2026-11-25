@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import * as T from "three";
-import {createRobotFeedback,mergeDamageBurst} from "./rmuc-3d-robot-feedback.ts";
-import {createMatch,startMatch,damageTarget} from "./rmuc-3d-match.ts";
+import {createRobotFeedback,mergeDamageBurst,placeArenaMarker} from "./rmuc-3d-robot-feedback.ts";
+import {createMatch,startMatch,damageTarget,reviveRobot,revivalStatus} from "./rmuc-3d-match.ts";
 import {createProjectileSystem,ballisticAim} from "./rmuc-3d-projectiles.ts";
 import {GROUND_ROSTER} from "./rmuc-3d-identity.ts";
 
@@ -68,4 +68,38 @@ test("same-tick structural destruction and rebuild stay visible beside damage an
  feedback.update(m,camera,720,"all");
  assert.ok(texts.includes("摧毁 · 重建 +500"));assert.ok(texts.includes("−20"));
  assert.equal(feedback.amountFor("blue-outpost",20),20);feedback.dispose();
+});
+
+test("marker packing reserves priority space, clamps offsets and hides rather than stacking",()=>{
+ const view={width:400,height:220},anchor={x:200,y:110,w:88,h:34};
+ const first=placeArenaMarker(anchor,[],view);assert.equal(first.scale,1);
+ assert.equal(placeArenaMarker(anchor,[first.rect],view),null);
+ const nearby={...anchor,x:265};
+ const compact=placeArenaMarker(nearby,[first.rect],view);assert.ok(compact);
+ assert.ok(Math.abs(compact.rect.x-first.rect.x)>=(compact.rect.w+first.rect.w)/2+4);
+ const smaller={x:260,y:110,w:40,h:20};
+ const stable=placeArenaMarker(smaller,[],view,{...compact,dx:100,dy:-100});
+ assert.ok(Math.abs(stable.dx)<=smaller.w*.32);assert.ok(Math.abs(stable.dy)<=smaller.h*.38);
+ assert.equal(placeArenaMarker({...anchor,x:-10},[],view),null);
+});
+test("referee immunity and shield visibility use exact state, depth and team perspective",()=>{
+ const r=GROUND_ROSTER.find(r=>r.team==="red"&&r.number==="03"),b=GROUND_ROSTER.find(r=>r.team==="blue"&&r.number==="03");
+ const m=createMatch([r,b].map(x=>({id:x.id,team:x.team,heavy:false,maxHp:200})),1,1);startMatch(m);
+ const scene=new T.Scene(),robot=new T.Group();robot.name=b.id;robot.add(new T.Mesh(new T.BoxGeometry(.8,.8,.8),new T.MeshStandardMaterial()));scene.add(robot);scene.updateMatrixWorld(true);
+ globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
+ let feedback;try{feedback=createRobotFeedback(scene,[robot]);}finally{delete globalThis.document;}
+ let blocks=0;const hit=()=>damageTarget(m,m.robots[0],{type:"robot",id:b.id},undefined,()=>blocks++);
+ assert.equal(hit(),20);assert.equal(blocks,0);
+ while(m.robots[1].hp>0)hit();assert.equal(blocks,0);
+ assert.equal(hit(),0);assert.equal(blocks,0);
+ assert.ok(reviveRobot(m,b.id,true));assert.ok(revivalStatus(m,m.robots[1]).immune);
+ assert.equal(hit(),0);assert.equal(blocks,1);
+ damageTarget(m,m.robots[1],{type:"robot",id:b.id},undefined,()=>blocks++);assert.equal(blocks,1);
+ const camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(0,2,5);camera.lookAt(0,0,0);
+ const shell=scene.getObjectByName("ion-shield");assert.ok(shell.material.depthTest);assert.equal(shell.material.depthWrite,false);
+ feedback.update(m,camera,720,"red",true);assert.equal(shell.visible,false);
+ feedback.update(m,camera,720,"blue",true);assert.equal(shell.visible,true);
+ robot.visible=false;feedback.update(m,camera,720,"all",true,{firstPerson:true});assert.equal(shell.visible,false);
+ robot.visible=true;m.robots[1].hp=0;feedback.update(m,camera,720,"all",true);assert.equal(shell.visible,false);
+ feedback.clear();assert.equal(shell.visible,false);feedback.dispose();assert.equal(scene.getObjectByName("ion-shield"),undefined);
 });
