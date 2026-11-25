@@ -435,3 +435,7 @@
 .pixel-community-archive-image span { position: absolute; inset: auto; }
 .pixel-community-terminal--wolf { color: #a7f5f3; background: #25213f; border-color: #ad8df7; }
 .pixel-community-terminal--wolf a, .pixel-community-history a { color: #e2c9ff; }
+
+.pixel-world-training { position:absolute; left:50%; top:10px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; background:rgba(38,52,51,.91); color:#f5e9d1; padding:6px 10px; border:1px solid #b5a88b; font-size:12px; z-index:5; white-space:nowrap; }
+.pixel-world-training button { background:#ead7af; color:#34423c; border:0; padding:4px 8px; cursor:pointer; }
+.is-mobile .pixel-world-training { top:auto; bottom:78px; font-size:11px; }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getExperienceReturnTo, experienceReturnLabel } from "./experience-navigation.ts";
+import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "./experience-navigation.ts";
 
 test("experience return preserves the dashboard page, query and hash", () => {
   const path = "/dashboard/admin/users?q=abc#results";
@@ -13,4 +13,11 @@ test("experience return preserves the dashboard page, query and hash", () => {
   for (const path of ["//evil.example", "https://evil.example", "/dashboard\\evil", "/dashboardish"]) {
     assert.equal(getExperienceReturnTo({ experienceReturnTo: path }), "/");
   }
+});
+
+test("像素场景返回状态只接受有限坐标、合法缩放及站内返回位置",()=>{
+  assert.deepEqual(getPixelReturn({pixelReturn:{x:115,y:13,zoom:2.6,parent:"/dashboard"}}),{x:115,y:13,zoom:2.6,parent:"/dashboard"});
+  assert.equal(getPixelReturn({pixelReturn:{x:Infinity,y:13,zoom:2.6}}),null);
+  assert.equal(getPixelReturn({pixelReturn:{x:115,y:13,zoom:99}}),null);
+  assert.equal(getPixelReturn({pixelReturn:{x:115,y:13,zoom:2,parent:"//bad.example"}}).parent,"/");
 });
