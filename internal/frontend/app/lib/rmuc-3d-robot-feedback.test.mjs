@@ -17,7 +17,7 @@ test("damage bursts merge only bounded adjacent hits",()=>{
 test("actual projectile damage drives one robot's feedback; geometry, team LEDs and life state remain independent",()=>{
  const red=GROUND_ROSTER.find(r=>r.team==="red"&&r.number==="03"),blue=GROUND_ROSTER.find(r=>r.team==="blue"&&r.number==="03");
  const m=createMatch([red,blue].map(r=>({id:r.id,team:r.team,heavy:false,maxHp:200})),1,1);
- const scene=new T.Scene(),g=new T.Group(),owner=new T.Group(),bodyMaterial=new T.MeshStandardMaterial(),plateMaterial=new T.MeshStandardMaterial(),ledMaterial=new T.MeshStandardMaterial({emissive:0x1655ff,emissiveIntensity:2.2});
+ const scene=new T.Scene(),g=new T.Group(),owner=new T.Group(),bodyMaterial=new T.MeshStandardMaterial(),plateMaterial=new T.MeshStandardMaterial({map:new T.DataTexture(new Uint8Array([200,200,200,255]),1,1),roughness:.38,metalness:.5}),ledMaterial=new T.MeshStandardMaterial({emissive:0x1655ff,emissiveIntensity:2.2});
  const body=new T.Mesh(new T.BoxGeometry(.7,.2,.7),bodyMaterial),plate=new T.Mesh(new T.BoxGeometry(.1,.4,.4),plateMaterial),led=new T.Mesh(new T.BoxGeometry(.1,.03,.3),ledMaterial);
  plate.userData={armorSurface:true,hitPlate:true,target:{type:"robot",id:blue.id}};led.userData={armorLed:true,hitPlate:true};body.position.y=.2;plate.position.y=1;led.position.y=1.4;
  g.name=blue.id;g.position.x=5;g.add(body,plate,led);scene.add(g);owner.name=red.id;scene.add(owner);
@@ -30,7 +30,7 @@ test("actual projectile damage drives one robot's feedback; geometry, team LEDs 
  for(let i=0;i<12&&m.robots[1].hp===200;i++){m.elapsed+=.025;projectile.advance(m,.025,[g],undefined,feedback.contact);}
  assert.equal(m.robots[1].hp,180);
  feedback.update(m,camera,720,"all");
- assert.notEqual(plate.material,plateMaterial);assert.notEqual(body.material,bodyMaterial);assert.equal(led.material,ledMaterial);
+ assert.notEqual(plate.material,plateMaterial);assert.equal(plate.material.map,plateMaterial.map);assert.equal(plate.material.roughness,plateMaterial.roughness);assert.equal(plate.material.metalness,plateMaterial.metalness);assert.notEqual(body.material,bodyMaterial);assert.equal(led.material,ledMaterial);
  assert.ok(drawTexts.includes("-20"));assert.ok(feedback.group.children.every(o=>o.material.depthTest&&o.material.depthWrite===false));assert.equal(feedback.group.children.length,4);
  feedback.restoreMaterials();assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);assert.equal(g.children.length,count);assert.equal(plate.geometry,geometry);
  feedback.update(m,camera,720,"red");assert.equal(feedback.group.children[2].visible,false);assert.equal(feedback.group.children[3].visible,false);assert.notEqual(plate.material,plateMaterial);feedback.restoreMaterials();

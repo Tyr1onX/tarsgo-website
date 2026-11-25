@@ -65,12 +65,14 @@ const materials = {
   wheel: new THREE.MeshStandardMaterial({ color: 0x101114, roughness: .83 }),
   orange: new THREE.MeshStandardMaterial({ color: 0xef802f, roughness: .5 }),
   yellow: new THREE.MeshStandardMaterial({ color: 0xf2c839, roughness: .5 }),
-  led: new THREE.MeshStandardMaterial({ color: 0xff232a, emissive: 0xff1622, emissiveIntensity: 2.2, roughness: .35, toneMapped:false }),
+  led: new THREE.MeshStandardMaterial({ color: 0xff232a, emissive: 0xff1622, emissiveIntensity: .9, roughness: .28, toneMapped:false }),
   lens: new THREE.MeshStandardMaterial({ color: 0x477d92, metalness: .62, roughness: .16 }),
 };
 
 // Keep damageable panels distinct from structural geometry when batching meshes.
 const hitPlateMaterial = materials.armour.clone();
+hitPlateMaterial.metalness=.5;
+hitPlateMaterial.roughness=.38;
 
 function box(group: THREE.Group, w: number, h: number, d: number, x: number, y: number, z: number, material: THREE.Material) {
   const bevel = Math.min(w, h, d);
@@ -449,13 +451,16 @@ export function createRobotPreview(kind: RobotPreviewKind): THREE.Group {
         return geometry.applyMatrix4(mesh.matrix);
       });
       const merged = mergeGeometries(geometries);
+      const ledBounds=material===materials.led?geometries.map(g=>{g.computeBoundingBox();return g.boundingBox!.clone();}):undefined;
       for (const geometry of geometries) geometry.dispose();
       if (!merged) continue;
       for (const mesh of meshes) {
         mesh.removeFromParent();
         mesh.geometry.dispose();
       }
-      object.add(new THREE.Mesh(merged, material));
+      const combined=new THREE.Mesh(merged,material);
+      if(ledBounds)combined.userData.armorLedBounds=ledBounds;
+      object.add(combined);
     }
   });
   group.traverse(object=>{
@@ -561,7 +566,7 @@ export function bindLauncherModule(robot:THREE.Object3D,bench:THREE.Object3D,pad
 export function setArmorLight(robot:THREE.Object3D,active:boolean){
   robot.traverse(object=>{
     if(object instanceof THREE.Mesh&&object.userData.armorLed&&object.material instanceof THREE.MeshStandardMaterial){
-      object.material.emissiveIntensity=active?2.2:0;
+      object.material.emissiveIntensity=active?.9:0;
       object.material.color.setHex(active?(robot.userData.team==="blue"?0x236aff:0xff232a):0x242830);
     }
   });
