@@ -411,6 +411,8 @@ test("10Hz chassis buffer, five-second cutoff and level-dependent limits",async(
  const m=createMatch(roster,1,1);startMatch(m);
  const r=m.robots[0];
  assert.equal(powerLimit(m,r),45);
+ assert.equal(driveSpeed(m,r,1,false,.5),1.3);
+ assert.equal(r.powerDemand,.25);
  assert.equal(driveSpeed(m,r,1),2.6);
  updateMatch(m,2);assert.equal(r.powerBuffer,60);
  assert.ok(driveSpeed(m,r,2)>2.6);

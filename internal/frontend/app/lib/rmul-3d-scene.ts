@@ -28,6 +28,7 @@ import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta,
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 import { arenaPixelRatio, type ArenaSettings } from "./rmuc-3d-settings";
+import {boundedMove,movementIntent,ZERO_MOVE,type MoveVector} from "./rmuc-3d-input";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third" | "follow" | "ai-first" | "detail";
@@ -75,7 +76,8 @@ export interface ArenaController {
   sentryMark:(kind: "supply"|"outpost"|"central"|"highpoint")=>void;
   performance:(value:InfantryPerformance)=>void;
   reset: () => void;
-  input: (key: string, pressed: boolean) => void;
+  move: (id:number,vector:MoveVector|null,begin?:boolean) => boolean;
+  touchAction: (id:number,key:string,pressed:boolean) => void;
   pause: (paused: boolean) => void;
   settings: (value:ArenaSettings) => void;
   dispose: () => void;
@@ -91,6 +93,7 @@ export function mountArena(
   onReady: () => void,
   onError: (message: string) => void,
   onStatus: (status: ArenaStatus) => void,
+  onInputReset:()=>void,
 ): ArenaController {
   const programStarted=performance.now();
   let settings=initialSettings;
@@ -237,6 +240,21 @@ export function mountArena(
   let lastTime: number | null = null;
   let lastStatus = "";
   const keys = new Set<string>();
+  let moveOwner:number|null=null,touchMove=ZERO_MOVE;
+  const touchActions=new Map<number,string>();
+  function move(id:number,vector:MoveVector|null,begin=false){
+    if(vector===null){if(moveOwner===id){moveOwner=null;touchMove=ZERO_MOVE;invalidate();}return false;}
+    if(!ready||paused||countdownEnd||document.hidden||experiment?.running||(!isPlaying(mode)&&mode!=="third"))return false;
+    if(begin&&moveOwner===null)moveOwner=id;
+    if(moveOwner!==id)return false;
+    touchMove=boundedMove(vector.f,vector.r);invalidate();return true;
+  }
+  function touchAction(id:number,key:string,pressed:boolean){
+    if(!pressed){touchActions.delete(id);invalidate();return;}
+    if(ready&&!paused&&!countdownEnd&&!document.hidden&&!experiment?.running&&mode==="third"&&["Space","ShiftLeft","ControlLeft"].includes(key)){
+      touchActions.set(id,key);invalidate();
+    }
+  }
   const triggers = new Set<string>();
   let shotRequested=false;
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
@@ -494,18 +512,17 @@ export function mountArena(
       const dt=lastTime===null?0:Math.min(.05,(time-lastTime)/1000);
       const h=Number(keys.has("ArrowRight"))-Number(keys.has("ArrowLeft")),v=Number(keys.has("ArrowDown"))-Number(keys.has("ArrowUp"));
       if(h||v)look=turnWithSettings(h*dt*520,v*dt*520);
-      const moving=!paused&&!document.hidden&&flightStep(camera.position,look,keys,flightSpeed,dt,flyBounds);
+      const moving=!paused&&!document.hidden&&flightStep(camera.position,look,touchActions.size?new Set([...keys,...touchActions.values()]):keys,flightSpeed,dt,flyBounds,touchMove);
       camera.lookAt(clock.copy(camera.position).add(lookDirection(look,forward)));
       lastTime=moving||h||v?time:null;if(lastTime!==null)invalidate();
     }else if (ready && terrain && isPlaying(mode)) {
       const dt = lastTime === null ? 0 : Math.min(.05, (time - lastTime) / 1000);
-      const f = Number(keys.has("KeyW")) - Number(keys.has("KeyS"));
-      const r = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
+      const {f,r}=movementIntent(keys,touchMove);
       const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
       if ((!driving||match?.phase!=="running")&&(horizontal || vertical)) look = turnWithSettings(horizontal * dt * 520, vertical * dt * 520);
       if(!driving&&(f||r)){
-        const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.hypot(f,r);
+        const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.max(1,Math.hypot(f,r));
         moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
           robots.filter(robot=>Math.abs(robot.position.y-explorer.y)<1.15));
       }else if(driving&&match?.phase==="ready"&&!countdownEnd){
@@ -976,11 +993,11 @@ export function mountArena(
       const previousYaw=bot.object.rotation.y;
       const gimbal=bot.object.getObjectByName("gimbal");
       const occupants=fieldRobots.filter(r=>r!==bot&&Math.abs(r.position.y-bot.position.y)<1.15);
-      let target:THREE.Vector3|null=null,command:0|1|2=0;
+      let target:THREE.Vector3|null=null,command:0|1|2=0,strength=1;
       const route=botPaths.get(bot);
       if(manual&&isPlaying(mode)&&!paused){
-        const f=Number(keys.has("KeyW"))-Number(keys.has("KeyS")),r=Number(keys.has("KeyD"))-Number(keys.has("KeyA"));
-        if(f||r){const n=Math.hypot(f,r),{yaw}=look;target=bot.position.clone().add(new THREE.Vector3((-Math.sin(yaw)*f+Math.cos(yaw)*r)/n*10,0,(-Math.cos(yaw)*f-Math.sin(yaw)*r)/n*10));command=keys.has("ShiftLeft")||keys.has("ShiftRight")?2:1;}
+        const {f,r}=movementIntent(keys,touchMove);
+        if(f||r){const n=Math.hypot(f,r),{yaw}=look;strength=n;target=bot.position.clone().add(new THREE.Vector3((-Math.sin(yaw)*f+Math.cos(yaw)*r)/n*10,0,(-Math.cos(yaw)*f-Math.sin(yaw)*r)/n*10));command=keys.has("ShiftLeft")||keys.has("ShiftRight")?2:1;}
       }else if(!manual&&match.phase==="running"&&route&&!route.search){
         while(route.points.length&&bot.position.distanceTo(route.points[0])<.04)route.points.shift();
         if(Math.hypot(route.goal.x-bot.position.x,route.goal.z-bot.position.z)>=route.tolerance){target=route.points[0]??route.goal;command=1;}
@@ -989,7 +1006,7 @@ export function mountArena(
       if(assembly?.robot===state.id&&assembly.pending){target=null;command=0;}
       if(!canSpinChassis(match,state)||manual&&(!isPlaying(mode)||paused))motion.spin=false;
       const spin=!!motion.spin;
-      const speed=driveSpeed(match,state,command,spin);
+      const speed=driveSpeed(match,state,command,spin,strength);
       if(!canDriveRobot(match,state)||match.phase==="finished"){motions.delete(bot);shotIntents.delete(bot);botPaths.delete(bot);continue;}
       const oldX=bot.position.x,oldZ=bot.position.z;
       let traveled=stepChassis(terrain,bot,motion,target,speed,dt,occupants,!manual&&route&&!route.points.length?route.tolerance:undefined,spin);
@@ -1134,7 +1151,7 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyM") setView("all");
   }
   function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);input(event.code, false); }
-  function clearInput() { shotRequested=false;triggers.clear();keys.clear(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
+  function clearInput() { shotRequested=false;triggers.clear();keys.clear();moveOwner=null;touchMove=ZERO_MOVE;touchActions.clear();onInputReset(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
   function turn(dx: number, dy: number) {
     if (!ready || paused || (!isPlaying(mode)&&mode!=="third")) return;
     look = turnWithSettings(dx, dy);
@@ -1144,6 +1161,8 @@ export function mountArena(
   function pointerdown(event: PointerEvent) {
     if(!ready||paused||countdownEnd||event.button!==0)return;
     if(!isPlaying(mode)&&mode!=="third"){observerPointer={id:event.pointerId,x:event.clientX,y:event.clientY};return;}
+    if(event.pointerType==="touch"&&event.clientX<canvas.getBoundingClientRect().left+canvas.clientWidth/2)return;
+    if(drag&&drag.id!==event.pointerId)return;
     if(event.pointerType==="mouse")trigger("mouse:"+event.pointerId,true);
     if(document.pointerLockElement===canvas)return;
     canvas.focus({ preventScroll: true });
@@ -1161,6 +1180,8 @@ export function mountArena(
   function pointerup(event: PointerEvent) {
     trigger("mouse:"+event.pointerId,false);
     trigger("button:"+event.pointerId,false);
+    touchActions.delete(event.pointerId);
+    if(moveOwner===event.pointerId){moveOwner=null;touchMove=ZERO_MOVE;invalidate();}
     if(observerPointer?.id===event.pointerId){const start=observerPointer;observerPointer=null;
       if(event.type==="pointerup"&&Math.hypot(event.clientX-start.x,event.clientY-start.y)<5&&!driving&&mode!=="ai-first"&&map){
         const rect=canvas.getBoundingClientRect();
@@ -1228,6 +1249,7 @@ export function mountArena(
   window.addEventListener("keydown", keydown);
   window.addEventListener("keyup", keyup);
   window.addEventListener("blur", clearInput);
+  window.addEventListener("orientationchange",clearInput);
   window.addEventListener("pointerup", pointerup);
   window.addEventListener("pointercancel", pointerup);
   performance.measure("arena:program",{start:programStarted,end:performance.now()});
@@ -1406,7 +1428,7 @@ export function mountArena(
     configureStrategies(value){if(!match||match.phase==="running"||experiment?.running||!validStrategy(value.red)||!validStrategy(value.blue))return false;strategies=structuredClone(value);return true;},
     startExperiment,cancelExperiment,
     configureSeed(value){if(!match||experiment?.running||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;reset();return true;},
-    director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, input, pause, settings:applySettings, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, move, touchAction, pause, settings:applySettings, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
     armorFortify:(x,y)=>{const r=activeRobot();if(match&&r){const c=recommendedArmorCenter(match,r.team);fortifyArmor(match,r.team,{x:x??c.x,y:y??c.y});}publish();invalidate();},
@@ -1431,6 +1453,7 @@ export function mountArena(
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", clearInput);
+      window.removeEventListener("orientationchange",clearInput);
       window.removeEventListener("pointerup", pointerup);
       window.removeEventListener("pointercancel", pointerup);
       countdownEnd=0;audio.dispose();stopDirector();canvas.removeEventListener("wheel",wheel);controls.removeEventListener("start",orbitStart);
