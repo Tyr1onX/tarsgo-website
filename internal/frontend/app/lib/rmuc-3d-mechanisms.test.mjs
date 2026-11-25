@@ -153,7 +153,7 @@ test("production heavy footprint follows actual CAD routes and installs all four
   // Number-plate canvas texture is decorative and not needed in Node.
   globalThis.document={createElement:()=>({getContext:()=>null})};
   let exhibit;try{exhibit=addRobotPreviews(root,scene,terrain);}finally{delete globalThis.document;}
-  const bots=TEAMS.map(team=>exhibit.children.find(o=>o.userData.team===team&&o.userData.area==="field"&&o.name.includes("hero")));
+  const bots=TEAMS.map(team=>exhibit.children.find(o=>o.userData.team===team&&o.userData.area==="field"&&o.userData.identity?.kind==="heavy"));
   const roster=bots.map(b=>({id:b.name,team:b.userData.team,heavy:true,maxHp:400}));
   const m=createMatch(roster,1,1,installed.energySpawns,installed.coreSockets);startMatch(m);
   const positions=new Map(bots.map(b=>[b.name,b.position]));

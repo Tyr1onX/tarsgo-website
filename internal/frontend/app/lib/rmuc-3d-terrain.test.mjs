@@ -83,7 +83,7 @@ test("actual official field allows every driveable preview to move from its plac
   }
   const player = new THREE.Vector3(-10, terrain.heightAt(-10,-1.25), -1.25);
   assert.notEqual(supportedHeight(terrain, player.x, player.z, .25, player.y, .34), null);
-  assert.equal(nearestDriveable(player, robots)?.id, "2026-infantry-04");
+  assert.equal(nearestDriveable(player, robots)?.id, "blue-2027-infantry-04");
   const original = player.clone();
   moveOnArena(terrain, player, 0,-.5,.25,.34,robots);
   assert.ok(player.distanceTo(original) > .2);

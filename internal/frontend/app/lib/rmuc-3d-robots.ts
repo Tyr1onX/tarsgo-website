@@ -3,6 +3,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { ArenaTerrain } from "./rmuc-3d-terrain";
 import { robotSeasons } from "../data/robot-seasons.ts";
+import { GROUND_ROSTER, type GroundIdentity } from "./rmuc-3d-identity.ts";
 import { ballisticAim } from "./rmuc-3d-projectiles.ts";
 
 // The 2026 photographs are appearance references, not 2027 robot CAD.
@@ -26,11 +27,17 @@ export type RobotPreviewKind = (typeof ROBOT_PREVIEWS)[number]["kind"];
 // The 2026 hero appearance is a visual stand-in for the 2027 heavy robot.
 // Engineering / air / dart / radar reference models are parked, not a
 // representation of the full 2027 combined-system competition lineup.
-export const ROBOT_PLACEMENTS = [
-  ...ROBOT_PREVIEWS.map(entry => ({ ...entry, team: "blue" as const, instanceId: entry.id })),
-  ...ROBOT_PREVIEWS.filter(entry => entry.area === "field").map(entry => ({
-    ...entry, team: "red" as const, instanceId: "red-" + entry.id, x: -entry.x, z: -entry.z,
-  })),
+type RobotPlacement={id:string;kind:RobotPreviewKind;area:"field"|"pit";x:number;z:number;team:"red"|"blue";instanceId:string;identity:GroundIdentity|null};
+export const ROBOT_PLACEMENTS:RobotPlacement[] = [
+  ...ROBOT_PREVIEWS.flatMap<RobotPlacement>(entry => {
+    const identity=GROUND_ROSTER.find(r=>r.team==="blue"&&r.assetId===entry.id);
+    return identity?[{...entry,area:"field" as const,team:"blue" as const,instanceId:identity.id,identity}]:
+      entry.area==="pit"?[{...entry,team:"blue" as const,instanceId:entry.id,identity:null}]:[];
+  }),
+  ...GROUND_ROSTER.filter(r=>r.team==="red").map(identity=>{
+    const entry=ROBOT_PREVIEWS.find(r=>r.id===identity.assetId)!;
+    return {...entry,team:identity.team,instanceId:identity.id,identity,x:-entry.x,z:-entry.z};
+  }),
 ];
 
 // Tiny generated weave, shared across all dark body panels. No external
@@ -512,14 +519,14 @@ export function addRobotPreviews(field: THREE.Group, scene: THREE.Scene, terrain
     const size = bounds.getSize(new THREE.Vector3());
     const radius = Math.hypot(size.x, size.z) / 2;
     robot.userData = { ...robot.userData, sourcePhoto: photo.image.medium,
-      name: photo.name, prototype: true, radius, team: entry.team, area: entry.area,
+      name: entry.identity?entry.identity.number+"号"+({heavy:"重装机器人",infantry:"步兵机器人",sentry:"哨兵机器人"}[entry.identity.kind]):photo.name, assetId:entry.id, identity:entry.identity, prototype: true, radius, team: entry.team, area: entry.area,
       eyeHeight:(robot.userData.eyeHeight??1)*scale,wheelRadius:(robot.userData.wheelRadius??.12)*scale,
       driveable: entry.area === "field" && robot.userData.driveable === true };
     const ground = entry.area === "field" ? terrain.heightAt(entry.x, entry.z) : .1;
     if (!Number.isFinite(ground)) throw new Error("Robot placement outside CAD ground");
     robot.position.set(entry.x, ground - Math.min(0, bounds.min.y), entry.z);
     robot.rotation.y = entry.team === "red" ? Math.PI / 2 : -Math.PI / 2;
-    numberPlates(robot, photo.number);
+    numberPlates(robot, entry.identity?.number??photo.number);
     exhibit.add(robot);
   }
   blueLed.dispose();
