@@ -36,7 +36,7 @@ export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof i
     const guideBox=new THREE.Box3().setFromObject(b.guides,true);
     const start=guideBox.getCenter(new THREE.Vector3());start.y=guideBox.max.y+.08;
     const carriage=anchor(b.carriage,mesh=>mesh.material instanceof THREE.MeshStandardMaterial&&mesh.material.color.g>.8&&mesh.material.color.r<.1);
-    const outpost=anchor(mechanism.parts.getObjectByName(b.team+"-outpost-fixed-upper")!,mesh=>mesh.material instanceof THREE.MeshStandardMaterial&&mesh.material.color.g>.8&&mesh.material.color.r<.1);
+    const outpost=anchor(mechanism.parts.getObjectByName(b.team+"-outpost-fixed-upper")!,mesh=>mesh.userData.outpostIndicator===true);
     return {team:b.team,start,carriage,outpost,model,exhaust,flash,trail,history:[] as THREE.Vector3[],at:null as number|null,mode:"outpost" as DartMode,hits:0,feedbackUntil:0,point:new THREE.Vector3()};
   });
   function hide(slot:typeof slots[number]){

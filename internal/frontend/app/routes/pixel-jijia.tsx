@@ -26,7 +26,7 @@ import roomSprites from "../assets/pixel-jijia/room-props-v3.json";
 import communityPropsUrl from "../assets/pixel-jijia/room-community-v31.png?url";
 import communitySprites from "../assets/pixel-jijia/room-community-v31.json";
 import { JOYSTICK_RADIUS, joystickIntent } from "~/lib/pixel-jijia-input";
-import { GUODONG, createCampusRobot, tickCampusRobot, robotInReach, robotBlocksPlayer, aimTraining, releaseCampusRobot, inTrainingField, createTraining, tickTraining, fireTraining, type TrainingSession } from "~/lib/pixel-jijia-robot";
+import { ROBOT_MODELS, DART_BODY, createCampusRobots, nearestRobot, startRobotDemo, tickCampusRobot, robotInReach, robotBlocksPlayer, type CampusRobot, type RobotAtlases, aimTraining, releaseCampusRobot, inTrainingField, createTraining, tickTraining, fireTraining, type TrainingSession } from "~/lib/pixel-jijia-robot";
 import "./pixel-jijia.css";
 
 const DEFAULT_ZOOM = 1.35;
@@ -59,9 +59,13 @@ export default function PixelJijiaPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<Position>(pixelReturn&&isWalkable(pixelReturn.x,pixelReturn.y)?{x:pixelReturn.x,y:pixelReturn.y}:{...SPAWN});
-  const robotRef=useRef(createCampusRobot());
-  const robotAtlasRef=useRef<HTMLImageElement|null>(null);
-  const [robotControlled,setRobotControlled]=useState(false);
+  const robotsRef=useRef<CampusRobot[]|null>(null);
+  if(!robotsRef.current)robotsRef.current=createCampusRobots();
+  const robots=robotsRef.current;
+  const robotAtlasesRef=useRef<RobotAtlases>(new Map());
+  const [controlledRobot,setControlledRobot]=useState<CampusRobot|null>(null);
+  const robotControlled=controlledRobot!==null;
+  const activeRobot=controlledRobot??robots[0];
   const trainingRef=useRef<TrainingSession|null>(null);
   const [trainingPhase,setTrainingPhase]=useState<TrainingSession["phase"]|null>(null);
   const pilotZoomRef=useRef(DEFAULT_ZOOM);
@@ -481,9 +485,9 @@ export default function PixelJijiaPage() {
     canvas.height = height * roomScale;
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.imageSmoothingEnabled = false;
-    cameraRef.current = cameraAt(robotControlled?robotRef.current:playerRef.current, width, height,
+    cameraRef.current = cameraAt(controlledRobot??playerRef.current, width, height,
       (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
-  }, [room, roomScale, mobile,robotControlled]);
+  }, [room, roomScale, mobile,controlledRobot]);
 
   useEffect(() => {
     const query = window.matchMedia("(pointer: coarse), (max-width: 700px)");
@@ -514,20 +518,25 @@ export default function PixelJijiaPage() {
     resizeCanvas();
   }, [resizeCanvas]);
 
-  const toggleRobot=useCallback(()=>{
+  const toggleRobot=useCallback((requested?:CampusRobot)=>{
     if(room||transitionRef.current)return false;
-    if(robotControlled){
-      clearInput();trainingRef.current=null;setTrainingPhase(null);releaseCampusRobot(robotRef.current);setRobotControlled(false);
+    if(controlledRobot){
+      clearInput();trainingRef.current=null;setTrainingPhase(null);releaseCampusRobot(controlledRobot);setControlledRobot(null);
       setMapZoom(pilotZoomRef.current);return true;
     }
     if(seated||castRef.current||selectedRef.current||selectedRoom||catalogueDetail||
-        !robotAtlasRef.current||!robotInReach(robotRef.current,playerRef.current))return false;
-    clearInput();pilotZoomRef.current=zoomRef.current;setRobotControlled(true);
+        !robotAtlasesRef.current.size)return false;
+    const target=requested??nearestRobot(robots,playerRef.current);
+    if(!target||!robotInReach(target,playerRef.current))return false;
+    if(target.model.capability==="display"){startRobotDemo(target);return true;}
+    clearInput();pilotZoomRef.current=zoomRef.current;setControlledRobot(target);
     setMapZoom(Math.max(mobile&&stageRef.current&&stageRef.current.clientHeight>stageRef.current.clientWidth?1.65:2.6,zoomRef.current));return true;
-  },[room,robotControlled,seated,selectedRoom,catalogueDetail,clearInput,setMapZoom,mobile]);
+  },[room,controlledRobot,robots,seated,selectedRoom,catalogueDetail,clearInput,setMapZoom,mobile]);
   useEffect(() => {
     let active = true;
-    const atlas = new Image(),robotAtlas=new Image();
+    const atlas = new Image();
+    const robotAssets=[...Object.values(ROBOT_MODELS),{id:"dart-body",...DART_BODY,wheelFrames:1,upper:false}];
+    const robotImages=robotAssets.map(()=>new Image());
     const character = new Image();
     const groundTiles = new Image();
     const props = new Image();
@@ -546,14 +555,14 @@ export default function PixelJijiaPage() {
       loadImage(props, plazaPropsUrl),
       loadImage(roomProps,roomPropsUrl),
       loadImage(communityProps,communityPropsUrl),
-      loadImage(robotAtlas,GUODONG.atlas),
+      Promise.all(robotAssets.map((asset,i)=>loadImage(robotImages[i],asset.atlas))),
       fetch("/assets/pixel-jijia/campus-buildings-v3.json")
         .then((response) => {
           if (!response.ok) throw new Error("像素素材索引加载失败");
           return response.json() as Promise<{ sprites: SpriteIndex }>;
         }),
     ])
-      .then(([image, explorer, ground, environment, furniture, communityFurniture, robotImage, metadata]) => {
+      .then(([image, explorer, ground, environment, furniture, communityFurniture, loadedRobots, metadata]) => {
         if (!active) return;
         if (ground.naturalWidth !== 384 || ground.naturalHeight !== 1376) {
           throw new Error("地面图集与场景版本不匹配");
@@ -561,8 +570,11 @@ export default function PixelJijiaPage() {
         if (environment.naturalWidth !== 512 || environment.naturalHeight !== 640) {
           throw new Error("场景美术素材与当前版本不匹配");
         }
-        if(robotImage.naturalWidth!==GUODONG.width*GUODONG.nativeScale*8||robotImage.naturalHeight!==GUODONG.height*GUODONG.nativeScale*(GUODONG.wheelFrames+1))throw new Error("机器人图集与当前版本不匹配");
-        robotAtlasRef.current=robotImage;
+        robotAtlasesRef.current=new Map(robotAssets.map((asset,i)=>{
+          const img=loadedRobots[i];
+          if(img.naturalWidth!==asset.width*asset.nativeScale*8||img.naturalHeight!==asset.height*asset.nativeScale*(asset.wheelFrames+Number(asset.upper)))throw new Error("机器人图集与当前版本不匹配");
+          return [asset.id,img];
+        }));
         characterRef.current = explorer;
         artRef.current = image;
         artIndexRef.current = metadata.sprites;
@@ -581,7 +593,7 @@ export default function PixelJijiaPage() {
       active = false;
       atlas.onload = null;
       atlas.onerror = null;
-      robotAtlas.onload=null;robotAtlas.onerror=null;
+      for(const image of robotImages){image.onload=null;image.onerror=null;}
       character.onload = null;
       character.onerror = null;
       groundTiles.onload = null;
@@ -824,19 +836,23 @@ export default function PixelJijiaPage() {
       const previous = playerRef.current;
       const canMove=!transitionRef.current&&!selectedRef.current&&!selectedRoom&&!seated&&!menuOpen&&!mapOpen&&!catalogueDetail;
       if(!room){
-        const robot=robotRef.current,previousPhase=trainingRef.current?.phase??null;
-        const moving=robotControlled&&canMove&&trainingRef.current?.phase!=="lost";
-        tickCampusRobot(robot,previous,dt,robotControlled,moving?x:0,moving?y:0,!reducedMotion.matches,trainingRef.current?.opponent);
-        if(robotControlled&&inTrainingField(robot)){
-          if(!trainingRef.current)trainingRef.current=createTraining(robot,previous);
-          if(trainingRef.current&&canMove)tickTraining(trainingRef.current,robot,previous,dt,!reducedMotion.matches);
+        const previousPhase=trainingRef.current?.phase??null;
+        const participants=trainingRef.current?[...robots,trainingRef.current.opponent]:robots;
+        for(const robot of robots){
+          const controlled=robot===controlledRobot;
+          const moving=controlled&&canMove&&trainingRef.current?.phase!=="lost";
+          tickCampusRobot(robot,previous,dt,controlled,moving?x:0,moving?y:0,!reducedMotion.matches,participants);
+        }
+        if(controlledRobot?.model.capability==="training"&&inTrainingField(controlledRobot,controlledRobot.model.radius)){
+          if(!trainingRef.current)trainingRef.current=createTraining(controlledRobot,previous,robots);
+          if(trainingRef.current&&canMove)tickTraining(trainingRef.current,controlledRobot,previous,dt,!reducedMotion.matches,robots);
         }else trainingRef.current=null;
         const phase=trainingRef.current?.phase??null;
         if(phase!==previousPhase)setTrainingPhase(phase);
       }
       if (!robotControlled && !transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !mapOpen && !catalogueDetail) {
         const next = movePlayer(previous, x, y, dt, sprinting,
-          room ? (px, py) => isRoomWalkable(room, px, py) : (px,py)=>!robotBlocksPlayer(robotRef.current,px,py)&&isWalkable(px,py),!room);
+          room ? (px, py) => isRoomWalkable(room, px, py) : (px,py)=>!robots.some(robot=>robotBlocksPlayer(robot,px,py))&&isWalkable(px,py),!room);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = Math.abs(x) >= Math.abs(y) ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
@@ -860,7 +876,7 @@ export default function PixelJijiaPage() {
         }
       }
       if(!walking)stepDistance=0;
-      const foot=robotControlled?robotRef.current:playerRef.current,audio=worldAudioRef.current;
+      const foot=controlledRobot??playerRef.current,audio=worldAudioRef.current;
       const material=stepped?footstepMaterial(room?.id??null,groundAt(foot.x,foot.y),surfaceRef.current.wet,surfaceRef.current.snow):null;
       if(audio?.running&&!mutedRef.current&&!document.hidden){
         if(material)audio.step(material,sprinting);
@@ -878,9 +894,11 @@ export default function PixelJijiaPage() {
               volume=distanceVolume(Math.hypot(foot.x-FOUNTAIN.x,foot.y-FOUNTAIN.y),17)*.12;
               if(volume>0)kind="fountain";
             }
-            const motor=robotRef.current;
-            const hum=distanceVolume(Math.hypot(foot.x-motor.x,foot.y-motor.y),10)*(motor.moving?.065:.022);
-            if(hum>volume){volume=hum;kind="device";}
+            for(const motor of robots){
+              if(!motor.model.speed&&!motor.demo)continue;
+              const hum=distanceVolume(Math.hypot(foot.x-motor.x,foot.y-motor.y),10)*(motor.moving?.065:.022);
+              if(hum>volume){volume=hum;kind="device";}
+            }
             for(const o of leafTrees){
               const gain=distanceVolume(Math.hypot(foot.x-o.x,foot.y-o.y),8)*(.028+Math.abs(wind)*.003);
               if(gain>volume){volume=gain;kind="trees";}
@@ -890,7 +908,7 @@ export default function PixelJijiaPage() {
         }
       }
       const viewWidth = canvas.width / roomScale, viewHeight = canvas.height / roomScale;
-      const target = cameraAt(robotControlled?robotRef.current:playerRef.current, viewWidth, viewHeight,
+      const target = cameraAt(controlledRobot??playerRef.current, viewWidth, viewHeight,
         (room?.width ?? WORLD_WIDTH) * TILE, (room?.height ?? WORLD_HEIGHT) * TILE);
       const follow = reducedMotion.matches?1:1 - Math.exp(-(sprinting ? 8 : 6) * dt);
       cameraRef.current.x += (target.x - cameraRef.current.x) * follow;
@@ -921,7 +939,7 @@ export default function PixelJijiaPage() {
         updateWildlife(wildlifeRef.current,playerRef.current,dt,(climate?.hour??12)+(climate?.minute??0)/60,climate?.weather??null,!reducedMotion.matches,castRef.current,walking);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
-          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind,robotRef.current,robotAtlasRef.current??undefined,robotControlled,trainingRef.current);
+          climate,wildlifeRef.current,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind,robots,robotAtlasesRef.current,controlledRobot,trainingRef.current);
       }
 
       if (reducedMotion.matches || room) {
@@ -977,13 +995,13 @@ export default function PixelJijiaPage() {
       canvas.dataset.wetness=surfaceRef.current.wet.toFixed(2);
       canvas.dataset.snow=surfaceRef.current.snow.toFixed(2);
 
-      const nearRobot=!room&&!seated&&(robotControlled||(!castRef.current&&robotInReach(robotRef.current,playerRef.current)));
+      const nearRobot=!room&&!seated?(controlledRobot??(!castRef.current?nearestRobot(robots,playerRef.current):null)):null;
       const nextNearby = seated || room || nearRobot ? null : closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null);
       const cast=castRef.current;
       const ready=cast&&fishingReady(wildlifeRef.current,cast,time);
       const animal=!room&&!nextNearby&&!seated?closestAnimal(wildlifeRef.current,playerRef.current):null;
       const prompt=room||seated||selectedRef.current||transitionRef.current?"":cast?(cast.caughtAt!==undefined?"":ready?"收竿":"等待鱼咬钩"):
-        nearRobot?(robotControlled?"退出机器人":"接管过洞步兵"):nextNearby?"":fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+SPECIES_LABEL[animal.species]:"";
+        nearRobot?(robotControlled?"退出机器人":nearRobot.model.capability==="display"?"观看飞镖展示":"接管"+nearRobot.model.name.replace("机器人","")):nextNearby?"":fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+SPECIES_LABEL[animal.species]:"";
       if(prompt!==naturePromptRef.current){naturePromptRef.current=prompt;setNaturePrompt(prompt);}
       if(noticeUntilRef.current&&time>=noticeUntilRef.current){noticeUntilRef.current=0;setNatureNotice("");}
       canvas.dataset.wildlife=String(room?0:wildlifeRef.current.length);
@@ -1006,7 +1024,7 @@ export default function PixelJijiaPage() {
       const label=seated?"起身":room&&nextRoom?roomAction(nextRoom):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
       if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!transitionRef.current&&label&&label!=="等待鱼咬钩"&&!(robotControlled&&trainingRef.current)){
         const c=snapCamera(cameraRef.current);
-        const anchor=nearRobot?{x:robotRef.current.x,y:robotRef.current.y-2.6}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
+        const anchor=nearRobot?{x:nearRobot.x,y:nearRobot.y-nearRobot.model.anchorY/TILE}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
         const text=(mobile?"":"E ")+label;
         ctx.save();ctx.font="bold 10px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
         const w=ctx.measureText(text).width+12;
@@ -1023,14 +1041,16 @@ export default function PixelJijiaPage() {
       canvas.dataset.trainingLights=String(trainingRef.current?.lights.length??0);
       canvas.dataset.trainingResult=trainingRef.current?.lastResult??"";
       canvas.dataset.trainingSparks=String(trainingRef.current?.sparks.length??0);
-      canvas.dataset.robotWaypoint=String(robotRef.current.waypoint);
-      canvas.dataset.robotSpeed=robotRef.current.speed.toFixed(2);
+      canvas.dataset.robotWaypoint=String(activeRobot.waypoint);
+      canvas.dataset.robotSpeed=activeRobot.speed.toFixed(2);
       canvas.dataset.cameraY=cameraRef.current.y.toFixed(2);
       canvas.dataset.control=robotControlled?"robot":"player";
-      canvas.dataset.robotX=robotRef.current.x.toFixed(3);
-      canvas.dataset.robotY=robotRef.current.y.toFixed(3);
-      canvas.dataset.robotHeading=String(robotRef.current.heading);
-      canvas.dataset.robotYaw=String(robotRef.current.yaw);
+      canvas.dataset.robotId=controlledRobot?.model.id??"";
+      canvas.dataset.robots=robots.map(r=>[r.model.id,r.x.toFixed(3),r.y.toFixed(3),r.demo.toFixed(2)].join(":")).join("|");
+      canvas.dataset.robotX=activeRobot.x.toFixed(3);
+      canvas.dataset.robotY=activeRobot.y.toFixed(3);
+      canvas.dataset.robotHeading=String(activeRobot.heading);
+      canvas.dataset.robotYaw=String(activeRobot.yaw);
       canvas.dataset.playerX = playerRef.current.x.toFixed(3);
       canvas.dataset.playerY = playerRef.current.y.toFixed(3);
       canvas.dataset.cameraX = cameraRef.current.x.toFixed(2);
@@ -1040,7 +1060,7 @@ export default function PixelJijiaPage() {
       canvas.dataset.walkFrame = walking ? String(pose.frame) : "0";
 
       if (!room && miniCtx && (!mobile || mapOpen) && time - lastMini > 100) {
-        renderNavigationMap(miniCtx, preview, robotControlled?robotRef.current:playerRef.current, directionRef.current,
+        renderNavigationMap(miniCtx, preview, controlledRobot??playerRef.current, directionRef.current,
           cameraRef.current, viewWidth, viewHeight, mapOpen,discoveries);
         lastMini = time;
       }
@@ -1076,7 +1096,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, robotControlled]);
+    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, controlledRobot,robots,activeRobot]);
 
   const handleMapClick = (event: {clientX: number; clientY: number}) => {
     const canvas = canvasRef.current;
@@ -1109,13 +1129,14 @@ export default function PixelJijiaPage() {
       return;
     }
     if(!room){
-      const robot=robotRef.current;
-      if(robotControlled){
-        if(trainingRef.current)fireTraining(trainingRef.current,robot,{x,y});
-        else aimTraining(robot,{x,y});
+      if(controlledRobot){
+        if(controlledRobot.model.capability==="carry")startRobotDemo(controlledRobot);
+        else if(trainingRef.current)fireTraining(trainingRef.current,controlledRobot,{x,y});
+        else aimTraining(controlledRobot,{x,y});
         return;
       }
-      if(Math.abs(x-robot.x)<1.5&&y>=robot.y-2.4&&y<=robot.y+.7&&toggleRobot())return;
+      const target=robots.filter(robot=>robotInReach(robot,playerRef.current)&&Math.abs(x-robot.x)<robot.model.width/TILE/2&&y>=robot.y-robot.model.anchorY/TILE&&y<=robot.y+.7).sort((a,b)=>b.y-a.y)[0];
+      if(target&&toggleRobot(target))return;
     }
     if (room) {
       const object = roomObjectAt(room, { x, y });
@@ -1154,10 +1175,10 @@ export default function PixelJijiaPage() {
     joystick.current = { pointer: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false, x: 0, y: 0, running: false };
   };
   const handleTouchMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if(robotControlled&&event.pointerType==="mouse"){
+    if(controlledRobot?.model.capability==="training"&&event.pointerType==="mouse"){
       if(trainingRef.current?.phase==="lost")return;
       const canvas=event.currentTarget,rect=canvas.getBoundingClientRect(),camera=snapCamera(cameraRef.current);
-      aimTraining(robotRef.current,{x:((event.clientX-rect.left)/rect.width*canvas.width/roomScale+camera.x)/TILE,
+      aimTraining(controlledRobot,{x:((event.clientX-rect.left)/rect.width*canvas.width/roomScale+camera.x)/TILE,
         y:((event.clientY-rect.top)/rect.height*canvas.height/roomScale+camera.y)/TILE});
       return;
     }
@@ -1338,10 +1359,11 @@ export default function PixelJijiaPage() {
         </div>
         {!mobile && weatherControls}
       </div>}
+      {controlledRobot?.model.capability==="carry"&&!menuOpen&&!mapOpen&&<div className="pixel-world-training"><button type="button" onClick={()=>startRobotDemo(controlledRobot)}>搬运演示</button></div>}
       {robotControlled&&trainingPhase&&!menuOpen&&!mapOpen&&<div className="pixel-world-training" role="status">
         {trainingPhase==="playing"?<span>{mobile?"点击瞄准 · 摇杆移动":"微缩训练 · 点击发射 · E 退出"}</span>:<>
           <span>{trainingPhase==="won"?"训练完成":"训练机器人失能"}</span>
-          <button type="button" onClick={()=>{trainingRef.current=createTraining(robotRef.current,playerRef.current);setTrainingPhase(trainingRef.current?.phase??null);}}>重新训练</button>
+          <button type="button" onClick={()=>{trainingRef.current=createTraining(activeRobot,playerRef.current,robots);setTrainingPhase(trainingRef.current?.phase??null);}}>重新训练</button>
         </>}
       </div>}
       {showHelp && <div className="pixel-world-guide" role="note">

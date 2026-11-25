@@ -1,6 +1,7 @@
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, searchForWorkspaceRoot } from "vite";
@@ -10,7 +11,10 @@ const apiProxyTarget = process.env.TARSGO_API_PROXY ?? "http://127.0.0.1:8080";
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const publicDir = fileURLToPath(new URL("../../public", import.meta.url));
 
+const codeVersion=process.env.GITHUB_SHA ?? (()=>{try{return execFileSync("git",["rev-parse","HEAD"],{cwd:repoRoot,encoding:"utf8"}).trim()+(execFileSync("git",["status","--porcelain","--untracked-files=no"],{cwd:repoRoot,encoding:"utf8"}).trim()?"-dirty":"");}catch{return "unknown";}})();
+
 export default defineConfig({
+  define: {"import.meta.env.VITE_ARENA_CODE_VERSION":JSON.stringify(codeVersion)},
   plugins: [tailwindcss(), reactRouter(), {
     // Match the production Go router before Vite's default SPA fallback
     // rewrites a slashless prerendered path to the homepage HTML.

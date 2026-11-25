@@ -6,7 +6,7 @@ import { explorerFrameBox, EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT, type Exp
 import { nightLight, type Season, type ChangchunClimate, type WeatherKind, type SurfaceWeather } from "./pixel-jijia-climate.ts";
 import { drawAnimal, drawFishing, fishingReady, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
 
-import { drawCampusRobot, drawTrainingHealth, drawTrainingEffects, type CampusRobot, type TrainingSession } from "./pixel-jijia-robot.ts";
+import { drawCampusRobot, drawTrainingHealth, drawTrainingEffects, type CampusRobot, type RobotAtlases, type TrainingSession } from "./pixel-jijia-robot.ts";
 
 export type SpriteBox = [number, number, number, number];
 export type SpriteIndex = Record<string, SpriteBox>;
@@ -784,7 +784,7 @@ export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: Terrain,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,wind=0,robot?:CampusRobot,robotAtlas?:HTMLImageElement,robotControlled=false,training:TrainingSession|null=null,
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,wind=0,robots:readonly CampusRobot[]=[],robotAtlases?:RobotAtlases,controlledRobot:CampusRobot|null=null,training:TrainingSession|null=null,
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
@@ -794,21 +794,22 @@ export function renderScene(
   if(climate){drawDew(ctx,screenCamera,climate,w,h);drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land:(Animal|CampusRobot)[]=animals.filter(a=>a.species!=="fish");
-  if(robot&&robotAtlas)land.push(robot);
-  if(training&&robotAtlas)land.push(training.opponent);
+  if(robotAtlases)land.push(...robots);
+  if(training&&robotAtlases)land.push(training.opponent);
   const depth=(a:Animal|CampusRobot)=>a.y+("species" in a?0:.65);
   land.sort((a,b)=>depth(a)-depth(b));
   const drawLand=(a:Animal|CampusRobot)=>{
     if("species" in a)drawAnimal(ctx,a,screenCamera,motion);
-    else if(robotAtlas){
+    else if(robotAtlases){
       ctx.save();
-      const hp=training?(a===robot?training.hp:training.opponentHp):100;
-      const flash=training?(a===robot?training.hitFlash:training.opponentFlash):0;
+      const participant=training&&(a===controlledRobot||a===training.opponent);
+      const hp=participant?(a===controlledRobot?training.hp:training.opponentHp):100;
+      const flash=participant?(a===controlledRobot?training.hitFlash:training.opponentFlash):0;
       if(hp===0)ctx.globalAlpha=.55;
       else if(flash>0&&motion)ctx.globalAlpha=.55+.45*Math.min(1,flash/.18);
-      drawCampusRobot(ctx,a,robotAtlas,screenCamera,w,h,motion,robotControlled&&a===robot);
+      drawCampusRobot(ctx,a,robotAtlases,screenCamera,w,h,motion,a===controlledRobot);
       ctx.restore();
-      if(training)drawTrainingHealth(ctx,a,a===robot?training.hp:training.opponentHp,screenCamera,a!==robot);
+      if(participant)drawTrainingHealth(ctx,a,hp,screenCamera,a!==controlledRobot);
     }
   };
   const seasonal=seasonalProps(props,climate?.season??"summer");

@@ -166,7 +166,7 @@ export const SCENERY: Scenery[] = [
     title: "风铃小径", caption: "A QUIET PATH", description: "一条绕开主路的林荫小径。风吹过树梢时，路边的小牌子仿佛也在提醒：不是每段旅程都必须直奔终点。"
   } },
   { sprite: "statue", x: 115, y: 12.7, width: 49, height: 62, story: {
-    title: "机器人试验场", caption: "FIELD NOTES", description: "测试场边留着一座小小的机器人纪念像。它没有写明胜负，只留下一句关于尝试的话：今天再让它往前走一步。北侧是开放式微缩训练场，可接管过洞步兵进行虚拟训练；这里也通往完整三维战场。"
+    title: "机器人试验场", caption: "FIELD NOTES", description: "测试场边留着一座小小的机器人纪念像。它没有写明胜负，只留下一句关于尝试的话：今天再让它往前走一步。北侧是开放式微缩训练场，可接管步兵或轮腿机器人进行虚拟训练；这里也通往完整三维战场。"
   } },
   { sprite: "sign", x: 119, y: 74, width: 40, height: 59, story: {
     title: "数据树洞", caption: "HIDDEN SIGNAL", description: "这里有一张写给后来者的便条：世界再嘈杂，也总有一个信号值得认真接收。"

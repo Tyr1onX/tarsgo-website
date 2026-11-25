@@ -4,6 +4,8 @@ import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
 import type { ArenaController, ArenaStatus, ArenaView } from "~/lib/rmul-3d-scene";
+import {defaultStrategy,STRATEGY_PRESETS,WEIGHT_KEYS,type Strategy} from "~/lib/rmuc-3d-strategy";
+import {pairedSummary,type ExperimentProgress} from "~/lib/rmuc-3d-experiment";
 import "./pixel-jijia-arena.css";
 
 export function meta({}: Route.MetaArgs) {
@@ -17,7 +19,7 @@ export function meta({}: Route.MetaArgs) {
 
 type AreaStatus = NonNullable<ArenaStatus["match"]>["sides"]["red"]["baseArea"];
 const teamName=(team:"red"|"blue")=>team==="red"?"红":"蓝";
-const areaText=(area:AreaStatus)=>teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争夺":area.progress>0?"·"+Math.floor(area.progress/5)*10+"%":"");
+const areaText=(area:AreaStatus)=>!area.enabled?"失效":teamName(area.controller)+(area.full?"完全":"临时")+(area.contested?"·争":area.progressing?"·夺":area.progress>0?"·退":"")+(area.progress>0?Math.floor(area.progress*2)+"%":"");
 function HealthBar({value,max,damage=0,label}:{value:number;max:number;damage?:number;label:string}){
   return <div className="rmul3d-health" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
     <i style={{width:Math.max(0,Math.min(100,value/max*100))+"%"}}/>
@@ -61,6 +63,30 @@ const CAMERA_VIEWS = [
   { id: "top", label: "俯视" },
 ] as const satisfies readonly { id: ArenaView; label: string }[];
 
+const weightLabels={attack:"进攻",defense:"防御",resources:"资源",technology:"科技",cooperation:"协同"};
+function StrategyEditor({label,value,onChange,disabled}:{label:string;value:Strategy;onChange:(s:Strategy)=>void;disabled:boolean}){
+  return <fieldset disabled={disabled} className="rmul3d-strategy">
+    <legend>{label}</legend>
+    <label>算法<select aria-label={label+"算法"} value={value.algorithm} onChange={e=>onChange({...value,algorithm:e.target.value as Strategy["algorithm"]})}><option value="priority">规则优先级</option><option value="utility">任务效用评分</option></select></label>
+    {value.algorithm==="utility"&&<>
+      <div className="rmul3d-presets">{Object.entries({balanced:"均衡",attack:"进攻",defense:"防御",technology:"科技"}).map(([key,name])=><button key={key} type="button" onClick={()=>onChange({...value,weights:{...STRATEGY_PRESETS[key]}})}>{name}</button>)}</div>
+      {WEIGHT_KEYS.map(k=><label key={k}>{weightLabels[k]}<input aria-label={label+weightLabels[k]} type="range" min="0" max="100" step="1" value={value.weights[k]} onChange={e=>onChange({...value,weights:{...value.weights,[k]:Number(e.target.value)}})}/><output>{value.weights[k]}</output></label>)}
+    </>}
+  </fieldset>;
+}
+function ExperimentResults({progress}:{progress:ExperimentProgress}){
+  const summary=pairedSummary(progress.results);
+  function download(){
+    const url=URL.createObjectURL(new Blob([JSON.stringify({schema:1,ruleVersion:"RMUC 2027 V1.0.0",codeVersion:import.meta.env.VITE_ARENA_CODE_VERSION??"unknown",...summary,rounds:progress.results},null,2)],{type:"application/json"}));
+    const a=document.createElement("a");a.href=url;a.download="rmuc-experiment.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  return <div className="rmul3d-experiment-results">
+    <p>已完成 {progress.completed}/{progress.total} 场 · 完整配对 {summary.completePairs}</p>
+    {progress.results.length>0&&<><p>A 胜 {summary.aWins} · B 胜 {summary.bWins} · 平 {summary.draws}　红胜 {summary.redWins} · 蓝胜 {summary.blueWins}</p>
+    <div className="rmul3d-experiment-table"><table><thead><tr><th>种子</th><th>红 / 蓝</th><th>胜方</th><th>控制度 红 / 蓝</th><th>伤害 红 / 蓝</th></tr></thead><tbody>{progress.results.map(r=><tr key={r.index}><td>{r.seed}</td><td>{r.swapped?"B / A":"A / B"}</td><td>{r.winner==="red"?"红":r.winner==="blue"?"蓝":"平"}</td><td>{r.sides.red.control} / {r.sides.blue.control}</td><td>{r.sides.red.damage} / {r.sides.blue.damage}</td></tr>)}</tbody></table></div><button onClick={download}>导出 JSON</button></>}
+  </div>;
+}
+
 export default function PixelJijiaArenaPage() {
   const location=useLocation();
   const returnTo=getExperienceReturnTo(location.state);
@@ -71,6 +97,12 @@ export default function PixelJijiaArenaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState(false);
+  const [experimentOpen,setExperimentOpen]=useState(false);
+  const [strategies,setStrategies]=useState({red:defaultStrategy(),blue:defaultStrategy()});
+  const [seed,setSeed]=useState("2061");
+  const [pairs,setPairs]=useState("1");
+  const experimentRunning=!!status.experiment?.running;
+  const validConfig=seed!==""&&Number.isInteger(Number(seed))&&Number(seed)>=0&&Number(seed)<=0xffffffff&&pairs!==""&&Number.isInteger(Number(pairs))&&Number(pairs)>=1&&Number(pairs)<=20;
 
   useEffect(() => {
     const host = mountRef.current;
@@ -115,7 +147,7 @@ export default function PixelJijiaArenaPage() {
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
-          {status.match.phase === "ready" ? <button onClick={() => controller.current?.start()}>开始自主对抗训练</button> : <>
+          {status.match.phase === "ready" ? <><button onClick={() => controller.current?.start()}>开始自主对抗训练</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
             <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} /><div className="rmul3d-clock"><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong>{status.match.phase==="finished"&&<small>结束</small>}</div><TeamScore team="blue" side={status.match.sides.blue} /></div>
             {status.match.phase === "finished" && <><strong>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方获胜":"蓝方获胜"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
           </>}
@@ -124,7 +156,7 @@ export default function PixelJijiaArenaPage() {
           <div className="rmul3d-map-head"><select aria-label="地图情报视角" value={status.radarMap.perspective} disabled={!!status.robot} onChange={e=>controller.current?.radarView(e.target.value as "all"|"red"|"blue")}><option value="all">全局观战</option><option value="red">红方情报</option><option value="blue">蓝方情报</option></select>
           {Object.entries(status.radarMap.summary).map(([team,r])=><span key={team} title={"干扰难度 "+r.encryptionLevel}>{team==="red"?"红":"蓝"}雷达 {r.doubleUntil>0?"×2 "+r.doubleUntil+"s":r.opportunities+"次"}</span>)}</div>
           <svg viewBox="0 0 280 150" role="img" aria-label="CAD战场地图"><image href={status.radarMap.image} width="280" height="150"/>
-            {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={s.outpostOwner==="red"?"#fb7777":"#7bbdff"} opacity={s.outpost?1:.25}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
+            {(["red","blue"] as const).map(team=>{const sign=team==="red"?1:-1,s=status.match!.sides[team];return <g key={team} stroke={team==="red"?"#fb7777":"#7bbdff"} fill="none"><rect x={(14-11.68*sign)*10-5} y="70" width="10" height="10" opacity={s.base?1:.25}/><circle cx={(14-3.126*sign)*10} cy={(7.5+3.892*sign)*10} r="5" stroke={!s.outpostArea.enabled?"#64748b":s.outpostArea.controller==="red"?"#fb7777":"#7bbdff"} strokeDasharray={!s.outpostArea.full?"3 2":undefined} opacity={s.outpostArea.enabled?1:.35} aria-label={teamName(team)+"方前哨阵地 "+areaText(s.outpostArea)}/><path d={sign===1?"M2 70v10h7":"M278 70v10h-7"}/></g>})}
             {status.radarMap.tracks.map(r=><g key={r.id} transform={`translate(${(14-r.x)*10} ${(7.5-r.z)*10})`} opacity={r.stale?.4:1} aria-label={r.team+" "+r.id+" P="+r.progress}><circle r="4.5" fill={r.team==="red"?"#d94b4b":"#287de0"} stroke={r.localized?"white":"#222"} strokeDasharray={r.stale?"2 2":undefined}/><text textAnchor="middle" y="2.2" fontSize="6" fill="white">{r.id.slice(-2)}</text></g>)}
           </svg>
           {status.robot&&status.radarMap.perspective!=="all"&&!status.match.dart?.blind&&status.radarMap.summary[status.radarMap.perspective]!.opportunities>0&&<button disabled={status.radarMap.summary[status.radarMap.perspective]!.doubleUntil>0} onClick={()=>controller.current?.radarDouble()}>双倍易伤</button>}
@@ -197,6 +229,16 @@ export default function PixelJijiaArenaPage() {
         </div>
         {!disabled && playing && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
         {!disabled && !menu && playing && status.match?.thermalLock!=="cooling" && <div className="rmul3d-crosshair" aria-hidden="true" />}
+        {experimentRunning&&!experimentOpen&&<div className="rmul3d-experiment-progress"><span>实验 {status.experiment!.completed+1}/{status.experiment!.total} · {Math.floor(status.experiment!.elapsed)}s</span><button onClick={()=>setExperimentOpen(true)}>进度</button><button onClick={()=>controller.current?.cancelExperiment()}>停止</button></div>}
+        {experimentOpen&&<aside className="rmul3d-help rmul3d-experiment" aria-label="策略与实验">
+          <button className="rmul3d-close" onClick={()=>setExperimentOpen(false)} aria-label="关闭实验">×</button>
+          <h2>策略与实验</h2>
+          <StrategyEditor label="红方 A" value={strategies.red} onChange={red=>setStrategies(s=>({...s,red}))} disabled={experimentRunning||status.match?.phase==="running"}/>
+          <StrategyEditor label="蓝方 B" value={strategies.blue} onChange={blue=>setStrategies(s=>({...s,blue}))} disabled={experimentRunning||status.match?.phase==="running"}/>
+          <div className="rmul3d-experiment-config"><label>起始种子<input aria-label="起始种子" type="number" min="0" max="4294967295" step="1" value={seed} disabled={experimentRunning} onChange={e=>setSeed(e.target.value)}/></label><label>配对数<input aria-label="配对数" type="number" min="1" max="20" step="1" value={pairs} disabled={experimentRunning} onChange={e=>setPairs(e.target.value)}/></label><span>{Number(pairs)*2} 场 · 每对交换红蓝</span></div>
+          {experimentRunning?<><progress max={status.experiment!.total*420} value={Math.min(status.experiment!.total*420,status.experiment!.completed*420+status.experiment!.elapsed)}/><button onClick={()=>controller.current?.cancelExperiment()}>停止实验</button></>:<div className="rmul3d-presets"><button disabled={!validConfig||status.match?.phase==="running"} onClick={()=>{if(controller.current?.configureSeed(Number(seed))&&controller.current.configureStrategies(strategies)){setExperimentOpen(false);controller.current.start();}}}>开始单局训练</button><button disabled={!validConfig||status.match?.phase==="running"} onClick={()=>controller.current?.startExperiment({seed:Number(seed),pairs:Number(pairs),strategies})}>运行配对实验</button></div>}
+          {status.experiment&&<ExperimentResults progress={status.experiment}/>}
+        </aside>}
         {menu && <aside className="rmul3d-help" aria-label="战场菜单" onKeyDown={event => { if (event.key === "Escape") toggleMenu(false); }}>
           <button className="rmul3d-close" onClick={() => toggleMenu(false)} aria-label="关闭">×</button>
           <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }}>战术演练</Link>
@@ -209,7 +251,7 @@ export default function PixelJijiaArenaPage() {
             ))}
           </nav>
           <h2>训练</h2>
-          <button disabled={disabled} onClick={()=>{controller.current?.reset();toggleMenu(false);}}>重置比赛</button>
+          <button disabled={disabled||experimentRunning} onClick={()=>{controller.current?.reset();toggleMenu(false);}}>重置比赛</button><button disabled={disabled} onClick={()=>{toggleMenu(false);setExperimentOpen(true);}}>策略与实验</button>
           <h2>操作</h2>
           <dl>
             <dt>W A S D</dt><dd>移动</dd>

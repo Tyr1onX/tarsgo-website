@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { dartPose, coreFrame, type EnergyUnit, type Match } from "./rmuc-3d-match.ts";
+import { dartPose, coreFrame, territoryStatus, type EnergyUnit, type Match } from "./rmuc-3d-match.ts";
 
 export const MECHANISM_ASSET = {
   url: "/assets/pixel-jijia/rmuc-mechanisms-51f0d28d.glb.gz",
@@ -164,7 +164,7 @@ export function runeHit(arm:THREE.Object3D,point:THREE.Vector3,direction:THREE.V
   return {type:"rune" as const,team:detector.team,arm:detector.arm,ring:Math.max(1,10-Math.floor(Math.round(radius*1000)/15))};
 }
 
-export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dartParts?: THREE.Group) {
+export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dartParts?: THREE.Group, glow?: {scene:THREE.Scene;texture:THREE.Texture}) {
   const find = (name: string) => {
     const object = parts.getObjectByName(name);
     if (!object) throw new Error("Missing mechanism " + name);
@@ -214,7 +214,9 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
   }));
   function setRuneLights(red:readonly number[],blue:readonly number[]){
     for(const a of runeArms)for(const m of a.lights){
-      m.emissive.copy(m.color);m.emissiveIntensity=(a.team==="red"?red:blue).includes(a.i)?1.5:0;
+      const on=(a.team==="red"?red:blue).includes(a.i);
+      m.color.setHex(on?(a.team==="red"?0xff303b:0x326cff):(a.team==="red"?0x591b22:0x1e305b));
+      m.emissive.setHex(a.team==="red"?0xff2435:0x2865ff);m.emissiveIntensity=on?2:0;m.toneMapped=false;
     }
   }
   // The six base detector faces have not been bound to verified source geometry.
@@ -240,7 +242,23 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
       dartBindings.push({team,door,guides:gate.getObjectByName("dart-guides")!,carriage,doorRest:door.position.clone(),carriageRest:carriage.position.clone()});
     }
   }
+  // The base carriage retains its health indicator; the outpost has exactly
+  // one territory-driven indicator below, independent of building health.
+  const baseLights:{team:Team;material:THREE.MeshStandardMaterial}[]=[];
+  for(const {team,carriage} of dartBindings){
+    carriage.traverse(node=>{
+      if(!(node instanceof THREE.Mesh)||!(node.material instanceof THREE.MeshStandardMaterial))return;
+      const c=node.material.color;
+      if(c.g<.8||c.r>.1||c.b>.1)return;
+      const material=node.material.clone();node.material=material;material.toneMapped=false;
+      baseLights.push({team,material});
+    });
+  }
   function applyDart(match:Match){
+    for(const {team,material} of baseLights){
+      const on=match.sides[team].base>0;
+      material.color.setHex(on?0x36ef36:0x193b19);material.emissive.setHex(0x45ff45);material.emissiveIntensity=on?1.6:0;
+    }
     for(const b of dartBindings){
       const p=dartPose(match,b.team);
       b.door.position.copy(b.doorRest).addScaledVector(new THREE.Vector3(0,-.9659258262890824,.25881904510246795),-1.157991188781261*(1-p.door));
@@ -251,6 +269,37 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
   for (const object of old) object.removeFromParent();
   field.add(parts);
   field.updateMatrixWorld(true);
+  // Reuse the fixed CAD indicator surface, not the rotating armor detectors.
+  // The optional halo is render-only and is never attached to a shot root.
+  const outpostLights=TEAMS.flatMap(team=>{
+    const lights:{team:Team;material:THREE.MeshStandardMaterial;halo?:THREE.Sprite}[]=[];
+    const upper=find(team+"-outpost-fixed-upper"),upperBounds=new THREE.Box3().setFromObject(upper,true);
+    upper.traverse(node=>{
+      if(!(node instanceof THREE.Mesh)||!(node.material instanceof THREE.MeshStandardMaterial))return;
+      const c=node.material.color;
+      if(c.g<.8||c.r>.1||c.b>.1)return;
+      const material=node.material.clone();node.material=material;material.toneMapped=false;
+      node.userData.outpostIndicator=true;
+      let halo:THREE.Sprite|undefined;
+      if(glow){
+        halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glow.texture,transparent:true,depthWrite:false,toneMapped:false}));
+        halo.name=team+"-outpost-control-glow";halo.position.copy(upperBounds.getCenter(new THREE.Vector3()));halo.position.y=upperBounds.max.y+.08;halo.scale.setScalar(.64);glow.scene.add(halo);
+      }
+      lights.push({team,material,halo});
+    });
+    return lights;
+  });
+  const pulse=(time:number,period:number,minimum:number)=>minimum+(1-minimum)*(.5+.5*Math.cos(2*Math.PI*time/period));
+  function setOutpostLights(match:Match){
+    for(const {team,material,halo} of outpostLights){
+      const area=territoryStatus(match,team,"outpost"),t=match.elapsed;
+      const color=area.controller==="red"?0xff4055:0x397dff;
+      const brightness=!area.enabled?0:area.contested?pulse(t,2.4,.18):area.progressing?pulse(t,1,.15):!area.full?pulse(t,2,.45):1;
+      material.color.setHex(brightness?color:0x111922).multiplyScalar(brightness||1);
+      material.emissive.setHex(color);material.emissiveIntensity=2*brightness;
+      if(halo){halo.visible=brightness>0;halo.material.color.setHex(color);halo.material.opacity=.9*brightness;}
+    }
+  }
   function apply(pose: MechanismPose) {
     for (const bank of banks) bank.quaternion.setFromAxisAngle(runeAxis, pose.runeAngle);
     for (const [i, rotor] of rotors.entries()) rotor.quaternion.setFromAxisAngle(rotorAxis, pose.outpostAngle[TEAMS[i]]);
@@ -258,5 +307,5 @@ export function installMechanisms(field: THREE.Object3D, parts: THREE.Group, dar
       object.position.copy(rest).addScaledVector(local, pose.cover[team]);
     parts.updateMatrixWorld(true);
   }
-  return { parts, old, apply, rotors, banks, rotorAxis, runeAxis, covers, setRuneLights, applyDart, dartBindings };
+  return { parts, old, apply, rotors, banks, rotorAxis, runeAxis, covers, setRuneLights, setOutpostLights, applyDart, dartBindings };
 }
