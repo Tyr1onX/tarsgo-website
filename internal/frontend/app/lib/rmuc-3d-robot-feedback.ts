@@ -2,7 +2,7 @@ import * as THREE from "three";
 import {ARENA_VISUAL} from "./rmuc-3d-visual.ts";
 import {groundIdentity} from "./rmuc-3d-identity.ts";
 import {eventMessage,visibleEvent} from "./rmuc-3d-events.ts";
-import type {Match,DamageEvent,MatchEvent,Team} from "./rmuc-3d-match.ts";
+import {robotLevel,type Match,type DamageEvent,type MatchEvent,type Team} from "./rmuc-3d-match.ts";
 
 const DAMAGE_LIFE=.8,MERGE_WINDOW=.2,ARMOR_FLASH=.1,BODY_FLASH=.15;
 type Burst={amount:number;start:number;last:number};
@@ -103,10 +103,14 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       if(Math.abs(s.hp-state.hp)<.5)s.hp=state.hp;
       const fraction=Math.round(Math.max(0,Math.min(1,s.hp/state.maxHp))*100);
       const color=ARENA_VISUAL[state.team];
-      draw(s.label,fraction+":"+off,c=>{
-        c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(28,8,200,78);
-        c.font="700 46px system-ui, sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle=color;c.fillText(s.identity.number,128,34);
-        c.fillStyle=ARENA_VISUAL.track;c.fillRect(40,62,176,13);c.fillStyle=off?ARENA_VISUAL.inactive:color;c.fillRect(40,62,176*fraction/100,13);
+      const level=robotLevel(state,match);
+      draw(s.label,fraction+":"+off+":"+level,c=>{
+        c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(12,8,232,72);
+        c.fillStyle=off?ARENA_VISUAL.inactive:color;c.fillRect(12,8,5,72);
+        c.font="800 44px system-ui, sans-serif";c.textAlign="left";c.textBaseline="middle";c.fillText(s.identity.number,28,34);
+        c.font="600 24px system-ui, sans-serif";c.textAlign="right";c.fillStyle=ARENA_VISUAL.text;c.fillText(off?"OFF":"L"+level,226,35);
+        c.fillStyle=ARENA_VISUAL.track;c.fillRect(28,62,198,10);c.fillStyle=off?ARENA_VISUAL.inactive:color;c.fillRect(28,62,198*fraction/100,10);
+        c.beginPath();c.moveTo(120,80);c.lineTo(128,89);c.lineTo(136,80);c.fill();
       });
       s.robot.getWorldPosition(point);point.y+=s.height;
       const depth=-view.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
@@ -119,7 +123,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
         localText(s.damage,message.text,age<DAMAGE_LIFE?burst?.amount:undefined,message.event.type==="heal"||message.event.type==="robot-revived"?ARENA_VISUAL.recovery:ARENA_VISUAL.text);s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;
         s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.42;s.damage.sprite.scale.set(width*1.35,width*.45,1);
       }else if(s.damage.sprite.visible&&burst){
-        draw(s.damage,String(burst.amount),c=>{c.textAlign="center";c.textBaseline="middle";c.font="700 50px system-ui, sans-serif";c.lineWidth=6;c.strokeStyle="#17191d";c.fillStyle=ARENA_VISUAL.damage;c.strokeText("−"+burst.amount,96,32);c.fillText("−"+burst.amount,96,32);});
+        draw(s.damage,String(burst.amount),c=>{c.textAlign="center";c.textBaseline="middle";c.font="800 52px system-ui, sans-serif";c.lineJoin="round";c.lineWidth=7;c.strokeStyle="#17191d";c.fillStyle=ARENA_VISUAL.damage;c.strokeText("−"+burst.amount,96,32);c.fillText("−"+burst.amount,96,32);});
         s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.35+(reducedMotion?0:age*.42);s.damage.sprite.scale.set(width*.95,width*.95/3,1);
         s.damage.sprite.material.opacity=reducedMotion?1:Math.min(1,(DAMAGE_LIFE-age)/.26);
       }else{
@@ -142,9 +146,10 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       const state=match.sides[s.team],hp=state[s.kind],max=s.kind==="base"?10000:1000,owner=s.kind==="outpost"?state.outpostOwner:s.team;
       const color=ARENA_VISUAL[owner];
       draw(s.label,hp+":"+owner,c=>{
-        c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(8,4,240,88);
-        c.fillStyle=color;c.font="700 25px system-ui, sans-serif";c.textAlign="center";c.textBaseline="middle";
-        c.fillText((s.team==="red"?"红":"蓝")+(s.kind==="base"?"方基地":"方前哨")+" "+hp,128,31);
+        c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(8,4,240,82);c.fillStyle=color;c.fillRect(8,4,240,4);
+        c.fillStyle=color;c.font="600 22px system-ui, sans-serif";c.textAlign="left";c.textBaseline="middle";
+        c.fillText((s.team==="red"?"红":"蓝")+(s.kind==="base"?"方基地":"方前哨"),20,34);
+        c.font="800 32px system-ui, sans-serif";c.textAlign="right";c.fillStyle=ARENA_VISUAL.text;c.fillText(String(hp),236,34);
         c.fillStyle=ARENA_VISUAL.track;c.fillRect(20,62,216,13);c.fillStyle=color;c.fillRect(20,62,216*hp/max,13);
       });
       s.label.sprite.visible=visible;s.label.sprite.position.copy(s.anchor);s.label.sprite.scale.set(width,width*96/256,1);

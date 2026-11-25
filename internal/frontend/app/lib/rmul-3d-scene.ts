@@ -27,7 +27,7 @@ import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLA
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
-import { arenaPixelRatio, type ArenaSettings } from "./rmuc-3d-settings";
+import { arenaPixelRatio, calibratedArenaPixelRatio, type ArenaSettings } from "./rmuc-3d-settings";
 import {boundedMove,movementIntent,ZERO_MOVE,type MoveVector} from "./rmuc-3d-input";
 
 export type FieldView = "all" | "red" | "blue" | "top";
@@ -37,7 +37,7 @@ type RadarSummary={opportunities:number;doubleUntil:number;encryptionLevel:numbe
 type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Partial<Record<Team,RadarSummary>>};
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
-export type ArenaStatus = { sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
+export type ArenaStatus = { impact?:{kind:"damage"|"contact";serial:number};sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export type ArenaLoadProgress = { phase:"program"|"download"|"verify"|"parse"|"terrain"|"initialize"|"firstFrame"; received?:number; total?:number };
 export interface ArenaController {
   view: (side: ArenaView) => void;
@@ -98,7 +98,10 @@ export function mountArena(
   const programStarted=performance.now();
   const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
   let settings=initialSettings;
-  const pixelRatio=()=>arenaPixelRatio(settings.quality,window.devicePixelRatio,navigator.hardwareConcurrency,(navigator as Navigator&{deviceMemory?:number}).deviceMemory);
+  let autoRatio:number|null=null,qualitySampleAt=0,qualityWarmup=0;
+  const qualitySamples:number[]=[];
+  const pixelRatio=()=>Math.min(autoRatio??Infinity,arenaPixelRatio(settings.quality,window.devicePixelRatio,navigator.hardwareConcurrency,(navigator as Navigator&{deviceMemory?:number}).deviceMemory));
+  function resetQualitySample(){qualitySampleAt=0;qualityWarmup=0;qualitySamples.length=0;}
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111922);
   scene.fog = new THREE.Fog(0x111922, 65, 180);
@@ -252,10 +255,11 @@ export function mountArena(
   }
   function touchAction(id:number,key:string,pressed:boolean){
     if(!pressed){touchActions.delete(id);invalidate();return;}
-    if(ready&&!paused&&!countdownEnd&&!document.hidden&&!experiment?.running&&mode==="third"&&["Space","ShiftLeft","ControlLeft"].includes(key)){
+    if(ready&&!paused&&!countdownEnd&&!document.hidden&&!experiment?.running&&(mode==="third"&&["Space","ShiftLeft","ControlLeft"].includes(key)||isPlaying(mode)&&key==="ShiftLeft"&&(!driving||!!manualRobot()&&!!activeRobot()?.hp))){
       touchActions.set(id,key);invalidate();
     }
   }
+  const boosted=()=>keys.has("ShiftLeft")||keys.has("ShiftRight")||[...touchActions.values()].includes("ShiftLeft");
   const triggers = new Set<string>();
   let shotRequested=false;
   const clock = new THREE.Vector3(), forward = new THREE.Vector3(), eye = new THREE.Vector3();
@@ -265,7 +269,7 @@ export function mountArena(
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   const eventFeed=createEventFeed(),director=createDirector(),audio=createMatchAudio(camera);
   audio.setVolume(settings.volume);audio.setEnabled(!settings.muted);
-  function applySettings(value:ArenaSettings){settings=value;const ratio=pixelRatio();if(renderer.getPixelRatio()!==ratio)renderer.setPixelRatio(ratio);audio.setVolume(value.volume);audio.setEnabled(!value.muted);publish();invalidate();}
+  function applySettings(value:ArenaSettings){if(value.quality!==settings.quality){autoRatio=null;resetQualitySample();}settings=value;const ratio=pixelRatio();if(renderer.getPixelRatio()!==ratio)renderer.setPixelRatio(ratio);audio.setVolume(value.volume);audio.setEnabled(!value.muted);publish();invalidate();}
   const turnWithSettings=(dx:number,dy:number)=>turnView(look,dx*settings.sensitivity,dy*settings.sensitivity*(settings.invertY?-1:1));
   let countdownCue=0;
   const audioPerspective=() => activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective;
@@ -286,8 +290,11 @@ export function mountArena(
     }
     audio.play(cue,position);
   }
-  function impactSound(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number){
+  let impactFeedback:{kind:"damage"|"contact";serial:number;at:number;robot:string}|null=null,impactSerial=0;
+  function projectileImpact(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:Match["robots"][number]){
     if(experiment?.running)return;
+    if(manualRobot()&&activeRobot()?.id===shooter.id&&match?.phase==="running")
+      impactFeedback={kind:damage>0?"damage":"contact",serial:++impactSerial,at:match.elapsed,robot:shooter.id};
     const perspective=audioPerspective(),team=target?.type==="robot"?groundIdentity(target.id)?.team:target?.team;
     if(perspective!=="all"&&team!==perspective)return;
     audio.play(damage>0?"hit":"contact",hit.point);
@@ -365,7 +372,7 @@ export function mountArena(
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
     const events=eventFeed.view(perspective,performance.now());
     if(events.items.length&&!experiment?.running)invalidate();
-    const status: ArenaStatus = {sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    const status: ArenaStatus = {impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -428,7 +435,7 @@ export function mountArena(
       return;
     }
     const dt=followTime===null?0:Math.min(.1,(time-followTime)/1000);followTime=time;
-    translatedOrbit(camera,controls.target,focusPoint(robot),1-Math.exp(-dt*11));
+    translatedOrbit(camera,controls.target,focusPoint(robot),reducedMotion.matches?1:1-Math.exp(-dt*11));
     controls.update();
     // Keep the intended orbit separate from the actual obstructed camera.
     // Restoring it before each update prevents zoom from collapsing at walls.
@@ -452,7 +459,7 @@ export function mountArena(
     updateMatch(match,dt,positions,tick%8===0?()=>{syncMechanisms();return sampleRadar();}:undefined);
     if(tick%8!==0)syncMechanisms();
     air?.advance(match.elapsed,dt,airClear);
-    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact,impactSound);
+    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact,projectileImpact);
     if(experiment?.running)experiment.telemetry?.observe(match);
     if(match.phase!=="running"){air?.finish();shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
     for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
@@ -523,7 +530,7 @@ export function mountArena(
       const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
       if ((!driving||match?.phase!=="running")&&(horizontal || vertical)) look = turnWithSettings(horizontal * dt * 520, vertical * dt * 520);
       if(!driving&&(f||r)){
-        const {yaw}=look, speed=keys.has("ShiftLeft")||keys.has("ShiftRight")?3.6:2.2,norm=Math.max(1,Math.hypot(f,r));
+        const {yaw}=look, speed=boosted()?3.6:2.2,norm=Math.max(1,Math.hypot(f,r));
         moveOnArena(terrain,explorer,(-Math.sin(yaw)*f+Math.cos(yaw)*r)*speed*dt/norm,(-Math.cos(yaw)*f-Math.sin(yaw)*r)*speed*dt/norm,PLAYER_RADIUS,.34,
           robots.filter(robot=>Math.abs(robot.position.y-explorer.y)<1.15));
       }else if(driving&&match?.phase==="ready"&&!countdownEnd){
@@ -546,6 +553,21 @@ export function mountArena(
     if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches);
     try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
+    if(settings.quality==="auto"&&autoRatio===null&&renderer.getPixelRatio()>1){
+      if(!ready||paused||document.hidden||match?.phase!=="running"||experiment?.running)resetQualitySample();
+      else{
+        const interval=qualitySampleAt?time-qualitySampleAt:0;qualitySampleAt=time;
+        if(interval>0&&interval<250){
+          if(qualityWarmup<30)qualityWarmup++;
+          else qualitySamples.push(interval);
+          if(qualitySamples.length>=90){
+            autoRatio=calibratedArenaPixelRatio(renderer.getPixelRatio(),qualitySamples);
+            if(renderer.getPixelRatio()!==autoRatio)renderer.setPixelRatio(autoRatio);
+            resetQualitySample();
+          }
+        }else if(interval>=250)resetQualitySample();
+      }
+    }
 
   }
 
@@ -998,7 +1020,7 @@ export function mountArena(
       const route=botPaths.get(bot);
       if(manual&&isPlaying(mode)&&!paused){
         const {f,r}=movementIntent(keys,touchMove);
-        if(f||r){const n=Math.hypot(f,r),{yaw}=look;strength=n;target=bot.position.clone().add(new THREE.Vector3((-Math.sin(yaw)*f+Math.cos(yaw)*r)/n*10,0,(-Math.cos(yaw)*f-Math.sin(yaw)*r)/n*10));command=keys.has("ShiftLeft")||keys.has("ShiftRight")?2:1;}
+        if(f||r){const n=Math.hypot(f,r),{yaw}=look;strength=n;target=bot.position.clone().add(new THREE.Vector3((-Math.sin(yaw)*f+Math.cos(yaw)*r)/n*10,0,(-Math.cos(yaw)*f-Math.sin(yaw)*r)/n*10));command=boosted()?2:1;}
       }else if(!manual&&match.phase==="running"&&route&&!route.search){
         while(route.points.length&&bot.position.distanceTo(route.points[0])<.04)route.points.shift();
         if(Math.hypot(route.goal.x-bot.position.x,route.goal.z-bot.position.z)>=route.tolerance){target=route.points[0]??route.goal;command=1;}
@@ -1152,7 +1174,7 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyM") setView("all");
   }
   function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);input(event.code, false); }
-  function clearInput() { shotRequested=false;triggers.clear();keys.clear();moveOwner=null;touchMove=ZERO_MOVE;touchActions.clear();onInputReset(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
+  function clearInput() { impactFeedback=null;shotRequested=false;triggers.clear();keys.clear();moveOwner=null;touchMove=ZERO_MOVE;touchActions.clear();onInputReset(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
   function turn(dx: number, dy: number) {
     if (!ready || paused || (!isPlaying(mode)&&mode!=="third")) return;
     look = turnWithSettings(dx, dy);
