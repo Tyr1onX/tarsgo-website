@@ -20,6 +20,14 @@ test("weekly report defaults to submission status and saved history; editing req
   assert.doesNotMatch(route, /默认展开编辑|自动进入编辑/);
 });
 
+test("weekly editor restores focus on edit transitions without stealing existing focus", () => {
+  assert.match(route, /previousEditing\.current === isEditing/);
+  assert.match(route, /document\.activeElement === document\.body/);
+  assert.match(route, /\(isEditing \? reportHeading\.current : editButton\.current\)\?\.focus\(\)/);
+  assert.match(route, /ref=\{reportHeading\} tabIndex=\{-1\}/);
+  assert.equal([...route.matchAll(/ref=\{editButton\}/g)].length, 2);
+});
+
 test("weekly local drafts preserve the chosen authorized group and guard IME shortcuts", () => {
   assert.match(route, /tarsgo-weekly-draft:\$\{currentUser\.id\}:\$\{selectedWeekStart\}/);
   assert.match(route, /JSON\.stringify\(\{ form, groupId: reportGroupId, savedAt \}\)/);

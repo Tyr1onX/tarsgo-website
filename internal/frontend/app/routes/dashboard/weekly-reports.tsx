@@ -1,6 +1,6 @@
 import { BrandLoader } from "~/components/brand-loader";
 import { Notify } from "~/components/notify";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type SetStateAction } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type SetStateAction } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
@@ -48,6 +48,16 @@ export default function WeeklyReportsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isEditing = searchParams.get("edit") === "1";
+  const previousEditing = useRef(isEditing);
+  const reportHeading = useRef<HTMLHeadingElement>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (previousEditing.current === isEditing) return;
+    previousEditing.current = isEditing;
+    if (document.activeElement === document.body) {
+      (isEditing ? reportHeading.current : editButton.current)?.focus();
+    }
+  }, [isEditing]);
   const requestedWeekStart = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("weekStart") ?? "") ? searchParams.get("weekStart") ?? "" : "";
   const [dashboardResult, setDashboardResult] = useState(() => ({
     accountId: currentUser.id, data: getWeeklyDashboardSnapshot(currentUser.id) ?? null as WeeklyReportDashboard | null,
@@ -429,7 +439,7 @@ export default function WeeklyReportsRoute() {
             <div className="weekly-report__panel-heading">
               <div>
                 <p className="weekly-report__eyebrow">{isCurrentWeek ? "本周状态" : "历史周报"}</p>
-                <h2 id="my-weekly-report-title">{selectedWeekStart ? formatWeekLabel(selectedWeekStart) : "本周"}</h2>
+                <h2 id="my-weekly-report-title" ref={reportHeading} tabIndex={-1}>{selectedWeekStart ? formatWeekLabel(selectedWeekStart) : "本周"}</h2>
               </div>
               {!isCurrentWeek ? <button className="weekly-report__back-current" type="button" onClick={() => {
                 setSelectedReportKey("current");
@@ -463,7 +473,7 @@ export default function WeeklyReportsRoute() {
               </div>
               <div className="weekly-report__form-footer">
 
-                <button className="admin-button admin-button--primary" type="button" onClick={() => setEditing(true)}>
+                <button ref={editButton} className="admin-button admin-button--primary" type="button" onClick={() => setEditing(true)}>
                   {isCurrentWeek ? "修改本周周报" : "修改历史周报"}
                 </button>
               </div>
@@ -471,7 +481,7 @@ export default function WeeklyReportsRoute() {
 
             {!isEditing && !selectedReport ? <div className="weekly-report__empty-state">
               <p>本周周报尚未提交</p>
-              <button className="admin-button admin-button--primary" type="button" onClick={() => setEditing(true)}>填写周报</button>
+              <button ref={editButton} className="admin-button admin-button--primary" type="button" onClick={() => setEditing(true)}>填写周报</button>
             </div> : null}
 
             {isEditing ? <form className="weekly-report__form" onSubmit={submitReport} onKeyDown={(event) => {
