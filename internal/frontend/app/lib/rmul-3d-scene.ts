@@ -1,3 +1,4 @@
+import { GROUND_ROSTER, groundIdentity } from "./rmuc-3d-identity";
 import {airPadCenters,createAirSystem,type AirVehicle} from "./rmuc-3d-air";
 import {validExperiment,roundConfig,createRoundTelemetry,summarizeRound,type ExperimentConfig,type ExperimentProgress,type ExperimentRound,type TaskDecision} from "./rmuc-3d-experiment";
 import {chooseTask,defaultStrategy,validStrategy,type Strategy,type TaskCandidate,type TaskKind,type WeightKey} from "./rmuc-3d-strategy";
@@ -24,7 +25,7 @@ import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
 
 export type FieldView = "all" | "red" | "blue" | "top";
 export type ArenaView = FieldView | "first" | "third";
-type MapTrack={id:string;team:Team;x:number;z:number;progress:number;localized:boolean;stale:boolean};
+type MapTrack={id:string;number:string;team:Team;x:number;z:number;progress:number;localized:boolean;stale:boolean};
 type RadarSummary={opportunities:number;doubleUntil:number;encryptionLevel:number};
 type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Partial<Record<Team,RadarSummary>>};
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
@@ -203,7 +204,7 @@ export function mountArena(
   const benchModules=new THREE.Group();scene.add(benchModules);
   const launcherModels=new Map<string,ReturnType<typeof bindLauncherModule>>();
   const syncLaunchers=()=>{for(const r of match?.robots??[])launcherModels.get(r.id)?.update(r.launcher==="test"||r.launcher==="ready");};
-  const roster = () => fieldRobots.map(r=>({id:r.object.name,team:r.object.userData.team as Team,heavy:r.object.name.includes("hero"),sentry:r.object.name.includes("sentinel"),maxHp:r.object.name.includes("hero")?400:200}));
+  const roster = () => GROUND_ROSTER.map(r=>({id:r.id,team:r.team,heavy:r.kind==="heavy",sentry:r.kind==="sentry",maxHp:r.kind==="heavy"?400:200}));
   const activeRobot = () => match?.robots.find(r=>r.id===driving?.object.name);
   let mode: ArenaView = "first";
   let look = { yaw: -.7, pitch: -.08 };
@@ -237,7 +238,7 @@ export function mountArena(
       const p=positions.get(r.id);if(!p)return [];
       const observed=team==="all"?{point:p,localized:true,progress:0,reportedAt:match!.elapsed}:radarPosition(match!.radar,team,r,p);
       if(!observed)return [];
-      return [{id:r.id,team:r.team,x:Math.round(observed.point.x*100)/100,z:Math.round(observed.point.z*100)/100,progress:Math.floor(observed.progress),localized:observed.localized,stale:!observed.localized&&match!.elapsed-(observed.reportedAt??0)>.5}];
+      return [{id:r.id,number:groundIdentity(r.id)!.number,team:r.team,x:Math.round(observed.point.x*100)/100,z:Math.round(observed.point.z*100)/100,progress:Math.floor(observed.progress),localized:observed.localized,stale:!observed.localized&&match!.elapsed-(observed.reportedAt??0)>.5}];
     });
   }
   function publish() {
@@ -248,7 +249,7 @@ export function mountArena(
       const side=match!.sides[team],detailed=perspective==="all"||perspective===team;
       return {base:side.base,outpost:side.outpost,baseDamage:damageFor(team+"-base"),outpostDamage:damageFor(team+"-outpost"),coins:detailed?side.coins:null,technology:detailed?technologyLevel(match!,team):null,
         robots:match!.robots.filter(r=>r.team===team).map(r=>{
-          const publicHealth={id:r.id,number:r.id.slice(-2),kind:r.heavy?"heavy" as const:r.sentry?"sentry" as const:"infantry" as const,hp:r.hp,maxHp:r.maxHp};
+          const publicHealth={id:r.id,number:groundIdentity(r.id)!.number,kind:groundIdentity(r.id)!.kind,hp:r.hp,maxHp:r.maxHp};
           if(!detailed)return publicHealth;
           const revival=revivalStatus(match!,r);
           return {...publicHealth,detail:{level:robotLevel(r,match!),powerOff:r.hp===0&&!canDriveRobot(match!,r)||r.powerLockUntil>match!.elapsed,launcherLocked:r.hp===0||!!r.thermalLock||revival.weak||r.heavy&&r.launcher!=="ready"&&r.launcher!=="test",revival:revival.dead?Math.floor(revival.progress*100):null,weak:revival.weak,immune:revival.immune,damage:damageFor(r.id)}};
@@ -549,6 +550,7 @@ export function mountArena(
     const bot=available[botCursor++%available.length];
     if(!bot)return;
     const state=currentMatch.robots.find(m=>m.id===bot.object.name)!;
+    const identity=groundIdentity(state.id)!;
     shotIntents.delete(bot);
     const strategy=strategies[state.team];
     const side=currentMatch.sides[state.team],enemyTeam=state.team==="red"?"blue":"red";
@@ -589,7 +591,7 @@ export function mountArena(
       const previous=botPaths.get(bot)?.goal;
       if(kind!=="assembly"&&previous&&zonesAtPosition(previous).includes(zone.id)&&!known.some(r=>r.position!==bot.position&&Math.abs(r.position.y-previous.y)<1.15&&Math.hypot(r.position.x-previous.x,r.position.z-previous.z)<r.radius+bot.radius))return previous.clone();
       const [x,z]=zone.goal;
-      const offsets=kind==="assembly"?[[0,0],[.2,-.2],[-.2,.2]]:state.sentry?[[0,0],[.5,.4],[-.5,-.4]]:state.id.includes("03")?[[.5,.4],[0,0],[-.5,-.4]]:[[-.5,-.4],[0,0],[.5,.4]];
+      const offsets=kind==="assembly"?[[0,0],[.2,-.2],[-.2,.2]]:state.sentry?[[0,0],[.5,.4],[-.5,-.4]]:identity.number==="03"?[[.5,.4],[0,0],[-.5,-.4]]:[[-.5,-.4],[0,0],[.5,.4]];
       for(const [dx,dz] of offsets){
         const p=new THREE.Vector3(x+dx,currentTerrain!.heightAt(x+dx,z+dz),z+dz);
         if(zonesAtPosition(p).includes(zone.id)&&supportedHeight(currentTerrain!,p.x,p.z,bot.radius,p.y,.23)!==null
@@ -627,9 +629,9 @@ export function mountArena(
     }else if(!controlsOutpost(currentMatch,state.team,state.team)||side.outpostArea.progress>0){
       kind="defend";goal=zoneGoal(state.team,state.sentry?"outpost":"central");
     }else if(fortressReady){
-      goal=zoneGoal(enemyTeam,state.sentry||state.id.includes("04")?"central":"outpost");
+      goal=zoneGoal(enemyTeam,state.sentry||identity.number==="04"?"central":"outpost");
     }else if(!controlsOutpost(currentMatch,enemyTeam,state.team,true)){
-      goal=zoneGoal(enemyTeam,state.sentry||state.id.includes("04")?"central":"outpost");
+      goal=zoneGoal(enemyTeam,state.sentry||identity.number==="04"?"central":"outpost");
     }else{
       goal=zoneGoal(enemyTeam,state.sentry?"central":"base");
     }
@@ -711,8 +713,8 @@ export function mountArena(
     // One available infantry per team handles rune attempts. Do not spend
     // an activation until its actual muzzle has an unobstructed detector.
     const rune=runeStatus(currentMatch,state.team);
-    const runeBot=active.find(r=>r!==manualRobot()&&r.object.userData.team===state.team&&r.object.name.includes("infantry-04"))
-      ??active.find(r=>r!==manualRobot()&&r.object.userData.team===state.team&&r.object.name.includes("infantry"));
+    const runeBot=active.find(r=>r!==manualRobot()&&r.object.userData.team===state.team&&groundIdentity(r.object.name)?.number==="04")
+      ??active.find(r=>r!==manualRobot()&&r.object.userData.team===state.team&&groundIdentity(r.object.name)?.kind==="infantry");
     let runeDuty=false;
     if(bot===runeBot&&!assaultDuty&&!recovering&&!needAmmo&&state.ammo>=(rune.active?1:5)&&!rune.buff&&(rune.active||rune.available>0)){
       const bank=state.team==="red"?"a":"b";
@@ -1094,7 +1096,7 @@ export function mountArena(
       const rotor=mechanism.parts.getObjectByName(team+"-outpost-rotor")!;
       for(let i=0;i<3;i++)bindArmorFrame(mechanism.parts.getObjectByName(team+"-outpost-armor-"+i)!,rotor);
     }
-    fieldRobots=robots.filter(r=>r.object.userData.area==="field");
+    fieldRobots=robots.filter(r=>!!groundIdentity(r.object.name));
     armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){

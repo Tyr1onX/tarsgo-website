@@ -1,3 +1,4 @@
+import {groundIdentity,systemIdentity} from "./rmuc-3d-identity.ts";
 import type {Match,DamageEvent} from "./rmuc-3d-match.ts";
 import type {Team} from "./rmuc-3d-mechanisms.ts";
 import {technologyLevel} from "./rmuc-3d-match.ts";
@@ -34,7 +35,8 @@ export function summarizeRound(match:Match,config:ExperimentConfig,index:number,
       technology:technologyLevel(match,team),technologyCounts:s.tech.counts.slice(),kills:events.filter(e=>e.team!==team&&e.kind==="death").length,deaths:events.filter(e=>e.team===team&&e.kind==="death").length,revivals:events.filter(e=>e.team===team&&e.kind==="revival").length,
       radar:{extraDamage:radarExtra[team],vulnerableSeconds:match.radar[team].vulnerableSeconds,doubleActivations:match.radar[team].used,marks:Object.fromEntries(Object.entries(match.radar[team].tracks).map(([id,t])=>[id,t.progress]))},
       tasks:counts,taskSeconds:duration,decisionMeanMs:sorted.length?sorted.reduce((a,b)=>a+b,0)/sorted.length:0,decisionP95Ms:sorted.length?sorted[Math.ceil(sorted.length*.95)-1]:0,
-      robots:match.robots.filter(r=>r.team===team).map(r=>({id:r.id,hp:r.hp,xp:r.xp,ammo:r.ammo}))};
+      systems:(["air","dart","radar"] as const).map(kind=>systemIdentity(team,kind)),
+      robots:match.robots.filter(r=>r.team===team).map(r=>({id:r.id,identity:groundIdentity(r.id),hp:r.hp,xp:r.xp,ammo:r.ammo}))};
   };
   return {...roundConfig(config,index),index:index+1,elapsed:match.elapsed,winner:match.winner,sides:{red:side("red"),blue:side("blue")},events:events.slice(),decisions:decisions.slice()};
 }
