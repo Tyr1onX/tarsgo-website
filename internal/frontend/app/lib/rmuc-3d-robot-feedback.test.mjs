@@ -51,3 +51,18 @@ test("unlocated referee damage has a number but cannot invent a contact surface"
  assert.equal(plate.material,original);assert.equal(feedback.group.children[1].visible,true);
  feedback.dispose();
 });
+
+test("same-tick structural destruction and rebuild stay visible beside damage and later low-priority hit notices",()=>{
+ const scene=new T.Scene(),structure=new T.Group();structure.add(new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial()));scene.add(structure);scene.updateMatrixWorld(true);
+ const texts=[];globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},strokeText(){},fillText(s){texts.push(s);}})})};
+ let feedback;try{feedback=createRobotFeedback(scene,[],[{key:"blue-outpost",team:"blue",kind:"outpost",object:structure}]);}finally{delete globalThis.document;}
+ const m=createMatch([],1,1);startMatch(m);m.elapsed=20;m.sides.blue.outpost=500;m.sides.blue.outpostOwner="red";
+ const camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(0,2,5);camera.lookAt(0,1,0);
+ feedback.event({type:"outpost-destroyed",team:"blue",location:"blue",hp:0,at:20,visibility:"all"});
+ feedback.event({type:"outpost-rebuilt",team:"red",location:"blue",hp:500,at:20,visibility:"all"});
+ feedback.damage({target:{type:"outpost",team:"blue"},amount:20,at:20,source:"projectile"});
+ feedback.event({type:"dart-hit",team:"red",location:"blue",mode:"outpost",damage:20,at:20,visibility:"all"});
+ feedback.update(m,camera,720,"all");
+ assert.ok(texts.includes("摧毁 · 重建 +500"));assert.ok(texts.includes("-20"));
+ assert.equal(feedback.amountFor("blue-outpost",20),20);feedback.dispose();
+});
