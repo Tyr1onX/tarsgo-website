@@ -324,7 +324,14 @@
  .rmul3d-clock small{font-size:7px;letter-spacing:0}
  .rmul3d-robot-status{padding:2px}
  .rmul3d-team-identity{gap:3px}
- .rmul3d-team-identity i{width:5px;height:5px}
+ .rmul3d-team-identity i{width:5px;height:5px;flex-shrink:0}
+}
+@media(max-width:600px) and (orientation:portrait){
+ .rmul3d-base-caption,.rmul3d-base-line .rmul3d-damage,.rmul3d-robot-hp .rmul3d-damage,.rmul3d-outpost .rmul3d-damage{display:none}
+ .rmul3d-robot-status{grid-template-columns:minmax(0,1fr);gap:2px}
+ .rmul3d-robot-id,.rmul3d-robot-hp{justify-content:space-between;flex-wrap:nowrap}
+ .rmul3d-robot-state{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:8px}
+ .rmul3d-team-identity{font-size:10px}
 }
 @media(prefers-reduced-motion:reduce){.rmul3d :is(.rmul3d-load-content strong,.rmul3d-help,.rmul3d-countdown,.rmul3d-countdown>strong,.rmul3d-result){animation:none}}
 

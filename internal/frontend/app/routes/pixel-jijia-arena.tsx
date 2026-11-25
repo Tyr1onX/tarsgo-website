@@ -43,7 +43,7 @@ function ControlIcon({kind}:{kind:"up"|"down"|"boost"|"fire"|"interact"}){
 }
 function TeamScore({team,side,select,selected}:{team:"red"|"blue";side:NonNullable<ArenaStatus["match"]>["sides"]["red"];select?:(id:string)=>void;selected?:string|null}){
   return <section className={"rmul3d-team "+team} aria-label={teamName(team)+"方"}>
-    <div className="rmul3d-base-line"><span className="rmul3d-team-identity"><i aria-hidden="true"/>{teamName(team)}方 · 基地</span><DamageValue value={side.baseDamage}/><strong>{side.base}</strong></div>
+    <div className="rmul3d-base-line"><span className="rmul3d-team-identity"><i aria-hidden="true"/>{teamName(team)}方<span className="rmul3d-base-caption"> · 基地</span></span><DamageValue value={side.baseDamage}/><strong>{side.base}</strong></div>
     <HealthBar value={side.base} max={10000} label={teamName(team)+"方基地血量"}/>
     <div className="rmul3d-team-metrics">
       <div className="rmul3d-outpost" title={"建筑归属："+teamName(side.outpostOwner)+"方 · 阵地："+areaText(side.outpostArea)}>
