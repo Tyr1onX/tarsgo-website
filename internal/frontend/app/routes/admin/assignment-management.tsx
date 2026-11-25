@@ -1,5 +1,5 @@
 import { BrandLoader } from "~/components/brand-loader";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
@@ -98,6 +98,9 @@ export default function AssignmentManagementRoute() {
   const publishRequestID = useRef<string | null>(null);
   const activePublishCancel = useRef<(() => void) | null>(null);
   const editRequestID = useRef(0);
+  const composerOpener = useRef<HTMLButtonElement | null>(null);
+  const publishButton = useRef<HTMLButtonElement>(null);
+  const editorHeading = useRef<HTMLHeadingElement>(null);
   const currentAccountID = useRef(currentUser.id);
   currentAccountID.current = currentUser.id;
   const feishuBound = feishuBinding?.accountId === currentUser.id && feishuBinding.bound;
@@ -108,6 +111,22 @@ export default function AssignmentManagementRoute() {
     return [...new Map((cohorts ?? []).filter((cohort) => selected.has(cohort.formId))
       .flatMap((cohort) => cohort.members.map((member) => [member.userId, member] as const))).values()];
   }, [cohorts, draft.cohortFormIds]);
+
+  useLayoutEffect(() => {
+    if (view !== "list") {
+      if (!composerOpen) composerOpener.current = null;
+      return;
+    }
+    if (composerOpen) {
+      editorHeading.current?.focus();
+    } else if (composerOpener.current) {
+      const opener = composerOpener.current;
+      composerOpener.current = null;
+      if (document.activeElement === document.body) {
+        (opener.isConnected && !opener.disabled ? opener : publishButton.current)?.focus();
+      }
+    }
+  }, [composerOpen, view]);
 
   useEffect(() => {
     if (!groupId || view !== "list") return;
@@ -247,7 +266,8 @@ export default function AssignmentManagementRoute() {
     activePublishCancel.current = null;
   }
 
-  function editAssignment(item: Assignment) {
+  function editAssignment(item: Assignment, opener: HTMLButtonElement) {
+    composerOpener.current = opener;
     const activeRequest = ++editRequestID.current;
     setEditing(item);
     setComposerOpen(true);
@@ -468,7 +488,7 @@ export default function AssignmentManagementRoute() {
           ? <span className="text-sm text-[var(--admin-muted)]">飞书已绑定</span>
           : feishuPanelAccount !== currentUser.id ? <button type="button" className="admin-button admin-button--secondary" onClick={() => void startFeishuBinding()} disabled={feishuBusy}>绑定飞书</button> : null
           : feishuError ? <button type="button" className="admin-button admin-button--quiet" disabled={feishuBusy} onClick={() => void checkFeishuBinding()}>重试飞书状态</button> : null}
-        {!composerOpen && view !== "overview" ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list", groupId: String(groupId) }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
+        {!composerOpen && view !== "overview" ? <button ref={publishButton} type="button" className="admin-button admin-button--primary" onClick={(event) => { composerOpener.current = event.currentTarget; resetDraft(); setComposerOpen(true); setSearchParams({ view: "list", groupId: String(groupId) }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
         </div>
       </header>
       {view !== "overview" && feishuPanelAccount === currentUser.id && !feishuBound ? <section className="admin-panel space-y-3 p-4 sm:p-5" aria-label="飞书账号绑定">
@@ -505,7 +525,7 @@ export default function AssignmentManagementRoute() {
       {view === "overview" ? <AssignmentOverview accountId={currentUser.id} groups={assignmentGroups} selectedGroupId={selectedGroupId} /> :
        view === "review" ? <Suspense fallback={<BrandLoader label="正在加载批改中心" />}><AssignmentReview key={groupId} groupId={groupId} /></Suspense> : <>
       {composerOpen ? <section className="admin-panel assignment-editor" aria-labelledby="assignment-editor-title">
-        <div className="admin-section-heading"><h2 id="assignment-editor-title">{editing?.submittedCount ? "延长截止时间" : editing ? "编辑作业" : "发布作业"}</h2><button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => resetDraft()} disabled={saving}>取消</button></div>
+        <div className="admin-section-heading"><h2 id="assignment-editor-title" ref={editorHeading} tabIndex={-1}>{editing?.submittedCount ? "延长截止时间" : editing ? "编辑作业" : "发布作业"}</h2><button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => resetDraft()} disabled={saving}>取消</button></div>
         <form onSubmit={save} className="assignment-editor__form">
           {!editing?.submittedCount ? <label className="admin-field-label assignment-editor__title">标题<input className={fieldClass} required maxLength={120} disabled={saving || publishStage !== "idle"} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label> : null}
           <div className="assignment-editor__deadline">
@@ -577,7 +597,7 @@ export default function AssignmentManagementRoute() {
         {!groupsLoading && groupId > 0 && !loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
         <div className="assignment-list__items">{items.map((item) => <article key={item.id} className="assignment-list__item">
           <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.cohortFormIds?.length ? `纳新届次 ×${item.cohortFormIds.length}` : item.isGroupWide ? "历史全组（实时）" : "历史指定成员"} · 接收 {item.targetCount} 人 · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
-          <div className="assignment-list__actions"><Link to={`/dashboard/admin/training/assignments?view=review&groupId=${groupId}&assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">查看批改</Link><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "延长截止" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
+          <div className="assignment-list__actions"><Link to={`/dashboard/admin/training/assignments?view=review&groupId=${groupId}&assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">查看批改</Link><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={(event) => editAssignment(item, event.currentTarget)}>{item.submittedCount > 0 ? "延长截止" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
         </article>)}</div>
         <details className="mt-4 border-t border-[var(--admin-border-subtle)] pt-3 text-sm text-[var(--admin-muted)]">
           <summary className="w-fit cursor-pointer">维护操作</summary>

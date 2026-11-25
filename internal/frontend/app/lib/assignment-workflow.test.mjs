@@ -108,6 +108,14 @@ test("Beijing deadlines default to seven days, support shortcuts, and validate b
   assert.match(deadline, /wallClock - SHANGHAI_OFFSET_MS/);
 });
 
+test("assignment composer restores focus to its trigger without stealing focus from other controls", () => {
+  assert.match(assignmentManagement, /editorHeading\.current\?\.focus\(\)/);
+  assert.match(assignmentManagement, /document\.activeElement === document\.body/);
+  assert.match(assignmentManagement, /opener\.isConnected && !opener\.disabled \? opener : publishButton\.current/);
+  assert.match(assignmentManagement, /ref=\{editorHeading\} tabIndex=\{-1\}/);
+  assert.match(assignmentManagement, /composerOpener\.current = event\.currentTarget/);
+});
+
 test("review center displays each assigned member in a single current progress category", () => {
   assert.match(assignmentSubmissions, /useState<"toSubmit" \| "toReview" \| "passed">\("toReview"\)/);
   assert.match(assignmentSubmissions, /member\.status === "pending" \|\| member\.status === "overdue" \|\| member\.status === "needs_redo"/);
@@ -297,7 +305,7 @@ test("assignment management lists current work before opening the editor", () =>
   assert.match(assignmentManagement, /const \[composerOpen, setComposerOpen\] = useState\(false\)/);
   assert.match(assignmentManagement, /resetDraft\(nextGroupID\); setSearchParams\(nextGroupID \? \{ view, groupId: String\(nextGroupID\) \} : \{ view \}, \{ replace: true \}\); \}\}/);
   assert.doesNotMatch(assignmentManagement, /resetDraft\(nextGroupID\); setComposerOpen\(true\)/);
-  assert.match(assignmentManagement, /\{!composerOpen && view !== "overview" \? <button type="button" className="admin-button admin-button--primary"[\s\S]*?>发布作业<\/button> : null\}/);
+  assert.match(assignmentManagement, /\{!composerOpen && view !== "overview" \? <button ref=\{publishButton\} type="button" className="admin-button admin-button--primary"[\s\S]*?>发布作业<\/button> : null\}/);
   assert.match(assignmentManagement, /view === "review" \? <Suspense/);
   assert.match(assignmentManagement, /view === "list" \? "is-active"/);
   assert.match(assignmentManagement, /assignments\?view=review&groupId=\$\{groupId\}&assignmentId=\$\{item\.id\}/);
