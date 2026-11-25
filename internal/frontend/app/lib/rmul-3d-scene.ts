@@ -1,3 +1,4 @@
+import {createRobotFeedback} from "./rmuc-3d-robot-feedback";
 import { GROUND_ROSTER, groundIdentity } from "./rmuc-3d-identity";
 import {airPadCenters,createAirSystem,type AirVehicle} from "./rmuc-3d-air";
 import {validExperiment,roundConfig,createRoundTelemetry,summarizeRound,type ExperimentConfig,type ExperimentProgress,type ExperimentRound,type TaskDecision} from "./rmuc-3d-experiment";
@@ -130,6 +131,7 @@ export function mountArena(
   let air:ReturnType<typeof createAirSystem>|null=null;
   let dartVisual:ReturnType<typeof createDartVisual>|null=null;
   let armorGlow:ReturnType<typeof createArmorGlow>|null=null;
+  let robotFeedback:ReturnType<typeof createRobotFeedback>|null=null;
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   const simClock=new ArenaClock();
@@ -222,14 +224,15 @@ export function mountArena(
   const damageFlashes=new Map<string,{amount:number;until:number}>();
   function recordDamage(event:DamageEvent){
     if(experiment?.running)experiment.telemetry?.damage(event);
+    robotFeedback?.damage(event);
     const target=event.target,key=target.type==="robot"?target.id:target.team+"-"+target.type;
-    const old=damageFlashes.get(key);
-    damageFlashes.set(key,{amount:event.amount+(old&&old.until>event.at?old.amount:0),until:event.at+.65});
+    if(target.type!=="robot"){const old=damageFlashes.get(key);damageFlashes.set(key,{amount:event.amount+(old&&old.until>event.at?old.amount:0),until:event.at+.65});}
     if(target.type==="robot"&&target.id===activeRobot()?.id&&activeRobot()?.hp===0)clearInput();
   }
   function damageFor(key:string){
+    if(match?.phase!=="running")return 0;
     const entry=damageFlashes.get(key);
-    return entry&&match?.phase==="running"&&entry.until>match.elapsed?entry.amount:0;
+    return entry&&entry.until>match.elapsed?entry.amount:robotFeedback?.amountFor(key,match.elapsed)??0;
   }
   function mapTracks(team:"all"|Team,operator=false):MapTrack[]{
     if(!match)return [];
@@ -313,7 +316,7 @@ export function mountArena(
     updateMatch(match,dt,positions,tick%8===0?()=>{syncMechanisms();return sampleRadar();}:undefined);
     if(tick%8!==0)syncMechanisms();
     air?.advance(match.elapsed,dt,airClear);
-    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex);
+    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact);
     if(experiment?.running)experiment.telemetry?.observe(match);
     if(match.phase!=="running"){air?.finish();shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
     for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
@@ -386,7 +389,8 @@ export function mountArena(
     armorGlow?.update();
     if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode));
-    renderer.render(scene, camera);
+    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??radarPerspective);
+    try{renderer.render(scene, camera);}finally{robotFeedback?.restoreMaterials();}
 
   }
 
@@ -436,7 +440,7 @@ export function mountArena(
   function reset() {
     if(!match||!mechanism||!terrain)return;
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
-    damageFlashes.clear();taskLog.length=0;match.onDamage=recordDamage;
+    damageFlashes.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;
     defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
@@ -1098,6 +1102,7 @@ export function mountArena(
     }
     fieldRobots=robots.filter(r=>!!groundIdentity(r.object.name));
     armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
+    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object));
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
@@ -1116,7 +1121,7 @@ export function mountArena(
       armorCenters.set(robot,list);
     }
     match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
-    damageFlashes.clear();taskLog.length=0;match.onDamage=recordDamage;
+    damageFlashes.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});
@@ -1138,7 +1143,7 @@ export function mountArena(
   });
 
   return {
-    radarView(value){if(!activeRobot()){radarPerspective=value;publish();}},
+    radarView(value){if(!activeRobot()){radarPerspective=value;publish();invalidate();}},
     airStop(team){if(!experiment?.running&&match?.phase==="running"&&!activeRobot()&&radarPerspective==="all"){air?.stop(team);publish();invalidate();}},
     radarDouble(){const r=activeRobot();if(match?.phase==="running"&&r)activateRadarDouble(match.radar,r.team,match.elapsed);publish();},
     configureStrategies(value){if(!match||match.phase==="running"||experiment?.running||!validStrategy(value.red)||!validStrategy(value.blue))return false;strategies=structuredClone(value);return true;},
@@ -1173,7 +1178,7 @@ export function mountArena(
       window.removeEventListener("pointercancel", pointerup);
       controls.removeEventListener("change", invalidate);
       controls.dispose();
-      projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();
+      projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();robotFeedback?.dispose();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);
