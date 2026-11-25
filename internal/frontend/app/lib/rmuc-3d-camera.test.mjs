@@ -60,3 +60,17 @@ test("stadium adds high and spacious red-blue stands with bounded instance draw 
   assert.equal(textures.size,2);
   assert.ok([...textures].every(texture=>texture.image.width===128 && texture.image.height===128));
 });
+
+test("free flight normalizes diagonal motion, uses wall delta, boosts, clamps, and stops immediately",async()=>{
+ const {flightBounds,flightStep}=await import("./rmuc-3d-camera.ts");
+ const bounds=flightBounds(new THREE.Box3(new THREE.Vector3(-14,0,-8),new THREE.Vector3(14,4,8))),look={yaw:0,pitch:0};
+ const move=(keys,dt=.025)=>{const p=new THREE.Vector3(0,3,0);flightStep(p,look,new Set(keys),6,dt,bounds);return p;};
+ assert.ok(Math.abs(move(["KeyW"]).distanceTo(new THREE.Vector3(0,3,0))-.15)<1e-8);
+ assert.ok(Math.abs(move(["KeyW","KeyD","Space"]).distanceTo(new THREE.Vector3(0,3,0))-.15)<1e-8);
+ assert.ok(Math.abs(move(["Space","ControlLeft"]).y-3.45)<1e-8);
+ assert.ok(move(["ShiftLeft"]).y<3);
+ const p=move([]);assert.equal(flightStep(p,look,new Set(),6,.05,bounds),false);
+ assert.deepEqual(p.toArray(),[0,3,0]);
+ const a=new THREE.Vector3(0,3,0),b=a.clone();for(let i=0;i<40;i++)flightStep(a,look,new Set(["KeyW"]),6,.025,bounds);for(let i=0;i<60;i++)flightStep(b,look,new Set(["KeyW"]),6,1/60,bounds);assert.ok(a.distanceTo(b)<1e-8);
+ for(let i=0;i<1000;i++)flightStep(a,look,new Set(["Space","ControlLeft"]),24,.05,bounds);assert.equal(a.y,bounds.max.y);
+});
