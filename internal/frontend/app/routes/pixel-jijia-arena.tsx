@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { getExperienceReturnTo, experienceReturnLabel } from "~/lib/experience-navigation";
+import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
 import type { ArenaController, ArenaStatus, ArenaView } from "~/lib/rmul-3d-scene";
@@ -88,7 +88,9 @@ function ExperimentResults({progress}:{progress:ExperimentProgress}){
 }
 
 export default function PixelJijiaArenaPage() {
-  const returnTo = getExperienceReturnTo(useLocation().state);
+  const location=useLocation();
+  const returnTo=getExperienceReturnTo(location.state);
+  const pixelReturn=getPixelReturn(location.state);
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
   const [status, setStatus] = useState<ArenaStatus>({ view: "first", robot: null, nearby: null });
@@ -141,7 +143,7 @@ export default function PixelJijiaArenaPage() {
         {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
         <div className="rmul3d-hud">
         <header className="rmul3d-header">
-          <Link to={returnTo} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
+          <Link to={returnTo} state={returnTo==="/pixel-jijia"&&pixelReturn?{pixelReturn}:undefined} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
           <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
