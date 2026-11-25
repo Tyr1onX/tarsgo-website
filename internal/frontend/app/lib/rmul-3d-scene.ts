@@ -1,3 +1,4 @@
+import {createMatchAudio,eventCue,audioVisible} from "./rmuc-3d-audio";
 import {createDirector,type Shot} from "./rmuc-3d-director";
 import {createEventFeed} from "./rmuc-3d-events";
 import {readRobotSight,followOffset,translatedOrbit} from "./rmuc-3d-spectator";
@@ -34,10 +35,11 @@ type RadarSummary={opportunities:number;doubleUntil:number;encryptionLevel:numbe
 type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Partial<Record<Team,RadarSummary>>};
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
-export type ArenaStatus = { director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
+export type ArenaStatus = { sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export interface ArenaController {
   view: (side: ArenaView) => void;
   director: (enabled:boolean)=>void;
+  sound:(enabled:boolean)=>void;
   cancelStart:()=>void;
   interact: () => void;
   observe:(id:string)=>void;
@@ -235,17 +237,32 @@ export function mountArena(
 
   const manualRobot=()=>activeRobot()?.sentryControl==="auto"?null:driving;
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
-  const eventFeed=createEventFeed(),director=createDirector();
+  const eventFeed=createEventFeed(),director=createDirector(),audio=createMatchAudio(camera);
+  let countdownCue=0;
+  const audioPerspective=() => activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective;
+  function soundEvent(event:MatchEvent){
+    if(!audioVisible(event.visibility,audioPerspective()))return;
+    const cue=eventCue(event);if(!cue)return;
+    const perspective=audioPerspective();
+    const position="team" in event&&perspective!=="all"&&event.team!==perspective?undefined:"position" in event?event.position:"robot" in event?positions.get(event.robot):undefined;
+    audio.play(cue,cue==="major"||cue==="start"||cue==="end"?undefined:position);
+  }
+  function impactSound(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number){
+    if(experiment?.running)return;
+    const perspective=audioPerspective(),team=target?.type==="robot"?groundIdentity(target.id)?.team:target?.team;
+    if(perspective!=="all"&&team!==perspective)return;
+    audio.play(damage>0?"hit":"contact",hit.point);
+  }
   let countdownEnd=0,flightSpeed=6,flyBounds:THREE.Box3|null=null;
   const canDirect=()=>!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
   function stopDirector(){if(!director.enabled)return;director.stop();controls.enabled=!paused&&mode!=="first"&&mode!=="third"&&mode!=="ai-first"&&mode!=="detail";}
   function enableDirector(){if(!canDirect())return;director.start(match!.elapsed);setView("all",true);}
-  function cancelStart(){if(!countdownEnd)return;countdownEnd=0;clearInput();publish();invalidate();}
+  function cancelStart(){if(!countdownEnd)return;countdownEnd=0;countdownCue=0;audio.stop();clearInput();publish();invalidate();}
   function showShot(shot:Shot){
     if(shot.kind==="all"){setView("all",true);return;}
     if(shot.kind==="follow"||shot.kind==="ai-first"){
       const robot=fieldRobots.find(r=>r.object.name===shot.robot);if(!robot)return;
-      observed=robot;setView(shot.kind,true);return;
+      if(mode==="ai-first"&&observed!==robot)audio.stop();observed=robot;setView(shot.kind,true);return;
     }
     if(shot.kind!=="detail")return;
     const team=shot.team,object=shot.object;
@@ -263,7 +280,7 @@ export function mountArena(
   }
   function recordEvent(event:MatchEvent){
     if(experiment?.running)return;
-    eventFeed.add(event,performance.now());robotFeedback?.event(event);director.event(event);
+    eventFeed.add(event,performance.now());robotFeedback?.event(event);director.event(event);soundEvent(event);
   }
   function recordDamage(event:DamageEvent){
     if(experiment?.running)experiment.telemetry?.damage(event);
@@ -309,7 +326,7 @@ export function mountArena(
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
     const events=eventFeed.view(perspective,performance.now());
     if(events.items.length&&!experiment?.running)invalidate();
-    const status: ArenaStatus = {director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-performance.now())/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    const status: ArenaStatus = {sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-performance.now())/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -361,7 +378,7 @@ export function mountArena(
     const robot=observed;
     const state=match.robots.find(r=>r.id===robot.object.name);
     if(!state?.hp||state.sentryControl==="auto")return;
-    stopDirector();driving=robot;clearInput();botPaths.delete(robot);shotIntents.delete(robot);motions.delete(robot);
+    stopDirector();audio.stop();driving=robot;clearInput();botPaths.delete(robot);shotIntents.delete(robot);motions.delete(robot);
     look={yaw:robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0),pitch:robot.object.getObjectByName("weapon-pitch")?.rotation.x??0};
     setView("first");
   }
@@ -396,7 +413,7 @@ export function mountArena(
     updateMatch(match,dt,positions,tick%8===0?()=>{syncMechanisms();return sampleRadar();}:undefined);
     if(tick%8!==0)syncMechanisms();
     air?.advance(match.elapsed,dt,airClear);
-    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact);
+    projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact,impactSound);
     if(experiment?.running)experiment.telemetry?.observe(match);
     if(match.phase!=="running"){air?.finish();shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
     for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
@@ -443,7 +460,7 @@ export function mountArena(
     if(countdownEnd){
       if(document.hidden)cancelStart();
       else if(time>=countdownEnd){countdownEnd=0;beginMatch();time=performance.now();}
-      else invalidate();
+      else{const remaining=Math.ceil((countdownEnd-time)/1000);if(remaining!==countdownCue){countdownCue=remaining;audio.play("countdown");}invalidate();}
     }
     if(match?.phase==="running"&&!experiment?.running){
       if(document.hidden)simClock.pause();
@@ -498,7 +515,7 @@ export function mountArena(
     if (!ready||driving&&next!=="first"||(next==="follow"||next==="ai-first")&&!observed||experiment?.running&&next!=="all"||next==="third"&&radarPerspective!=="all"||next==="detail"&&!automatic) return;
     if(!automatic)stopDirector();
     if(mode!==next){if(mode==="follow"&&next==="third"){camera.position.copy(followRendered);camera.updateMatrixWorld(true);}clearInput();drag=null;observerPointer=null;}
-    mode = next;
+    if(next!==mode&&(mode==="ai-first"||next==="ai-first"||next==="first"))audio.stop();mode = next;
     if(next==="third"){
       controls.enabled=false;camera.fov=72;camera.getWorldDirection(forward);
       look={yaw:Math.atan2(-forward.x,-forward.z),pitch:Math.asin(THREE.MathUtils.clamp(forward.y,-1,1))};
@@ -543,7 +560,7 @@ export function mountArena(
   function start(){
     if(!match||match.phase!=="ready"||countdownEnd)return;
     if(experiment?.running){beginMatch();return;}
-    clearInput();if(!driving&&radarPerspective==="all")setView("all");countdownEnd=performance.now()+3000;publish();invalidate();
+    audio.unlock();countdownCue=0;clearInput();if(!driving&&radarPerspective==="all")setView("all");countdownEnd=performance.now()+3000;publish();invalidate();
   }
   function revive(paid:boolean) {
     if(match&&driving){reviveRobot(match,driving.object.name,paid,true);publish();invalidate();}
@@ -556,7 +573,7 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    countdownEnd=0;stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
+    countdownEnd=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
@@ -1031,7 +1048,7 @@ export function mountArena(
   }
   function shoot(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3){
     if(!match||!map)return;
-    if(projectiles.fire(match,robot.object.name,from,direction,robot.object)&&!experiment?.running){publish();invalidate();}
+    if(projectiles.fire(match,robot.object.name,from,direction,robot.object)&&!experiment?.running){const state=match.robots.find(r=>r.id===robot.object.name);if(state&&audioVisible(state.team,audioPerspective()))audio.play(state.heavy?"heavy":"light",from);publish();invalidate();}
   }
   function interact() {
     if (!ready || paused || !terrain || !isPlaying(mode)||experiment?.running) return;
@@ -1054,7 +1071,7 @@ export function mountArena(
     } else {
       const robot = nearby();
       if (robot) {
-        driving = robot;observed=null;
+        audio.stop();driving = robot;observed=null;
         botPaths.delete(robot);shotIntents.delete(robot);motions.delete(robot);
         look = { yaw: robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0), pitch: robot.object.getObjectByName("weapon-pitch")?.rotation.x??0 };
       }
@@ -1151,7 +1168,7 @@ export function mountArena(
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
   }
-  function visibilityChange(){if(document.hidden)cancelStart();simClock.pause();clearInput();invalidate();queueExperiment();}
+  function visibilityChange(){if(document.hidden){cancelStart();audio.stop();}simClock.pause();clearInput();invalidate();queueExperiment();}
   function lockchange() { if (document.pointerLockElement !== canvas) clearInput(); }
 
   function wheel(e:WheelEvent){if(paused||!ready)return;if(director.enabled)setView("third");if(mode!=="third")return;e.preventDefault();flightSpeed=THREE.MathUtils.clamp(flightSpeed*Math.exp(-e.deltaY*.002),1,24);publish();invalidate();}
@@ -1294,13 +1311,13 @@ export function mountArena(
   });
 
   return {
-    radarView(value){if(!activeRobot()&&mode!=="ai-first"){radarPerspective=value;if(value!=="all"){stopDirector();if(mode==="third"||mode==="detail")setView("all");}if(observed&&!allowedObservation(observed)){observed=null;if(mode==="follow")setView("all");}publish();invalidate();}},
+    radarView(value){if(!activeRobot()&&mode!=="ai-first"){if(radarPerspective!==value)audio.stop();radarPerspective=value;if(value!=="all"){stopDirector();if(mode==="third"||mode==="detail")setView("all");}if(observed&&!allowedObservation(observed)){observed=null;if(mode==="follow")setView("all");}publish();invalidate();}},
     airStop(team){if(!experiment?.running&&match?.phase==="running"&&!activeRobot()&&radarPerspective==="all"){air?.stop(team);publish();invalidate();}},
     radarDouble(){const r=activeRobot();if(match?.phase==="running"&&r)activateRadarDouble(match.radar,r.team,match.elapsed);publish();},
     configureStrategies(value){if(!match||match.phase==="running"||experiment?.running||!validStrategy(value.red)||!validStrategy(value.blue))return false;strategies=structuredClone(value);return true;},
     startExperiment,cancelExperiment,
     configureSeed(value){if(!match||experiment?.running||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;reset();return true;},
-    director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
+    sound:enabled=>{audio.setEnabled(enabled);publish();invalidate();},director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, input, pauseInput, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
     armorFortify:(x,y)=>{const r=activeRobot();if(match&&r){const c=recommendedArmorCenter(match,r.team);fortifyArmor(match,r.team,{x:x??c.x,y:y??c.y});}publish();invalidate();},
@@ -1327,7 +1344,7 @@ export function mountArena(
       window.removeEventListener("blur", clearInput);
       window.removeEventListener("pointerup", pointerup);
       window.removeEventListener("pointercancel", pointerup);
-      countdownEnd=0;stopDirector();canvas.removeEventListener("wheel",wheel);controls.removeEventListener("start",orbitStart);
+      countdownEnd=0;audio.dispose();stopDirector();canvas.removeEventListener("wheel",wheel);controls.removeEventListener("start",orbitStart);
       controls.removeEventListener("change", invalidate);
       controls.dispose();
       projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();robotFeedback?.dispose();
