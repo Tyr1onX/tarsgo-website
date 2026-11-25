@@ -3,7 +3,8 @@ import { Link, useLocation } from "react-router";
 import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
-import type { ArenaController, ArenaStatus, ArenaView } from "~/lib/rmul-3d-scene";
+import type { ArenaController, ArenaLoadProgress, ArenaStatus, ArenaView } from "~/lib/rmul-3d-scene";
+import {DEFAULT_ARENA_SETTINGS,loadArenaSettings,saveArenaSettings,type ArenaSettings} from "~/lib/rmuc-3d-settings";
 import {defaultStrategy,STRATEGY_PRESETS,WEIGHT_KEYS,type Strategy} from "~/lib/rmuc-3d-strategy";
 import {pairedSummary,type ExperimentProgress} from "~/lib/rmuc-3d-experiment";
 import "./pixel-jijia-arena.css";
@@ -74,11 +75,11 @@ function StrategyEditor({label,value,onChange,disabled}:{label:string;value:Stra
     </>}
   </fieldset>;
 }
-function ExperimentResults({progress}:{progress:ExperimentProgress}){
+function ExperimentResults({progress,onExport}:{progress:ExperimentProgress;onExport:()=>void}){
   const summary=pairedSummary(progress.results);
   function download(){
     const url=URL.createObjectURL(new Blob([JSON.stringify({schema:1,ruleVersion:"RMUC 2027 V1.0.0",codeVersion:import.meta.env.VITE_ARENA_CODE_VERSION??"unknown",...summary,rounds:progress.results},null,2)],{type:"application/json"}));
-    const a=document.createElement("a");a.href=url;a.download="rmuc-experiment.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    const a=document.createElement("a");a.href=url;a.download="rmuc-experiment.json";a.click();onExport();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   return <div className="rmul3d-experiment-results">
     <p>已完成 {progress.completed}/{progress.total} 场 · 完整配对 {summary.completePairs}</p>
@@ -87,14 +88,37 @@ function ExperimentResults({progress}:{progress:ExperimentProgress}){
   </div>;
 }
 
+type EntryMode="match"|"explore"|"experiment";
+const INITIAL_STATUS:ArenaStatus={view:"first",robot:null,nearby:null};
+const PHASE_LABELS:Record<ArenaLoadProgress["phase"],string>={program:"初始化三维程序",download:"下载战场资源",verify:"解压与完整性校验",parse:"解析模型",terrain:"生成地形与地图",initialize:"初始化机器人与机关",firstFrame:"准备首个画面"};
+function SettingsPanel({value,onChange}:{value:ArenaSettings;onChange:(value:ArenaSettings)=>void}){
+  return <div className="rmul3d-options">
+    <label>画质<select value={value.quality} onChange={e=>onChange({...value,quality:e.target.value as ArenaSettings["quality"]})}><option value="auto">自动推荐</option><option value="low">流畅</option><option value="medium">均衡</option><option value="high">精细</option></select></label>
+    <label>静音<input type="checkbox" checked={value.muted} onChange={e=>onChange({...value,muted:e.target.checked})}/></label>
+    <label>总音量<input type="range" min="0" max="1" step=".05" value={value.volume} onChange={e=>onChange({...value,volume:Number(e.target.value)})}/><output>{Math.round(value.volume*100)}%</output></label>
+    <label>视角灵敏度<input type="range" min=".25" max="2" step=".05" value={value.sensitivity} onChange={e=>onChange({...value,sensitivity:Number(e.target.value)})}/><output>{Math.round(value.sensitivity*100)}%</output></label>
+    <label>纵向反转<input type="checkbox" checked={value.invertY} onChange={e=>onChange({...value,invertY:e.target.checked})}/></label>
+    <button onClick={()=>onChange({...DEFAULT_ARENA_SETTINGS})}>恢复默认</button>
+  </div>;
+}
 export default function PixelJijiaArenaPage() {
   const location=useLocation();
   const returnTo=getExperienceReturnTo(location.state);
   const pixelReturn=getPixelReturn(location.state);
   const mountRef = useRef<HTMLDivElement>(null);
   const controller = useRef<ArenaController | null>(null);
-  const [status, setStatus] = useState<ArenaStatus>({ view: "first", robot: null, nearby: null });
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<ArenaStatus>(INITIAL_STATUS);
+  const [entry,setEntry]=useState<EntryMode|null>(null);
+  const [attempt,setAttempt]=useState(0);
+  const [loading, setLoading] = useState(false);
+  const [progress,setProgress]=useState<ArenaLoadProgress>({phase:"program"});
+  const [settings,setSettings]=useState<ArenaSettings>(DEFAULT_ARENA_SETTINGS);
+  const settingsRef=useRef(settings);
+  const [settingsOpen,setSettingsOpen]=useState(false);
+  const [exportedCount,setExportedCount]=useState(0);
+  const launchConfig=useRef<{seed:number;pairs:number;strategies:Record<"red"|"blue",Strategy>}|null>(null);
+  useEffect(()=>{const value=loadArenaSettings();settingsRef.current=value;setSettings(value);},[]);
+  function updateSettings(value:ArenaSettings){settingsRef.current=value;setSettings(value);saveArenaSettings(value);controller.current?.settings(value);}
   const [error, setError] = useState("");
   const [menu, setMenu] = useState(false);
   const [tacticsOpen,setTacticsOpen]=useState(false);
@@ -106,28 +130,64 @@ export default function PixelJijiaArenaPage() {
   const experimentRunning=!!status.experiment?.running;
   const validConfig=seed!==""&&Number.isInteger(Number(seed))&&Number(seed)>=0&&Number(seed)<=0xffffffff&&pairs!==""&&Number.isInteger(Number(pairs))&&Number(pairs)>=1&&Number(pairs)<=20;
 
+  function launch(mode:EntryMode){
+    if(mode==="experiment"&&!validConfig)return;
+    launchConfig.current=mode==="experiment"?{seed:Number(seed),pairs:Number(pairs),strategies:structuredClone(strategies)}:null;
+    setStatus(INITIAL_STATUS);setProgress({phase:"program"});setError("");setLoading(true);setMenu(false);setSettingsOpen(false);setExperimentOpen(false);setExportedCount(0);
+    setEntry(mode);
+  }
+  function retry(){
+    setStatus(INITIAL_STATUS);setProgress({phase:"program"});setError("");setLoading(true);setAttempt(a=>a+1);
+  }
+  function canLeave(){
+    const unsaved=(status.experiment?.results.length??0)>exportedCount;
+    return !(experimentRunning||unsaved||status.match?.phase==="running")||window.confirm(experimentRunning||unsaved?"离开战场将丢失当前实验或未导出的结果，确定离开？":"当前比赛尚未结束，确定离开战场？");
+  }
+  function exitToMenu(){
+    if(!canLeave())return;
+    controller.current?.dispose();controller.current=null;
+    setEntry(null);setStatus(INITIAL_STATUS);setLoading(false);setError("");setMenu(false);setExperimentOpen(false);setSettingsOpen(false);setExportedCount(0);
+  }
+
   useEffect(() => {
     const host = mountRef.current;
-    if (!host) return;
+    if (!host||!entry) return;
     let active = true;
+    const importStarted=performance.now();
+    function fail(message:string){
+      if(!active)return;
+      setLoading(false);setError(message);
+      queueMicrotask(()=>{if(active){controller.current?.dispose();controller.current=null;}});
+    }
     void import("~/lib/rmul-3d-scene").then(({ mountArena }) => {
       if (!active) return;
+      performance.measure("arena:import",{start:importStarted,end:performance.now()});
       controller.current = mountArena(
-        host,
-        () => { setLoading(true); setError(""); },
-        () => setLoading(false),
-        message => { setLoading(false); setError(message); },
-        setStatus,
+        host,settingsRef.current,
+        value=>{if(active)setProgress(value);},
+        () => {
+          if(!active)return;
+          const arena=controller.current;
+          if(!arena)return;
+          arena.settings(settingsRef.current);
+          if(entry==="match")arena.start();
+          else if(entry==="explore")arena.view("third");
+          else if(launchConfig.current){
+            if(!arena.startExperiment(launchConfig.current)){fail("实验无法启动，请重试");return;}
+            setExperimentOpen(true);
+          }
+          setLoading(false);
+        },
+        fail,
+        value=>{if(active)setStatus(value);},
       );
-    }).catch(() => {
-      if (active) { setLoading(false); setError("当前设备无法打开三维场景"); }
-    });
+    }).catch(() => fail("当前设备无法打开三维场景，请重试"));
     return () => {
       active = false;
       controller.current?.dispose();
       controller.current = null;
     };
-  }, []);
+  }, [entry,attempt]);
 
   const playing = status.view === "first", flying=status.view==="third";
   const firstPerson=playing||status.view==="ai-first";
@@ -136,31 +196,44 @@ export default function PixelJijiaArenaPage() {
   const select=(id:string)=>controller.current?.observe(id);
   const legalTeam=(team:"red"|"blue")=>!status.robot&&(status.radarMap?.perspective==="all"||status.radarMap?.perspective===team);
   const toggleMenu = (open: boolean) => {
-    controller.current?.pauseInput(open);
+    controller.current?.pause(open);
     setMenu(open);
+    if(!open)setSettingsOpen(false);
   };
   const disabled = loading || !!error;
   const touchKeys = [["KeyW", "↑"], ["KeyA", "←"], ["KeyS", "↓"], ["KeyD", "→"],...(flying?[["Space","升"],["ShiftLeft","降"]]:[])] as const;
+
+  const configFields=<>
+    <StrategyEditor label="红方 A" value={strategies.red} onChange={red=>setStrategies(s=>({...s,red}))} disabled={experimentRunning||status.match?.phase==="running"}/>
+    <StrategyEditor label="蓝方 B" value={strategies.blue} onChange={blue=>setStrategies(s=>({...s,blue}))} disabled={experimentRunning||status.match?.phase==="running"}/>
+    <div className="rmul3d-experiment-config"><label>起始种子<input aria-label="起始种子" type="number" min="0" max="4294967295" step="1" value={seed} disabled={experimentRunning} onChange={e=>setSeed(e.target.value)}/></label><label>配对数<input aria-label="配对数" type="number" min="1" max="20" step="1" value={pairs} disabled={experimentRunning} onChange={e=>setPairs(e.target.value)}/></label><span>{Number(pairs)*2} 场 · 每对交换红蓝</span></div>
+  </>;
+  if(!entry)return <main className="rmul3d rmul3d-entry">
+    <section className="rmul3d-entry-panel">
+      <Link to={returnTo} state={returnTo==="/pixel-jijia"&&pixelReturn?{pixelReturn}:undefined} className="rmul3d-entry-back" aria-label={experienceReturnLabel(returnTo)}>← 返回上一层</Link>
+      <div className="rmul3d-entry-title"><span>TARS-GO / RMUC 2027</span><h1>战场模拟</h1></div>
+      {settingsOpen?<><h2>设置</h2><SettingsPanel value={settings} onChange={updateSettings}/><button onClick={()=>setSettingsOpen(false)}>返回菜单</button></>:experimentOpen?<><h2>策略实验</h2>{configFields}<div className="rmul3d-entry-actions"><button className="rmul3d-primary" disabled={!validConfig} onClick={()=>launch("experiment")}>运行配对实验</button><button onClick={()=>setExperimentOpen(false)}>返回菜单</button></div></>:<nav className="rmul3d-entry-actions" aria-label="模拟器主菜单"><button className="rmul3d-primary" onClick={()=>launch("match")}>开始模拟</button><button onClick={()=>launch("explore")}>自由探索</button><button onClick={()=>setExperimentOpen(true)}>策略实验</button><button onClick={()=>setSettingsOpen(true)}>设置</button></nav>}
+    </section>
+  </main>;
 
   return (
     <main className="rmul3d">
       <section className="rmul3d-stage" aria-label="RMUC 2027 三维训练战场">
         <div ref={mountRef} className="rmul3d-canvas" />
-        {loading && !error && <p className="rmul3d-loading" role="status">正在加载战场…</p>}
-        {error && <div className="rmul3d-error" role="alert">{error}<button onClick={() => window.location.reload()}>重试</button></div>}
-        <div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
+        {loading && !error && <div className="rmul3d-loading"><div className="rmul3d-load-content"><strong role="status">{PHASE_LABELS[progress.phase]}</strong>{progress.phase==="download"&&<><progress aria-label="资源下载进度" max={progress.total} value={progress.total===undefined?undefined:progress.received}/><span>{((progress.received??0)/1000000).toFixed(1)} MB{progress.total!==undefined?` / ${(progress.total/1000000).toFixed(1)} MB`:""}</span></>}<button onClick={exitToMenu}>取消</button></div></div>}
+        {error && <div className="rmul3d-error"><span role="alert">{error}</span><button onClick={retry}>重试</button><button onClick={exitToMenu}>返回主菜单</button></div>}
+        {!disabled&&<><div className={"rmul3d-hud"+(focused?" is-focused":"")+(status.robot?" is-manual":"")+(tacticsOpen?" is-tactics-open":"")}>
         <header className="rmul3d-header">
-          <Link to={returnTo} state={returnTo==="/pixel-jijia"&&pixelReturn?{pixelReturn}:undefined} className="rmul3d-back" aria-label={experienceReturnLabel(returnTo)}>←</Link>
           <div className="rmul3d-header-actions">
             <button className="rmul3d-settings" type="button" onClick={() => toggleMenu(!menu)} aria-label="战场菜单" aria-expanded={menu}>☰</button>
-            {!disabled&&!menu&&<button className="rmul3d-sound" aria-label={status.sound?"静音":"开启声音"} aria-pressed={!!status.sound} onClick={()=>controller.current?.sound(!status.sound)}>{status.sound?"声音开":"声音关"}</button>}
+            {!disabled&&!menu&&<button className="rmul3d-sound" aria-label={status.sound?"静音":"开启声音"} aria-pressed={!!status.sound} onClick={()=>updateSettings({...settings,muted:!settings.muted})}>{status.sound?"声音开":"声音关"}</button>}
             {!disabled&&!menu&&(status.canDirect||status.director)&&<button className="rmul3d-director" aria-pressed={!!status.director} onClick={()=>controller.current?.director(!status.director)}>导播{status.director?"开":"关"}</button>}
           </div>
         </header>
         {!disabled && !menu && status.match && <div className="rmul3d-match">
-          {status.match.phase === "ready" ? status.countdown?<div className="rmul3d-countdown" role="status"><div><b>红方</b><span>VS</span><b>蓝方</b></div><strong>{status.countdown}</strong><button onClick={()=>controller.current?.cancelStart()}>取消</button></div>:<><button onClick={() => controller.current?.start()}>开始自主对抗训练</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
+          {status.match.phase === "ready" ? status.countdown?<div className="rmul3d-countdown" role="status"><div><b>红方</b><span>VS</span><b>蓝方</b></div><strong>{status.countdown}</strong><button onClick={()=>controller.current?.cancelStart()}>取消</button></div>:<><button onClick={() => controller.current?.start()}>开始模拟</button><button onClick={()=>setExperimentOpen(true)}>策略与实验</button></> : <>
             <div className="rmul3d-score"><TeamScore team="red" side={status.match.sides.red} select={legalTeam("red")?select:undefined} selected={focus?.id??status.selected}/><div className="rmul3d-clock"><strong>{Math.floor(status.match.seconds/60)}:{String(status.match.seconds%60).padStart(2,"0")}</strong>{status.match.phase==="finished"&&<small>结束</small>}</div><TeamScore team="blue" side={status.match.sides.blue} select={legalTeam("blue")?select:undefined} selected={focus?.id??status.selected}/></div>
-            {status.match.phase === "finished" && <><strong className={"rmul3d-result "+status.match.winner}>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方胜利":"蓝方胜利"}</strong><button onClick={() => controller.current?.reset()}>重新开始</button></>}
+            {status.match.phase === "finished" && <><strong className={"rmul3d-result "+status.match.winner}>{status.match.winner==="draw"?"平局":status.match.winner==="red"?"红方胜利":"蓝方胜利"}</strong><button onClick={() => {controller.current?.reset();controller.current?.start();}}>再来一局</button></>}
           </>}
         </div>}
         {!disabled&&!menu&&!experimentRunning&&!!status.events?.items.length&&<aside className="rmul3d-event-feed" aria-label="赛事播报">{status.events.items.map(item=><div key={item.id} className={"team" in item.event?item.event.team:""}><time>{Math.floor(Math.ceil(420-item.event.at)/60)}:{String(Math.ceil(420-item.event.at)%60).padStart(2,"0")}</time><span>{item.text}</span></div>)}</aside>}
@@ -258,19 +331,20 @@ export default function PixelJijiaArenaPage() {
         </div>
         {!disabled && firstPerson && status.match?.phase==="running" && (status.match.thermalLock==="cooling"||!!status.match.dart?.blind) && <div className="rmul3d-thermal-lock" aria-label={status.match.dart?.blind?"飞镖命中，图传遮挡":"热量超限，图传断开"} />}
         {!disabled && !menu && firstPerson && (!focus||focus.sight&&status.match!.hp>0) && status.match?.thermalLock!=="cooling"&&!status.match?.dart?.blind && <div className="rmul3d-crosshair" aria-hidden="true" />}
-        {experimentRunning&&!experimentOpen&&<div className="rmul3d-experiment-progress"><span>实验 {status.experiment!.completed+1}/{status.experiment!.total} · {Math.floor(status.experiment!.elapsed)}s</span><button onClick={()=>setExperimentOpen(true)}>进度</button><button onClick={()=>controller.current?.cancelExperiment()}>停止</button></div>}
-        {experimentOpen&&<aside className="rmul3d-help rmul3d-experiment" aria-label="策略与实验">
+        {experimentRunning&&!experimentOpen&&!menu&&<div className="rmul3d-experiment-progress"><span>实验 {status.experiment!.completed+1}/{status.experiment!.total} · {Math.floor(status.experiment!.elapsed)}s</span><button onClick={()=>setExperimentOpen(true)}>进度</button><button onClick={()=>controller.current?.cancelExperiment()}>停止</button></div>}
+        {experimentOpen&&!menu&&<aside className="rmul3d-help rmul3d-experiment" aria-label="策略与实验">
           <button className="rmul3d-close" onClick={()=>setExperimentOpen(false)} aria-label="关闭实验">×</button>
           <h2>策略与实验</h2>
-          <StrategyEditor label="红方 A" value={strategies.red} onChange={red=>setStrategies(s=>({...s,red}))} disabled={experimentRunning||status.match?.phase==="running"}/>
-          <StrategyEditor label="蓝方 B" value={strategies.blue} onChange={blue=>setStrategies(s=>({...s,blue}))} disabled={experimentRunning||status.match?.phase==="running"}/>
-          <div className="rmul3d-experiment-config"><label>起始种子<input aria-label="起始种子" type="number" min="0" max="4294967295" step="1" value={seed} disabled={experimentRunning} onChange={e=>setSeed(e.target.value)}/></label><label>配对数<input aria-label="配对数" type="number" min="1" max="20" step="1" value={pairs} disabled={experimentRunning} onChange={e=>setPairs(e.target.value)}/></label><span>{Number(pairs)*2} 场 · 每对交换红蓝</span></div>
-          {experimentRunning?<><progress max={status.experiment!.total*420} value={Math.min(status.experiment!.total*420,status.experiment!.completed*420+status.experiment!.elapsed)}/><button onClick={()=>controller.current?.cancelExperiment()}>停止实验</button></>:<div className="rmul3d-presets"><button disabled={!validConfig||status.match?.phase==="running"} onClick={()=>{if(controller.current?.configureSeed(Number(seed))&&controller.current.configureStrategies(strategies)){setExperimentOpen(false);controller.current.start();}}}>开始单局训练</button><button disabled={!validConfig||status.match?.phase==="running"} onClick={()=>controller.current?.startExperiment({seed:Number(seed),pairs:Number(pairs),strategies})}>运行配对实验</button></div>}
-          {status.experiment&&<ExperimentResults progress={status.experiment}/>}
+          {configFields}
+          {experimentRunning?<><progress max={status.experiment!.total*420} value={Math.min(status.experiment!.total*420,status.experiment!.completed*420+status.experiment!.elapsed)}/><button onClick={()=>controller.current?.cancelExperiment()}>停止实验</button></>:<div className="rmul3d-presets"><button disabled={!validConfig||status.match?.phase==="running"} onClick={()=>{if(controller.current?.configureSeed(Number(seed))&&controller.current.configureStrategies(strategies)){setExperimentOpen(false);controller.current.start();}}}>开始单局训练</button><button disabled={!validConfig||status.match?.phase==="running"} onClick={()=>{if((status.experiment?.results.length??0)>exportedCount&&!window.confirm("开始新实验将覆盖未导出的结果，确定继续？"))return;if(controller.current?.startExperiment({seed:Number(seed),pairs:Number(pairs),strategies}))setExportedCount(0);}}>运行配对实验</button></div>}
+          {status.experiment&&<ExperimentResults progress={status.experiment} onExport={()=>setExportedCount(status.experiment!.results.length)}/>}
         </aside>}
         {menu && <aside className="rmul3d-help" aria-label="战场菜单" onKeyDown={event => { if (event.key === "Escape") toggleMenu(false); }}>
           <button className="rmul3d-close" onClick={() => toggleMenu(false)} aria-label="关闭">×</button>
-          <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }}>战术演练</Link>
+          {settingsOpen?<><h2>设置</h2><SettingsPanel value={settings} onChange={updateSettings}/><button onClick={()=>setSettingsOpen(false)}>返回菜单</button></>:<>
+          <h2>{experimentRunning?"战场菜单":status.match?.phase==="running"||status.countdown?"比赛已暂停":"战场菜单"}</h2>
+          <div className="rmul3d-menu-actions"><button onClick={()=>toggleMenu(false)}>继续</button><button onClick={()=>setSettingsOpen(true)}>设置</button><button onClick={exitToMenu}>返回主菜单</button></div>
+          <Link to="/pixel-jijia/battle" state={{ experienceReturnTo: returnTo }} onClick={e=>{if(!canLeave())e.preventDefault();}}>战术演练</Link>
           <h2>视角</h2>
           <nav className="rmul3d-views" aria-label="校准视角">
             {CAMERA_VIEWS.filter(({id})=>(!status.robot||id==="first")&&(!experimentRunning||id==="all")&&(id!=="third"||status.radarMap?.perspective==="all")).map(({ id, label }) => (
@@ -280,7 +354,7 @@ export default function PixelJijiaArenaPage() {
             ))}
           </nav>
           <h2>训练</h2>
-          <button disabled={disabled||experimentRunning} onClick={()=>{controller.current?.reset();toggleMenu(false);}}>重置比赛</button><button disabled={disabled} onClick={()=>{toggleMenu(false);setExperimentOpen(true);}}>策略与实验</button>
+          <button disabled={disabled||experimentRunning} onClick={()=>{if(status.match?.phase==="running"&&!window.confirm("确定重置当前比赛？"))return;controller.current?.reset();toggleMenu(false);}}>重置比赛</button><button disabled={disabled} onClick={()=>{toggleMenu(false);setExperimentOpen(true);}}>策略与实验</button>
           <h2>操作</h2>
           <dl>
             <dt>W A S D</dt><dd>移动</dd>
@@ -300,7 +374,9 @@ export default function PixelJijiaArenaPage() {
           <a href="https://github.com/hxyulin/rm-map-tools/releases/tag/rm2027-assets-20261015" target="_blank" rel="noreferrer">rm-map-tools · CAD 转换</a>
           <Link to="/robots">TARS-Go 2026 定妆照</Link>
           <p>场地资料 CC BY-NC-SA 4.0；机器人为照片参考的外观模型，非官方尺寸。当前为自主对抗训练，非完整官方裁判仿真。基地装甲攻击尚未实现；飞镖为虚拟检测训练，装配机构与护甲行程、场地交互模块卡覆盖范围为训练近似。</p>
+          </>}
         </aside>}
+        </>}
       </section>
     </main>
   );

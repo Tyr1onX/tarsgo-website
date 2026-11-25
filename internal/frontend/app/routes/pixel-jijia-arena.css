@@ -1,5 +1,32 @@
 .rmul3d { height: 100dvh; min-height: 0; background: #111922; color: #e1e8f0; font-family: Inter, "Noto Sans SC", system-ui, sans-serif; overflow: clip; }
 .rmul3d * { box-sizing: border-box; }
+.rmul3d-entry {
+  display: flex; align-items: center; padding: max(24px,env(safe-area-inset-top)) max(6vw,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(6vw,env(safe-area-inset-left)); overflow: auto;
+  background: linear-gradient(90deg,#101821f5 0%,#101821dd 32%,#10182144 75%),url("/assets/images/Home/arena-experience-a50fc737.webp") center / cover no-repeat;
+}
+.rmul3d-entry-panel { width: min(100%,360px); max-height: 100%; display: grid; gap: 18px; margin: auto 0; padding: 8px 0; }
+.rmul3d-entry-back { color:#c4d2e0; font-size:14px; width:fit-content; text-decoration:none; }
+.rmul3d-entry-title span { color:#a8bdcf; font-size:12px; font-weight:650; letter-spacing:.12em; }
+.rmul3d-entry-title h1 { font-size:clamp(36px,6vw,62px); margin:6px 0 2px; line-height:1; letter-spacing:-.05em; }
+.rmul3d-entry-panel h2 { font-size:18px; margin:0; }
+.rmul3d-entry-actions,.rmul3d-menu-actions,.rmul3d-options { display:grid; gap:8px; }
+.rmul3d-entry-actions button { text-align:left; min-height:48px; padding-inline:18px; font-size:16px; }
+.rmul3d button.rmul3d-primary { background:#dce9f4; color:#101a25; border-color:#e8f1fa; }
+.rmul3d :is(button,.rmul3d-entry-back) { transition: background-color var(--motion-duration-fast,160ms), color var(--motion-duration-fast,160ms), transform var(--motion-duration-press,90ms); }
+.rmul3d button:not(:disabled):active { transform:scale(.98); }
+.rmul3d-options label { display:flex; align-items:center; gap:10px; justify-content:space-between; min-height:40px; font-size:14px; }
+.rmul3d-options input[type=range] { min-width:64px; max-width:45%; accent-color:#b4cde4; }
+.rmul3d-options output { min-width:38px; text-align:right; font-variant-numeric:tabular-nums; }
+.rmul3d-options select { color:#e1e8f0; background:#1c2a38; border:1px solid #61738580; border-radius:5px; min-height:36px; }
+.rmul3d-load-content { display:grid; justify-items:center; gap:12px; width:min(80vw,380px); }
+.rmul3d-load-content strong { font-size:20px; }
+.rmul3d-load-content progress { width:100%; accent-color:#a4bfdb; height:8px; }
+.rmul3d-load-content span { color:#b6c6d9; font-variant-numeric:tabular-nums; }
+.rmul3d-menu-actions { margin:10px 0 18px; }
+.rmul3d-help .rmul3d-options { margin:12px 0; }
+@media(max-height:500px) and (orientation:landscape) { .rmul3d-entry-panel { gap:10px; } .rmul3d-entry-title h1 { font-size:32px; } .rmul3d-entry-actions { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(prefers-reduced-motion:reduce) { .rmul3d :is(button,.rmul3d-entry-back) { transition:none; } .rmul3d button:not(:disabled):active { transform:none; } }
+
 .rmul3d-stage { position: relative; width: 100%; height: 100%; overflow: clip; isolation: isolate; }
 .rmul3d-canvas { position: absolute; inset: 0; }
 .rmul3d-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
