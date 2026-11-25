@@ -141,7 +141,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
     for(const mesh of slot.trail)mesh.visible=false;
     active.push(slot);return true;
   }
-  function advance(match:Match,dt:number,roots:THREE.Object3D[],prepare?:()=>ShotIndex){
+  function advance(match:Match,dt:number,roots:THREE.Object3D[],prepare?:()=>ShotIndex,onContact?:(id:string,hit:THREE.Intersection,at:number)=>void){
     if(match.phase!=="running"){clear();return;}
     if(dt<=0)return;
     if(support)for(let i=residues.length-1;i>=0;i--){advanceResidue(residues[i],dt,support);if(residues[i].age>=RESIDUE_LIFE)residues.splice(i,1);}
@@ -160,6 +160,7 @@ export function createProjectileSystem(scene:THREE.Scene,support?:Support){
         slot.projectile=null;slot.owner=null;slot.halo.visible=false;slot.history.length=0;
         for(const mesh of slot.trail)mesh.visible=false;
         if(result.hit){
+          if(result.damage>0&&result.target?.type==="robot")onContact?.(result.target.id,result.hit,match.elapsed);
           if(support&&!result.target){const r=groundResidue(result.hit,p,support);if(r){if(residues.length===RESIDUE_LIMIT)residues.shift();residues.push(r);}}
           slot.flash=result.damage>0?.14:.075;slot.body.material=result.damage>0?damageImpact:impact;slot.body.scale.setScalar((p.shooter.heavy?.09:.055)*(result.damage>0?1.6:1));
         }else{release(slot);active.splice(i,1);}
