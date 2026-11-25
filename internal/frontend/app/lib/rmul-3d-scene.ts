@@ -6,7 +6,7 @@ import {createRobotFeedback} from "./rmuc-3d-robot-feedback";
 import { GROUND_ROSTER, groundIdentity } from "./rmuc-3d-identity";
 import {airPadCenters,createAirSystem,type AirVehicle} from "./rmuc-3d-air";
 import {validExperiment,roundConfig,createRoundTelemetry,summarizeRound,type ExperimentConfig,type ExperimentProgress,type ExperimentRound,type TaskDecision} from "./rmuc-3d-experiment";
-import {chooseTask,defaultStrategy,validStrategy,type Strategy,type TaskCandidate,type TaskKind,type WeightKey} from "./rmuc-3d-strategy";
+import {chooseTask,defaultStrategy,validStrategy,aiSample,aiBurst,aiFireDelay,aiDartPlan,type Strategy,type TaskCandidate,type TaskKind,type WeightKey} from "./rmuc-3d-strategy";
 import {type RadarReport,radarPosition,radarOpportunities,activateRadarDouble,radarVulnerability} from "./rmuc-3d-radar";
 import { ArenaClock, SIM_STEP_MS, PATH_CHECKS_PER_STEP } from "./rmuc-3d-clock";
 import * as THREE from "three";
@@ -207,7 +207,7 @@ export function mountArena(
   const radarRay=new THREE.Raycaster();
   let viewportHeight=1;
   let nextBotTurn = 0;
-  let botCursor = 0;
+  let botCursor = 0,combatCursor=0;
   const shotRay = new THREE.Raycaster();
   const projectiles=createProjectileSystem(scene,{
     height:(x,z)=>terrain?.heightAt(x,z)??-Infinity,
@@ -223,11 +223,14 @@ export function mountArena(
   let poseShotIndex:ShotIndex|undefined;
   const shotIndex=()=>poseShotIndex??=prepareShots();
   const botObserved=new Map<Robot,{position:THREE.Vector3;radius:number}[]>();
-  const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number}>();
+  const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number;combat:boolean;maneuver?:CombatManeuver}>();
   const motions=new Map<Robot,ChassisMotion>();
   const spinning=(object:THREE.Object3D)=>!!motions.get(fieldRobots.find(r=>r.object===object)!)?.spin;
   const defeatedPush=new Map<Robot,number>();
-  const shotIntents=new Map<Robot,{point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3}>();
+  type CombatManeuver="strafe"|"cover"|"withdraw";
+  type ShotIntent={point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3;combat?:{target:string;expiresAt:number;yawError:number;pitchError:number}};
+  const shotIntents=new Map<Robot,ShotIntent>();
+  const combatCadence=new Map<Robot,{nextFire:number;remaining:number}>();
   const wheels=new Map<Robot,THREE.Object3D[]>();
   let fieldRobots:Robot[]=[];
   const positions=new Map<string,THREE.Vector3>();
@@ -294,7 +297,7 @@ export function mountArena(
   }
   let impactFeedback:{kind:"damage"|"contact";serial:number;at:number;robot:string}|null=null,impactSerial=0;
   function projectileImpact(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:Match["robots"][number],shielded:boolean){
-    if(experiment?.running)return;
+    if(experiment?.running){experiment.telemetry?.impact(shooter.id,damage,shielded);return;}
     if(shielded&&target?.type==="robot")robotFeedback?.shieldContact(target.id,hit.point,match!.elapsed);
     if(manualRobot()&&activeRobot()?.id===shooter.id&&match?.phase==="running")
       impactFeedback={kind:damage>0?"damage":"contact",serial:++impactSerial,at:match.elapsed,robot:shooter.id};
@@ -328,7 +331,7 @@ export function mountArena(
     camera.lookAt(target);camera.updateMatrixWorld(true);publish();invalidate();
   }
   function recordEvent(event:MatchEvent){
-    if(experiment?.running)return;
+    if(experiment?.running){experiment.telemetry?.event(event);return;}
     eventFeed.add(event,performance.now());robotFeedback?.event(event);director.event(event);soundEvent(event);
   }
   function recordDamage(event:DamageEvent){
@@ -427,7 +430,7 @@ export function mountArena(
     const robot=observed;
     const state=match.robots.find(r=>r.id===robot.object.name);
     if(!state?.hp||state.sentryControl==="auto")return;
-    stopDirector();audio.stop();driving=robot;clearInput();botPaths.delete(robot);shotIntents.delete(robot);motions.delete(robot);
+    stopDirector();audio.stop();driving=robot;clearInput();botPaths.delete(robot);shotIntents.delete(robot);combatCadence.delete(robot);motions.delete(robot);
     look={yaw:robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0),pitch:robot.object.getObjectByName("weapon-pitch")?.rotation.x??0};
     setView("first");
   }
@@ -464,19 +467,25 @@ export function mountArena(
     air?.advance(match.elapsed,dt,airClear);
     projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact,projectileImpact);
     if(experiment?.running)experiment.telemetry?.observe(match);
-    if(match.phase!=="running"){air?.finish();shotIntents.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
+    if(match.phase!=="running"){air?.finish();shotIntents.clear();combatCadence.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
     for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
       if(radarOpportunities(match.radar[team])&&match.robots.some(r=>radarVulnerability(match!.radar,team,r,match!.elapsed)>0))activateRadarDouble(match.radar,team,match.elapsed);
       if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
       const d=match.sides[team].dart,status=dartStatus(match,team);
-      if(status.canOpen){selectDart(match,team,d.used===0&&match.sides[team==="red"?"blue":"red"].outpost>0?"outpost":"randomMoving");openDart(match,team);}
-      if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,"randomFixed");
-      if(status.canFire&&d.shots<d.used*2)launchDart(match,team);
+      if(!status.canOpen&&!status.canFire&&!(status.canSelect&&status.phase==="open"&&d.mode==="outpost"))continue;
+      const enemy=match.sides[team==="red"?"blue":"red"];
+      const plan=aiDartPlan(seed,team,Math.max(0,d.used-(status.canOpen?0:1)),strategies[team],enemy.outpost>0&&enemy.outpostOwner!==team);
+      if(status.canOpen&&match.elapsed>=(d.used===0?30:240)+plan.openDelay){selectDart(match,team,plan.mode);openDart(match,team);}
+      if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,plan.baseMode);
+      if(status.canFire&&d.shots<d.used*2&&d.openedAt!==null&&match.elapsed>=d.openedAt+7+plan.fireDelay+Math.max(0,d.shots-(d.used-1)*2)*plan.spacing)launchDart(match,team);
     }
     if(tick*SIM_STEP_MS>=nextBotTurn){
       nextBotTurn+=120;
       updateBots();
     }
+    // One independently staggered perception refresh every other fixed tick.
+    // Strategic tasks retain their slower scheduling and cannot pace firing.
+    if(tick%2===0)refreshCombat(fieldRobots[combatCursor++%fieldRobots.length],tick);
     // Deterministic round-robin work across pending searches. Each yield
     // is one actual CAD footprint check, never a wall-clock cutoff.
     for(let remaining=PATH_CHECKS_PER_STEP;remaining>0;){
@@ -638,7 +647,7 @@ export function mountArena(
     if(!match||!mechanism||!terrain)return;
     countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
-    defeatedPush.clear();nextBotTurn=0;botCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();syncLaunchers();
+    defeatedPush.clear();nextBotTurn=0;botCursor=combatCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();combatCadence.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
     projectiles.clear();dartVisual?.clear();air?.reset();
@@ -752,13 +761,13 @@ export function mountArena(
     if(!bot)return;
     const state=currentMatch.robots.find(m=>m.id===bot.object.name)!;
     const identity=groundIdentity(state.id)!;
-    shotIntents.delete(bot);
+    if(!shotIntents.get(bot)?.combat)shotIntents.delete(bot);
     const strategy=strategies[state.team];
     const side=currentMatch.sides[state.team],enemyTeam=state.team==="red"?"blue":"red";
     const revival=revivalStatus(currentMatch,state);
     if(revival.dead){
       taskLog.push({at:currentMatch.elapsed,id:state.id,team:state.team,kind:"revive",score:0,reason:"战亡恢复流程",ms:performance.now()-decisionAt});
-      botPaths.delete(bot);
+      botPaths.delete(bot);shotIntents.delete(bot);combatCadence.delete(bot);
       if(side.tech.attempt?.robot===state.id){
         if(!zonesAtPosition(bot.position).includes(`${state.team}-assembly`)){cancelAssembly(currentMatch,state.id,bot.position);return;}
         const axis=currentMatch.coreSockets[state.team]?.axis;
@@ -777,8 +786,8 @@ export function mountArena(
     const eye=bot.object.getObjectByName("driver-eye")?.getWorldPosition(new THREE.Vector3())??bot.position.clone().add(new THREE.Vector3(0,bot.eyeHeight,0));
     // Sensor output consists of copied world points, never enemy object references.
     const sightings=field.filter(r=>r.object.userData.team!==state.team).flatMap(r=>{
-      if(!visibleRobot(eye,r,roots,index,bot.object))return [];
-      return [{id:r.object.name,position:r.position.clone(),lit:armorLit.get(r)!==false,radius:r.radius,points:r.position.distanceTo(bot.position)<=12&&canFire(currentMatch!,state)?visiblePoints(eye,r,roots,index,bot.object,true):[]}];
+      if(r.position.distanceToSquared(bot.position)>144||!visibleRobot(eye,r,roots,index,bot.object))return [];
+      return [{id:r.object.name,position:r.position.clone(),lit:armorLit.get(r)!==false,radius:r.radius}];
     });
     const reports=mapTracks(state.team).filter(r=>r.team!==state.team&&!r.stale);
     const enemies=sightings.filter(r=>r.lit).sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
@@ -969,23 +978,41 @@ export function mountArena(
       if(zone&&zonesAtPosition(bot.position).includes(zone.id))state.commandTarget=null;
       else if(zone&&!recovering&&!assaultDuty){kind="command";goal=zoneGoal(zone.team,zone.kind);}
     }
-    if(!technologyDuty&&!runeDuty&&state.launcher!=="test"&&canFire(currentMatch,state)&&!revival.weak){
-      const candidates:THREE.Vector3[]=[];
-      for(const enemy of enemies.slice(0,2)){
-        if(enemy.position.distanceTo(bot.position)>12)continue;
-        candidates.push(...enemy.points);
-      }
-      for(const location of ["red","blue"] as const)if(currentMatch.sides[location].outpostOwner!==state.team&&currentMatch.sides[location].outpost>0)
-        for(let i=0;i<3;i++)candidates.push(new THREE.Box3().setFromObject(mechanism.parts.getObjectByName(location+"-outpost-armor-"+i)!).getCenter(new THREE.Vector3()));
-      candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
-      for(const point of candidates.slice(0,6)){
-        if(point.distanceTo(bot.position)>12)continue;
-        const shot=previewWeaponAt(bot.object,point);
-        if(!shot)continue;
-        const hit=trace(bot,shot.origin,shot.direction),target=arenaHitTarget(hit,shot.direction);
-        if(target?.type==="outpost"&&currentMatch.sides[target.team as Team].outpostOwner!==state.team||target?.type==="robot"&&enemies.some(r=>r.id===target.id)){
-          shotIntents.set(bot,target.type==="robot"?{point:hit!.point.clone()}:{point:hit!.object.worldToLocal(hit!.point.clone()),object:hit!.object});break;
+    const combat=!technologyDuty&&!runeDuty&&state.launcher!=="test"&&!revival.weak&&!needsLauncher;
+    if(!combat&&shotIntents.get(bot)?.combat)shotIntents.delete(bot);
+    // Keep assigned objectives, repair, assembly, and explicit commands ahead
+    // of local movement. Use only the copied visible threat and legal terrain.
+    let maneuver:CombatManeuver|undefined;
+    const threat=enemies[0];
+    if(combat&&threat&&!assaultDuty&&!recovering&&!needAmmo&&!state.heavy&&["attack","defend","support"].includes(kind)
+      &&threat.position.distanceTo(bot.position)<5&&goal.distanceTo(bot.position)<4){
+      const phase=Math.floor(currentMatch.elapsed/2.4),sample=aiSample(seed,state.id,phase,5);
+      const weights=strategy.weights;
+      const cautious=state.hp/state.maxHp<.72||state.powerBuffer<18;
+      const evade=sample<(cautious?.85:.30+(weights.defense-weights.attack)*.002);
+      if(evade&&state.powerLockUntil<=currentMatch.elapsed){
+        const away=bot.position.clone().sub(threat.position);away.y=0;away.normalize();
+        const lateral=new THREE.Vector3(-away.z,0,away.x).multiplyScalar(aiSample(seed,state.id,phase,6)<.5?1:-1);
+        const preferred=cautious?away:lateral;
+        const offsets=[preferred.clone().multiplyScalar(.85).addScaledVector(away,.25),preferred.clone().multiplyScalar(-.75).addScaledVector(away,.5),away.clone().multiplyScalar(.85)];
+        let fallback:THREE.Vector3|undefined;
+        for(const offset of offsets){
+          const candidate=bot.position.clone().add(offset);
+          const y=supportedHeight(currentTerrain,candidate.x,candidate.z,bot.radius,bot.position.y,.23);
+          if(y===null||known.some(r=>r.position!==bot.position&&Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-candidate.x,r.position.z-candidate.z)<r.radius+bot.radius))continue;
+          candidate.y=y;
+          fallback??=candidate;
+          // A real CAD ray can establish a sheltered destination; it never
+          // grants cover damage modifiers or alters the chassis collision.
+          const from=candidate.clone().add(new THREE.Vector3(0,bot.eyeHeight*.7,0)),delta=threat.position.clone().add(new THREE.Vector3(0,.35,0)).sub(from),distance=delta.length();
+          const hit=traceArenaShot(radarRay,roots,from,delta.divideScalar(distance),distance,index,bot.object);
+          if(hit&&hit.distance<distance-.45&&!arenaHitTarget(hit,delta)){
+            let staticCover=false;
+            for(let node:THREE.Object3D|null=hit.object;node;node=node.parent)if(node===map||node===mechanism.parts){staticCover=true;break;}
+            if(staticCover){goal=candidate;maneuver="cover";break;}
+          }
         }
+        if(!maneuver&&fallback){goal=fallback;maneuver=cautious?"withdraw":"strafe";}
       }
     }
     const stance=sentryStatus(currentMatch,state);
@@ -1001,14 +1028,14 @@ export function mountArena(
     motionFor(bot).spin=canSpinChassis(currentMatch,state)&&!recovering&&!needAmmo&&!technologyDuty&&!runeDuty&&
       state.powerBuffer>25&&["attack","defend","support"].includes(kind)&&enemies.some(r=>r.position.distanceTo(bot.position)<5);
     // Strategy writes a persistent goal; it never moves the chassis.
-    setBotGoal(bot,goal,technologyDuty?.055:.22);
-    taskLog.push({at:currentMatch.elapsed,id:state.id,team:state.team,kind,score:chosen.score,reason:kind==="command"?"指挥目标":strategy.algorithm==="priority"?"规则优先级":chosen.task.required?"必要任务":chosen.task.weight+" × "+chosen.task.urgency+" − 距离成本",target:goal.toArray(),ms:performance.now()-decisionAt});
+    setBotGoal(bot,goal,technologyDuty?.055:.22,combat,maneuver);
+    taskLog.push({at:currentMatch.elapsed,id:state.id,team:state.team,kind,score:chosen.score,reason:kind==="command"?"指挥目标":strategy.algorithm==="priority"?"规则优先级":chosen.task.required?"必要任务":chosen.task.weight+" × "+chosen.task.urgency+" − 距离成本",target:goal.toArray(),maneuver,ms:performance.now()-decisionAt});
   }
-  function setBotGoal(bot:Robot,goal:THREE.Vector3,tolerance:number){
+  function setBotGoal(bot:Robot,goal:THREE.Vector3,tolerance:number,combat=false,maneuver?:CombatManeuver){
     const route=botPaths.get(bot);
     if(!route||route.goal.distanceTo(goal)>.5||goal.distanceTo(bot.position)<tolerance&&route.points.length>0){
-      botPaths.set(bot,{goal:goal.clone(),points:[],retryAt:0,tolerance});
-    }else{route.goal.copy(goal);route.tolerance=tolerance;}
+      botPaths.set(bot,{goal:goal.clone(),points:[],retryAt:0,tolerance,combat,maneuver});
+    }else{route.goal.copy(goal);route.tolerance=tolerance;route.combat=combat;route.maneuver=maneuver;}
   }
   function advanceMotion(dt:number){
     if(!match||!terrain||dt<=0)return;
@@ -1044,6 +1071,7 @@ export function mountArena(
         },defeatedPush);
         if(traveled>0)for(const other of fieldRobots)other.object.updateMatrixWorld(true);
       }
+      if(!manual&&experiment?.running&&traveled>0)experiment.telemetry?.move(state.id,traveled,route?.maneuver,spin);
       bot.object.rotation.y=motion.yaw;
       // Preserve gun world yaw while the chassis turns underneath it.
       if(gimbal)gimbal.rotation.y+=previousYaw-motion.yaw;
@@ -1066,14 +1094,59 @@ export function mountArena(
     const g=driving.object.getObjectByName("gimbal"),w=driving.object.getObjectByName("weapon-pitch");
     return !!g&&!!w&&(Math.abs(angleDelta(driving.object.rotation.y+g.rotation.y,look.yaw))>.001||Math.abs(w.rotation.x-look.pitch)>.001);
   }
+  function refreshCombat(bot:Robot|undefined,tick:number){
+    if(!bot||!match||!mechanism||bot===manualRobot()||!botPaths.get(bot)?.combat)return;
+    const state=match.robots.find(r=>r.id===bot.object.name)!;
+    const old=shotIntents.get(bot);
+    // Never substitute ordinary engagement for a calibration/rune action.
+    if(old&&!old.combat)return;
+    if(!canFire(match,state)&&state.cooldown<=0){shotIntents.delete(bot);return;}
+    const eye=bot.object.getObjectByName("driver-eye")?.getWorldPosition(new THREE.Vector3())??bot.position.clone().add(new THREE.Vector3(0,bot.eyeHeight,0));
+    const roots=shotRoots(),index=shotIndex(),at=match.elapsed;
+    const inSight=(point:THREE.Vector3)=>point.distanceToSquared(bot.position)<=144&&
+      Math.abs(angleDelta(bot.object.rotation.y+(bot.object.getObjectByName("gimbal")?.rotation.y??0),Math.atan2(eye.x-point.x,eye.z-point.z)))<Math.PI*2/3;
+    // Positions are broad-phase culling only. A candidate must be confirmed
+    // by actual occlusion rays before it becomes a copied observation.
+    const near=fieldRobots.filter(r=>r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position))
+      .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
+    const candidates:THREE.Vector3[]=[];
+    for(const enemy of near.slice(0,2))candidates.push(...visiblePoints(eye,enemy,roots,index,bot.object,true));
+    for(const location of ["red","blue"] as const)if(match.sides[location].outpostOwner!==state.team&&match.sides[location].outpost>0)
+      for(let i=0;i<3;i++){
+        const point=new THREE.Box3().setFromObject(mechanism.parts.getObjectByName(location+"-outpost-armor-"+i)!).getCenter(new THREE.Vector3());
+        if(inSight(point))candidates.push(point);
+      }
+    candidates.sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position));
+    for(const point of candidates.slice(0,6)){
+      const shot=previewWeaponAt(bot.object,point);if(!shot)continue;
+      const hit=trace(bot,shot.origin,shot.direction),target=arenaHitTarget(hit,shot.direction);
+      if(!hit||!(target?.type==="outpost"&&match.sides[target.team].outpostOwner!==state.team||target?.type==="robot"&&near.some(r=>r.object.name===target.id)))continue;
+      const key=target.type==="robot"?target.id:target.team+"-outpost";
+      const same=old?.combat?.target===key?old.combat:undefined;
+      const role=groundIdentity(state.id)!.kind;
+      let cadence=combatCadence.get(bot);
+      if(!cadence){cadence={nextFire:at,remaining:aiBurst(seed,state.id,tick,role)};combatCadence.set(bot,cadence);}
+      if(!same)cadence.nextFire=Math.max(cadence.nextFire,at+.10+aiSample(seed,state.id,tick,2)*.12);
+      // A sight sample is a snapshot, not live access to enemy transforms.
+      // Errors represent synthetic game perception and do not change ballistics.
+      const scale=state.heavy?.008:.013;
+      shotIntents.set(bot,{point:target.type==="robot"?hit.point.clone():hit.object.worldToLocal(hit.point.clone()),
+        object:target.type==="robot"?undefined:hit.object,previous:same&&old?.object===hit.object?old?.previous:undefined,
+        combat:{target:key,expiresAt:at+.55,yawError:(aiSample(seed,state.id,tick,3)-.5)*scale,pitchError:(aiSample(seed,state.id,tick,4)-.5)*scale}});
+      return;
+    }
+    if(old?.combat)shotIntents.delete(bot);
+  }
   function advanceAiming(dt:number,rates?:{rune:number;red:number;blue:number}){
     if(!match)return;
     for(const bot of fieldRobots){
       const state=match.robots.find(r=>r.id===bot.object.name)!;
       const g=bot.object.getObjectByName("gimbal"),w=bot.object.getObjectByName("weapon-pitch");
-      if(!g||!w||!canDriveRobot(match,state)){shotIntents.delete(bot);continue;}
-      if(state.hp<=0)shotIntents.delete(bot);
-      const manual=manualRobot()===bot&&isPlaying(mode),intent=shotIntents.get(bot);
+      if(!g||!w||!canDriveRobot(match,state)){shotIntents.delete(bot);combatCadence.delete(bot);continue;}
+      if(state.hp<=0){shotIntents.delete(bot);combatCadence.delete(bot);}
+      const manual=manualRobot()===bot&&isPlaying(mode);
+      let intent=shotIntents.get(bot);
+      if(intent?.combat&&(!botPaths.get(bot)?.combat||match.elapsed>intent.combat.expiresAt)){shotIntents.delete(bot);intent=undefined;}
       let desired:{yaw:number;pitch:number}|null=manual?look:null;
       if(!manual&&intent){
         const point=intent.object?intent.object.localToWorld(intent.point.clone()):intent.point.clone();
@@ -1098,20 +1171,39 @@ export function mountArena(
             aim=previewWeaponAt(bot.object,predicted,speed);
           }
         }
-        desired=aim;
+        desired=aim&&intent.combat?{yaw:aim.yaw+intent.combat.yawError,pitch:aim.pitch+intent.combat.pitchError}:aim;
+      }
+      if(!desired&&!manual&&!intent&&botPaths.get(bot)?.combat&&state.hp>0){
+        // Recover the virtual sensor field after a lost target rather than
+        // retaining the last world yaw forever. No target or damage is implied.
+        desired={yaw:bot.object.rotation.y+Math.sin(match.elapsed*1.1+aiSample(seed,state.id,0,7)*Math.PI*2)*.65,pitch:0};
       }
       if(!desired)continue;
       const yaw=turnTowards(bot.object.rotation.y+g.rotation.y,desired.yaw,Math.PI*4*dt);
       const pitch=turnTowards(w.rotation.x,desired.pitch,Math.PI*3*dt);
       const shot=aimWeapon(bot.object,yaw,pitch);
       if(!manual&&intent&&shot&&Math.abs(angleDelta(yaw,desired.yaw))<.003&&Math.abs(pitch-desired.pitch)<.003){
-        shotIntents.delete(bot);shoot(bot,shot.origin,shot.direction);
+        if(!canFire(match,state))continue;
+        const cadence=combatCadence.get(bot);
+        if(intent.combat&&(!cadence||match.elapsed<cadence.nextFire))continue;
+        if(!intent.combat)shotIntents.delete(bot);
+        if(shoot(bot,shot.origin,shot.direction)){
+          const role=groundIdentity(state.id)!.kind;
+          const clock=cadence??{nextFire:match.elapsed,remaining:aiBurst(seed,state.id,simClock.tick,role)};
+          clock.remaining--;
+          clock.nextFire=match.elapsed+aiFireDelay(seed,state.id,simClock.tick,role,clock.remaining,state.heat/Math.max(1,state.heatLimit));
+          if(clock.remaining<=0)clock.remaining=aiBurst(seed,state.id,simClock.tick,role);
+          combatCadence.set(bot,clock);
+        }
       }
     }
   }
   function shoot(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3){
-    if(!match||!map)return;
-    if(projectiles.fire(match,robot.object.name,from,direction,robot.object)&&!experiment?.running){const state=match.robots.find(r=>r.id===robot.object.name);if(state&&audioVisible(state.team,audioPerspective()))audio.play(state.heavy?"heavy":"light",from);publish();invalidate();}
+    if(!match||!map)return false;
+    const fired=projectiles.fire(match,robot.object.name,from,direction,robot.object);
+    if(fired&&experiment?.running)experiment.telemetry?.shot(match.robots.find(r=>r.id===robot.object.name)!,match.elapsed);
+    if(fired&&!experiment?.running){const state=match.robots.find(r=>r.id===robot.object.name);if(state&&audioVisible(state.team,audioPerspective()))audio.play(state.heavy?"heavy":"light",from);}
+    return fired;
   }
   function interact() {
     if (!ready || paused || !terrain || !isPlaying(mode)||experiment?.running) return;
@@ -1128,14 +1220,14 @@ export function mountArena(
           && Math.hypot(x - other.position.x, z - other.position.z) < PLAYER_RADIUS + other.radius)) continue;
         explorer.set(x, y, z);
         driving = null;
-        motions.delete(robot);botPaths.delete(robot);shotIntents.delete(robot);
+        motions.delete(robot);botPaths.delete(robot);shotIntents.delete(robot);combatCadence.delete(robot);
         break;
       }
     } else {
       const robot = nearby();
       if (robot) {
         audio.stop();driving = robot;observed=null;
-        botPaths.delete(robot);shotIntents.delete(robot);motions.delete(robot);
+        botPaths.delete(robot);shotIntents.delete(robot);combatCadence.delete(robot);motions.delete(robot);
         look = { yaw: robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0), pitch: robot.object.getObjectByName("weapon-pitch")?.rotation.x??0 };
       }
     }
