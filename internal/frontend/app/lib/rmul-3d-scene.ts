@@ -229,7 +229,7 @@ export function mountArena(
   type CombatManeuver="strafe"|"cover"|"withdraw";
   type ShotIntent={point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3;combat?:{target:string;expiresAt:number;yawError:number;pitchError:number}};
   const shotIntents=new Map<Robot,ShotIntent>();
-  const combatCadence=new Map<Robot,{nextFire:number;remaining:number}>();
+  const combatCadence=new Map<Robot,{nextFire:number;remaining:number;shieldContacts?:Map<string,number>}>();
   const wheels=new Map<Robot,THREE.Object3D[]>();
   let fieldRobots:Robot[]=[];
   const positions=new Map<string,THREE.Vector3>();
@@ -296,13 +296,25 @@ export function mountArena(
   }
   let impactFeedback:{kind:"damage"|"contact";serial:number;at:number;robot:string}|null=null,impactSerial=0;
   function projectileImpact(hit:THREE.Intersection,target:ReturnType<typeof arenaHitTarget>,damage:number,shooter:Match["robots"][number],shielded:boolean){
+    // A virtual bot learns only from its own resolved contacts with a
+    // previously perceived target, never from the target's immunity timer.
+    if(match&&target?.type==="robot"&&shooter.hp>0&&(shielded||damage>0)){
+      const bot=fieldRobots.find(r=>r.object.name===shooter.id);
+      if(bot&&bot!==manualRobot()){
+        const cadence=combatCadence.get(bot),intent=shotIntents.get(bot);
+        if(cadence&&shielded&&intent?.combat?.target===target.id){
+          (cadence.shieldContacts??=new Map()).set(target.id,match.elapsed+2.4);
+          shotIntents.delete(bot);
+        }else if(damage>0)cadence?.shieldContacts?.delete(target.id);
+      }
+    }
     if(experiment?.running){experiment.telemetry?.impact(shooter.id,damage,shielded);return;}
     if(shielded&&target?.type==="robot")robotFeedback?.shieldContact(target.id,hit.point,match!.elapsed);
     if(manualRobot()&&activeRobot()?.id===shooter.id&&match?.phase==="running")
       impactFeedback={kind:damage>0?"damage":"contact",serial:++impactSerial,at:match.elapsed,robot:shooter.id};
     const perspective=audioPerspective(),team=target?.type==="robot"?groundIdentity(target.id)?.team:target?.team;
     if(perspective!=="all"&&team!==perspective)return;
-    audio.play(damage>0?"hit":"contact",hit.point);
+    audio.play(shielded?"shield":damage>0?"hit":"contact",hit.point);
   }
   let countdownEnd=0,countdownPausedAt=0,flightSpeed=6,flyBounds:THREE.Box3|null=null;
   const canDirect=()=>!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
@@ -1016,9 +1028,12 @@ export function mountArena(
       const enhance=stance.remaining[desired]>0&&(desired==="defense"?holding:desired==="attack"?state.heat>=state.heatLimit*.7:assaultDuty&&distance>6);
       if(stance.mode!==desired||enhance&&!stance.enhanced)switchSentry(currentMatch,state.id,desired,enhance);
     }
-    // Choose only from perceived threats; never change referee damage or immunity.
-    motionFor(bot).spin=canSpinChassis(currentMatch,state)&&!recovering&&!needAmmo&&!technologyDuty&&!runeDuty&&
-      state.powerBuffer>25&&["attack","defend","support"].includes(kind)&&enemies.some(r=>r.position.distanceTo(bot.position)<5);
+    // Spin briefly in local engagements, not during long strategic travel.
+    // Use the existing own-power buffer and a separate start/stop threshold.
+    const motion=motionFor(bot);
+    motion.spin=canSpinChassis(currentMatch,state)&&combat&&!recovering&&!needAmmo&&!assaultDuty&&
+      state.powerBuffer>(motion.spin?25:45)&&["attack","defend","support"].includes(kind)&&
+      !!threat&&threat.position.distanceTo(bot.position)<5&&(!!maneuver||goal.distanceTo(bot.position)<1);
     // Strategy writes a persistent goal; it never moves the chassis.
     setBotGoal(bot,goal,technologyDuty?.055:.22,combat,maneuver);
     taskLog.push({at:currentMatch.elapsed,id:state.id,team:state.team,kind,score:chosen.score,reason:kind==="command"?"指挥目标":strategy.algorithm==="priority"?"规则优先级":chosen.task.required?"必要任务":chosen.task.weight+" × "+chosen.task.urgency+" − 距离成本",target:goal.toArray(),maneuver,ms:performance.now()-decisionAt});
@@ -1049,7 +1064,7 @@ export function mountArena(
       }
       const assembly=match.sides[state.team].tech.attempt;
       if(assembly?.robot===state.id&&assembly.pending){target=null;command=0;}
-      if(!canSpinChassis(match,state)||manual&&(!isPlaying(mode)||paused))motion.spin=false;
+      if(!canSpinChassis(match,state)||manual&&(!isPlaying(mode)||paused)||!manual&&state.powerBuffer<=25)motion.spin=false;
       const spin=!!motion.spin;
       const speed=driveSpeed(match,state,command,spin,strength);
       if(!canDriveRobot(match,state)||match.phase==="finished"){motions.delete(bot);shotIntents.delete(bot);botPaths.delete(bot);continue;}
@@ -1099,7 +1114,9 @@ export function mountArena(
       Math.abs(angleDelta(bot.object.rotation.y+(bot.object.getObjectByName("gimbal")?.rotation.y??0),Math.atan2(eye.x-point.x,eye.z-point.z)))<Math.PI*2/3;
     // Positions are broad-phase culling only. A candidate must be confirmed
     // by actual occlusion rays before it becomes a copied observation.
-    const near=fieldRobots.filter(r=>r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position))
+    const contacts=combatCadence.get(bot)?.shieldContacts;
+    if(contacts)for(const [id,until] of contacts)if(until<=at)contacts.delete(id);
+    const near=fieldRobots.filter(r=>r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position)&&!contacts?.has(r.object.name))
       .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
     const candidates:THREE.Vector3[]=[];
     for(const enemy of near.slice(0,2))candidates.push(...visiblePoints(eye,enemy,roots,index,bot.object,true));
@@ -1138,7 +1155,8 @@ export function mountArena(
       if(state.hp<=0){shotIntents.delete(bot);combatCadence.delete(bot);}
       const manual=manualRobot()===bot&&isPlaying(mode);
       let intent=shotIntents.get(bot);
-      if(intent?.combat&&(!botPaths.get(bot)?.combat||match.elapsed>intent.combat.expiresAt)){shotIntents.delete(bot);intent=undefined;}
+      if(intent?.combat&&(!botPaths.get(bot)?.combat||match.elapsed>intent.combat.expiresAt||
+        (combatCadence.get(bot)?.shieldContacts?.get(intent.combat.target)??-Infinity)>match.elapsed)){shotIntents.delete(bot);intent=undefined;}
       let desired:{yaw:number;pitch:number}|null=manual?look:null;
       if(!manual&&intent){
         const point=intent.object?intent.object.localToWorld(intent.point.clone()):intent.point.clone();

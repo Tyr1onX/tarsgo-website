@@ -1,6 +1,6 @@
 import type {MatchEvent,Team} from "./rmuc-3d-match.ts";
 import type {PerspectiveCamera} from "three";
-export type Cue="light"|"heavy"|"contact"|"hit"|"pickup"|"assembly"|"mechanism"|"major"|"countdown"|"start"|"end";
+export type Cue="light"|"heavy"|"contact"|"hit"|"pickup"|"heal"|"ammo"|"shield"|"defeat"|"assembly"|"mechanism"|"major"|"countdown"|"start"|"end";
 type Point={x:number;y:number;z:number};
 const profiles:Record<Cue,{duration:number;hz:number;end:number;noise:number;volume:number;interval:number}> = {
  light:{duration:.085,hz:420,end:150,noise:.75,volume:.28,interval:.055},
@@ -8,6 +8,10 @@ const profiles:Record<Cue,{duration:number;hz:number;end:number;noise:number;vol
  contact:{duration:.055,hz:920,end:320,noise:.7,volume:.13,interval:.09},
  hit:{duration:.13,hz:330,end:95,noise:.5,volume:.32,interval:.08},
  pickup:{duration:.16,hz:580,end:940,noise:.05,volume:.22,interval:.12},
+ heal:{duration:.23,hz:480,end:880,noise:0,volume:.15,interval:.85},
+ ammo:{duration:.12,hz:135,end:65,noise:.7,volume:.23,interval:.3},
+ shield:{duration:.17,hz:950,end:380,noise:.04,volume:.24,interval:.12},
+ defeat:{duration:.32,hz:280,end:65,noise:.18,volume:.36,interval:.25},
  assembly:{duration:.19,hz:430,end:720,noise:.14,volume:.25,interval:.15},
  mechanism:{duration:.34,hz:150,end:80,noise:.36,volume:.25,interval:.3},
  major:{duration:.36,hz:410,end:780,noise:.03,volume:.35,interval:.35},
@@ -24,8 +28,9 @@ export function eventCue(e:MatchEvent):Cue|null{
   case "assembly-end":return e.reason?null:"major";
   case "cover-opening":case "rune-start":case "dart-launch":case "launcher-installed":return "mechanism";
   case "outpost-destroyed":case "outpost-rebuilt":case "rune-success":case "dart-hit":case "launcher-ready":return "major";
-  case "robot-dead":case "robot-revived":return "hit";
-  case "ammo":case "heal":return e.status==="completed"&&e.amount?"pickup":null;
+  case "robot-dead":return "defeat";
+  case "robot-revived":return "pickup";
+  case "ammo":case "heal":return e.status==="completed"&&(e.amount??0)>0?e.type:null;
   default:return null;
  }
 }
