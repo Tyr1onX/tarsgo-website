@@ -23,3 +23,11 @@ test("world-space follow offset remains independent of subsequent chassis rotati
  assert.ok(camera.position.clone().sub(target).distanceTo(offset)<1e-10);
  assert.deepEqual(target.toArray(),[2,0,3]);
 });
+test("follow framing uses the actual scaled vehicle height, not a single distance for all robots",()=>{
+ const heavy=createRobotPreview("hero"),infantry=createRobotPreview("infantry03"),sentry=createRobotPreview("sentry");
+ heavy.scale.setScalar(.5);heavy.userData.eyeHeight*=.5;
+ const distances=[heavy,infantry,sentry].map(robot=>followOffset(robot).length());
+ assert.ok(distances[0]<distances[1]&&distances[1]<distances[2]);
+ assert.ok(distances[0]>2&&distances[2]<6);
+ for(const robot of [heavy,infantry,sentry]){const offset=followOffset(robot);assert.ok(offset.y>0);assert.ok(Math.abs(offset.y/Math.hypot(offset.x,offset.z)-2/3.4)<1e-9);}
+});

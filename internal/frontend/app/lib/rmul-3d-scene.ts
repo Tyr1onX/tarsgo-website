@@ -2,7 +2,7 @@ import {createMatchAudio,eventCue,audioVisible} from "./rmuc-3d-audio";
 import {createDirector,type Shot} from "./rmuc-3d-director";
 import {createEventFeed} from "./rmuc-3d-events";
 import {readRobotSight,followOffset,translatedOrbit} from "./rmuc-3d-spectator";
-import {createRobotFeedback,type MarkerRect} from "./rmuc-3d-robot-feedback";
+import {createRobotFeedback} from "./rmuc-3d-robot-feedback";
 import { GROUND_ROSTER, groundIdentity } from "./rmuc-3d-identity";
 import {airPadCenters,createAirSystem,type AirVehicle} from "./rmuc-3d-air";
 import {validExperiment,roundConfig,createRoundTelemetry,summarizeRound,type ExperimentConfig,type ExperimentProgress,type ExperimentRound,type TaskDecision} from "./rmuc-3d-experiment";
@@ -27,7 +27,7 @@ import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLA
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
-import { arenaPixelRatio, calibratedArenaPixelRatio, type ArenaSettings } from "./rmuc-3d-settings";
+import { arenaPixelRatio, createArenaQualityCalibration, type ArenaSettings } from "./rmuc-3d-settings";
 import {boundedMove,movementIntent,ZERO_MOVE,type MoveVector} from "./rmuc-3d-input";
 
 export type FieldView = "all" | "red" | "blue" | "top";
@@ -98,16 +98,15 @@ export function mountArena(
   const programStarted=performance.now();
   const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
   let settings=initialSettings;
-  let autoRatio:number|null=null,qualitySampleAt=0,qualityWarmup=0;
-  const qualitySamples:number[]=[];
-  const pixelRatio=()=>Math.min(autoRatio??Infinity,arenaPixelRatio(settings.quality,window.devicePixelRatio,navigator.hardwareConcurrency,(navigator as Navigator&{deviceMemory?:number}).deviceMemory));
-  function resetQualitySample(){qualitySampleAt=0;qualityWarmup=0;qualitySamples.length=0;}
+  const pixelRatio=()=>arenaPixelRatio(settings.quality,window.devicePixelRatio);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0e0e);
   scene.fog = new THREE.Fog(0x0b0e0e, 65, 180);
   const camera = new THREE.PerspectiveCamera(72, 1, .025, 220);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(pixelRatio());
+  let nativeRatio=pixelRatio();
+  renderer.setPixelRatio(nativeRatio);
+  const qualityCalibration=createArenaQualityCalibration(renderer);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = .99;
@@ -206,17 +205,6 @@ export function mountArena(
   const radarOrigins={red:new THREE.Vector3(14.58,2.55,0),blue:new THREE.Vector3(-14.58,2.55,0)};
   const radarRay=new THREE.Raycaster();
   let viewportHeight=1;
-  let markerReserved:MarkerRect[]=[],lastMarkerLayout=-Infinity;
-  function markerExclusions(now:number){
-    if(now-lastMarkerLayout<160)return markerReserved;
-    lastMarkerLayout=now;
-    const base=host.getBoundingClientRect();
-    markerReserved=Array.from(host.parentElement?.querySelectorAll<HTMLElement>(".rmul3d-score,.rmul3d-focus-panel,.rmul3d-minimap,.rmul3d-event-feed,.rmul3d-event-banner,.rmul3d-header-actions,.rmul3d-view-dock,.rmul3d-actions,.rmul3d-joystick,.rmul3d-combat")??[]).flatMap(el=>{
-      const r=el.getBoundingClientRect();
-      return r.width>0&&r.height>0?[{x:r.left-base.left+r.width/2,y:r.top-base.top+r.height/2,w:r.width,h:r.height}]:[];
-    });
-    return markerReserved;
-  }
   let nextBotTurn = 0;
   let botCursor = 0,combatCursor=0;
   const shotRay = new THREE.Raycaster();
@@ -236,7 +224,7 @@ export function mountArena(
   const botObserved=new Map<Robot,{position:THREE.Vector3;radius:number}[]>();
   const botPaths = new Map<Robot,{goal:THREE.Vector3;points:THREE.Vector3[];retryAt:number;search?:ReturnType<typeof findArenaPath>;tolerance:number;combat:boolean;maneuver?:CombatManeuver}>();
   const motions=new Map<Robot,ChassisMotion>();
-  const spinning=(object:THREE.Object3D)=>!!motions.get(fieldRobots.find(r=>r.object===object)!)?.spin;
+
   const defeatedPush=new Map<Robot,number>();
   type CombatManeuver="strafe"|"cover"|"withdraw";
   type ShotIntent={point:THREE.Vector3;object?:THREE.Object3D;previous?:THREE.Vector3;combat?:{target:string;expiresAt:number;yawError:number;pitchError:number}};
@@ -285,7 +273,7 @@ export function mountArena(
   const nearby = () => ready && !driving && isPlaying(mode) ? nearestDriveable(explorer, robots) : null;
   const eventFeed=createEventFeed(),director=createDirector(),audio=createMatchAudio(camera);
   audio.setVolume(settings.volume);audio.setEnabled(!settings.muted);
-  function applySettings(value:ArenaSettings){if(value.quality!==settings.quality){autoRatio=null;resetQualitySample();}settings=value;const ratio=pixelRatio();if(renderer.getPixelRatio()!==ratio)renderer.setPixelRatio(ratio);audio.setVolume(value.volume);audio.setEnabled(!value.muted);publish();invalidate();}
+  function applySettings(value:ArenaSettings){const changed=value.quality!==settings.quality;settings=value;if(changed){qualityCalibration.reset();renderer.setPixelRatio(nativeRatio=pixelRatio());}audio.setVolume(value.volume);audio.setEnabled(!value.muted);publish();invalidate();}
   const turnWithSettings=(dx:number,dy:number)=>turnView(look,dx*settings.sensitivity,dy*settings.sensitivity*(settings.invertY?-1:1));
   let countdownCue=0;
   const audioPerspective=() => activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective;
@@ -526,6 +514,7 @@ export function mountArena(
   function render(time: number) {
     frame = 0;
     if (disposed) return;
+    const ratio=pixelRatio();if(ratio!==nativeRatio){qualityCalibration.reset();renderer.setPixelRatio(nativeRatio=ratio);}
     if(countdownEnd&&!paused){
       if(document.hidden)cancelStart();
       else if(time>=countdownEnd){countdownEnd=0;beginMatch();time=performance.now();}
@@ -579,24 +568,10 @@ export function mountArena(
       if(!shieldIndex){const index=poseShotIndex??prepareShots();shieldIndex={...index,roots:[map,ground],surfaces:index.surfaces.filter(s=>s.root===map||s.root===ground)};}
       return traceArenaShot(observerRay,shieldIndex.roots,from,direction,distance,shieldIndex);
     };
-    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{focus:observed?.object.name??driving?.object.name,firstPerson:mode==="first"||mode==="ai-first",spinning,reserved:markerExclusions(time),shieldTrace});
-    try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
+    if(match)robotFeedback?.update(match,camera,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{firstPerson:mode==="first"||mode==="ai-first",shieldTrace});
+    if(settings.quality==="auto")qualityCalibration.beginFrame(time,ready&&!paused&&!document.hidden&&match?.phase==="running"&&!experiment?.running,mode);
+    try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{qualityCalibration.endFrame();robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
-    if(settings.quality==="auto"&&autoRatio===null&&renderer.getPixelRatio()>1){
-      if(!ready||paused||document.hidden||match?.phase!=="running"||experiment?.running)resetQualitySample();
-      else{
-        const interval=qualitySampleAt?time-qualitySampleAt:0;qualitySampleAt=time;
-        if(interval>0&&interval<250){
-          if(qualityWarmup<30)qualityWarmup++;
-          else qualitySamples.push(interval);
-          if(qualitySamples.length>=90){
-            autoRatio=calibratedArenaPixelRatio(renderer.getPixelRatio(),qualitySamples);
-            if(renderer.getPixelRatio()!==autoRatio)renderer.setPixelRatio(autoRatio);
-            resetQualitySample();
-          }
-        }else if(interval>=250)resetQualitySample();
-      }
-    }
 
   }
 
@@ -1361,7 +1336,9 @@ export function mountArena(
   controls.addEventListener("change", invalidate);
   const resize = () => {
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
-    viewportHeight=h;lastMarkerLayout=-Infinity;renderer.setSize(w, h);
+    const ratio=pixelRatio();
+    if(settings.quality==="auto"||ratio!==nativeRatio){qualityCalibration.reset();nativeRatio=ratio;if(renderer.getPixelRatio()!==ratio)renderer.setPixelRatio(ratio);}
+    viewportHeight=h;renderer.setSize(w, h);
     camera.aspect = w / h;
     if (ready && mode !== "first" && mode !== "third" && mode!=="follow"&&mode!=="ai-first" && mode!=="detail" && fieldBounds) {
       controls.target.copy(frameArena(camera, mode, fieldBounds));
@@ -1525,7 +1502,7 @@ export function mountArena(
     }
     fieldRobots=robots.filter(r=>!!groundIdentity(r.object.name));
     armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
-    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object),(["red","blue"] as const).flatMap((team,i)=>[...(["base","outpost"] as const).map(kind=>({key:team+"-"+kind,team,kind,object:mechanism!.parts.getObjectByName(team+"-"+kind+"-assembly")!})),{key:team+"-rune",team,kind:"rune" as const,object:mechanism!.banks[i]},{key:team+"-dart",team,kind:"dart" as const,object:mechanism!.dartBindings.find(b=>b.team===team)!.guides}]));
+    robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object));
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
@@ -1614,7 +1591,7 @@ export function mountArena(
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);
       environment.dispose();
-      renderer.dispose();
+      qualityCalibration.reset();renderer.dispose();
       canvas.remove();
     },
   };
