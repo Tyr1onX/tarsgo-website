@@ -354,7 +354,7 @@ test("六栋建筑都有不同的可进入室内与独立设备，不复制人�
   }
   assert.ok(route.includes("Object.values(ROOMS).map(scene => [scene.id, renderRoomTerrain(scene, ground)])"),
     "各室内复用独立地形及组件绘制");
-  assert.ok(source.includes('if (room.id === "study") drawRoomObject(ctx, object, screenCamera)'),
+  assert.ok(source.includes("drawStudyCollection(ctx,object,screenCamera,shown,elapsed,motionAllowed,exhibitAtlas)") && source.includes("drawRoomObject(ctx,object,screenCamera)"),
     "个人研究室应继续使用可编辑家具层");
   assert.ok(route.includes("const destination = ROOMS[placeId]"));
   assert.ok(route.includes("const place = PLACES.find(p => p.id === roomId)"));

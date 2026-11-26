@@ -501,3 +501,14 @@
 .is-mobile :is(.pixel-world-held-food,.pixel-world-life-action){bottom:82px;max-width:calc(100% - 16px)}
 .is-mobile :is(.pixel-world-held-food,.pixel-world-life-action) button{min-height:44px;padding:4px 9px}
 .is-mobile .pixel-world-animal-actions button,.is-mobile .pixel-world-animal-actions input{min-height:44px}
+
+.pixel-study-collection { display:grid; gap:8px; margin:12px 0; }
+.pixel-study-slot { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 0; border-bottom:1px solid currentColor; }
+.pixel-study-slot small { flex-basis:100%; opacity:.75; }
+.pixel-study-choices { display:grid; gap:6px; width:100%; max-height:230px; overflow-y:auto; }
+.pixel-study-slot button { padding:7px 10px; background:#355854; color:#f8eacb; border:1px solid #bca977; }
+.pixel-study-slot button:disabled { opacity:.55; }
+.pixel-world-study-tools .pixel-study-pet-visibility input { width:auto; padding:0; accent-color:#d6c391; }
+.pixel-study-slot :is(button,select),.pixel-study-pet-visibility { font:inherit; }
+.is-mobile .pixel-study-slot :is(button,select) { min-height:44px; }
+.pixel-study-pet-visibility { display:flex; align-items:center; gap:6px; }

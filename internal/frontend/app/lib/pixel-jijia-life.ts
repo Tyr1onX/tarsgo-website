@@ -213,7 +213,24 @@ export function companionSpawn(player:Position,valid:(x:number,y:number)=>boolea
   }
   return null;
 }
-export function updateCompanion(a:Companion,player:Position,dt:number,scene:string,valid:(x:number,y:number)=>boolean,waiting:boolean,home:boolean,moving:boolean,allowRoam=true){
+// Only home-mode pets use this room-grid search. It is computed when a
+// direct path is blocked, then followed through the existing trail.
+function bedPath(from:Position,to:Position,valid:(x:number,y:number)=>boolean):Position[]{
+  const queue:{point:Position;path:Position[]}[]=[{point:from,path:[]}];
+  const visited=new Set<string>();
+  for(let i=0;i<queue.length;i++){
+    const {point,path}=queue[i];
+    if(animalPath(point,to,valid))return [...path,to];
+    const cx=Math.floor(point.x),cy=Math.floor(point.y);
+    for(const [dx,dy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){
+      const next={x:cx+dx+.5,y:cy+dy+.5},key=next.x+","+next.y;
+      if(visited.has(key)||!animalPath(point,next,valid))continue;
+      visited.add(key);queue.push({point:next,path:[...path,next]});
+    }
+  }
+  return [];
+}
+export function updateCompanion(a:Companion,player:Position,dt:number,scene:string,valid:(x:number,y:number)=>boolean,waiting:boolean,home:boolean,moving:boolean,allowRoam=true,restPoint?:Position){
   if(a.scene!==scene){
     const spawn=companionSpawn(player,valid);
     if(!spawn)return false;
@@ -222,6 +239,16 @@ export function updateCompanion(a:Companion,player:Position,dt:number,scene:stri
   a.turnAge+=dt;a.phase+=dt*.65;a.speed=0;
   if(a.petting){a.petting=Math.max(0,a.petting-dt);behavior(a,"pet",dt);return true;}
   if(advanceFood(a,dt,true,valid))return true;
+  if(home&&restPoint&&distance(a,restPoint)>.15){
+    if(distance(a.home,restPoint)>.1){a.home=restPoint;a.trail=[];a.idle=0;}
+    if(animalPath(a,restPoint,valid))a.trail=[restPoint];
+    else if(!a.trail.length||!animalPath(a,a.trail[0],valid)){
+      a.trail=[];
+      if(a.idle===0||Math.floor(a.idle+dt)>Math.floor(a.idle))a.trail=bedPath(a,restPoint,valid);
+    }
+    while(a.trail.length&&distance(a,a.trail[0])<.15)a.trail.shift();
+    if(a.trail.length){a.roam=undefined;a.idle=0;animalMove(a,a.trail[0],dt,3.2,valid);behavior(a,"active",dt);return true;}
+  }
   if(waiting||home){
     a.trail=[];a.roam=undefined;a.idle+=dt;behavior(a,a.idle>14?"sleep":a.idle>5?"lie":"wait",dt);return true;
   }

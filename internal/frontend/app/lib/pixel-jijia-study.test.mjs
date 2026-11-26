@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {STUDY_CATALOG,canPlaceStudy,makeStudyRoom,furnitureID,displaySlots,displayAccepts} from "./pixel-jijia-study.ts";
+import {roomObjectAt,roomInteractable,isRoomWalkable} from "./pixel-jijia-room.ts";
+import {worldItems} from "./pixel-jijia-items.ts";
 
 const source = path => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -46,4 +49,25 @@ test("owner edits existing API; guest visits render without editing controls", (
   assert.ok(panel.includes('{!studyGuest&&<button type="button" disabled={studySaving} aria-pressed={item.displayed}'));
   assert.ok(route.includes('studyHasInvite'));
   assert.ok(route.includes('revokeStudyInvite'));
+});
+
+test("stable legacy and new display ids survive furniture movement; actual room objects are interactive",()=>{
+ const old={kind:"desk",x:4,y:8},id=furnitureID(old);
+ const moved={...old,id,x:7,y:9};
+ assert.equal(furnitureID(moved),id);
+ const tank={kind:"aquarium-large",id:"tank-1",x:10,y:11};
+ assert.ok(canPlaceStudy([moved],tank));
+ assert.ok(!canPlaceStudy([moved],{...tank,x:8,y:9}));
+ assert.ok(!canPlaceStudy([],{...tank,x:17,y:18}));
+ const room=makeStudyRoom([moved,tank],false);
+ assert.equal(roomObjectAt(room,{x:11,y:11}).id,"tank-1");
+ assert.ok(roomInteractable(room,room.objects.find(o=>o.id==="tank-1")));
+ assert.ok(!isRoomWalkable(room,11.5,11.5));
+ assert.ok(isRoomWalkable(room,18,19.4));
+ for(const kind of ["aquarium-small","aquarium-large","cabinet","pedestal","table-display","pet-bed"])assert.ok(STUDY_CATALOG[kind]);
+ assert.equal(displaySlots("aquarium-large"),5);
+ assert.ok(displayAccepts("aquarium-small",worldItems.get("crucian")));
+ assert.ok(!displayAccepts("cabinet",worldItems.get("crucian")));
+ assert.ok(displayAccepts("pedestal",worldItems.get("robot-model")));
+ assert.ok(!displayAccepts("desk",worldItems.get("cat-food")));
 });

@@ -5,10 +5,12 @@ import "time"
 // PixelHome belongs to exactly one existing website account.
 // Layout stores a small, validated furniture array; invitation secrets are hashed.
 type PixelHome struct {
-	UserID     uint64    `json:"-" gorm:"column:user_id;type:bigint unsigned;primaryKey;autoIncrement:false"`
-	Layout     string    `json:"-" gorm:"column:layout;type:longtext;not null"`
-	InviteHash string    `json:"-" gorm:"column:invite_hash;size:64;not null;default:'';index:idx_pixel_home_invite_hash"`
-	UpdatedAt  time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null"`
+	UserID         uint64    `json:"-" gorm:"column:user_id;type:bigint unsigned;primaryKey;autoIncrement:false"`
+	Layout         string    `json:"-" gorm:"column:layout;type:longtext;not null"`
+	LayoutRevision uint64    `json:"-" gorm:"not null;default:0"`
+	ShowPet        bool      `json:"-" gorm:"not null;default:false"`
+	InviteHash     string    `json:"-" gorm:"column:invite_hash;size:64;not null;default:'';index:idx_pixel_home_invite_hash"`
+	UpdatedAt      time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null"`
 }
 
 func (PixelHome) TableName() string { return "pixel_homes" }
@@ -78,4 +80,12 @@ type PixelGather struct {
 	UserID uint64 `json:"-" gorm:"primaryKey;autoIncrement:false"`
 	Source string `json:"source" gorm:"size:64;primaryKey"`
 	NextAt int64  `json:"nextAt" gorm:"not null"`
+}
+
+// PixelDisplay reserves one owned inventory unit without creating a second item.
+type PixelDisplay struct {
+	UserID     uint64 `json:"-" gorm:"primaryKey;autoIncrement:false;index:idx_pixel_display_item,priority:1"`
+	FacilityID string `json:"facilityId" gorm:"size:64;primaryKey"`
+	Slot       int    `json:"slot" gorm:"primaryKey;autoIncrement:false"`
+	ItemID     string `json:"id" gorm:"size:48;not null;index:idx_pixel_display_item,priority:2"`
 }

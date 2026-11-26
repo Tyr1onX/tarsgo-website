@@ -13,11 +13,11 @@ func TestValidatePixelFurniture(t *testing.T) {
 		t.Fatal("valid furniture or empty room rejected")
 	}
 	tests := map[string][]pixelFurniture{
-		"unknown type": {{Kind: "free-wall", X: 4, Y: 8}},
-		"negative": {{Kind: "chair", X: -1, Y: 8}},
-		"past edge": {{Kind: "desk", X: 33, Y: 8}},
+		"unknown type":  {{Kind: "free-wall", X: 4, Y: 8}},
+		"negative":      {{Kind: "chair", X: -1, Y: 8}},
+		"past edge":     {{Kind: "desk", X: 33, Y: 8}},
 		"blocked entry": {{Kind: "desk", X: 15, Y: 21}},
-		"overlap": {{Kind: "desk", X: 8, Y: 10}, {Kind: "chair", X: 9, Y: 11}},
+		"overlap":       {{Kind: "desk", X: 8, Y: 10}, {Kind: "chair", X: 9, Y: 11}},
 	}
 	for label, furniture := range tests {
 		if validatePixelFurniture(furniture) {
@@ -38,5 +38,24 @@ func TestPixelFurnitureAcceptsOnlyKnownKinds(t *testing.T) {
 		if !validatePixelFurniture([]pixelFurniture{{Kind: kind, X: 6, Y: 12}}) {
 			t.Errorf("known furniture type %q rejected", kind)
 		}
+	}
+}
+
+func TestPixelDisplayFurnitureValidation(t *testing.T) {
+	for _, kind := range []string{"aquarium-small", "aquarium-large", "cabinet", "pedestal", "table-display", "pet-bed"} {
+		f := pixelFurniture{ID: "stable-id", Kind: kind, X: 4, Y: 8}
+		if !validatePixelFurniture([]pixelFurniture{f}) {
+			t.Fatal(kind)
+		}
+		f.ID = ""
+		if validatePixelFurniture([]pixelFurniture{f}) {
+			t.Fatal("missing ID", kind)
+		}
+	}
+	if validatePixelFurniture([]pixelFurniture{{ID: "same", Kind: "desk", X: 4, Y: 8}, {ID: "same", Kind: "shelf", X: 10, Y: 8}}) {
+		t.Fatal("duplicate IDs")
+	}
+	if validatePixelFurniture([]pixelFurniture{{ID: "tank", Kind: "aquarium-large", X: 17, Y: 18}}) {
+		t.Fatal("blocked exit")
 	}
 }

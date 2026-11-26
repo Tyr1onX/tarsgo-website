@@ -181,6 +181,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	homeAPI.POST("/cast", requireSameOriginRequest(cfg), pixelHomeHandler.Cast)
 	homeAPI.POST("/reel", requireSameOriginRequest(cfg), pixelHomeHandler.Reel)
 	homeAPI.POST("/release", requireSameOriginRequest(cfg), pixelHomeHandler.Release)
+	homeAPI.POST("/display-item", requireSameOriginRequest(cfg), pixelHomeHandler.DisplayItem)
 	homeAPI.POST("/collect", requireSameOriginRequest(cfg), pixelHomeHandler.Collect)
 	homeAPI.GET("/gathered", pixelHomeHandler.Gathered)
 	homeAPI.POST("/sow", requireSameOriginRequest(cfg), pixelHomeHandler.Sow)

@@ -39,6 +39,7 @@
   {"id": "leaf", "name": "落叶", "kind": "nature", "color": "#bf8850", "ponds": [], "pixels": ["....xx", "..xaax", ".xabx.", "xabbx.", "xxx...", "x....."], "gather": 3, "sources": [{"x": 50.5, "y": 41.5}, {"x": 47.5, "y": 76.5, "season": "autumn"}, {"x": 94.5, "y": 77.5, "season": "autumn"}, {"x": 39.5, "y": 9.5, "season": "autumn"}]},
   {"id": "daisy-seed", "name": "雏菊种子", "kind": "seed", "color": "#b9a275", "ponds": [], "pixels": ["..x.x..", ".xaxax.", "..x.x..", "...x..."], "gather": 2, "sources": [{"x": 53.5, "y": 43.5}, {"x": 68.5, "y": 89.5}]},
   {"id": "cornflower-seed", "name": "矢车菊种子", "kind": "seed", "color": "#8695b3", "ponds": [], "pixels": ["..xx..", ".xabx.", "..xx..", ".xax..", "..x..."], "gather": 2, "sources": [{"x": 94.5, "y": 44.5}, {"x": 136.5, "y": 70.5}]},
+  {"id": "robot-model", "name": "过洞步兵微缩模型", "kind": "rm", "color": "#b39c70", "ponds": [], "pixels": ["...xxx...", "..xabbx..", ".xxabaxx.", "xxbbbbaxx", "xaxxxxax.", "xxaaaaaxx", "xxxxxxxxx"]},
   {"id": "clean-wrench", "name": "纪念工具摆件", "kind": "rm", "color": "#aec7ce", "ponds": [], "pixels": [".xx..xx.", ".xax.ax.", "..xaaax.", "...xax..", "..xax...", ".xax....", ".xx.....", "xxxxxxxx", "xaaabbbx"]},
   {"id": "clean-wheel", "name": "精修轮毂摆件", "kind": "rm", "color": "#b0c7d1", "ponds": [], "pixels": ["..xxxx..", ".xaaabx.", "xabxxbax", "xbx..xax", "xabxxaax", ".xaaabx.", "..xxxx..", "xxxxxxxx", "xaaabbbx"]},
   {"id": "daisy-flower", "name": "雏菊", "kind": "nature", "color": "#f4f0d8", "ponds": [], "pixels": ["..a.a..", ".aabaa.", "..aaa..", "...x...", "..xx...", "...xx.."]},

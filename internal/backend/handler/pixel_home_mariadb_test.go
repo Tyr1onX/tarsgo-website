@@ -108,7 +108,7 @@ func TestMariaDBPixelHomePersistence(t *testing.T) {
 		t.Fatal("invite did not return saved layout")
 	}
 	next := `[{"kind":"plant","x":12,"y":12}]`
-	request(http.MethodPut, "/me", `{"furniture":`+next+`}`, 200)
+	request(http.MethodPut, "/me", `{"revision":1,"furniture":`+next+`}`, 200)
 	request(http.MethodPut, "/me", `{"furniture":[{"kind":"desk","x":4,"y":8},{"kind":"chair","x":5,"y":9}]}`, 400)
 	if string(request(http.MethodGet, "/visit?token="+token, "", 200)["furniture"]) != next {
 		t.Fatal("invite must preserve updated layout")

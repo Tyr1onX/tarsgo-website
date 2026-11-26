@@ -4,7 +4,7 @@ import type { Season } from "./pixel-jijia-climate.ts";
 
 type GatherPoint=Position & {season?:string};
 export type WorldItem = {id:string;name:string;kind:string;color:string;ponds:number[];pixels:string[];feeds?:string[];gather?:number;sources?:GatherPoint[];loans?:Array<Position & {scene:string}>};
-export type ItemRow = {id:string;quantity:number;revision:number};
+export type ItemRow = {id:string;quantity:number;revision:number;available?:number;displayed?:number};
 export const worldItems = new Map<string,WorldItem>(catalog.map(item=>[item.id,item]));
 export type ItemSource=GatherPoint & {id:string;key:string};
 export const ITEM_SOURCES:readonly ItemSource[] = [...worldItems.values()].flatMap(item=>
