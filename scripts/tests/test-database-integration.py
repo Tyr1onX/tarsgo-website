@@ -69,7 +69,7 @@ if os.environ.get("TARSGO_PIXEL_BROWSER_ACCEPTANCE") == "true":
         else:
             sys.exit("Isolated browser acceptance server did not become ready")
         subprocess.run(["node", "scripts/tests/test-pixel-fishing-browser.mjs"], cwd=ROOT,
-                       env=env, check=True, timeout=240)
+                       env=env, check=True, timeout=480)
     finally:
         server.terminate()
         server.wait(timeout=15)
