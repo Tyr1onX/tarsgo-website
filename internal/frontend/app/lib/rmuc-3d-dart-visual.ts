@@ -11,19 +11,25 @@ export function dartVisualPosition(start:THREE.Vector3,target:THREE.Vector3,prog
 }
 export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof installMechanisms>){
   const group=new THREE.Group();group.name="virtual-darts";scene.add(group);
-  const bodyGeo=new THREE.CylinderGeometry(.055,.055,.32,10);
-  const noseGeo=new THREE.ConeGeometry(.055,.14,10),finGeo=new THREE.ConeGeometry(.12,.13,4);
+  // Decorative winged icon, matching the existing offline pixel art study.
+  // It is a game silhouette, not a physical or mechanical model.
+  const bodyGeo=new THREE.BoxGeometry(.10,.48,.075),stripeGeo=new THREE.BoxGeometry(.105,.09,.08);
+  const outline=new THREE.Shape();
+  outline.moveTo(-.055,.13);outline.lineTo(-.21,-.10);outline.lineTo(-.21,-.19);outline.lineTo(0,-.13);
+  outline.lineTo(.21,-.19);outline.lineTo(.21,-.10);outline.lineTo(.055,.13);outline.closePath();
+  const wingGeo=new THREE.ShapeGeometry(outline);
   const trailGeo=new THREE.CylinderGeometry(.5,.5,1,6);
-  const bodyMaterial=new THREE.MeshStandardMaterial({color:0x78858b,roughness:.45,metalness:.55});
+  const bodyMaterial=new THREE.MeshStandardMaterial({color:0xc0c8c5,roughness:.52,metalness:.25});
+  const wingMaterial=new THREE.MeshStandardMaterial({color:0x66736f,roughness:.62,metalness:.15,side:THREE.DoubleSide});
   const noseMaterials=TEAMS.map(team=>new THREE.MeshBasicMaterial({color:team==="red"?0xff5344:0x4f98ff,toneMapped:false}));
-  const trailMaterials=[.85,.65,.45,.3,.18,.08].map(opacity=>new THREE.MeshBasicMaterial({color:0xffc66a,toneMapped:false,transparent:true,opacity,depthWrite:false}));
+  const trailMaterials=[.62,.43,.28,.17,.09,.04].map(opacity=>new THREE.MeshBasicMaterial({color:0xffc66a,toneMapped:false,transparent:true,opacity,depthWrite:false}));
   const glowTexture=softGlowTexture(),glowMaterial=new THREE.SpriteMaterial({map:glowTexture,color:0xffce88,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
   const missMaterial=new THREE.SpriteMaterial({map:glowTexture,color:0x9caab1,transparent:true,opacity:.45,depthWrite:false,toneMapped:false});
   // Abstract game station casing based on the existing CAD guide envelope;
   // no mechanical construction or second flight/collision model.
   const casingGeo=new THREE.BoxGeometry(1,1,1),casingMaterial=new THREE.MeshStandardMaterial({color:0x18201e,metalness:.65,roughness:.44});
   const trimMaterial=new THREE.MeshStandardMaterial({color:0xc8a45c,metalness:.65,roughness:.38});
-  const idleMaterial=new THREE.MeshBasicMaterial({color:0x66716b}),readyMaterial=new THREE.MeshBasicMaterial({color:0xf1d794}),preparingMaterial=new THREE.MeshBasicMaterial({color:0xa18a5e}),spentMaterial=new THREE.MeshBasicMaterial({color:0x101512});
+  const idleMaterial=new THREE.MeshBasicMaterial({color:0x66716b,toneMapped:false}),readyMaterial=new THREE.MeshBasicMaterial({color:0xf1d794,toneMapped:false}),preparingMaterial=new THREE.MeshBasicMaterial({color:0xa18a5e,toneMapped:false}),spentMaterial=new THREE.MeshBasicMaterial({color:0x101512,toneMapped:false});
   const up=new THREE.Vector3(0,1,0),delta=new THREE.Vector3();
   const anchor=(node:THREE.Object3D,selector?:(mesh:THREE.Mesh)=>boolean)=>{
     const box=new THREE.Box3();
@@ -33,10 +39,10 @@ export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof i
   };
   const slots=mechanism.dartBindings.map((b,i)=>{
     const model=new THREE.Group();model.name=b.team+"-dart-model";
-    const body=new THREE.Mesh(bodyGeo,bodyMaterial),nose=new THREE.Mesh(noseGeo,noseMaterials[i]),fin=new THREE.Mesh(finGeo,noseMaterials[i]);
-    nose.position.y=.23;fin.position.y=-.16;model.add(body,nose,fin);group.add(model);
+    const body=new THREE.Mesh(bodyGeo,bodyMaterial),stripe=new THREE.Mesh(stripeGeo,noseMaterials[i]),wings=new THREE.Mesh(wingGeo,wingMaterial);
+    stripe.position.y=.17;model.add(body,stripe,wings);group.add(model);
     const exhaust=new THREE.Sprite(glowMaterial),flash=new THREE.Sprite(glowMaterial);
-    exhaust.scale.setScalar(.38);group.add(exhaust,flash);
+    exhaust.scale.setScalar(.21);group.add(exhaust,flash);
     const trail=trailMaterials.map(m=>new THREE.Mesh(trailGeo,m));group.add(...trail);
     const guideBox=new THREE.Box3().setFromObject(b.guides,true);
     const start=guideBox.getCenter(new THREE.Vector3());start.y=guideBox.max.y+.08;
@@ -50,7 +56,9 @@ export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof i
     panel(trimMaterial,0,-.075,0,w*.9,.035,d*.9);
     panel(casingMaterial,0,-.049,0,w*.83,.025,d*.78);
     panel(noseMaterials[i],0,-.17,0,w*1.015,.045,d*1.015);
-    const lamps=Array.from({length:4},(_,n)=>panel(idleMaterial,(n-1.5)*w*.21,-.018,0,w*.13,.028,d*.36));
+    // Face the open arena, not the raised CAD door which obscures top lamps.
+    const front=-Math.sign(start.x);
+    const lamps=Array.from({length:4},(_,n)=>panel(idleMaterial,front*w*.52,-.12,(n-1.5)*d*.21,.025,.055,d*.13));
     const carriage=anchor(b.carriage,mesh=>mesh.material instanceof THREE.MeshStandardMaterial&&mesh.material.color.g>.8&&mesh.material.color.r<.1);
     const outpost=anchor(mechanism.parts.getObjectByName(b.team+"-outpost-fixed-upper")!,mesh=>mesh.userData.outpostIndicator===true);
     return {team:b.team,start,station,lamps,carriage,outpost,model,exhaust,flash,trail,history:[] as THREE.Vector3[],at:null as number|null,mode:"outpost" as DartMode,hits:0,feedbackUntil:0,point:new THREE.Vector3()};
@@ -91,7 +99,7 @@ export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof i
           const a=slot.history[slot.history.length-1-i];if(reducedMotion||!a||remaining<=0){mesh.visible=false;continue;}
           delta.copy(b).sub(a);const distance=delta.length(),length=Math.min(remaining,distance);
           if(length<.001){mesh.visible=false;b=a;continue;}
-          delta.divideScalar(distance);mesh.visible=true;mesh.position.copy(b).addScaledVector(delta,-length/2);mesh.quaternion.setFromUnitVectors(up,delta);mesh.scale.set(.12-i*.013,length,.12-i*.013);remaining-=length;b=a;
+          delta.divideScalar(distance);mesh.visible=true;mesh.position.copy(b).addScaledVector(delta,-length/2);mesh.quaternion.setFromUnitVectors(up,delta);mesh.scale.set(.055-i*.007,length,.055-i*.007);remaining-=length;b=a;
         }
       }else{
         if(slot.at!==null){
@@ -106,8 +114,8 @@ export function createDartVisual(scene:THREE.Scene,mechanism:ReturnType<typeof i
     }
   }
   function dispose(){
-    clear();group.removeFromParent();for(const g of [bodyGeo,noseGeo,finGeo,trailGeo,casingGeo])g.dispose();
-    for(const m of [bodyMaterial,...noseMaterials,...trailMaterials,glowMaterial,missMaterial,casingMaterial,trimMaterial,idleMaterial,readyMaterial,preparingMaterial,spentMaterial])m.dispose();glowTexture.dispose();
+    clear();group.removeFromParent();for(const g of [bodyGeo,stripeGeo,wingGeo,trailGeo,casingGeo])g.dispose();
+    for(const m of [bodyMaterial,wingMaterial,...noseMaterials,...trailMaterials,glowMaterial,missMaterial,casingMaterial,trimMaterial,idleMaterial,readyMaterial,preparingMaterial,spentMaterial])m.dispose();glowTexture.dispose();
   }
   function soundPosition(team:Team,mode?:DartMode){
     const slot=slots.find(s=>s.team===team);if(!slot)return undefined;

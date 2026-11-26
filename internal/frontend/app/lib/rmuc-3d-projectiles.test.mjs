@@ -74,6 +74,22 @@ test("large indexed mesh block pruning preserves native exact first face and dra
  }
 });
 
+test("equal-distance faces across the finer blocks retain native face ordering and draw range",()=>{
+ const g=new T.BufferGeometry();
+ g.setAttribute("position",new T.Float32BufferAttribute([-1,-1,0,1,-1,0,0,1,0],3));
+ g.setIndex(Array.from({length:6003},(_,i)=>i%3));
+ const mesh=new T.Mesh(g,new T.MeshBasicMaterial({side:T.DoubleSide}));
+ mesh.updateMatrixWorld(true);
+ const ray=new T.Raycaster(),from=new T.Vector3(0,0,2),direction=new T.Vector3(0,0,-1);
+ ray.set(from,direction);ray.far=3;
+ const expected=ray.intersectObject(mesh,false)[0];
+ const actual=traceArenaShot(ray,[mesh],from,direction,3,prepareArenaShots([mesh]));
+ assert.equal(actual.faceIndex,expected.faceIndex);
+ assert.equal(actual.distance,expected.distance);
+ assert.deepEqual(g.drawRange,{start:0,count:Infinity});
+ g.dispose();mesh.material.dispose();
+});
+
 test("projected visibility is bounded and preserves calibre distinction",()=>{
  assert.equal(projectileVisualDiameter(.017,1,1000,false),.017);
  assert.ok(projectileVisualDiameter(.017,30,800,false)>.017);

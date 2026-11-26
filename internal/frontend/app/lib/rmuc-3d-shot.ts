@@ -62,6 +62,8 @@ export function createArenaShotPreparer(roots:THREE.Object3D[],moving:ReadonlySe
 // Profiling short flight segments identified the 77,420-triangle CAD
 // mesh_81 as the dominant exact-ray cost. Long radar rays also hit
 // road/central meshes below 20k faces; use the same pruning from 2k faces.
+// Profiling the complex shield/radar scene confirmed that 192 indices per
+// block reduce exact native triangle tests versus the old 768-index blocks.
 // Cull contiguous index blocks
 // without changing any geometry, material, face index or triangle test.
 // Three's native raycast honors drawRange; restore it synchronously.
@@ -74,8 +76,8 @@ function exactMeshHit(ray:THREE.Raycaster,mesh:THREE.Mesh){
   let blocks=triangleBlocks.get(geometry);
   if(!blocks){
     blocks=[];const point=new THREE.Vector3(),position=geometry.attributes.position;
-    for(let start=0;start<index.count;start+=768){
-      const count=Math.min(768,index.count-start),bounds=new THREE.Box3();
+    for(let start=0;start<index.count;start+=192){
+      const count=Math.min(192,index.count-start),bounds=new THREE.Box3();
       for(let i=start;i<start+count;i++)bounds.expandByPoint(point.fromBufferAttribute(position,index.getX(i)));
       bounds.expandByScalar(1e-7);blocks.push({start,count,bounds});
     }
