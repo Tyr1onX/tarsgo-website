@@ -11,6 +11,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
+from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "internal/backend"
@@ -50,3 +52,24 @@ for line in result.stdout.splitlines():
 if result.returncode or skipped or not passed:
     sys.exit(f"Database suite failed: exit={result.returncode}, skipped={skipped}, passed={len(passed)}")
 print(f"Database suite passed: {len(passed)} tests/subtests, zero skips.")
+
+if os.environ.get("TARSGO_PIXEL_BROWSER_ACCEPTANCE") == "true":
+    subprocess.run(["make", "build"], cwd=ROOT, env=env, check=True)
+    server = subprocess.Popen([ROOT / "dist/tarsgo-backend"], cwd=ROOT, env=env)
+    try:
+        for attempt in range(30):
+            if server.poll() is not None:
+                sys.exit("Isolated browser acceptance server stopped before startup")
+            try:
+                with urlopen("http://127.0.0.1:8182/healthz", timeout=2) as response:
+                    if response.status == 200:
+                        break
+            except OSError:
+                time.sleep(1)
+        else:
+            sys.exit("Isolated browser acceptance server did not become ready")
+        subprocess.run(["node", "scripts/tests/test-pixel-fishing-browser.mjs"], cwd=ROOT,
+                       env=env, check=True, timeout=240)
+    finally:
+        server.terminate()
+        server.wait(timeout=15)

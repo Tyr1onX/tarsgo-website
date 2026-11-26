@@ -1,3 +1,4 @@
+import { drawItem } from "./pixel-jijia-item-art.ts";
 import {
   FOUNTAIN, TRAINING_FIELD, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt, puddleCell, worldHash as hash,
   type Direction, type Place, type Position, type PropSprite, type Scenery, type SurfaceMark,
@@ -866,6 +867,7 @@ export function renderExplorer(
     ctx.drawImage(characterSheet,sx,sy+surface,w,h-surface,footX-w/2,top+surface,w,h-surface);
     ctx.restore();
   }else ctx.drawImage(characterSheet,sx,sy,w,h,footX-w/2,top,w,h);
+  if(pose.held&&!swimming)drawItem(ctx,pose.held,footX+(pose.direction==="left"?-8:8),footY-24,2);
 }
 
 export type PixelParticle = {

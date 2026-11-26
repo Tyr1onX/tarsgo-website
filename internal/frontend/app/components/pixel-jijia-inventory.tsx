@@ -14,7 +14,7 @@ function ItemIcon({ item }:{ item:WorldItem }) {
   }}/>;
 }
 
-export function PixelInventory({ change, atWater }:{change:number; atWater:()=>boolean}) {
+export function PixelInventory({ change, atWater, onInspect }:{change:number; atWater:()=>boolean; onInspect:(item:WorldItem)=>void}) {
   const [open,setOpen]=useState(false);
   const [rows,setRows]=useState<ItemRow[]>([]);
   const [loading,setLoading]=useState(true);
@@ -74,6 +74,9 @@ export function PixelInventory({ change, atWater }:{change:number; atWater:()=>b
         const item=worldItems.get(row.id);
         if(!item)return null;
         return <div key={row.id}><ItemIcon item={item}/><span>{item.name} · {row.quantity? "×"+row.quantity:"已发现"}</span>
+          {row.quantity>0&&<button type="button" disabled={busy} onClick={()=>{
+            if(owner.current===getCachedCurrentUser()?.id)onInspect(item);
+          }}>拿起看看</button>}
           {item.kind==="fish"&&row.quantity>0&&<button type="button" disabled={busy} onClick={()=>void release(row)}>放生一条</button>}
         </div>;
       })}

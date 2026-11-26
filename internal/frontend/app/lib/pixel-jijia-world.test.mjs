@@ -310,7 +310,7 @@ test("小地图缩小真实世界场景，默认紧凑且展开后仍可导航",
   assert.ok(route.includes("aria-expanded={mapOpen}"));
   assert.ok(!route.includes("aria-hidden={!mapOpen}"));
   assert.ok(route.includes("if (!mapOpen) { setMapOpen(true); return; }"));
-  assert.ok(css.includes(".pixel-world-map-panel:not(.is-open) canvas { cursor: zoom-in; }"));
+  assert.ok(css.includes(".pixel-world-map-panel:not(.is-open) > canvas { cursor: zoom-in; }"));
   assert.ok(css.includes(".pixel-world-map-panel.is-open {"));
   assert.ok(!css.includes(".pixel-world-map-panel {\n  display: none;"));
   assert.ok(!css.includes(".pixel-world-hud"), "移除常驻区域卡片");

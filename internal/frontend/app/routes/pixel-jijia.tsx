@@ -1,4 +1,4 @@
-import { worldItems, guestCatch, pondLabels } from "~/lib/pixel-jijia-items";
+import { worldItems, guestCatch, pondLabels, type WorldItem } from "~/lib/pixel-jijia-items";
 import { PixelInventory } from "~/components/pixel-jijia-inventory";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -154,6 +154,7 @@ export default function PixelJijiaPage() {
   const [seated, setSeated] = useState<{ object:SeatObject; exit: Position } | null>(null);
   const effectsRef = useRef(new Map<string,number>());
   const [baseState,setBaseState]=useState(freshBaseRoom);
+  const inspecting=useRef<{item:WorldItem;until:number}|null>(null);
   const [inventoryChange,setInventoryChange]=useState(0);
   const [freshFish,setFreshFish]=useState(false);
   const [studyAchievements,setStudyAchievements]=useState<Achievement[]>([]);
@@ -223,11 +224,12 @@ export default function PixelJijiaPage() {
   }, [resetStudy,clearInput]);
   useEffect(() => {
     const onAuth=(user:AuthUser|null)=>{
+      inspecting.current=null;
       if(castRef.current?.owner && castRef.current.owner!==user?.id)castRef.current=null;
       if(studyAccessRef.current&&studyAccessRef.current.ownerId!==user?.id)invalidateOwnerStudy();
     };
     const unsubscribe=subscribeAuthStateChange(onAuth);
-    const unsubscribeSession=subscribeAccountSessionChange(()=>{castRef.current=null;invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);});
+    const unsubscribeSession=subscribeAccountSessionChange(()=>{inspecting.current=null;castRef.current=null;invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);});
     return()=>{unsubscribe();unsubscribeSession();studyAccessRef.current?.controller.abort();};
   }, [invalidateOwnerStudy]);
   const standUp = useCallback(() => {
@@ -1018,6 +1020,7 @@ export default function PixelJijiaPage() {
       // This preserves the full sequence even after a slow frame or React update.
       if(castRef.current?.caughtAt===0)castRef.current.caughtAt=time;
       if(castRef.current?.caughtAt!==undefined&&time-castRef.current.caughtAt>1050)castRef.current=null;
+      if(inspecting.current && inspecting.current.until<time)inspecting.current=null;
       const castNow=castRef.current;
       const readyNow=Boolean(castNow&&fishingReady(wildlifeRef.current,castNow,time));
       const pose=poseRef.current=explorerAnimation(poseRef.current,{
@@ -1026,6 +1029,7 @@ export default function PixelJijiaPage() {
         fishing:fishingPose(castNow,readyNow,time),now:time,motion:!reducedMotion.matches,
         idleAllowed:!x&&!y&&!selectedRef.current&&!selectedRoom&&!menuOpen&&!mapOpen&&!catalogueDetail&&!transitionRef.current,
       });
+      if(!castNow&&!controlledRobot&&(!room||baseState.item!=="held"))pose.held=inspecting.current?.item;
       ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
       ctx.clearRect(0, 0, viewWidth, viewHeight);
       ctx.imageSmoothingEnabled = false;
@@ -1409,7 +1413,10 @@ export default function PixelJijiaPage() {
             ))}
           </div>
         </details>
-        <PixelInventory change={inventoryChange} atWater={()=>!room&&Boolean(fishingTarget(playerRef.current))}/>
+        <PixelInventory change={inventoryChange} atWater={()=>!room&&Boolean(fishingTarget(playerRef.current))} onInspect={item=>{
+          inspecting.current={item,until:performance.now()+3200};
+          setMapOpen(false);fishingNotice(item.name);
+        }}/>
         <details className="pixel-world-map-discoveries">
           <summary>自然图鉴 · {natureDiscoveries.length}</summary>
           {natureDiscoveries.length?<div className="pixel-world-nature-log">{natureDiscoveries.join(" · ")}</div>:<div className="pixel-world-nature-log">观察动物或钓鱼后收录。</div>}

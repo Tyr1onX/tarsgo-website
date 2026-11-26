@@ -84,8 +84,8 @@
   .pixel-world-map-caption, .pixel-world-map-destinations,
   .pixel-world-map-discoveries, .pixel-world-zoom
 ) { display: none; }
-.pixel-world-map-panel:not(.is-open) canvas { cursor: zoom-in; }
-.pixel-world-map-panel.is-open canvas { cursor: crosshair; }
+.pixel-world-map-panel:not(.is-open) > canvas { cursor: zoom-in; }
+.pixel-world-map-panel.is-open > canvas { cursor: crosshair; }
 
 .pixel-world-map-caption {
   display: flex;
@@ -97,7 +97,7 @@
   font-weight: 800;
 }
 .pixel-world-map-caption span:last-child { font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b1c3b6; }
-.pixel-world-map-panel canvas {
+.pixel-world-map-panel > canvas {
   display: block;
   width: 100%;
   height: auto;

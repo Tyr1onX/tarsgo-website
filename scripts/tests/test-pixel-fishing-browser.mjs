@@ -81,20 +81,20 @@ try {
     await until(()=>evaluate(`${state}?.interaction==="钓鱼" && +${state}?.playerX===${x}`),"bank "+pond,45000);
     let previous=await bag();
     for(let attempt=0; ; attempt++){
-    const total=rows=>rows.reduce((n,row)=>n+row.quantity,0);
-    if(mobile)await tap(".pixel-world-interact","钓鱼");else await key("e");
-    await until(()=>evaluate(`${state}?.fishing==="ready"`),"bite at "+pond);
-    if(mobile)await tap(".pixel-world-interact","收竿");else await key("e");
-    const next=await until(async()=>{const rows=await bag();return total(rows)===total(previous)+1&&rows},"saved catch");
-    const caught=next.find(row=>row.quantity>(previous.find(p=>p.id===row.id)?.quantity||0));
-    const item=catalog.find(i=>i.id===caught.id);
-    assert.ok(item?.ponds.includes(pond),"catch belongs to pond");
-    await screenshot("pond-"+pond);
-    console.log(JSON.stringify({pond,mobile,item:item.name,quantity:caught.quantity}));
-    await until(()=>evaluate(`${state}?.fishing==="idle"`),"reel finished");
-    if(pond!==2 || next.some(row=>catalog.find(i=>i.id===row.id)?.kind==="fish"))break;
-    assert.ok(attempt<15,"no fish available to test release");
-    previous=next;
+      const total=rows=>rows.reduce((n,row)=>n+row.quantity,0);
+      if(mobile)await tap(".pixel-world-interact","钓鱼");else await key("e");
+      await until(()=>evaluate(`${state}?.fishing==="ready"`),"bite at "+pond);
+      if(mobile)await tap(".pixel-world-interact","收竿");else await key("e");
+      const next=await until(async()=>{const rows=await bag();return total(rows)===total(previous)+1&&rows},"saved catch");
+      const caught=next.find(row=>row.quantity>(previous.find(p=>p.id===row.id)?.quantity||0));
+      const item=catalog.find(i=>i.id===caught.id);
+      assert.ok(item?.ponds.includes(pond),"catch belongs to pond");
+      await screenshot("pond-"+pond);
+      console.log(JSON.stringify({pond,mobile,item:item.name,quantity:caught.quantity}));
+      await until(()=>evaluate(`${state}?.fishing==="idle"`),"reel finished");
+      if(pond!==2 || next.some(row=>catalog.find(i=>i.id===row.id)?.kind==="fish"))break;
+      assert.ok(attempt<15,"no fish available to test release");
+      previous=next;
     }
   }
   const owned=await bag();
@@ -105,6 +105,11 @@ try {
   await tap("summary","背包与收藏");
   await until(()=>evaluate(`document.querySelectorAll(".pixel-world-inventory canvas").length===${owned.length}`),"saved inventory after reload");
   await screenshot("mobile-inventory");
+  await tap(".pixel-world-inventory button","拿起看看");
+  await until(()=>evaluate('!document.querySelector(".pixel-world-map-panel.is-open") && Boolean(document.querySelector(".pixel-world-nature-notice")?.textContent)'),"inspect collectible");
+  await screenshot("mobile-held-item");
+  await tap(".pixel-world-menu-toggle","");
+  await tap(".pixel-world-tool","地图");
   const fish=owned.find(row=>catalog.find(i=>i.id===row.id).kind==="fish"&&row.quantity>0);
   assert.ok(fish,"requires a fixture or catch that can be released");
   const fishName=catalog.find(i=>i.id===fish.id).name;

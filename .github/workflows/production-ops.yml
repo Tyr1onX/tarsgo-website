@@ -101,47 +101,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          fetch-depth: 2
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: internal/backend/go.mod
           cache-dependency-path: internal/backend/go.sum
-      - name: Run mandatory synthetic MariaDB workflows and migrations
-        run: python3 scripts/tests/test-database-integration.py
-
-      - name: Set up browser acceptance Node
-        if: github.head_ref == 'feat/pixel-world-fishing-collection'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      - name: Check for pixel world changes
+        id: pixel
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -Eq '(^|/)(pixel[-_]|pixelassets/|test-pixel-fishing-browser)'; then
+            echo 'browser=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        if: steps.pixel.outputs.browser == 'true'
         with:
           node-version-file: internal/frontend/.nvmrc
-      - name: Play fishing in the built game with isolated accounts
-        if: github.head_ref == 'feat/pixel-world-fishing-collection'
+      - name: Run mandatory synthetic MariaDB workflows and migrations
         env:
-          APP_ENV: acceptance
-          APP_HOST: 127.0.0.1
-          APP_PORT: 8182
-          APP_AUTO_MIGRATE: 'false'
-          EMAIL_API_URL: http://127.0.0.1:8126/emails
-          TARSGO_ACCEPTANCE_SEED: 'true'
-          TARSGO_TEST_USER_PASSWORD: synthetic-user-only
-          TARSGO_TEST_ADMIN_PASSWORD: synthetic-admin-only
-          TARSGO_TEST_SUPER_ADMIN_PASSWORD: synthetic-super-only
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3317
-          DB_NAME: tarsgo_acceptance
-          DB_USER: tarsgo_test
-          DB_PASSWORD: isolated-ci-only
-          DB_LOC: UTC
-          JWT_SECRET: isolated-synthetic-test-secret-not-for-production
+          TARSGO_PIXEL_BROWSER_ACCEPTANCE: ${{ steps.pixel.outputs.browser }}
           PIXEL_QA_OUTPUT: ${{ runner.temp }}/pixel-fishing
-        run: |
-          make build
-          dist/tarsgo-backend > "$RUNNER_TEMP/pixel-server.log" 2>&1 &
-          game_pid=$!
-          trap 'kill "$game_pid" || true' EXIT
-          curl --retry 20 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:8182/healthz
-          node scripts/tests/test-pixel-fishing-browser.mjs
-      - name: Save browser evidence
-        if: always() && github.head_ref == 'feat/pixel-world-fishing-collection'
+        run: python3 scripts/tests/test-database-integration.py
+      - name: Save fishing acceptance screenshots
+        if: always() && steps.pixel.outputs.browser == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: pixel-fishing-browser
