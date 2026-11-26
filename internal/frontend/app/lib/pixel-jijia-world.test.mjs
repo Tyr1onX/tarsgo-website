@@ -963,6 +963,17 @@ test("陪伴动物追随真实路点、停下休息、等待驾驶者并跨场�
   assert.ok(Math.hypot(a.x-5,a.y-5)<3);
 });
 
+test("静止玩家身边两格内的宠物不继续追逐旧路点",()=>{
+  const a=createCompanion({species:"cat",variant:"orange",name:"小七",mode:"follow",revision:1});
+  const player={x:68.5,y:78.5},valid=()=>true;
+  Object.assign(a,{scene:"campus",x:68.305,y:76.558,trail:[{x:68.5,y:76.5}],idle:0});
+  updateCompanion(a,player,.05,"campus",valid,false,false,false);
+  assert.equal(a.behavior,"observe");
+  assert.equal(a.speed,0);
+  for(let i=0;i<40;i++)updateCompanion(a,player,.05,"campus",valid,false,false,false);
+  assert.equal(a.behavior,"sit");
+});
+
 test("岸上投入鱼粮后鱼在水中发现、靠近、进食",()=>{
   const a=createWildlife().find(a=>a.id==="fish-2-0");
   const target=fishingTarget({x:30.5,y:43.5});
