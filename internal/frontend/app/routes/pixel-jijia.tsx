@@ -1860,7 +1860,7 @@ export default function PixelJijiaPage() {
       {!room&&freshFish&&!menuOpen&&!mapOpen&&<div className="pixel-base-fish"><SaveAchievement id="fish"/><button type="button" onClick={()=>setFreshFish(false)}>×</button></div>}
       {room?.id === "study" && <div className="pixel-world-study-panel">
       {!studyGuest && <div className="pixel-world-study-tools" role="group" aria-label="研究室家具布置">
-        <button type="button" aria-pressed={studyEditing} onClick={()=>{standUp();setStudyEditing(!studyEditing);setMovingFurniture(null);}}> {studyEditing?"完成布置":"布置家具"}</button>
+        <button type="button" aria-pressed={studyEditing} onClick={()=>{standUp();selectRoomObject(null);setStudyEditing(!studyEditing);setMovingFurniture(null);}}> {studyEditing?"完成布置":"布置家具"}</button>
         {studyEditing && <select aria-label="选择家具或删除" value={studyTool}
           onChange={event => {setMovingFurniture(null);setStudyTool(event.target.value as StudyFurnitureKind | "erase" | "move");}}>
           {Object.entries(STUDY_CATALOG).map(([kind, title]) =>

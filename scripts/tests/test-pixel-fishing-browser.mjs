@@ -569,7 +569,9 @@ try {
   await tap(".pixel-study-slot button","放入物品");
   await tap(".pixel-study-choices button",displayFishName);
   await until(async()=> (await home()).displays.some(d=>d.facilityId===tank.id&&d.id===displayFish.id),"touch redisplay");
+  await until(()=>evaluate('[...document.querySelectorAll(".pixel-study-slot button")].some(b=>b.textContent==="取出"&&!b.disabled)'),"touch redisplay reflected");
   await tap(".pixel-world-detail-close","×");
+  await until(()=>evaluate('!document.querySelector(".pixel-world-detail")'),"touch aquarium closed");
   await command("Emulation.setDeviceMetricsOverride",{width:1200,height:850,deviceScaleFactor:1,mobile:false});
   await command("Emulation.setTouchEmulationEnabled",{enabled:false});
   await until(()=>evaluate('!document.querySelector(".pixel-world")?.classList.contains("is-mobile")'),"desktop collection viewport");
@@ -581,7 +583,9 @@ try {
   await click("button","布置家具");
   await chooseFurniture("move");
   await clickWorld(16.5,15);
+  await until(()=>evaluate('document.querySelector(".pixel-world-study-notice")?.textContent.includes("选择新的家具位置")'),"tank selected for move");
   await clickWorld(15.5,13.5);
+  await until(()=>evaluate('!document.querySelector(".pixel-world-study-notice")'),"tank move accepted");
   await click("button","保存布局");
   await until(async()=>{const h=await home();return h.furniture.some(f=>f.id===tank.id&&f.x===15&&f.y===13)&&h.displays.some(d=>d.facilityId===tank.id&&d.id===displayFish.id);},"move retains fish and ID");
   await click("button","完成布置");
