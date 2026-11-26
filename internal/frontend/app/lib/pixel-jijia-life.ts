@@ -244,7 +244,7 @@ export function updateCompanion(a:Companion,player:Position,dt:number,scene:stri
     }
     a.roam=undefined;
   }
-  if(d<1.8){
+  if(d<1.8||(!moving&&d<=2)){
     a.idle+=dt;
     while(a.trail.length>1&&distance(a,a.trail[0])<2)a.trail.shift();
     behavior(a,a.idle>16?"sleep":a.idle>7?"lie":a.idle>1.2?"sit":"observe",dt);
