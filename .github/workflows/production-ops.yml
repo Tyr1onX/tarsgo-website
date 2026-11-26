@@ -108,6 +108,46 @@ jobs:
       - name: Run mandatory synthetic MariaDB workflows and migrations
         run: python3 scripts/tests/test-database-integration.py
 
+      - name: Set up browser acceptance Node
+        if: github.head_ref == 'feat/pixel-world-fishing-collection'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: internal/frontend/.nvmrc
+      - name: Play fishing in the built game with isolated accounts
+        if: github.head_ref == 'feat/pixel-world-fishing-collection'
+        env:
+          APP_ENV: acceptance
+          APP_HOST: 127.0.0.1
+          APP_PORT: 8182
+          APP_AUTO_MIGRATE: 'false'
+          EMAIL_API_URL: http://127.0.0.1:8126/emails
+          TARSGO_ACCEPTANCE_SEED: 'true'
+          TARSGO_TEST_USER_PASSWORD: synthetic-user-only
+          TARSGO_TEST_ADMIN_PASSWORD: synthetic-admin-only
+          TARSGO_TEST_SUPER_ADMIN_PASSWORD: synthetic-super-only
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3317
+          DB_NAME: tarsgo_acceptance
+          DB_USER: tarsgo_test
+          DB_PASSWORD: isolated-ci-only
+          DB_LOC: UTC
+          JWT_SECRET: isolated-synthetic-test-secret-not-for-production
+          PIXEL_QA_OUTPUT: ${{ runner.temp }}/pixel-fishing
+        run: |
+          make build
+          dist/tarsgo-backend > "$RUNNER_TEMP/pixel-server.log" 2>&1 &
+          game_pid=$!
+          trap 'kill "$game_pid" || true' EXIT
+          curl --retry 20 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:8182/healthz
+          node scripts/tests/test-pixel-fishing-browser.mjs
+      - name: Save browser evidence
+        if: always() && github.head_ref == 'feat/pixel-world-fishing-collection'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: pixel-fishing-browser
+          path: ${{ runner.temp }}/pixel-fishing/
+          if-no-files-found: ignore
+
   publish-production-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.outputs.deploy_required == 'true'
     needs: [verify, database-integration]
