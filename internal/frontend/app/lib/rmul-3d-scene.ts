@@ -2,7 +2,7 @@ import {createMatchAudio,eventCue,audioVisible} from "./rmuc-3d-audio";
 import {createDirector,type Shot} from "./rmuc-3d-director";
 import {createEventFeed} from "./rmuc-3d-events";
 import {readRobotSight,followOffset,translatedOrbit} from "./rmuc-3d-spectator";
-import {createRobotFeedback} from "./rmuc-3d-robot-feedback";
+import {createRobotFeedback,type MarkerRect} from "./rmuc-3d-robot-feedback";
 import { GROUND_ROSTER, groundIdentity } from "./rmuc-3d-identity";
 import {airPadCenters,createAirSystem,type AirVehicle} from "./rmuc-3d-air";
 import {validExperiment,roundConfig,createRoundTelemetry,summarizeRound,type ExperimentConfig,type ExperimentProgress,type ExperimentRound,type TaskDecision} from "./rmuc-3d-experiment";
@@ -206,6 +206,17 @@ export function mountArena(
   const radarOrigins={red:new THREE.Vector3(14.58,2.55,0),blue:new THREE.Vector3(-14.58,2.55,0)};
   const radarRay=new THREE.Raycaster();
   let viewportHeight=1;
+  let markerReserved:MarkerRect[]=[],lastMarkerLayout=-Infinity;
+  function markerExclusions(now:number){
+    if(now-lastMarkerLayout<160)return markerReserved;
+    lastMarkerLayout=now;
+    const base=host.getBoundingClientRect();
+    markerReserved=Array.from(host.parentElement?.querySelectorAll<HTMLElement>(".rmul3d-score,.rmul3d-focus-panel,.rmul3d-minimap,.rmul3d-event-feed,.rmul3d-event-banner,.rmul3d-header-actions,.rmul3d-view-dock,.rmul3d-actions,.rmul3d-joystick,.rmul3d-combat-live")??[]).flatMap(el=>{
+      const r=el.getBoundingClientRect();
+      return r.width>0&&r.height>0?[{x:r.left-base.left+r.width/2,y:r.top-base.top+r.height/2,w:r.width,h:r.height}]:[];
+    });
+    return markerReserved;
+  }
   let nextBotTurn = 0;
   let botCursor = 0,combatCursor=0;
   const shotRay = new THREE.Raycaster();
@@ -318,7 +329,7 @@ export function mountArena(
     }
     if(shot.kind!=="detail")return;
     const team=shot.team,object=shot.object;
-    const node=object==="core"?coreGeometry?.cores[team==="red"?0:1]?.object:object==="rune"?mechanism?.banks[team==="red"?0:1]:mechanism?.parts.getObjectByName(team+"-"+object+"-assembly");
+    const node=object==="dart"?dartVisual?.group.getObjectByName(team+"-dart-station-visual"):object==="core"?coreGeometry?.cores[team==="red"?0:1]?.object:object==="rune"?mechanism?.banks[team==="red"?0:1]:mechanism?.parts.getObjectByName(team+"-"+object+"-assembly");
     if(!node){setView("all",true);return;}
     const bounds=new THREE.Box3().setFromObject(node,true),target=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
     setView("detail",true);
@@ -559,10 +570,16 @@ export function mountArena(
     const hidden=mode==="first"?driving:mode==="ai-first"?observed:null;
     if(hidden)hidden.object.visible=false;
     armorGlow?.update();
-    if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match);}
+    if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match,audioPerspective(),reducedMotion.matches);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first",reducedMotion.matches);
     if(mode==="follow")followRendered.copy(camera.position);
-    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{focus:observed?.object.name??driving?.object.name,firstPerson:mode==="first"||mode==="ai-first",spinning});
+    let shieldIndex:ShotIndex|undefined;
+    const shieldTrace=(from:THREE.Vector3,direction:THREE.Vector3,distance:number)=>{
+      if(!map)return;
+      if(!shieldIndex){const index=poseShotIndex??prepareShots();shieldIndex={...index,roots:[map,ground],surfaces:index.surfaces.filter(s=>s.root===map||s.root===ground)};}
+      return traceArenaShot(observerRay,shieldIndex.roots,from,direction,distance,shieldIndex);
+    };
+    if(match)robotFeedback?.update(match,camera,viewportHeight,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{focus:observed?.object.name??driving?.object.name,firstPerson:mode==="first"||mode==="ai-first",spinning,reserved:markerExclusions(time),shieldTrace});
     try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
     if(settings.quality==="auto"&&autoRatio===null&&renderer.getPixelRatio()>1){
@@ -1344,7 +1361,7 @@ export function mountArena(
   controls.addEventListener("change", invalidate);
   const resize = () => {
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
-    viewportHeight=h;renderer.setSize(w, h);
+    viewportHeight=h;lastMarkerLayout=-Infinity;renderer.setSize(w, h);
     camera.aspect = w / h;
     if (ready && mode !== "first" && mode !== "third" && mode!=="follow"&&mode!=="ai-first" && mode!=="detail" && fieldBounds) {
       controls.target.copy(frameArena(camera, mode, fieldBounds));

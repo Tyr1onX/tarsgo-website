@@ -32,3 +32,11 @@ test("sustained actual damage selects AI first person; stale events expire; dead
  d.start(12);d.damage({target:{type:"robot",id:"r"},amount:20,at:12,source:"projectile"});m.elapsed=25;assert.equal(d.choose(m),null);
  d.start(25);for(const at of [28,28.5,29])d.damage({target:{type:"robot",id:"r"},amount:20,at,source:"projectile"});m.robots[0].hp=0;m.elapsed=29;assert.deepEqual(d.choose(m),{kind:"follow",robot:"r"});
 });
+
+test("dart launch offers a source detail while the actual hit offers the destination",()=>{
+ const m=match(),d=createDirector();d.start(0);
+ d.event({type:"dart-launch",team:"red",location:"blue",mode:"fixed",at:4});m.elapsed=4;
+ assert.deepEqual(d.choose(m),{kind:"detail",team:"red",object:"dart"});
+ d.event({type:"dart-hit",team:"red",location:"blue",mode:"fixed",at:6.5});m.elapsed=6.5;
+ assert.deepEqual(d.choose(m),{kind:"detail",team:"blue",object:"base"});
+});
