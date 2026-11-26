@@ -902,7 +902,7 @@ export function mountArena(
         technologyDuty=true;
         if(energy.carrying>=desired){
           goal=zoneGoal(state.team,"assembly");
-          if(bot.position.distanceTo(goal)<.10&&tech.available.includes(next)){beginAssembly(currentMatch,state.id,bot.position,next);goal=bot.position.clone();}
+          if(tech.available.includes(next)&&beginAssembly(currentMatch,state.id,bot.position,next))goal=bot.position.clone();
         }else{
           if(energy.pickup)pickupEnergy(currentMatch,state.id,bot.position,energy.pickup);
           const unit=currentMatch.energyUnits.filter(u=>u.team===state.team&&(u.location.kind==="rack"||u.location.kind==="ground")).sort((a,b)=>bot.position.distanceToSquared(new THREE.Vector3(a.location.position.x,a.location.position.y,a.location.position.z))-bot.position.distanceToSquared(new THREE.Vector3(b.location.position.x,b.location.position.y,b.location.position.z)))[0];
