@@ -65,38 +65,42 @@
 .rmul3d-back { grid-area: back; justify-self: start; align-self: start; }
 .rmul3d-settings { grid-area: menu; justify-self: end; align-self: start; }
 .rmul3d-match { grid-area: score; display:flex; flex-direction:column; align-items:center; gap:4px; justify-self:center; min-width:0; max-width:100%; }
-.rmul3d-match:has(.rmul3d-score) { width:min(100%,720px); pointer-events:none; }
-.rmul3d-score { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:start; width:100%; gap:8px; padding:7px 9px; background:var(--arena-panel); border:1px solid var(--arena-border); border-radius:8px; font-variant-numeric:tabular-nums; font-size:11px; line-height:1.2; }
+.rmul3d-match:has(.rmul3d-score) { width:min(100%,1020px); pointer-events:none; }
+.rmul3d-score { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:start; width:100%; gap:0; padding:0; background:#0B0E0Ef0; border-bottom:1px solid #a18a5e4d; border-radius:8px;box-shadow:0 6px 20px #0005; font-variant-numeric:tabular-nums; font-size:14px; line-height:1.3; }
 .rmul3d-team { --team:var(--arena-red); min-width:0; }
 .rmul3d-team.blue { --team:var(--arena-blue); text-align:right; }
 .rmul3d-base-line,.rmul3d-team-metrics,.rmul3d-robot-id,.rmul3d-robot-hp { display:flex; align-items:center; justify-content:space-between; gap:3px; min-width:0; }
 .rmul3d-team.blue :is(.rmul3d-base-line,.rmul3d-team-metrics) { flex-direction:row-reverse; }
 .rmul3d-base-line { color:var(--team); font-weight:650; }
-.rmul3d-base-line strong { font-size:17px; line-height:1; color:#fff; }
+.rmul3d-base-line strong { font-size:24px; line-height:1; color:#fff;min-width:5ch;text-align:right; }
+.rmul3d-team.blue .rmul3d-base-line strong{text-align:left;}
 .rmul3d-health { position:relative; height:4px; overflow:visible; background:var(--arena-track); border-radius:1px; margin:2px 0; }
 .rmul3d-health i { display:block; width:100%; height:100%; background:var(--team); border-radius:inherit; transform-origin:left center; transition:transform var(--motion-duration-fast,160ms) var(--motion-ease-standard); }
 .rmul3d-team.blue .rmul3d-health i { transform-origin:right center; }
 .rmul3d-base-line + .rmul3d-health { height:6px; }
-.rmul3d-damage {color:var(--arena-damage);white-space:nowrap;font-size:10px;font-weight:650;font-variant-numeric:tabular-nums;}
-.rmul3d-damage:empty{display:none;}
-.rmul3d-team-metrics { font-size:10px; color:#b6c7d7; white-space:nowrap; margin:4px 0; }
+.rmul3d-damage {min-width:4ch;text-align:center;color:var(--arena-damage);white-space:nowrap;font-size:10px;font-weight:650;font-variant-numeric:tabular-nums;}
+.rmul3d-damage:empty{visibility:hidden;}
+.rmul3d-team-metrics { font-size:12px; color:#b6c7d7; white-space:nowrap; margin:4px 0; }
 .rmul3d-team-metrics b { color:#fff; }
-.rmul3d-outpost { flex:0 0 auto; min-width:39px; }
+.rmul3d-outpost { flex:0 0 auto; min-width:5ch; }
 .rmul3d-outpost .rmul3d-health { height:3px; margin:1px 0 0; }
 .rmul3d-area { color:#c9d5e1; }
 .rmul3d-roster { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+.rmul3d-hud.is-manual .rmul3d-roster,.rmul3d-hud.is-manual .rmul3d-economy{display:none;}
 .rmul3d-team.blue .rmul3d-roster { direction:rtl; }
 .rmul3d-robot-status { min-width:0; direction:ltr; }
 .rmul3d-robot-status.dead { --team:#8793a0; }
-.rmul3d-robot-id { color:var(--team); justify-content:flex-start; font-size:11px; }
-.rmul3d-robot-id svg { width:15px; height:12px; flex-shrink:0; }
-.rmul3d-level { margin-left:auto; color:#b6c7d7; font-size:9px; }
-.rmul3d-robot-hp { font-size:11px; line-height:1.2; }
-.rmul3d-robot-state { color:var(--arena-damage); font-size:9px; white-space:nowrap; }
-.rmul3d-clock { text-align:center; align-self:start; min-width:44px; padding-top:3px; }
-.rmul3d-clock strong { display:block; color:#fff; font-size:24px; letter-spacing:-.04em; line-height:1; }
-.rmul3d-clock small { display:block; color:#a8b9c9; font-size:9px; margin-top:4px; }
-.rmul3d-combat { grid-area:combat; align-self:end; justify-self:end; width:min(100%,320px); min-height:0; max-height:100%; overflow:auto; overscroll-behavior:contain; display:flex; flex-wrap:wrap; align-content:start; align-items:center; justify-content:flex-end; gap:6px; background:var(--arena-panel); border:1px solid var(--arena-border); padding:8px; border-radius:8px; font-size:13px; }
+.rmul3d-robot-id { color:var(--team); justify-content:flex-start; font-size:14px; }
+.rmul3d-robot-name {font-size:12px;line-height:1.3;overflow-wrap:anywhere;color:#edf1ed;margin:2px 0;}
+.rmul3d-robot-id svg { width:18px; height:14px; flex-shrink:0; }
+.rmul3d-level { margin-left:auto; color:#b6c7d7; font-size:11px; }
+.rmul3d-robot-hp { font-size:13px; line-height:1.2; }
+.rmul3d-robot-state { color:var(--arena-damage); font-size:11px; white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis; }
+.rmul3d-clock {text-align:center;width:124px;align-self:stretch;display:grid;align-content:start;gap:4px;padding:10px 9px 6px;border-inline:1px solid #a18a5e30;background:#0B0E0E}
+.rmul3d-clock strong {display:block;color:#fff;font-size:38px;letter-spacing:-.035em;line-height:1}
+.rmul3d-clock small {display:block;color:#a8b9c9;margin:0;font-size:12px;letter-spacing:.04em}
+.rmul3d-side-status {grid-area:combat;align-self:stretch;justify-self:end;width:min(100%,320px);min-height:0;display:flex;flex-direction:column-reverse;justify-content:space-between;gap:6px;pointer-events:none;}
+.rmul3d-combat { align-self:stretch; width:100%; flex:0 1 auto; min-height:0; max-height:100%; overflow:auto; overscroll-behavior:contain; display:flex; flex-wrap:wrap; align-content:start; align-items:center; justify-content:flex-end; gap:6px; background:var(--arena-panel); border:1px solid var(--arena-border); padding:8px; border-radius:8px; font-size:13px; }
 .rmul3d-combat form { display:flex; flex-wrap:wrap; gap:4px; max-width:100%; }
 .rmul3d-combat :is(button,select,input) { max-width:100%; }
 .rmul3d-actions { grid-area:actions; justify-self:end; align-self:end; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; max-width:100%; }
@@ -122,26 +126,23 @@
   .rmul3d-hud { grid-template-columns: minmax(44px,1fr) minmax(0,9fr) minmax(44px,1fr); }
   .rmul3d-combat { width:min(100%,320px); }
   .rmul3d-touch { grid-column:1 / 3; width:max-content; }
-  .rmul3d-match:has(.rmul3d-score) { width:min(100%,550px); }
+  .rmul3d-match:has(.rmul3d-score) { width:100%; }
   .rmul3d-economy { display:none; }
 }
  .rmul3d-thermal-lock {position:absolute;inset:0;background:#0B0E0E;pointer-events:none;z-index:1;display:grid;place-content:center;text-align:center;gap:5px}
 .rmul3d-thermal-lock strong{font-size:clamp(18px,4vw,30px);letter-spacing:.08em;color:#d7e4ef}
 .rmul3d-thermal-lock span{color:#A3ADA7;font-size:12px}
 
-@media (max-width: 700px), (orientation:landscape) and (max-height:500px) {
-  .rmul3d-score { gap:5px; padding:5px 6px; }
-  .rmul3d-team-metrics { gap:3px; font-size:9px; }
-  .rmul3d-roster { gap:3px; }
+@media (max-width: 1000px), (orientation:landscape) and (max-height:500px) {
+  .rmul3d-team-metrics { gap:3px; }
+  .rmul3d-roster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px; }
   .rmul3d-robot-id svg { display:none; }
-  .rmul3d-clock { min-width:37px; }
-  .rmul3d-clock strong { font-size:20px; }
 }
 @media (max-width: 600px) {
   .rmul3d-economy { display:none; }
-  .rmul3d-roster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px 5px; }
-  .rmul3d-robot-status { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:1px 3px; }
-  .rmul3d-robot-id,.rmul3d-robot-hp { font-size:10px; gap:2px; }
+  .rmul3d-roster { gap:2px 5px; }
+  .rmul3d-robot-status { display:grid; align-items:center; gap:1px 3px; }
+  .rmul3d-robot-id,.rmul3d-robot-hp { gap:2px; }
   .rmul3d-robot-hp { flex-wrap:wrap; justify-content:flex-end; }
   .rmul3d-robot-hp b { white-space:nowrap; }
   .rmul3d-robot-status .rmul3d-health { grid-column:1 / -1; margin:1px 0; }
@@ -150,7 +151,7 @@
 }
 @media (max-width: 360px) {
   .rmul3d-score { gap:4px; padding:4px; }
-  .rmul3d-area { font-size:9px; }
+  .rmul3d-area { font-size:11px; }
   .rmul3d-roster { column-gap:3px; }
   .rmul3d-robot-status { column-gap:1px; }
   .rmul3d-robot-id { gap:1px; }
@@ -160,8 +161,15 @@
 .rmul3d .rmul3d-fire { touch-action:none; border-color:#9dbbd980; }
 @media(pointer:coarse){.rmul3d .rmul3d-fire{min-width:64px;min-height:64px;border-radius:50%;padding:6px;max-width:86px;line-height:1.15;}}
 .rmul3d .rmul3d-fire[aria-disabled="true"] { opacity: .4; }
-.rmul3d-minimap {grid-area:map;min-width:0;align-self:start;justify-self:start;width:min(230px,25vw);background:var(--arena-panel);border:1px solid var(--arena-border);padding:6px;border-radius:8px;font-size:10px;pointer-events:none;}
+.rmul3d-minimap {grid-area:map;min-width:0;align-self:end;justify-self:start;width:min(320px,30vw);background:var(--arena-panel);border:1px solid var(--arena-border);padding:6px;border-radius:8px;font-size:12px;pointer-events:none;}
 .rmul3d-minimap svg {width:100%;display:block}
+.rmul3d-map-number{font-size:10px}
+.rmul3d-zone-label{font-size:9px}
+@media(max-width:600px),(orientation:landscape) and (max-height:500px){
+ .rmul3d-map-marker{r:9px}
+ .rmul3d-map-number{font-size:14px}
+ .rmul3d-zone-label{display:none}
+}
 .rmul3d-map-head {display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap}
 .rmul3d-map-head select {max-width:100%;font:inherit;color:inherit;background:#202b35;border:0}
 @media (pointer:coarse) {.rmul3d-map-head select {min-height:44px;}}
@@ -185,7 +193,7 @@
 .rmul3d-robot-status[role=button],.rmul3d-minimap g[role=button] {pointer-events:auto;cursor:pointer;}
 .rmul3d-robot-status.selected {outline:1px solid var(--team);outline-offset:1px;border-radius:2px;}
 .rmul3d-minimap g[role=button]:focus-visible {outline:1px solid white;}
-.rmul3d-focus-panel {--team:var(--arena-red);grid-column:1 / 3;grid-row:2;align-self:end;justify-self:start;width:min(270px,44vw);max-height:100%;overflow:auto;padding:8px 10px;background:var(--arena-panel);border:1px solid var(--arena-border);border-left:3px solid var(--team);border-radius:8px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:auto;}
+.rmul3d-focus-panel {--team:var(--arena-red);align-self:stretch;width:100%;min-height:0;flex:0 1 auto;max-height:100%;overflow:auto;padding:8px 10px;background:var(--arena-panel);border:1px solid var(--arena-border);border-left:3px solid var(--team);border-radius:8px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:auto;}
 .rmul3d-focus-panel.blue {--team:var(--arena-blue);}
 .rmul3d-focus-title,.rmul3d-focus-hp {display:flex;align-items:center;gap:6px;}
 .rmul3d-focus-title strong {font-size:20px;color:var(--team);}
@@ -199,23 +207,16 @@
 .rmul3d-focus-states:empty {display:none;}
 .rmul3d-observer-controls {display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;}
 .rmul3d-observer-controls button {flex:1;padding:4px 6px;font-size:11px;white-space:nowrap;}
-.rmul3d-hud.is-focused .rmul3d-minimap {grid-column:2 / 4;grid-row:2;align-self:end;justify-self:end;}
-.rmul3d-hud.is-focused.is-manual .rmul3d-combat {align-self:start;max-height:calc(100% - 180px);}
 .rmul3d-tactics-toggle {display:none;}
 @media (max-width:600px), (orientation:landscape) and (max-height:500px){
   .rmul3d .rmul3d-tactics-toggle {display:block;width:100%;margin-top:6px;padding:4px 6px;font-size:11px;}
-  .rmul3d-hud.is-focused.is-manual .rmul3d-combat {max-height:100%;}
   .rmul3d-hud.is-manual:not(.is-tactics-open) .rmul3d-combat-live {display:none;}
-  .rmul3d-hud.is-manual.is-tactics-open .rmul3d-minimap {visibility:hidden;}
-  .rmul3d-hud.is-manual.is-tactics-open .rmul3d-combat-live {align-self:stretch;width:min(100%,320px);align-content:start;}
+  .rmul3d-hud.is-manual.is-tactics-open .rmul3d-combat-live {flex:1 1 auto;align-content:start;}
 }
-.rmul3d-ammo {display:flex;align-items:baseline;justify-content:flex-end;gap:5px;padding:0 5px;}
-.rmul3d-ammo b {font-size:22px;color:white;}
 @media (max-width:600px) and (orientation:portrait){
-  .rmul3d-focus-panel {grid-column:1;grid-row:3;width:100%;padding:6px;font-size:10px;}
+  .rmul3d-focus-panel {padding:6px;font-size:12px;}
   .rmul3d-focus-title {gap:3px;}
   .rmul3d-focus-hp b {font-size:18px;}
-  .rmul3d-hud.is-focused .rmul3d-minimap {grid-column:2;grid-row:3;}
   .rmul3d-focus-hp {flex-wrap:wrap;gap:2px 6px;}
   .rmul3d-focus-hp span {margin-left:0;}
   .rmul3d-observer-controls button {flex:1 1 auto;min-width:44px;white-space:normal;}
@@ -281,14 +282,10 @@
 .rmul3d-load-content progress {appearance:none;border:0;background:#343b36}
 .rmul3d-load-content progress::-webkit-progress-bar {background:#343b36}
 .rmul3d-load-content progress::-webkit-progress-value {background:var(--arena-gold)}
-.rmul3d-score {background:#0B0E0Ef0;border:0;border-bottom:1px solid #a18a5e4d;padding:0;gap:0;box-shadow:0 6px 20px #0005}
 .rmul3d-team {padding:8px 10px 6px;border-top:3px solid var(--team)}
 .rmul3d-team-identity {display:flex;align-items:center;gap:5px;white-space:nowrap}
 .rmul3d-team.blue .rmul3d-team-identity{flex-direction:row-reverse}
 .rmul3d-team-identity i {width:7px;height:7px;background:var(--team);transform:rotate(45deg)}
-.rmul3d-clock {min-width:94px;align-self:stretch;display:grid;align-content:center;gap:4px;padding:6px 9px;border-inline:1px solid #a18a5e30;background:#0B0E0E}
-.rmul3d-clock strong {font-size:32px;letter-spacing:-.035em}
-.rmul3d-clock small{margin:0;font-size:9px;letter-spacing:.08em}
 .rmul3d-clock[data-final=true] strong{color:#ffd279}
 .rmul3d-robot-status {padding:3px 4px;background:#ffffff07;border-bottom:1px solid #a18a5e30}
 .rmul3d-robot-status.dead .rmul3d-robot-id {text-decoration:line-through}
@@ -311,7 +308,7 @@
 .rmul3d-joystick::before{content:"";position:absolute;inset:9%;border:1px dashed #a18a5e55;border-radius:50%;pointer-events:none}
 @media(pointer:coarse){
  .rmul3d .rmul3d-fire{width:66px;height:66px;flex-direction:column;gap:1px;max-width:72px}
- .rmul3d-fire span{font-size:9px;line-height:1.1}
+ .rmul3d-fire span{font-size:11px;line-height:1.1}
  .rmul3d-flight-actions{display:grid;grid-template-columns:repeat(2,52px);grid-template-rows:repeat(2,52px);gap:5px}
  .rmul3d-flight-actions button:first-child{grid-column:2;grid-row:1}
  .rmul3d-flight-actions button:nth-child(2){grid-column:2;grid-row:2}
@@ -319,9 +316,10 @@
 }
 @media(max-width:700px),(orientation:landscape) and (max-height:500px){
  .rmul3d-team{padding:4px 5px}
- .rmul3d-clock{min-width:56px;padding:3px 4px;gap:2px}
- .rmul3d-clock strong{font-size:22px}
- .rmul3d-clock small{font-size:7px;letter-spacing:0}
+ .rmul3d-base-line strong{font-size:20px}
+ .rmul3d-clock{width:88px;padding:4px 4px;gap:2px}
+ .rmul3d-clock strong{font-size:28px}
+ .rmul3d-clock small{font-size:11px;letter-spacing:0}
  .rmul3d-robot-status{padding:2px}
  .rmul3d-team-identity{gap:3px}
  .rmul3d-team-identity i{width:5px;height:5px;flex-shrink:0}
@@ -330,13 +328,13 @@
  .rmul3d-base-caption,.rmul3d-base-line .rmul3d-damage,.rmul3d-robot-hp .rmul3d-damage,.rmul3d-outpost .rmul3d-damage{display:none}
  .rmul3d-robot-status{grid-template-columns:minmax(0,1fr);gap:2px}
  .rmul3d-robot-id,.rmul3d-robot-hp{justify-content:space-between;flex-wrap:nowrap}
- .rmul3d-robot-state{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:8px}
- .rmul3d-team-identity{font-size:10px}
+ .rmul3d-robot-state{min-width:0;overflow:hidden;text-overflow:ellipsis}
+ .rmul3d-team-identity{font-size:12px}
 }
 @media(prefers-reduced-motion:reduce){.rmul3d :is(.rmul3d-load-content strong,.rmul3d-help,.rmul3d-countdown,.rmul3d-countdown>strong,.rmul3d-result){animation:none}}
 
 .rmul3d-view-dock {grid-area:back;align-self:start;justify-self:start;display:grid;gap:4px;min-width:0;pointer-events:auto}
-.rmul3d-view-dock select {width:100%;max-width:120px;min-height:34px;background:#131918ed;color:#e8f0f7;border:1px solid var(--arena-border);font:600 11px system-ui,sans-serif;padding:4px}
+.rmul3d-view-dock select {width:100%;max-width:120px;min-height:34px;background:#131918ed;color:#e8f0f7;border:1px solid var(--arena-border);font:600 12px system-ui,sans-serif;padding:4px}
 .rmul3d-menu-detail{border-top:1px solid var(--arena-border);padding:12px 0}
 .rmul3d-menu-detail summary {cursor:pointer;font-weight:600}
 .rmul3d-options fieldset {border:0;padding:0;margin:0;min-width:0;border-top:1px solid var(--arena-border)}
@@ -364,13 +362,13 @@
 
 .rmul3d-base-line>.rmul3d-damage{margin-left:auto}
 .rmul3d-team.blue .rmul3d-base-line>.rmul3d-damage{margin-left:0;margin-right:auto}
-.rmul3d-outpost .rmul3d-damage{margin-inline-start:4px}
-.rmul3d-robot-hp .rmul3d-damage{font-size:9px}
-.rmul3d-map-safety{pointer-events:auto;border-top:1px solid var(--arena-border);padding-top:4px;margin-top:3px}
-.rmul3d-map-safety summary{cursor:pointer;min-height:24px;display:flex;align-items:center;gap:4px}
-.rmul3d-map-safety summary::before{content:"+";font-weight:700}
-.rmul3d-map-safety[open] summary::before{content:"−"}
-.rmul3d-map-safety button{display:block;width:100%;margin-top:3px}
+.rmul3d-outpost .rmul3d-damage{display:inline-block;margin-inline-start:4px}
+.rmul3d-robot-hp .rmul3d-damage{font-size:11px;min-width:3ch;}
+.rmul3d-air-safety{pointer-events:auto;border-top:1px solid var(--arena-border);padding-top:4px;margin-top:3px}
+.rmul3d-air-safety summary{cursor:pointer;min-height:24px;display:flex;align-items:center;gap:4px}
+.rmul3d-air-safety summary::before{content:"+";font-weight:700}
+.rmul3d-air-safety[open] summary::before{content:"−"}
+.rmul3d-air-safety button{display:block;width:100%;margin-top:3px}
 @media(orientation:landscape) and (max-height:500px){
  .rmul3d-robot-hp .rmul3d-damage,.rmul3d-outpost .rmul3d-damage{display:none}
  .rmul3d-hud.is-flight .rmul3d-minimap{width:min(18vw,148px)}
@@ -386,10 +384,25 @@
 @media(pointer:coarse){
  .rmul3d .rmul3d-interact{order:-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border-radius:50%;width:50px;height:50px;min-height:50px;padding:3px}
  .rmul3d-interact svg{display:block;width:23px;height:23px}
- .rmul3d-interact-short{display:block;font-size:9px}
+ .rmul3d-interact-short{display:block;font-size:11px}
  .rmul3d-interact-long{display:none}
 }
 
 .rmul3d-clock small:first-child{color:var(--arena-gold)}
 @media(max-width:1280px) and (orientation:landscape){.rmul3d-entry{background-image:linear-gradient(90deg,#0B0E0E 0%,#0B0E0Ef2 22%,#0B0E0E99 42%,#0B0E0E00 72%),url("/assets/images/arena/rmuc-menu-1280-2388ae23.webp")}}
 @media(orientation:portrait){.rmul3d-entry{background-image:linear-gradient(0deg,#0B0E0E 0%,#0B0E0Ef5 38%,#0B0E0E22 85%),url("/assets/images/arena/rmuc-menu-mobile-cfc1d5d7.webp");background-position:64% center;align-items:end}.rmul3d-entry-panel{margin:0 0 6vh}}
+
+/* Keep the compact HUD within the actual battle viewport. */
+@media (max-width:360px) and (orientation:portrait){
+  .rmul3d-score{gap:0;padding:0}
+  .rmul3d-clock{width:68px;padding-inline:2px}
+  .rmul3d-clock strong{font-size:24px}
+  .rmul3d-clock small{font-size:10px}
+  .rmul3d-base-line strong{font-size:18px;min-width:0}
+  .rmul3d-team-identity{font-size:11px}
+  .rmul3d-team-metrics{font-size:10px;gap:2px}
+  .rmul3d-event-feed>div:not(:last-child){display:none}
+}
+@media (min-width:760px) and (orientation:landscape) and (max-height:500px){
+  .rmul3d-roster{grid-template-columns:repeat(4,minmax(0,1fr))}
+}

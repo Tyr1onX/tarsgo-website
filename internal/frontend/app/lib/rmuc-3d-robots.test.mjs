@@ -172,8 +172,10 @@ test("local LED halo follows source world transform and never enters robot colli
 
 
 test("2027 identities derive from table 3-1 independently of legacy asset labels",async()=>{
- const {GROUND_ROSTER,SYSTEM_NUMBERS,systemIdentity}=await import("./rmuc-3d-identity.ts");
+ const {GROUND_ROSTER,SYSTEM_NUMBERS,systemIdentity,groundLabel,systemLabel}=await import("./rmuc-3d-identity.ts");
  assert.deepEqual(SYSTEM_NUMBERS,{air:6,dart:8,radar:9});
+  assert.deepEqual(["air","dart","radar"].map(systemLabel),["06 空中系统","08 飞镖系统","09 雷达系统"]);
+  assert.deepEqual(GROUND_ROSTER.filter(r=>r.team==="red").map(r=>groundLabel(r.id)),["01号 重装机器人","03号 步兵机器人","04号 步兵机器人","07号 哨兵机器人"]);
  assert.equal(systemIdentity("red","air").id,"red-2027-air-06");
  assert.deepEqual(ROBOT_PLACEMENTS.filter(r=>r.area==="field").map(r=>r.identity),GROUND_ROSTER);
  assert.ok(ROBOT_PLACEMENTS.filter(r=>r.area==="pit").every(r=>r.identity===null));

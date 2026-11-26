@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {ARENA_VISUAL} from "./rmuc-3d-visual.ts";
-import {groundIdentity} from "./rmuc-3d-identity.ts";
+import {GROUND_NAMES,groundIdentity} from "./rmuc-3d-identity.ts";
 import {eventMessage,visibleEvent} from "./rmuc-3d-events.ts";
 import {robotLevel,revivalStatus,robotDefense,terrainStatus,type Match,type DamageEvent,type MatchEvent,type Team} from "./rmuc-3d-match.ts";
 
@@ -55,9 +55,9 @@ export function shieldClipPlanes(planes:THREE.Vector4[],center:THREE.Vector3,rad
 }
 type Burst={amount:number;start:number;last:number};
 type Label={sprite:THREE.Sprite;canvas:HTMLCanvasElement;ctx:CanvasRenderingContext2D;texture:THREE.CanvasTexture;signature:string};
-function label(parent:THREE.Group,w:number,h:number):Label{
-  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
-  const ctx=canvas.getContext("2d")!;
+function label(parent:THREE.Group,w:number,h:number,scale=1):Label{
+  const canvas=document.createElement("canvas");canvas.width=w*scale;canvas.height=h*scale;
+  const ctx=canvas.getContext("2d")!;ctx.scale(scale,scale);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false,toneMapped:false}));
   sprite.visible=false;parent.add(sprite);
@@ -79,7 +79,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
   const shadowGeometry=new THREE.PlaneGeometry(2,2);
   const shadowMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1,
     vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader:`varying vec2 vUv;void main(){float a=1.-smoothstep(.15,1.,length(vUv*2.-1.));gl_FragColor=vec4(0.,0.,0.,a*.48);}`});
+    fragmentShader:`varying vec2 vUv;void main(){float r=length(vUv*2.-1.);float a=1.-smoothstep(.15,1.,r);float core=1.-smoothstep(0.,.45,r);gl_FragColor=vec4(0.,0.,0.,a*.36+core*.18);}`});
   const accentGeometry=new THREE.RingGeometry(.87,1,40,1),segmentGeometry=new THREE.RingGeometry(.82,1,32,1,0,Math.PI*1.48);
   const accentMaterials=Object.fromEntries(Object.entries({weak:0xd9a764,off:0x8c9791,heat:0xf1a67f,locked:0xd27762,defense:0xe6e9df,terrain:0xc9ae78,assembly:0xf1d794,recovery:0x85d6b4,revival:0x65bdff,attack:0xf1d794,move:0x9daea3}).map(([key,color])=>[key,new THREE.MeshBasicMaterial({color,transparent:true,opacity:.82,depthTest:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false})]));
   const pulseMaterial=new THREE.ShaderMaterial({transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,
@@ -107,13 +107,13 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
     const body:THREE.Mesh[]=[];
     robot.traverse(o=>{if(o instanceof THREE.Mesh&&!o.userData.hitPlate&&o.material instanceof THREE.MeshStandardMaterial&&o.material.emissiveIntensity===1&&o.material.emissive.getHex()===0)body.push(o);});
     return [robot.name,{robot,identity,height:(bounds.isEmpty()?.6:bounds.max.y-origin.y)+.14,body,protection,stateVisual,level:0,levelAt:-10,
-      label:label(group,256,96),damage:label(group,192,64),hp:NaN,at:0,burst:undefined as Burst|undefined,bodyUntil:0,
+      label:label(group,256,96,1.25),damage:label(group,192,64),hp:NaN,at:0,burst:undefined as Burst|undefined,bodyUntil:0,
       flashes:new Map<THREE.Mesh,number>()}];
   }));
   const structureSlots=new Map(structures.map(s=>{
     const bounds=new THREE.Box3().setFromObject(s.object,true);
     const anchor=bounds.getCenter(new THREE.Vector3());anchor.y=bounds.max.y+.22;
-    return [s.key,{...s,anchor,label:s.kind==="base"||s.kind==="outpost"?label(group,256,96):null,damage:label(group,256,64),burst:undefined as Burst|undefined}];
+    return [s.key,{...s,anchor,label:s.kind==="base"||s.kind==="outpost"?label(group,256,96,1.25):null,damage:label(group,256,64),burst:undefined as Burst|undefined}];
   }));
   const localEvents=new Map<string,{event:MatchEvent;text:string;priority:number}>();
   function pulseFor(v:NonNullable<ReturnType<typeof slots.get>>["stateVisual"],key:string,at:number,priority:number,visibility:"all"|Team){
@@ -274,15 +274,21 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       if(showIntel)draw(s.label,fraction+":"+off+":"+level+":"+state.hp+":"+detail+":"+compact,c=>{
         c.fillStyle=ARENA_VISUAL.labelBackground;c.fillRect(8,4,240,82);
         c.fillStyle=off?ARENA_VISUAL.inactive:color;c.fillRect(8,4,5,82);
-        c.font=compact?"800 44px system-ui, sans-serif":"800 36px system-ui, sans-serif";c.textAlign="left";c.textBaseline="middle";c.fillText(s.identity.number,21,25);
-        c.font=compact?"700 31px system-ui, sans-serif":"600 27px system-ui, sans-serif";c.textAlign="right";c.fillStyle=ARENA_VISUAL.text;c.fillText(off?"OFF":"L"+level,236,25);
-        c.font=compact?"800 30px system-ui, sans-serif":"700 27px system-ui, sans-serif";c.textAlign="left";c.fillText(String(state.hp),21,51);c.textAlign="right";c.font=compact?"700 22px system-ui, sans-serif":"600 21px system-ui, sans-serif";c.fillStyle=off?"#A3ADA7":status.immune?"#65bdff":state.thermalLock?"#F1A67F":"#F1D794";c.fillText(detail,236,51,150);
+        c.font=compact?"800 44px system-ui, sans-serif":"800 36px system-ui, sans-serif";c.textAlign="left";c.textBaseline="middle";c.fillText(s.identity.number,21,25,48);
+        c.font="700 29px system-ui, sans-serif";c.fillStyle=ARENA_VISUAL.text;c.fillText(GROUND_NAMES[s.identity.kind],76,25,160);
+        c.font=compact?"800 30px system-ui, sans-serif":"700 27px system-ui, sans-serif";c.fillText(String(state.hp),21,51,65);
+        c.font="700 25px system-ui, sans-serif";c.textAlign="right";c.fillText(off?"OFF":"L"+level,236,51,48);
+        c.font="600 21px system-ui, sans-serif";c.fillStyle=off?"#A3ADA7":status.immune?"#65bdff":state.thermalLock?"#F1A67F":"#F1D794";c.fillText(detail,182,51,96);
         c.fillStyle=ARENA_VISUAL.track;c.fillRect(20,70,216,8);c.fillStyle=off?ARENA_VISUAL.inactive:color;c.fillRect(20,70,216*fraction/100,8);
         c.beginPath();c.moveTo(122,86);c.lineTo(128,94);c.lineTo(134,86);c.fill();
       });
       s.robot.getWorldPosition(point);point.y+=s.height;
       const depth=-view.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
-      const width=Math.min(2.5,Math.max(.04,(height<520?84:Math.min(138,Math.max(106,height*.125)))*(options.focus===s.identity.id?1.16:1)*Math.max(0,depth)/Math.max(1,pixels)));
+      // The overview camera previously hit the 2.5m cap, shrinking full names
+      // to 3–6 CSS pixels regardless of texture resolution. Bound screen size
+      // while retaining the same depth-tested, collision-aware sprite layout.
+      const width=Math.min(7.5,Math.max(.04,(height<520?92:118)*(options.focus===s.identity.id?1.16:1)*Math.max(0,depth)/Math.max(1,pixels)));
+      const eventWidth=Math.min(width,2.5);
       s.label.sprite.visible=showIntel&&depth>0&&depth<100;
       s.label.sprite.position.copy(point);s.label.sprite.scale.set(width,width*96/256,1);
       items.push({label:s.label,priority,compact:true});
@@ -290,12 +296,12 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       s.damage.sprite.visible=s.label.sprite.visible&&!!burst&&age<DAMAGE_LIFE&&match.phase==="running";
       if(s.label.sprite.visible&&message&&match.phase==="running"){
         localText(s.damage,message.text,age<DAMAGE_LIFE?burst?.amount:undefined,message.event.type==="heal"||message.event.type==="robot-revived"?ARENA_VISUAL.recovery:ARENA_VISUAL.text);s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;
-        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.42;s.damage.sprite.scale.set(width*1.35,width*.45,1);
+        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=eventWidth*.42;s.damage.sprite.scale.set(eventWidth*1.35,eventWidth*.45,1);
       }else if(s.label.sprite.visible&&match.phase==="running"&&at-s.levelAt<1.1&&age>=DAMAGE_LIFE){
-        localText(s.damage,"等级提升 · L"+level,undefined,"#F1D794");s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.45;s.damage.sprite.scale.set(width*1.25,width*.42,1);
+        localText(s.damage,"等级提升 · L"+level,undefined,"#F1D794");s.damage.sprite.visible=true;s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=eventWidth*.45;s.damage.sprite.scale.set(eventWidth*1.25,eventWidth*.42,1);
       }else if(s.damage.sprite.visible&&burst){
         draw(s.damage,String(burst.amount),c=>{c.textAlign="center";c.textBaseline="middle";c.font="800 52px system-ui, sans-serif";c.lineJoin="round";c.lineWidth=5;c.strokeStyle="#0B0E0E";c.fillStyle=ARENA_VISUAL.damage;c.strokeText("−"+burst.amount,96,32);c.fillText("−"+burst.amount,96,32);});
-        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=width*.4+(reducedMotion?0:age*.25);s.damage.sprite.scale.set(width*.95,width*.95/3,1);
+        s.damage.sprite.position.copy(point);s.damage.sprite.position.y+=eventWidth*.4+(reducedMotion?0:age*.25);s.damage.sprite.scale.set(eventWidth*.95,eventWidth*.95/3,1);
         s.damage.sprite.material.opacity=reducedMotion?1:Math.min(1,(DAMAGE_LIFE-age)/.26);
       }else{
         if(age>=DAMAGE_LIFE)s.burst=undefined;
@@ -312,7 +318,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
     }
     for(const s of structureSlots.values()){
       const depth=-view.copy(s.anchor).applyMatrix4(camera.matrixWorldInverse).z;
-      const width=Math.min(3,Math.max(.04,(height<520?90:Math.min(146,Math.max(112,height*.135)))*Math.max(0,depth)/Math.max(1,pixels)));
+      const width=Math.min(6.5,Math.max(.04,(height<520?90:112)*Math.max(0,depth)/Math.max(1,pixels)));
       const visible=depth>0&&depth<100&&match.phase==="running";
       if(s.label&&(s.kind==="base"||s.kind==="outpost")){
       const state=match.sides[s.team],hp=state[s.kind],max=s.kind==="base"?10000:1000,owner=s.kind==="outpost"?state.outpostOwner:s.team;
@@ -330,7 +336,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[],st
       const local=localMessage(s.key,at,perspective),message=local?.text??(burst&&age<DAMAGE_LIFE?"−"+burst.amount:null);
       if(age>=DAMAGE_LIFE)s.burst=undefined;
       s.damage.sprite.visible=visible&&!!message;
-      if(message&&visible){localText(s.damage,message,local&&age<DAMAGE_LIFE?burst?.amount:undefined,local?.event.type==="outpost-rebuilt"?ARENA_VISUAL.recovery:local?ARENA_VISUAL.text:ARENA_VISUAL.damage);s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(s.anchor);s.damage.sprite.position.y+=width*.4;s.damage.sprite.scale.set(width,width/4,1);}
+      if(message&&visible){localText(s.damage,message,local&&age<DAMAGE_LIFE?burst?.amount:undefined,local?.event.type==="outpost-rebuilt"?ARENA_VISUAL.recovery:local?ARENA_VISUAL.text:ARENA_VISUAL.damage);s.damage.sprite.material.opacity=1;s.damage.sprite.position.copy(s.anchor);const eventWidth=Math.min(width,3);s.damage.sprite.position.y+=eventWidth*.4;s.damage.sprite.scale.set(eventWidth,eventWidth/4,1);}
       items.push({label:s.damage,priority:85,compact:false});
     }
     layout(camera,height,!!options.firstPerson,options.reserved??[],items);
