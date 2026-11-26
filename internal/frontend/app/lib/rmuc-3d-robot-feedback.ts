@@ -45,13 +45,17 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
     vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader:`varying vec2 vUv;void main(){float r=length(vUv*2.-1.);float a=1.-smoothstep(.15,1.,r);float core=1.-smoothstep(0.,.45,r);gl_FragColor=vec4(0.,0.,0.,a*.36+core*.18);}`});
   const accentGeometry=new THREE.RingGeometry(.87,1,40,1),segmentGeometry=new THREE.RingGeometry(.82,1,32,1,0,Math.PI*1.48);
-  const accentMaterials=Object.fromEntries(Object.entries({weak:0xd9a764,off:0x8c9791,heat:0xf1a67f,locked:0xd27762,defense:0xe6e9df,terrain:0xc9ae78,assembly:0xf1d794,recovery:0x85d6b4,revival:0x65bdff,attack:0xf1d794,move:0x9daea3}).map(([key,color])=>[key,new THREE.MeshBasicMaterial({color,transparent:true,opacity:.82,depthTest:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false})]));
+  const accentMaterials=Object.fromEntries(Object.entries({weak:0xd9a764,off:0x8c9791,heat:0xf1a67f,locked:0xd27762,defense:0xe6e9df,terrain:0xc9ae78,assembly:0xf1d794,ammo:0xb4b9bd,upgrade:0xffca53,recovery:0x65ed9a,revival:0x65bdff,attack:0xf1d794,move:0x9daea3}).map(([key,color])=>[key,new THREE.MeshBasicMaterial({color,transparent:true,opacity:.82,depthTest:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false})]));
   const pulseMaterial=new THREE.ShaderMaterial({transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,
     uniforms:{tint:{value:new THREE.Color()},alpha:{value:0}},
     vertexShader:`void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader:`uniform vec3 tint;uniform float alpha;void main(){gl_FragColor=vec4(tint,alpha);
       #include <colorspace_fragment>
     }`});
+  const crossShape=new THREE.Shape();
+  const corners=[[-.3,1],[.3,1],[.3,.3],[1,.3],[1,-.3],[.3,-.3],[.3,-1],[-.3,-1],[-.3,-.3],[-1,-.3],[-1,.3],[-.3,.3]];
+  crossShape.moveTo(corners[0][0],corners[0][1]);for(const [x,y] of corners.slice(1))crossShape.lineTo(x,y);crossShape.closePath();
+  const crossGeometry=new THREE.ShapeGeometry(crossShape),recoveryTint=new THREE.Color(0x65ed9a);
   const flashMaterials=new Map<THREE.Material,THREE.MeshStandardMaterial>();
   const white=new THREE.Color(0xffffff);
   const slots=new Map(robots.map(robot=>{
@@ -64,7 +68,9 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
     const accent=new THREE.Mesh(accentGeometry,accentMaterials.weak),pulse=new THREE.Mesh(accentGeometry,pulseMaterial);
     accent.name="state-accent";pulse.name="state-pulse";accent.rotation.x=pulse.rotation.x=-Math.PI/2;accent.visible=pulse.visible=false;
     effects.add(shadow,shell,accent,pulse);
-    const stateVisual={accent,pulse,pulseAt:-10,pulseKey:"recovery",pulsePriority:0,recoveryAt:-10,pulseVisibility:"all" as "all"|Team,radius:Math.max(.28,Math.hypot(size.x,size.z)*.38),height:Math.max(.25,size.y),powerOff:false};
+    const crosses=Array.from({length:3},()=>{const mesh=new THREE.Mesh(crossGeometry,pulseMaterial);mesh.name="recovery-cross";mesh.visible=false;
+      mesh.onBeforeRender=()=>{pulseMaterial.uniforms.tint.value.copy(recoveryTint);pulseMaterial.uniforms.alpha.value=mesh.userData.alpha??0;pulseMaterial.uniformsNeedUpdate=true;};effects.add(mesh);return mesh;});
+    const stateVisual={accent,pulse,crosses,pulseAt:-10,pulseKey:"recovery",pulsePriority:0,recoveryAt:-10,pulseVisibility:"all" as "all"|Team,radius:Math.max(.28,Math.hypot(size.x,size.z)*.38),height:Math.max(.25,size.y),powerOff:false};
     pulse.onBeforeRender=()=>{pulseMaterial.uniforms.tint.value.copy(accentMaterials[stateVisual.pulseKey].color);pulseMaterial.uniforms.alpha.value=pulse.userData.alpha??0;pulseMaterial.uniformsNeedUpdate=true;};
     const protection={shell,shadow,centerY:center.y-origin.y,radius:Math.max(.4,Math.hypot(size.x,size.z)*.62),height:Math.max(.36,size.y*.68),strength:0,activeAt:-10,endedAt:-10,immune:false,hitAt:-10,hitDirection:new THREE.Vector3(0,1,0),time:0,clipPlanes:Array.from({length:5},()=>new THREE.Vector4()),clipCount:0,clipAt:-10,clipCenter:new THREE.Vector3(Infinity,Infinity,Infinity),clipRadius:0};
     shell.onBeforeRender=()=>{const u=shieldMaterial.uniforms;u.strength.value=protection.strength;u.time.value=protection.time;u.rippleAge.value=protection.time===0?2:Math.max(0,protection.time-protection.hitAt);u.rippleDirection.value.copy(protection.hitDirection);u.clipCount.value=protection.clipCount;u.clipPlanes.value=protection.clipPlanes;shieldMaterial.uniformsNeedUpdate=true;};
@@ -84,10 +90,10 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
       const v=slots.get(e.robot)?.stateVisual;
       if(v){
         if(e.type==="robot-revived")pulseFor(v,"revival",e.at,4,e.visibility);
-        else if(e.type==="heal"&&e.status==="completed"){if(e.at-v.recoveryAt>.7)pulseFor(v,"recovery",e.at,1,e.visibility);v.recoveryAt=e.at;}
-        else if(e.type==="ammo"&&e.status==="completed")pulseFor(v,"assembly",e.at,1,e.visibility);
+        else if(e.type==="heal"&&e.status==="completed"&&(e.amount??0)>0){if(e.at-v.recoveryAt>.7)pulseFor(v,"recovery",e.at,1,e.visibility);v.recoveryAt=e.at;}
+        else if(e.type==="ammo"&&e.status==="completed"&&(e.amount??0)>0)pulseFor(v,"ammo",e.at,1,e.visibility);
         else if(e.type==="energy-picked"||e.type==="energy-spent"||e.type==="energy-dropped"||e.type==="assembly-start"||e.type==="assembly-step-complete"||e.type==="assembly-end")pulseFor(v,"assembly",e.at,2,e.visibility);
-        else if(e.type==="robot-dead"){v.pulseAt=-10;v.pulsePriority=0;}
+        else if(e.type==="robot-dead"){v.pulseAt=v.recoveryAt=-10;v.pulsePriority=0;}
       }
     }
   }
@@ -134,7 +140,7 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
       const showIntel=visible&&(perspective==="all"||perspective===state.team);
       const alive=state.hp>0,off=!alive||state.powerLockUntil>at;
       const level=robotLevel(state,match),status=revivalStatus(match,state);
-      if(s.level&&level>s.level)pulseFor(s.stateVisual,"assembly",at,3,state.team);s.level=level;
+      if(s.level&&level>s.level)pulseFor(s.stateVisual,"upgrade",at,3,state.team);s.level=level;
       const protection=s.protection;
       s.robot.getWorldPosition(point);
       protection.shadow.position.copy(point);protection.shadow.position.y+=.016;protection.shadow.visible=visible&&(!options.firstPerson||camera.position.distanceToSquared(point)>1.2);
@@ -180,7 +186,20 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
       v.pulse.visible=showIntel&&alive&&!reducedMotion&&match.phase==="running"&&pulseAge>=0&&pulseAge<.7&&(perspective==="all"||v.pulseVisibility==="all"||perspective===v.pulseVisibility);
       if(v.pulse.visible){
         const progress=pulseAge/.7;v.pulse.userData.alpha=.72*Math.min(1,progress*8,1-progress);
-        v.pulse.position.copy(point);v.pulse.position.y+=.06+v.height*progress;v.pulse.scale.setScalar(v.radius*(1.03+progress*.16));
+        const ammo=v.pulseKey==="ammo";v.pulse.geometry=ammo?segmentGeometry:accentGeometry;
+        v.pulse.position.copy(point);v.pulse.position.y+=.06+v.height*(ammo?.25:progress);
+        v.pulse.rotation.set(-Math.PI/2,0,ammo?progress*Math.PI*2:0);
+        v.pulse.scale.setScalar(v.radius*(ammo?.75:1.03+progress*.16));
+      }
+      // Continuous effective heals extend the same bounded visual window.
+      const recoveryAge=at-v.recoveryAt;
+      const recoveryVisible=showIntel&&alive&&!reducedMotion&&match.phase==="running"&&recoveryAge>=0&&recoveryAge<1.3;
+      for(let i=0;i<v.crosses.length;i++){
+        const mesh=v.crosses[i];mesh.visible=recoveryVisible;if(!mesh.visible)continue;
+        const phase=(at*.72+i/v.crosses.length)%1,angle=at*.9+i*Math.PI*2/v.crosses.length;
+        mesh.position.set(point.x+Math.cos(angle)*v.radius*1.14,point.y+v.height*(.25+phase*.8),point.z+Math.sin(angle)*v.radius*1.14);
+        mesh.quaternion.copy(camera.quaternion);mesh.scale.setScalar(Math.max(.045,v.radius*.16));
+        mesh.userData.alpha=.8*Math.min(1,phase*7,(1-phase)*5,(1.3-recoveryAge)*3);
       }
       // Death/power-off suppress all active material flashes. Keep team LEDs
       // intact and restore base materials immediately after the render.
@@ -199,10 +218,10 @@ export function createRobotFeedback(scene:THREE.Scene,robots:THREE.Object3D[]){
       s.protection.immune=false;s.protection.activeAt=s.protection.endedAt=s.protection.hitAt=-10;
       s.protection.shell.visible=false;s.protection.clipAt=-10;s.protection.clipCenter.set(Infinity,Infinity,Infinity);
       s.protection.clipCount=0;s.protection.shadow.visible=false;
-      s.stateVisual.accent.visible=false;s.stateVisual.pulse.visible=false;s.stateVisual.powerOff=false;
+      s.stateVisual.accent.visible=false;s.stateVisual.pulse.visible=false;s.stateVisual.powerOff=false;for(const mesh of s.stateVisual.crosses)mesh.visible=false;
       s.stateVisual.pulseAt=-10;s.stateVisual.pulsePriority=0;s.stateVisual.recoveryAt=-10;
     }
   }
-  function dispose(){clear();effects.removeFromParent();shieldGeometry.dispose();shieldMaterial.dispose();shadowGeometry.dispose();shadowMaterial.dispose();accentGeometry.dispose();segmentGeometry.dispose();pulseMaterial.dispose();for(const m of Object.values(accentMaterials))m.dispose();for(const m of flashMaterials.values())m.dispose();flashMaterials.clear();slots.clear();}
+  function dispose(){clear();effects.removeFromParent();shieldGeometry.dispose();shieldMaterial.dispose();shadowGeometry.dispose();shadowMaterial.dispose();accentGeometry.dispose();segmentGeometry.dispose();crossGeometry.dispose();pulseMaterial.dispose();for(const m of Object.values(accentMaterials))m.dispose();for(const m of flashMaterials.values())m.dispose();flashMaterials.clear();slots.clear();}
   return {damage,event,amountFor,contact,shieldContact,update,restoreMaterials,clear,dispose};
 }

@@ -115,6 +115,28 @@ test("live entity accents and event pulses honor priority, team visibility, redu
  robot.visible=true;feedback.clear();assert.equal(accent.visible,false);assert.equal(pulse.visible,false);feedback.dispose();assert.equal(scene.getObjectByName("state-accent"),undefined);
 });
 
+test("effective healing alone drives bounded green cross feedback, with team and lifecycle restrictions",()=>{
+ const id=GROUND_ROSTER[0].id,robot=new T.Group(),scene=new T.Scene();
+ robot.name=id;robot.add(new T.Mesh(new T.BoxGeometry(.7,.6,.7),new T.MeshStandardMaterial()));scene.add(robot);scene.updateMatrixWorld(true);
+ const feedback=createRobotFeedback(scene,[robot]),m=createMatch([{id,team:"blue",heavy:true,maxHp:400}]),camera=new T.PerspectiveCamera();
+ startMatch(m);m.elapsed=2;
+ const crosses=scene.getObjectByName("robot-state-effects").children.filter(o=>o.name==="recovery-cross");
+ assert.equal(crosses.length,3);assert.ok(crosses.every(o=>o.geometry===crosses[0].geometry));
+ const heal={type:"heal",robot:id,team:"blue",visibility:"blue",at:2,status:"completed",amount:0};
+ feedback.event(heal);feedback.update(m,camera,"all");assert.ok(crosses.every(o=>!o.visible));
+ feedback.event({...heal,status:"requested",amount:5});feedback.update(m,camera,"all");assert.ok(crosses.every(o=>!o.visible));
+ feedback.event({...heal,amount:5});m.elapsed=2.1;feedback.update(m,camera,"blue");
+ assert.ok(crosses.every(o=>o.visible&&o.material.depthTest&&!o.material.depthWrite));
+ crosses[0].onBeforeRender();assert.equal(crosses[0].material.uniforms.tint.value.getHex(),0x65ed9a);
+ const y=crosses[0].position.y;m.elapsed=2.2;feedback.update(m,camera,"blue");assert.notEqual(crosses[0].position.y,y);
+ feedback.update(m,camera,"red");assert.ok(crosses.every(o=>!o.visible));
+ feedback.update(m,camera,"all",true);assert.ok(crosses.every(o=>!o.visible));
+ m.elapsed=3;feedback.event({...heal,at:3,amount:5});m.elapsed=3.5;feedback.update(m,camera,"all");assert.ok(crosses.every(o=>o.visible));
+ m.elapsed=4.4;feedback.update(m,camera,"all");assert.ok(crosses.every(o=>!o.visible));
+ feedback.event({...heal,at:4.4,amount:5});feedback.event({...heal,type:"robot-dead",at:4.4});feedback.update(m,camera,"all");assert.ok(crosses.every(o=>!o.visible));
+ feedback.clear();feedback.dispose();assert.equal(scene.getObjectByName("recovery-cross"),undefined);
+});
+
 test("overview has no billboard sprites, HUD damage remains available and entity effects depth test",()=>{
  const identity=GROUND_ROSTER[0],robot=new T.Group(),scene=new T.Scene();
  robot.name=identity.id;robot.add(new T.Mesh(new T.BoxGeometry(.7,.6,.7),new T.MeshStandardMaterial()));scene.add(robot);scene.updateMatrixWorld(true);
