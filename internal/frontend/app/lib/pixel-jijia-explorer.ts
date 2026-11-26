@@ -1,10 +1,11 @@
+import type { ItemSprite } from "./pixel-jijia-item-art.ts";
 import type { Direction } from "./pixel-jijia-world.ts";
 
 export const EXPLORER_ACTIONS = ["walk","idle","run","sit","stand","observe","wade","swim","enter","exit","cast","wait","bite","reel","catch","turn","swim-turn","stretch","sit-rest"] as const;
 export type ExplorerAction = typeof EXPLORER_ACTIONS[number];
 export const EXPLORER_FRAME_WIDTH=40,EXPLORER_FRAME_HEIGHT=54,EXPLORER_FRAME_COUNT=6;
 const DIRECTIONS:Record<Direction,number>={down:0,left:1,right:2,up:3};
-export type ExplorerAnimation={action:ExplorerAction;frame:number;direction:Direction;since:number;water:0|1|2;seated:boolean;turnFrom?:Direction};
+export type ExplorerAnimation={held?:ItemSprite;action:ExplorerAction;frame:number;direction:Direction;since:number;water:0|1|2;seated:boolean;turnFrom?:Direction};
 export const initialExplorerAnimation:ExplorerAnimation={action:"idle",frame:0,direction:"down",since:0,water:0,seated:false};
 type Input={direction:Direction;moving:boolean;sprinting:boolean;distance:number;water:0|1|2;seated:boolean;fishing:"cast"|"wait"|"bite"|"reel"|"catch"|null;now:number;motion:boolean;idleAllowed?:boolean};
 

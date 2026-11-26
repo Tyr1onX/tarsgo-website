@@ -1,3 +1,5 @@
+import { worldItems, guestCatch, pondLabels, type WorldItem } from "~/lib/pixel-jijia-items";
+import { PixelInventory } from "~/components/pixel-jijia-inventory";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/lib/experience-navigation";
@@ -10,14 +12,14 @@ import {
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
 import { explorerAnimation,initialExplorerAnimation,type ExplorerAnimation } from "~/lib/pixel-jijia-explorer";
 import { ROOMS, STUDY_ROOM, closestRoomObject, seatPlacement, seatDepth, meetingChair, meetingSeat, roomInteractable, type SeatObject, roomInteractionDistance, roomObjectAt, isRoomWalkable, roomExitAt, renderRoomScene, renderRoomTerrain, type RoomObject } from "~/lib/pixel-jijia-room";
-import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
+import { createWildlife, updateWildlife, closestAnimal, fishingTarget, beginFishing, fishingReady, fishingPose, SPECIES_LABEL, type Animal, type FishingCast } from "~/lib/pixel-jijia-life";
 import { ROOM_ART_SCALE,preparePublicRoomArt, roomObjectVisualBounds, hasEquipmentBehavior, equipmentProgress, roomSpriteKey } from "~/lib/pixel-jijia-room-art";
 import { PixelWorldAudio, footstepMaterial, distanceVolume, type LocalSound } from "~/lib/pixel-jijia-audio";
 import { COMMUNITY_PREFIX, COMMUNITY_ROOM_OBJECTS, communityCreditRole, communityDiscoveryId } from "~/lib/pixel-jijia-community";
 import { BaseObjectDetail, SaveAchievement } from "~/components/pixel-jijia-base-detail";
 import { baseAction, carriedLabel, freshBaseRoom, transferItem, togglePower, RESEARCH_IDS, type Achievement } from "~/lib/pixel-jijia-base";
 import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jijia-community-detail";
-import { apiRequest } from "~/lib/api-client";
+import { ApiError, apiRequest } from "~/lib/api-client";
 import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
 import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, advanceWind, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
@@ -152,6 +154,8 @@ export default function PixelJijiaPage() {
   const [seated, setSeated] = useState<{ object:SeatObject; exit: Position } | null>(null);
   const effectsRef = useRef(new Map<string,number>());
   const [baseState,setBaseState]=useState(freshBaseRoom);
+  const inspecting=useRef<{item:WorldItem;until:number}|null>(null);
+  const [inventoryChange,setInventoryChange]=useState(0);
   const [freshFish,setFreshFish]=useState(false);
   const [studyAchievements,setStudyAchievements]=useState<Achievement[]>([]);
 
@@ -220,10 +224,12 @@ export default function PixelJijiaPage() {
   }, [resetStudy,clearInput]);
   useEffect(() => {
     const onAuth=(user:AuthUser|null)=>{
+      inspecting.current=null;
+      if(castRef.current?.owner && castRef.current.owner!==user?.id)castRef.current=null;
       if(studyAccessRef.current&&studyAccessRef.current.ownerId!==user?.id)invalidateOwnerStudy();
     };
     const unsubscribe=subscribeAuthStateChange(onAuth);
-    const unsubscribeSession=subscribeAccountSessionChange(()=>{invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);});
+    const unsubscribeSession=subscribeAccountSessionChange(()=>{inspecting.current=null;castRef.current=null;invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);});
     return()=>{unsubscribe();unsubscribeSession();studyAccessRef.current?.controller.abort();};
   }, [invalidateOwnerStudy]);
   const standUp = useCallback(() => {
@@ -241,20 +247,66 @@ export default function PixelJijiaPage() {
     if(!object.community || discoveries.includes(id)) return;
     recordDiscovery(id);setNatureNotice(object);noticeUntilRef.current=performance.now()+3200;
   };
-  const interactNature = useCallback(()=>{
+  const fishingNotice=useCallback((message:string)=>{
+    setNatureNotice(message);noticeUntilRef.current=performance.now()+3200;
+  },[]);
+  const interactNature = useCallback(async()=>{
     if(transitionRef.current||selectedRef.current)return;
     const player=playerRef.current,cast=castRef.current;
     if(cast){
-      const fish=catchFish(wildlifeRef.current,cast,performance.now());
-      if(!fish)return;
-      cast.caughtAt=0;recordDiscovery(fish,"钓到一条"+fish);setFreshFish(true);return;
+      if(cast.pending||!fishingReady(wildlifeRef.current,cast,performance.now()))return;
+      cast.pending=true;
+      try{
+        const receipt=cast.owner
+          ? await apiRequest<{id:string;first:boolean}>("/api/pixel-home/reel",{method:"POST",body:{owner:cast.owner,token:cast.token}})
+          : null;
+        const item=receipt?worldItems.get(receipt.id):guestCatch(cast.pond);
+        if(cast.owner && getCachedCurrentUser()?.id!==cast.owner)return;
+        if(cast.owner)setInventoryChange(value=>value+1);
+        if(!item||castRef.current!==cast)return;
+        cast.sprite=item;cast.caughtAt=0;
+        if(!mutedRef.current)worldAudioRef.current?.step("water",false);
+        if(cast.owner)fishingNotice((receipt?.first?"首次发现 · ":"收入背包 · ")+item.name);
+        else recordDiscovery(item.name,"钓到"+item.name+" · 访客发现");
+        setFreshFish(true);
+      }catch(error){
+        if(castRef.current!==cast)return;
+        if(error instanceof ApiError && error.status===409)castRef.current=null;
+        fishingNotice(error instanceof Error?error.message:"收竿未确认，请重试");
+      }finally{cast.pending=false;}
+      return;
     }
     const target=fishingTarget(player);
-    if(target){castRef.current=beginFishing(wildlifeRef.current,target,performance.now());
-      directionRef.current=directionToward(player,target,directionRef.current);return;}
+    if(target){
+      const next=beginFishing(wildlifeRef.current,target,performance.now());
+      if(!next)return;
+      castRef.current=next;next.pending=true;
+      directionRef.current=directionToward(player,target,directionRef.current);
+      try{
+        let owner:AuthUser|undefined;
+        try {owner=await getCurrentUser();}
+        catch(error){
+          const guest=error instanceof ApiError && error.status===401;
+          const offlineVisitor=error instanceof TypeError && !getCachedCurrentUser();
+          if(!guest&&!offlineVisitor)throw error;
+        }
+        if(castRef.current!==next)return;
+        if(owner){
+          if(getCachedCurrentUser()?.id!==owner.id){castRef.current=null;return;}
+          next.owner=owner.id;
+          const data=await apiRequest<{token:string}>("/api/pixel-home/cast",{method:"POST",body:{owner:owner.id,pond:next.pond}});
+          if(castRef.current!==next)return;
+          next.token=data.token;
+        }
+        next.started=performance.now();fishingNotice(pondLabels[next.pond]+" · 已抛竿");
+      }catch(error){
+        if(castRef.current===next){castRef.current=null;fishingNotice(error instanceof Error?error.message:"抛竿失败");}
+      }finally{next.pending=false;}
+      return;
+    }
     const animal=closestAnimal(wildlifeRef.current,player);
     if(animal){directionRef.current=directionToward(player,animal,directionRef.current);poseRef.current={...poseRef.current,action:"observe",since:performance.now()};recordDiscovery(SPECIES_LABEL[animal.species],"已观察："+SPECIES_LABEL[animal.species]);}
-  },[recordDiscovery]);
+  },[recordDiscovery,fishingNotice]);
 
   useEffect(() => {
     const refresh = () => setClock(changchunClimate(new Date(), timeMode));
@@ -968,6 +1020,7 @@ export default function PixelJijiaPage() {
       // This preserves the full sequence even after a slow frame or React update.
       if(castRef.current?.caughtAt===0)castRef.current.caughtAt=time;
       if(castRef.current?.caughtAt!==undefined&&time-castRef.current.caughtAt>1050)castRef.current=null;
+      if(inspecting.current && inspecting.current.until<time)inspecting.current=null;
       const castNow=castRef.current;
       const readyNow=Boolean(castNow&&fishingReady(wildlifeRef.current,castNow,time));
       const pose=poseRef.current=explorerAnimation(poseRef.current,{
@@ -976,6 +1029,7 @@ export default function PixelJijiaPage() {
         fishing:fishingPose(castNow,readyNow,time),now:time,motion:!reducedMotion.matches,
         idleAllowed:!x&&!y&&!selectedRef.current&&!selectedRoom&&!menuOpen&&!mapOpen&&!catalogueDetail&&!transitionRef.current,
       });
+      if(!castNow&&!controlledRobot&&(!room||baseState.item!=="held"))pose.held=inspecting.current?.item;
       ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
       ctx.clearRect(0, 0, viewWidth, viewHeight);
       ctx.imageSmoothingEnabled = false;
@@ -1048,7 +1102,7 @@ export default function PixelJijiaPage() {
       const nearRobot=!room&&!seated?(controlledRobot??(!castRef.current?nearestRobot(robots,playerRef.current):null)):null;
       const nextNearby = seated || room || nearRobot ? null : closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null);
       const cast=castRef.current;
-      const ready=cast&&fishingReady(wildlifeRef.current,cast,time);
+      const ready=cast&&!cast.pending&&fishingReady(wildlifeRef.current,cast,time);
       const animal=!room&&!nextNearby&&!seated?closestAnimal(wildlifeRef.current,playerRef.current):null;
       const prompt=room||seated||selectedRef.current||transitionRef.current?"":cast?(cast.caughtAt!==undefined?"":ready?"收竿":"等待鱼咬钩"):
         nearRobot?(robotControlled?"退出机器人":nearRobot.model.capability==="display"?"观看飞镖展示":"接管"+nearRobot.model.name.replace("机器人","")):nextNearby?"":fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+SPECIES_LABEL[animal.species]:"";
@@ -1359,6 +1413,10 @@ export default function PixelJijiaPage() {
             ))}
           </div>
         </details>
+        <PixelInventory change={inventoryChange} atWater={()=>!room&&Boolean(fishingTarget(playerRef.current))} onInspect={item=>{
+          inspecting.current={item,until:performance.now()+3200};
+          setMapOpen(false);fishingNotice(item.name);
+        }}/>
         <details className="pixel-world-map-discoveries">
           <summary>自然图鉴 · {natureDiscoveries.length}</summary>
           {natureDiscoveries.length?<div className="pixel-world-nature-log">{natureDiscoveries.join(" · ")}</div>:<div className="pixel-world-nature-log">观察动物或钓鱼后收录。</div>}
