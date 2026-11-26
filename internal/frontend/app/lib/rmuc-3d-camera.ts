@@ -11,7 +11,7 @@ export function frameArena(camera: THREE.PerspectiveCamera, view: TacticalView, 
   if (view === "blue") region.max.x = Math.min(0, region.max.x);
   const target = region.getCenter(new THREE.Vector3());
   const direction = view === "top" ? new THREE.Vector3(0,1,.0001) :
-    new THREE.Vector3(view === "blue" ? -.46 : .46,.79,.69);
+    new THREE.Vector3(view === "blue" ? -.46 : view === "all" && camera.aspect >= 1 ? .14 : .46,.79,.69);
   direction.normalize();
   camera.up.set(0,1,0);
   camera.position.copy(target).add(direction);

@@ -11,7 +11,8 @@ export function readRobotSight(robot:THREE.Object3D,eye:THREE.Vector3,direction:
 export function followOffset(robot:THREE.Object3D){
   const dir=new THREE.Vector3(),eye=new THREE.Vector3();readRobotSight(robot,eye,dir);
   dir.y=0;if(dir.lengthSq()<1e-6)dir.set(0,0,-1);dir.normalize();
-  return dir.multiplyScalar(-3.4).add(new THREE.Vector3(0,2.0,0));
+  const scale=THREE.MathUtils.clamp(robot.userData.eyeHeight??1,.7,1.3);
+  return dir.multiplyScalar(-3.4*scale).add(new THREE.Vector3(0,2*scale,0));
 }
 // Do not inherit chassis yaw. The orbit offset is kept in world space, and
 // only the target translation follows the robot after the initial selection.
