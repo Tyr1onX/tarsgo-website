@@ -78,7 +78,7 @@ func (h *PixelHomeHandler) Mine(c *gin.Context) {
 	var home model.PixelHome
 	err := h.db.WithContext(c.Request.Context()).Where("user_id = ?", user.ID).First(&home).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		writeAPI(c, http.StatusOK, "研究室尚未布置", gin.H{"furniture": []pixelFurniture{}, "inviteActive": false, "achievements": rows})
+		writeAPI(c, http.StatusOK, "研究室尚未布置", gin.H{"furniture": []pixelFurniture{}, "inviteActive": false, "achievements": rows, "plants": []model.PixelPlant{}})
 		return
 	}
 	if err != nil {
@@ -93,7 +93,12 @@ func (h *PixelHomeHandler) Mine(c *gin.Context) {
 	if items == nil {
 		items = []pixelFurniture{}
 	}
-	writeAPI(c, http.StatusOK, "研究室加载成功", gin.H{"furniture": items, "inviteActive": home.InviteHash != "", "achievements": rows})
+	plants, err := h.studyPlants(c, user.ID)
+	if err != nil {
+		writeAPIError(c, 500, "植物加载失败")
+		return
+	}
+	writeAPI(c, http.StatusOK, "研究室加载成功", gin.H{"furniture": items, "inviteActive": home.InviteHash != "", "achievements": rows, "plants": plants})
 }
 
 func (h *PixelHomeHandler) Save(c *gin.Context) {
@@ -116,13 +121,28 @@ func (h *PixelHomeHandler) Save(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "家具布局不合法")
 		return
 	}
-	home := model.PixelHome{UserID: user.ID, Layout: string(layout), UpdatedAt: time.Now().UTC()}
-	result := h.db.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"layout", "updated_at"}),
-	}).Create(&home)
-	if result.Error != nil {
-		writeAPIError(c, http.StatusInternalServerError, "研究室保存失败")
+	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		home, e := lockPixelHome(tx, user.ID)
+		if e != nil {
+			return e
+		}
+		var plants []model.PixelPlant
+		if e = tx.Where("user_id = ? AND harvested = ?", user.ID, false).Find(&plants).Error; e != nil {
+			return e
+		}
+		for _, p := range plants {
+			if !plantFitsFurniture(p.X, p.Y, input.Furniture) {
+				return errPlantPosition
+			}
+		}
+		return tx.Model(&home).Updates(map[string]any{"layout": string(layout), "updated_at": time.Now().UTC()}).Error
+	})
+	if errors.Is(err, errPlantPosition) {
+		writeAPIError(c, 409, "家具不能覆盖植物")
+		return
+	}
+	if err != nil {
+		writeAPIError(c, 500, "研究室保存失败")
 		return
 	}
 	writeAPI(c, http.StatusOK, "研究室已保存", gin.H{"furniture": input.Furniture})
@@ -202,7 +222,12 @@ func (h *PixelHomeHandler) Visit(c *gin.Context) {
 		writeAPIError(c, http.StatusInternalServerError, "成果加载失败")
 		return
 	}
-	writeAPI(c, http.StatusOK, "只读参观", gin.H{"furniture": items, "achievements": rows})
+	plants, err := h.studyPlants(c, home.UserID)
+	if err != nil {
+		writeAPIError(c, 500, "植物加载失败")
+		return
+	}
+	writeAPI(c, http.StatusOK, "只读参观", gin.H{"furniture": items, "achievements": rows, "plants": plants})
 }
 
 var pixelAchievementTitles = map[string]string{
@@ -312,4 +337,10 @@ func (h *PixelHomeHandler) DisplayAchievement(c *gin.Context) {
 		return
 	}
 	h.Achievements(c)
+}
+
+func (h *PixelHomeHandler) studyPlants(c *gin.Context, owner uint64) ([]model.PixelPlant, error) {
+	rows := []model.PixelPlant{}
+	err := h.db.WithContext(c.Request.Context()).Where("user_id = ? AND harvested = ?", owner, false).Order("id").Find(&rows).Error
+	return rows, err
 }

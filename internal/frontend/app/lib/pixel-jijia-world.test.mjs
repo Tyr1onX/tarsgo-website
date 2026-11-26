@@ -28,7 +28,7 @@ test("同一场景数据驱动地形、装饰和真实碰撞", () => {
     assert.ok(area.x >= 0 && area.y >= 0);
     assert.ok(area.x + area.width <= WORLD_WIDTH && area.y + area.height <= WORLD_HEIGHT);
   }
-  const props = ["bench","lamp","sign","planter","oak","lime_tree","cherry",
+  const props = ["bench","lamp","sign","planter","oak","lime_tree","cherry","pine",
     "rocks","fence","hydrangea","statue","arch","training-base-red","training-base-blue","training-outpost","training-rune","training-cover"];
   assert.ok(SCENERY.length >= 30);
   for (const obj of SCENERY) {

@@ -139,7 +139,7 @@ func TestMariaDBPixelCompanions(t *testing.T) {
 		t.Fatal(err)
 	}
 	const owner, other = 9019601, 9019602
-	for _, m := range []any{&model.PixelFoodUse{}, &model.PixelPet{}, &model.PixelItem{}} {
+	for _, m := range []any{&model.PixelFoodUse{}, &model.PixelPet{}, &model.PixelItem{}, &model.PixelGather{}} {
 		if err := db.Where("user_id IN ?", []int{owner, other}).Delete(m).Error; err != nil {
 			t.Fatal(err)
 		}
@@ -159,7 +159,7 @@ func TestMariaDBPixelCompanions(t *testing.T) {
 	r.GET("/pet", h.Pet)
 	r.POST("/pet", h.AdoptPet)
 	r.PUT("/pet", h.SavePet)
-	r.POST("/collect", h.CollectFood)
+	r.POST("/collect", h.Collect)
 	r.POST("/feed", h.Feed)
 	r.GET("/items", h.Items)
 	request := func(method, path, body, account string) (int, json.RawMessage) {
@@ -209,7 +209,7 @@ func TestMariaDBPixelCompanions(t *testing.T) {
 		t.Fatal("saved pet", string(data), err)
 	}
 	expect("PUT", "/pet", body(`"name":"七七","mode":"follow","revision":2`), "", 200)
-	collect := body(`"id":"cat-food","revision":0`)
+	collect := body(`"id":"cat-food","revision":0,"target":"cat-food:0"`)
 	expect("POST", "/collect", body(`"id":"crucian","revision":0`), "", 400)
 	expect("POST", "/collect", collect, "", 200)
 	expect("POST", "/collect", collect, "", 409)
@@ -233,7 +233,7 @@ func TestMariaDBPixelCompanions(t *testing.T) {
 		t.Fatal("consume exactly once", string(data), err)
 	}
 	expect("POST", "/feed", body(`"id":"cat-food","revision":1,"species":"cat","target":"cat-orange"`), "", 409)
-	expect("POST", "/collect", body(`"id":"cat-food","revision":2`), "", 200)
+	expect("POST", "/collect", body(`"id":"cat-food","revision":2,"target":"cat-food:0"`), "", 200)
 	expect("POST", "/feed", feed, "", 200)
 	data = expect("GET", "/items", "", "", 200)
 	if err := json.Unmarshal(data, &rows); err != nil || len(rows) != 1 || rows[0].Quantity != 1 || rows[0].Revision != 3 {

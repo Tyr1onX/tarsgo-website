@@ -1,3 +1,4 @@
+import { drawLifeObject,type LifeObject } from "./pixel-jijia-nature.ts";
 import { ROBOT_MODELS } from "./pixel-jijia-robot.ts";
 import { baseAction, type BaseRoomState, type Achievement, EXHIBIT_IDS } from "./pixel-jijia-base.ts";
 import { TILE, overlapsRect, snapCamera, benchSeat, benchExit, facingScore, type Scenery, type Direction, type Position } from "./pixel-jijia-world.ts";
@@ -380,7 +381,7 @@ export function renderRoomScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
   elapsed: number, motionAllowed: boolean,
-  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement, companion:Animal|null=null,
+  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement, companion:Animal|null=null,life:LifeObject[]=[],
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -405,6 +406,7 @@ export function renderRoomScene(
   }
   const actors=[{depth:seatDepth,draw:()=>renderExplorer(ctx, character, player, pose, screenCamera)}];
   if(companion)actors.push({depth:companion.y,draw:()=>drawAnimal(ctx,companion,screenCamera,motionAllowed)});
+  for(const object of life)actors.push({depth:object.point.y,draw:()=>drawLifeObject(ctx,object,screenCamera,Date.now())});
   actors.sort((a,b)=>a.depth-b.depth);
   let actorIndex=0;
   const props = room.objects.filter(o => o.kind !== "exit" && (room.id === "study" || o.solid))
