@@ -50,7 +50,7 @@ type PixelPet struct {
 	Revision uint64 `json:"revision" gorm:"not null"`
 }
 
-// PixelFoodUse is a receipt for one consumed inventory revision. Retries never
+// PixelFoodUse is the existing receipt table for one consumed inventory revision (food, sowing or repair). Retries never
 // charge a second unit and cannot redirect a completed use to another animal.
 type PixelFoodUse struct {
 	UserID   uint64 `gorm:"primaryKey;autoIncrement:false"`
@@ -58,4 +58,24 @@ type PixelFoodUse struct {
 	Revision uint64 `gorm:"primaryKey;autoIncrement:false"`
 	Species  string `gorm:"size:12;not null"`
 	Target   string `gorm:"size:64;not null"`
+}
+
+// PixelPlant stores only private study plants. Public scene plants remain local.
+type PixelPlant struct {
+	UserID    uint64 `json:"-" gorm:"primaryKey;autoIncrement:false"`
+	ID        string `json:"id" gorm:"size:64;primaryKey"`
+	Seed      string `json:"seed" gorm:"size:48;not null"`
+	X         int    `json:"x" gorm:"not null"`
+	Y         int    `json:"y" gorm:"not null"`
+	WateredAt int64  `json:"wateredAt" gorm:"not null"`
+	Revision  uint64 `json:"revision" gorm:"not null"`
+	Harvested bool   `json:"-" gorm:"not null;default:false"`
+}
+
+// PixelGather records the next availability of an account-scoped ground source.
+// The actual position is authored in the shared catalog, not a second inventory.
+type PixelGather struct {
+	UserID uint64 `json:"-" gorm:"primaryKey;autoIncrement:false"`
+	Source string `json:"source" gorm:"size:64;primaryKey"`
+	NextAt int64  `json:"nextAt" gorm:"not null"`
 }

@@ -25,35 +25,6 @@ func pixelFood(id string) (fishingItem, bool) {
 	return fishingItem{}, false
 }
 
-// Each virtual food can be replenished when its previous portion has been used.
-// The same inventory revision cannot be collected again after a later use.
-func (h *PixelHomeHandler) CollectFood(c *gin.Context) {
-	a, ok := pixelAction(c)
-	if !ok {
-		return
-	}
-	if _, ok := pixelFood(a.ID); !ok {
-		writeAPIError(c, 400, "请选择动物食物")
-		return
-	}
-	db := h.db.WithContext(c.Request.Context())
-	var result *gorm.DB
-	if a.Revision == 0 {
-		result = db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model.PixelItem{UserID: a.Owner, ItemID: a.ID, Quantity: 1, Revision: 1})
-	} else {
-		result = db.Model(&model.PixelItem{}).Where("user_id = ? AND item_id = ? AND revision = ? AND quantity = 0", a.Owner, a.ID, a.Revision).Updates(map[string]any{"quantity": 1, "revision": gorm.Expr("revision + 1")})
-	}
-	if result.Error != nil {
-		writeAPIError(c, 500, "食物领取未确认，请查看背包")
-		return
-	}
-	if result.RowsAffected == 0 {
-		writeAPIError(c, 409, errPixelChanged.Error())
-		return
-	}
-	writeAPI(c, 200, "已收入背包", nil)
-}
-
 func (h *PixelHomeHandler) Feed(c *gin.Context) {
 	a, ok := pixelAction(c)
 	if !ok {
@@ -66,34 +37,13 @@ func (h *PixelHomeHandler) Feed(c *gin.Context) {
 		return
 	}
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		var row model.PixelItem
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND item_id = ?", a.Owner, a.ID).Take(&row).Error; err != nil {
-			return err
-		}
-		var receipt model.PixelFoodUse
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND item_id = ? AND revision = ?", a.Owner, a.ID, a.Revision).Take(&receipt).Error
-		if err == nil {
-			if receipt.Species == a.Species && receipt.Target == a.Target {
-				return nil
+		return consumePixelItem(tx, a, a.Species, a.Target, func() error {
+			if a.Target == "companion" {
+				var pet model.PixelPet
+				return tx.Where("user_id = ? AND species = ?", a.Owner, a.Species).Take(&pet).Error
 			}
-			return errPixelChanged
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		if row.Revision != a.Revision || row.Quantity == 0 {
-			return errPixelChanged
-		}
-		if a.Target == "companion" {
-			var pet model.PixelPet
-			if err := tx.Where("user_id = ? AND species = ?", a.Owner, a.Species).Take(&pet).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Model(&row).Updates(map[string]any{"quantity": gorm.Expr("quantity - 1"), "revision": gorm.Expr("revision + 1")}).Error; err != nil {
-			return err
-		}
-		return tx.Create(&model.PixelFoodUse{UserID: a.Owner, ItemID: a.ID, Revision: a.Revision, Species: a.Species, Target: a.Target}).Error
+			return nil
+		})
 	})
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound), errors.Is(err, errPixelChanged):

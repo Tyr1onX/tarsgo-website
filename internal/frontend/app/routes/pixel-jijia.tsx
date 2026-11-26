@@ -1,4 +1,5 @@
-import { worldItems, guestCatch, pondLabels, closestFoodSource, type WorldItem, type ItemRow } from "~/lib/pixel-jijia-items";
+import { worldItems, guestCatch, pondLabels, closestItemSource, availableSources, type ItemSource, type WorldItem, type ItemRow } from "~/lib/pixel-jijia-items";
+import { freshLoans, lifeObjects, closeLife, plantStage, plantPoint, outdoorPlacement, studyPlacement, placementClear, lifeBlocks, plantCarrySprite, type HeldItem, type PlantRecord, type LifeObject } from "~/lib/pixel-jijia-nature";
 import { PixelInventory } from "~/components/pixel-jijia-inventory";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -6,7 +7,7 @@ import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, groundAt, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, isWalkable, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
+  FOUNTAIN, groundAt, pathIsWalkable, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, isWalkable, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
   type SurfaceMark, type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";
@@ -154,7 +155,7 @@ export default function PixelJijiaPage() {
   const [seated, setSeated] = useState<{ object:SeatObject; exit: Position } | null>(null);
   const effectsRef = useRef(new Map<string,number>());
   const [baseState,setBaseState]=useState(freshBaseRoom);
-  const inspecting=useRef<{item:WorldItem;until:number}|null>(null);
+  const gatheredSources=useRef(new Map<string,number>());
   const [inventoryChange,setInventoryChange]=useState(0);
   const [pet,setPet]=useState<PetRecord|null>(null);
   const companionRef=useRef<Companion|null>(null);
@@ -164,7 +165,11 @@ export default function PixelJijiaPage() {
   const [animalBusy,setAnimalBusy]=useState(false);
   const [animalMenu,setAnimalMenu]=useState<string|null>(null);
   const [petName,setPetName]=useState("");
-  const [heldFood,setHeldFood]=useState<{item:WorldItem;row:ItemRow;owner:number}|null>(null);
+  const [heldItem,setHeldItem]=useState<HeldItem|null>(null);
+  const [loans,setLoans]=useState(()=>freshLoans("outdoor"));
+  const [publicPlants,setPublicPlants]=useState<PlantRecord[]>([]);
+  const [studyPlants,setStudyPlants]=useState<PlantRecord[]>([]);
+  const lifePromptRef=useRef("");
   const pendingFood=useRef<{animal:string;point:Position;revision:number;item:string}|null>(null);
   const [freshFish,setFreshFish]=useState(false);
   const [studyAchievements,setStudyAchievements]=useState<Achievement[]>([]);
@@ -198,6 +203,10 @@ export default function PixelJijiaPage() {
   const room = useMemo(() => roomId === "study"
     ? makeStudyRoom(studyItems, studyGuest)
     : roomId ? ROOMS[roomId] ?? null : null, [roomId, studyItems, studyGuest]);
+  const sceneRef=useRef(roomId??"outdoor");
+  sceneRef.current=roomId??"outdoor";
+  const sceneLife=useMemo(()=>lifeObjects(roomId&&roomId!=="study"?[]:loans,roomId==="study"?studyPlants:roomId?[]:publicPlants,heldItem),[roomId,loans,studyPlants,publicPlants,heldItem]);
+  useEffect(()=>{setLoans(freshLoans(roomId??"outdoor"));},[roomId]);
   const roomScale = room ? room.id !== "study" ? ROOM_ART_SCALE : 1 : WORLD_ART_SCALE;
   const [nearbyRoom, setNearbyRoom] = useState<RoomObject | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<RoomObject | null>(null);
@@ -220,7 +229,7 @@ export default function PixelJijiaPage() {
   const resetStudy = useCallback(() => {
     studyAccessRef.current?.controller.abort();
     studyAccessRef.current=null;
-    setStudyItems([]);setStudyAchievements([]);setStudyGuest(false);setStudyEditing(false);
+    setStudyItems([]);setStudyPlants([]);setStudyAchievements([]);setStudyGuest(false);setStudyEditing(false);
     setStudySaving(false);setStudyHasInvite(false);setStudyInvite("");setStudyNotice("");
   }, []);
   const invalidateOwnerStudy = useCallback(() => {
@@ -241,7 +250,7 @@ export default function PixelJijiaPage() {
   const clearAnimalSession=useCallback(()=>{
     ++petGeneration.current;petOwner.current=null;
     animalActionRef.current?.abort();animalActionRef.current=null;
-    pendingFood.current=null;setHeldFood(null);setAnimalBusy(false);setAnimalMenu(null);setPetName("");
+    gatheredSources.current.clear();setSeated(old=>{if(old?.object&&"id" in old.object&&old.object.id.startsWith("picnic-mat:")){playerRef.current=old.exit;return null;}return old;});setLoans(freshLoans(sceneRef.current));setPublicPlants([]);pendingFood.current=null;setHeldItem(null);setAnimalBusy(false);setAnimalMenu(null);setPetName("");
     applyPet(null);
     for(const a of wildlifeRef.current){a.food=undefined;a.familiar=0;a.observed=false;a.petting=0;a.calm=0;a.satiated=0;}
   },[applyPet]);
@@ -252,6 +261,9 @@ export default function PixelJijiaPage() {
       if(generation!==petGeneration.current||getCachedCurrentUser()?.id!==user.id)return;
       petOwner.current=user.id;
       const record=await apiRequest<PetRecord|null>("/api/pixel-home/pet",{cache:"no-store"});
+      void apiRequest<{source:string;nextAt:number}[]>("/api/pixel-home/gathered",{cache:"no-store"}).then(rows=>{
+        if(generation===petGeneration.current&&getCachedCurrentUser()?.id===user.id)for(const row of rows)gatheredSources.current.set(row.source,Math.max(row.nextAt,gatheredSources.current.get(row.source)??0));
+      }).catch(()=>{});
       if(generation===petGeneration.current&&getCachedCurrentUser()?.id===user.id)applyPet(record);
     }catch(error){
       if(generation===petGeneration.current&&error instanceof ApiError&&error.status===401){petOwner.current=null;applyPet(null);}
@@ -259,13 +271,12 @@ export default function PixelJijiaPage() {
   },[applyPet]);
   useEffect(() => {
     const onAuth=(user:AuthUser|null)=>{
-      inspecting.current=null;
       if(castRef.current?.owner && castRef.current.owner!==user?.id)castRef.current=null;
       if(studyAccessRef.current&&studyAccessRef.current.ownerId!==user?.id)invalidateOwnerStudy();
       if(petOwner.current!==(user?.id??null)){clearAnimalSession();if(user)void loadPet();}
     };
     const unsubscribe=subscribeAuthStateChange(onAuth);
-    const unsubscribeSession=subscribeAccountSessionChange(()=>{inspecting.current=null;castRef.current=null;invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);clearAnimalSession();void loadPet();});
+    const unsubscribeSession=subscribeAccountSessionChange(()=>{castRef.current=null;invalidateOwnerStudy();setBaseState(freshBaseRoom());setFreshFish(false);setSelectedRoom(null);clearAnimalSession();void loadPet();});
     void loadPet();
     return()=>{unsubscribe();unsubscribeSession();studyAccessRef.current?.controller.abort();++petGeneration.current;animalActionRef.current?.abort();};
   }, [invalidateOwnerStudy,clearAnimalSession,loadPet]);
@@ -293,26 +304,26 @@ export default function PixelJijiaPage() {
     if(pet&&companion&&!studyGuest&&companion.scene===(room?.id??"campus")&&(pet.mode==="follow"||room?.id==="study"))animals.push(companion);
     return animals;
   },[room,pet,studyGuest]);
-  const animalWalkable=useCallback((x:number,y:number)=>room?isRoomWalkable(room,x,y):dryAnimalWalkable(x,y)&&!inTrainingField({x,y},0),[room]);
+  const animalWalkable=useCallback((x:number,y:number)=>!lifeBlocks(sceneLife,x,y)&&(room?isRoomWalkable(room,x,y):dryAnimalWalkable(x,y)&&!inTrainingField({x,y},0)),[room,sceneLife]);
   const reachableAnimal=useCallback((a:Animal,limit=2.7)=>{
     const player=playerRef.current;
     return Math.hypot(a.x-player.x,a.y-player.y)<=limit&&(a.species==="fish"||animalPath(player,a,animalWalkable));
   },[animalWalkable]);
   const nearAnimal=useCallback(()=>{
     const animals=visibleAnimals();
-    if(heldFood){
-      const suitable=animals.filter(a=>heldFood.item.feeds?.includes(a.species)&&reachableAnimal(a,a.species==="fish"?5:3.5));
+    if(heldItem){
+      const suitable=animals.filter(a=>heldItem.item.feeds?.includes(a.species)&&reachableAnimal(a,a.species==="fish"?5:3.5));
       if(suitable.length)return closestAnimal(suitable,playerRef.current,5.1);
     }
     return closestAnimal(animals.filter(a=>reachableAnimal(a)),playerRef.current);
-  },[visibleAnimals,heldFood,reachableAnimal]);
+  },[visibleAnimals,heldItem,reachableAnimal]);
   const openAnimal=useCallback((a:Animal)=>{
-    if(!reachableAnimal(a,heldFood?.item.feeds?.includes(a.species)?a.species==="fish"?5:3.5:2.7))return;
+    if(!reachableAnimal(a,heldItem?.item.feeds?.includes(a.species)?a.species==="fish"?5:3.5:2.7))return;
     clearInput();observeAnimal(a);directionRef.current=directionToward(playerRef.current,a,directionRef.current);
     poseRef.current={...poseRef.current,action:"observe",since:performance.now()};
     if(a.id!=="companion")recordDiscovery(animalLabel(a));
     setAnimalMenu(a.id);setPetName(a.id==="companion"?pet?.name??"":"");
-  },[clearInput,recordDiscovery,heldFood,reachableAnimal,pet]);
+  },[clearInput,recordDiscovery,heldItem,reachableAnimal,pet]);
   const runAnimalAction=useCallback(async(action:(owner:number,signal:AbortSignal)=>Promise<void>)=>{
     if(animalActionRef.current)return;
     const controller=new AbortController();animalActionRef.current=controller;setAnimalBusy(true);
@@ -326,33 +337,49 @@ export default function PixelJijiaPage() {
       if(animalActionRef.current===controller){animalActionRef.current=null;setAnimalBusy(false);}
     }
   },[fishingNotice]);
-  const collectFood=useCallback((id:string)=>runAnimalAction(async(owner,signal)=>{
+  const nearbySource=()=>closestItemSource(playerRef.current,climateRef.current?.season??"summer",gatheredSources.current,Date.now());
+  const collectSource=useCallback((source:ItemSource)=>runAnimalAction(async(owner,signal)=>{
+    const id=source.id;
+    const item=worldItems.get(id);
+    if(!item?.gather)return;
     const rows=await apiRequest<ItemRow[]>("/api/pixel-home/items",{cache:"no-store",signal});
     const row=rows.find(r=>r.id===id);
-    if(row?.quantity){fishingNotice("背包里已有"+worldItems.get(id)?.name);return;}
+    if((row?.quantity??0)>=item.gather){fishingNotice("背包里已有足够的"+item.name);return;}
     if(signal.aborted||getCachedCurrentUser()?.id!==owner)return;
-    await apiRequest("/api/pixel-home/collect-food",{method:"POST",body:{owner,id,revision:row?.revision??0},signal});
+    let result:{nextAt:number};
+    try{result=await apiRequest<{nextAt:number}>("/api/pixel-home/collect",{method:"POST",body:{owner,id,revision:row?.revision??0,target:source.key},signal});}
+    catch(error){
+      if(error instanceof ApiError&&error.status===409&&!signal.aborted){
+        const rows=await apiRequest<{source:string;nextAt:number}[]>("/api/pixel-home/gathered",{cache:"no-store",signal});
+        if(!signal.aborted&&getCachedCurrentUser()?.id===owner){for(const r of rows)gatheredSources.current.set(r.source,r.nextAt);setInventoryChange(n=>n+1);}
+      }
+      throw error;
+    }
     if(signal.aborted||getCachedCurrentUser()?.id!==owner)return;
-    setInventoryChange(n=>n+1);fishingNotice("收入背包 · "+worldItems.get(id)?.name);
+    gatheredSources.current.set(source.key,result.nextAt);
+    setHeldItem(old=>old?.row?.id===id?null:old);
+    poseRef.current={...poseRef.current,action:"observe",since:performance.now()};
+    directionRef.current=directionToward(playerRef.current,source,directionRef.current);
+    setInventoryChange(n=>n+1);fishingNotice("收入背包 · "+item.name);
   }),[runAnimalAction,fishingNotice]);
   const feedAnimal=(a:Animal)=>{
-    if(!heldFood||!heldFood.item.feeds?.includes(a.species)||castRef.current||robotControlled)return;
+    if(!heldItem?.row||!heldItem.item.feeds?.includes(a.species)||castRef.current||robotControlled)return;
     const pending=pendingFood.current;
     if(pending&&pending.animal!==a.id){fishingNotice("请先确认上一次喂食");return;}
     const point=pending?.point??foodPosition(a,playerRef.current,room?animalWalkable:undefined);
     if(!point){fishingNotice("再靠近一点，找一处动物能到达的地方");return;}
-    pendingFood.current={animal:a.id,point,revision:heldFood.row.revision,item:heldFood.item.id};
+    pendingFood.current={animal:a.id,point,revision:heldItem.row.revision,item:heldItem.item.id};
     void runAnimalAction(async(owner,signal)=>{
-      if(owner!==heldFood.owner)return;
+      if(owner!==heldItem.owner)return;
       try{
-        await apiRequest("/api/pixel-home/feed",{method:"POST",body:{owner,id:heldFood.item.id,revision:heldFood.row.revision,species:a.species,target:a.id},signal});
+        await apiRequest("/api/pixel-home/feed",{method:"POST",body:{owner,id:heldItem.item.id,revision:heldItem.row.revision,species:a.species,target:a.id},signal});
       }catch(error){
-        if(error instanceof ApiError&&error.status===409&&!signal.aborted){pendingFood.current=null;setHeldFood(null);setInventoryChange(n=>n+1);}
+        if(error instanceof ApiError&&error.status===409&&!signal.aborted){pendingFood.current=null;setHeldItem(null);setInventoryChange(n=>n+1);}
         throw error;
       }
       if(signal.aborted||getCachedCurrentUser()?.id!==owner)return;
-      placeAnimalFood(a,point,heldFood.item);pendingFood.current=null;setHeldFood(null);setInventoryChange(n=>n+1);
-      setAnimalMenu(null);fishingNotice("放下"+heldFood.item.name);
+      placeAnimalFood(a,point,heldItem.item);pendingFood.current=null;setHeldItem(null);setInventoryChange(n=>n+1);
+      setAnimalMenu(null);fishingNotice("放下"+heldItem.item.name);
     });
   };
   const adoptAnimal=(a:Animal)=>{
@@ -378,6 +405,124 @@ export default function PixelJijiaPage() {
       applyPet(record);setAnimalMenu(null);fishingNotice(mode==="home"?record.name+" 留在研究室":record.name+" · 跟随中");
     });
   };
+  const lifePose=(point:Position)=>{
+    clearInput();directionRef.current=directionToward(playerRef.current,point,directionRef.current);
+    poseRef.current={...poseRef.current,action:"observe",since:performance.now()};
+  };
+  const restoreHeld=()=>{
+    if(heldItem?.loan){const loan=heldItem.loan;const origin=freshLoans(sceneRef.current).find(o=>o.key===loan.key)??loan;setLoans(old=>[...old.filter(o=>o.key!==loan.key),origin]);}
+    pendingFood.current=null;setHeldItem(null);
+  };
+  const combineItem=(target:"workbench"|"open")=>{
+    if(!heldItem?.row||studyGuest)return;
+    const current=heldItem;
+    if(target==="workbench"&&!["wrench","wheel"].includes(current.item.id)||target==="open"&&current.item.id!=="pinecone")return;
+    void runAnimalAction(async(owner,signal)=>{
+      if(owner!==current.owner)return;
+      try{
+        const result=await apiRequest<{id:string}>("/api/pixel-home/combine",{method:"POST",body:{owner,id:current.item.id,revision:current.row.revision,target},signal});
+        if(signal.aborted||getCachedCurrentUser()?.id!==owner)return;
+        const rows=await apiRequest<ItemRow[]>("/api/pixel-home/items",{cache:"no-store",signal});
+        if(signal.aborted||getCachedCurrentUser()?.id!==owner)return;
+        const item=worldItems.get(result.id),row=rows.find(r=>r.id===result.id&&r.quantity>0);
+        setHeldItem(item&&row?{item,row,owner}:null);setInventoryChange(n=>n+1);
+        lifePose(playerRef.current);fishingNotice((target==="workbench"?"清理完成 · ":"剥出 · ")+(item?.name??""));
+      }catch(error){
+        if(error instanceof ApiError&&error.status===409&&!signal.aborted){setHeldItem(null);setInventoryChange(n=>n+1);}
+        throw error;
+      }
+    });
+  };
+  const lifeReach=(point:Position)=>room?isRoomWalkable(room,point.x,point.y)&&animalPath(playerRef.current,point,(x,y)=>isRoomWalkable(room,x,y)):pathIsWalkable(playerRef.current,point,true);
+  const lifeLabel=(object:LifeObject)=>{
+    if(studyGuest||animalBusy)return "";
+    if(heldItem?.item.id==="water-can"&&object.type==="plant"&&!object.value.wateredAt)return "浇水";
+    if(heldItem?.row&&heldItem.item.kind==="seed"&&object.type==="loan"&&object.value.itemId==="flowerpot")return "播种";
+    if(heldItem||baseState.item==="held")return "";
+    if(object.type==="loan")return "拿取"+worldItems.get(object.value.itemId)?.name;
+    if(room?.id==="study"&&plantStage(object.value)===3)return "收集花朵";
+    return object.value.pot!==false?"移动花盆":"";
+  };
+  const nearLife=(clicked?:Position)=>closeLife(sceneLife.filter(o=>lifeLabel(o)),playerRef.current,lifeReach,clicked);
+  const validPlacement=(point:Position,ignore?:LifeObject)=>{
+    if(studyGuest||room&&room.id!=="study")return false;
+    const valid=(p:Position)=>room?studyPlacement(p)&&isRoomWalkable(room,p.x,p.y):outdoorPlacement(p);
+    if(freshLoans(sceneRef.current).some(o=>o.key!==heldItem?.loan?.key&&!(ignore?.type==="loan"&&ignore.value.key===o.key)&&Math.hypot(o.x-point.x,o.y-point.y)<.8))return false;
+    const companion=companionRef.current;
+    if(companion?.scene===(room?.id??"campus")&&Math.hypot(companion.x-point.x,companion.y-point.y)<.75)return false;
+    if(!room&&robots.some(robot=>robotBlocksPlayer(robot,point.x,point.y)))return false;
+    return placementClear(point,sceneLife.filter(o=>o!==ignore),playerRef.current,valid,.9)&&lifeReach(point);
+  };
+  const placePoint=(point:Position)=>({x:Math.floor(point.x)+.5,y:Math.floor(point.y)+.5});
+  const aheadPoint=()=>{
+    const dir=directionRef.current,p=playerRef.current;
+    return placePoint({x:p.x+(dir==="left"?-1.4:dir==="right"?1.4:0),y:p.y+(dir==="up"?-1.4:dir==="down"?1.4:0)});
+  };
+  const mayPlace=()=>Boolean(heldItem&&(heldItem.loan||heldItem.plant||heldItem.row&&heldItem.item.kind==="seed")&&!studyGuest&&!animalBusy&&(!room||room.id==="study"));
+  const sowAt=(point:Position,pot?:LifeObject)=>{
+    if(!heldItem?.row||heldItem.item.kind!=="seed"||!validPlacement(point,pot))return false;
+    const current=heldItem,privateStudy=room?.id==="study";
+    void runAnimalAction(async(owner,signal)=>{
+      if(owner!==current.owner)return;
+      try{
+        const plant=await apiRequest<PlantRecord>("/api/pixel-home/sow",{method:"POST",body:{owner,id:current.item.id,revision:current.row.revision,mode:privateStudy?"study":"public",x:Math.floor(point.x),y:Math.floor(point.y)},signal});
+        if(signal.aborted||getCachedCurrentUser()?.id!==owner)return;
+        const row={...plant,pot:privateStudy||Boolean(pot),potKey:pot?.type==="loan"?pot.value.key:undefined};
+        (privateStudy?setStudyPlants:setPublicPlants)(old=>[...old.filter(p=>p.id!==row.id),row]);
+        if(pot?.type==="loan")setLoans(old=>old.filter(o=>o.key!==pot.value.key));
+        setHeldItem(null);setInventoryChange(n=>n+1);lifePose(point);fishingNotice("已播种 · "+current.item.name);
+      }catch(error){
+        if(error instanceof ApiError&&error.status===409&&!signal.aborted)setInventoryChange(n=>n+1);
+        throw error;
+      }
+    });
+    return true;
+  };
+  const changePlant=(plant:PlantRecord,mode:"water"|"move"|"harvest",point=plantPoint(plant))=>{
+    const privateStudy=room?.id==="study";
+    if(studyGuest||animalBusy||mode==="move"&&!validPlacement(point))return false;
+    if(mode==="water"&&plant.wateredAt)return false;
+    if(mode==="harvest"&&(!privateStudy||plantStage(plant)!==3))return false;
+    const apply=(next:PlantRecord)=>{
+      (privateStudy?setStudyPlants:setPublicPlants)(old=>mode==="harvest"?old.filter(p=>p.id!==plant.id):old.map(p=>p.id===plant.id?next:p));
+      if(mode==="move")setHeldItem(null);
+      if(mode==="harvest")setInventoryChange(n=>n+1);
+      lifePose(point);fishingNotice(mode==="water"?"已浇水":mode==="move"?"花盆已放置":"花朵已收入背包");
+    };
+    if(!privateStudy){
+      apply({...plant,x:Math.floor(point.x),y:Math.floor(point.y),wateredAt:mode==="water"?Date.now():plant.wateredAt,revision:plant.revision+1});
+      return true;
+    }
+    void runAnimalAction(async(owner,signal)=>{
+      const next=await apiRequest<PlantRecord>("/api/pixel-home/plant",{method:"POST",body:{owner,id:plant.id,revision:plant.revision,mode,x:Math.floor(point.x),y:Math.floor(point.y)},signal});
+      if(!signal.aborted&&getCachedCurrentUser()?.id===owner)apply({...next,pot:true});
+    });
+    return true;
+  };
+  const placeHeld=(point:Position)=>{
+    if(!mayPlace()||!heldItem||!validPlacement(point))return false;
+    if(heldItem.plant)return changePlant(heldItem.plant,"move",point);
+    if(heldItem.loan){const loan=heldItem.loan;setLoans(old=>[...old,{...loan,...point}]);setHeldItem(null);lifePose(point);fishingNotice("已放下"+heldItem.item.name);return true;}
+    return sowAt(point);
+  };
+  const interactLife=(target=nearLife())=>{
+    if(!target||!lifeLabel(target)||studyGuest||animalBusy||seated||robotControlled||transitionRef.current)return false;
+    if(target.type==="plant"){
+      if(heldItem?.item.id==="water-can")return changePlant(target.value,"water");
+      if(!heldItem&&room?.id==="study"&&plantStage(target.value)===3)return changePlant(target.value,"harvest");
+      if(!heldItem&&target.value.pot!==false){setHeldItem({item:worldItems.get("flowerpot")!,plant:target.value});lifePose(target.point);return true;}
+      return false;
+    }
+    if(heldItem?.row&&heldItem.item.kind==="seed"&&target.value.itemId==="flowerpot")return sowAt(placePoint(target.point),target);
+    const item=worldItems.get(target.value.itemId);
+    if(!item||heldItem)return false;
+    setLoans(old=>old.filter(o=>o.key!==target.value.key));setHeldItem({item,loan:target.value});lifePose(target.point);fishingNotice("拿起"+item.name);return true;
+  };
+  const restOnMat=(object:LifeObject)=>{
+    if(object.type!=="loan"||object.value.itemId!=="picnic-mat"||heldItem||room||!lifeReach(object.point)||Math.hypot(object.point.x-playerRef.current.x,object.point.y-playerRef.current.y)>=2.1)return;
+    const exit={...playerRef.current};clearInput();castRef.current=null;playerRef.current={...object.point};directionRef.current="down";
+    setSeated({object:{id:object.value.key,title:"野餐垫",kind:"chair",x:object.point.x-.5,y:object.point.y-.5,width:1,height:1},exit});
+  };
   const interactNature = useCallback(async()=>{
     if(transitionRef.current||selectedRef.current)return;
     const player=playerRef.current,cast=castRef.current;
@@ -390,7 +535,7 @@ export default function PixelJijiaPage() {
           : null;
         const item=receipt?worldItems.get(receipt.id):guestCatch(cast.pond);
         if(cast.owner && getCachedCurrentUser()?.id!==cast.owner)return;
-        if(cast.owner)setInventoryChange(value=>value+1);
+        if(cast.owner){setInventoryChange(value=>value+1);if(item)setHeldItem(old=>old?.row?.id===item.id?null:old);}
         if(!item||castRef.current!==cast)return;
         cast.sprite=item;cast.caughtAt=0;
         if(!mutedRef.current)worldAudioRef.current?.step("water",false);
@@ -405,10 +550,10 @@ export default function PixelJijiaPage() {
       return;
     }
     const animal=nearAnimal();
-    if(heldFood&&animal&&heldFood.item.feeds?.includes(animal.species)){openAnimal(animal);return;}
+    if(heldItem&&animal&&heldItem.item.feeds?.includes(animal.species)){openAnimal(animal);return;}
     if(room){if(animal)openAnimal(animal);return;}
-    const source=closestFoodSource(player);
-    if(source){void collectFood(source.id);return;}
+    const source=nearbySource();
+    if(source){void collectSource(source);return;}
     const target=fishingTarget(player);
     if(target){
       const next=beginFishing(wildlifeRef.current,target,performance.now());
@@ -438,7 +583,7 @@ export default function PixelJijiaPage() {
       return;
     }
     if(animal)openAnimal(animal);
-  },[recordDiscovery,fishingNotice,nearAnimal,heldFood,openAnimal,collectFood,room]);
+  },[recordDiscovery,fishingNotice,nearAnimal,heldItem,openAnimal,collectSource,room]);
 
   useEffect(() => {
     const refresh = () => setClock(changchunClimate(new Date(), timeMode));
@@ -528,7 +673,8 @@ export default function PixelJijiaPage() {
   // The existing animation frame owns both halves of the fade. Swap only
   // while fully covered, and keep it covered until the destination has rendered.
   const transitionTo = useCallback((target: string | null, swap: () => void) => {
-    if (transitionRef.current) return;
+    if (transitionRef.current||animalActionRef.current) return;
+    setPublicPlants([]);setHeldItem(old=>old?.loan||old?.plant?null:old);
     clearInput();
     setMenuOpen(false);
     audioRef.current?.pause();effectsRef.current.clear();targetRef.current=null;setBaseState(freshBaseRoom());setFreshFish(false);
@@ -569,13 +715,13 @@ export default function PixelJijiaPage() {
         studyAccessRef.current=access;
       }
       const data = await apiRequest<{
-        furniture: StudyFurniture[]; inviteActive?: boolean; achievements:Achievement[];
+        furniture: StudyFurniture[]; inviteActive?: boolean; achievements:Achievement[]; plants:PlantRecord[];
       }>(invitation ? `/api/pixel-home/visit?token=${encodeURIComponent(invitation)}`
         : "/api/pixel-home/me", { cache: "no-store",signal:access?.controller.signal });
       if(access?.controller.signal.aborted)return;
       transitionTo("study", () => {
         if(access?.controller.signal.aborted)return;
-        setStudyItems(data.furniture);setStudyAchievements(data.achievements??[]);setStudyEditing(false);
+        setStudyItems(data.furniture);setStudyPlants(data.plants??[]);setStudyAchievements(data.achievements??[]);setStudyEditing(false);
         setStudyHasInvite(Boolean(data.inviteActive));
         setStudyGuest(Boolean(invitation));
         setStudyInvite("");
@@ -848,12 +994,14 @@ export default function PixelJijiaPage() {
     poseRef.current={...poseRef.current,action:"idle",frame:0,since:performance.now()};
     const now=performance.now();
     const action=baseAction(room.id,object.id);
+    if(room.id==="mechanical"&&object.kind==="workbench"&&heldItem?.row&&["wrench","wheel"].includes(heldItem.item.id)){combineItem("workbench");return;}
     if(action==="power"){
       const hour=(climateRef.current?.hour??12)+(climateRef.current?.minute??0)/60;
       const automatic=equipmentProgress(roomSpriteKey(object),now,effectsRef.current.get(object.id),hour)>=0;
       setBaseState(old=>togglePower(old,object.id,automatic));effectsRef.current.set(object.id,now);return;
     }
     if(action==="take"){
+      if(baseState.item==="source"){restoreHeld();}
       setBaseState(old=>transferItem(old,old.item==="source"?"held":"source"));return;
     }
     const device=action==="communication"?"oscilloscope":action==="vision"?"camera":action==="planning"?"models":null;
@@ -889,7 +1037,7 @@ export default function PixelJijiaPage() {
       }
     }
     selectRoomObject(object);
-  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, muted,baseState]);
+  }, [room, exitRoom, selectRoomObject, distanceNotice, seated, standUp, discoveries, muted,baseState,heldItem,animalBusy]);
   const interactFeature = useCallback((feature: Feature) => {
     if (room || transitionRef.current || waterDepthAt(playerRef.current.x, playerRef.current.y)) return;
     if ("href" in feature) {
@@ -972,19 +1120,24 @@ export default function PixelJijiaPage() {
         if (event.repeat) return;
         if (seated) {event.preventDefault();standUp();return;}
         if(!room&&toggleRobot()){event.preventDefault();return;}
+        if(!castRef.current&&interactLife()){event.preventDefault();return;}
         if (room) {
           if(studyEditing)return;
           const object = targetRef.current as RoomObject | null;
           if (object) {
             event.preventDefault();
             interactRoom(object);
-          }else if(nearAnimal()){event.preventDefault();void interactNature();}
+          }else if(placeHeld(aheadPoint())){event.preventDefault();}
+          else if(nearAnimal()){event.preventDefault();void interactNature();}
           return;
         }
         const place = targetRef.current as Feature | null;
-        if(castRef.current||closestFoodSource(playerRef.current)||(heldFood&&nearAnimal())){event.preventDefault();interactNature();}
+        const animal=nearAnimal();
+        if(castRef.current||animal&&heldItem?.item.feeds?.includes(animal.species)){event.preventDefault();interactNature();}
+        else if(!place&&placeHeld(aheadPoint())){event.preventDefault();}
+        else if(nearbySource()){event.preventDefault();interactNature();}
         else if(place){event.preventDefault();interactFeature(place);}
-        else if(fishingTarget(playerRef.current)||nearAnimal()||closestFoodSource(playerRef.current)){event.preventDefault();interactNature();}
+        else if(fishingTarget(playerRef.current)||animal){event.preventDefault();interactNature();}
         return;
       }
       const dir = KEY_DIRECTIONS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
@@ -1012,7 +1165,7 @@ export default function PixelJijiaPage() {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, interactRoom, interactFeature, interactNature, clearInput, menuOpen, mobile, mapOpen, catalogueDetail, studyEditing, robotControlled,toggleRobot,nearAnimal,animalMenu,animalBusy,heldFood]);
+  }, [selectPlace, selectRoomObject, seated, standUp, room, selectedRoom, interactRoom, interactFeature, interactNature, clearInput, menuOpen, mobile, mapOpen, catalogueDetail, studyEditing, robotControlled,toggleRobot,nearAnimal,animalMenu,animalBusy,heldItem,sceneLife,studyGuest,baseState]);
 
   useEffect(() => {
     if (assetState !== "ready") return;
@@ -1089,7 +1242,7 @@ export default function PixelJijiaPage() {
       }
       if (!robotControlled && !transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !mapOpen && !catalogueDetail && !animalMenu) {
         const next = movePlayer(previous, x, y, dt, sprinting,
-          room ? (px, py) => isRoomWalkable(room, px, py) : (px,py)=>!robots.some(robot=>robotBlocksPlayer(robot,px,py))&&isWalkable(px,py),!room);
+          (px,py)=>!lifeBlocks(sceneLife,px,py)&&(room?isRoomWalkable(room,px,py):!robots.some(robot=>robotBlocksPlayer(robot,px,py))&&isWalkable(px,py)),!room);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = Math.abs(x) >= Math.abs(y) ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
@@ -1155,7 +1308,6 @@ export default function PixelJijiaPage() {
       // This preserves the full sequence even after a slow frame or React update.
       if(castRef.current?.caughtAt===0)castRef.current.caughtAt=time;
       if(castRef.current?.caughtAt!==undefined&&time-castRef.current.caughtAt>1050)castRef.current=null;
-      if(inspecting.current && inspecting.current.until<time)inspecting.current=null;
       const castNow=castRef.current;
       const readyNow=Boolean(castNow&&fishingReady(wildlifeRef.current,castNow,time));
       const pose=poseRef.current=explorerAnimation(poseRef.current,{
@@ -1164,7 +1316,7 @@ export default function PixelJijiaPage() {
         fishing:fishingPose(castNow,readyNow,time),now:time,motion:!reducedMotion.matches,
         idleAllowed:!x&&!y&&!selectedRef.current&&!selectedRoom&&!menuOpen&&!mapOpen&&!catalogueDetail&&!transitionRef.current,
       });
-      if(!castNow&&!controlledRobot&&(!room||baseState.item!=="held"))pose.held=heldFood?.item??inspecting.current?.item;
+      if(!castNow&&!controlledRobot&&(!room||baseState.item!=="held"))pose.held=heldItem?.plant?plantCarrySprite(heldItem.plant):heldItem?.item;
       ctx.setTransform(roomScale, 0, 0, roomScale, 0, 0);
       ctx.clearRect(0, 0, viewWidth, viewHeight);
       ctx.imageSmoothingEnabled = false;
@@ -1175,14 +1327,14 @@ export default function PixelJijiaPage() {
         trailRef.current.length = 0;
         renderRoomScene(ctx, roomTerrain, room, character, playerRef.current,
           pose, cameraRef.current,
-          time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current,baseState,studyAchievements,robotAtlasesRef.current.get("guodong"),activeCompanion);
+          time, !reducedMotion.matches, climate, seated?seatDepth(seated.object):playerRef.current.y, effectsRef.current,baseState,studyAchievements,robotAtlasesRef.current.get("guodong"),activeCompanion,sceneLife);
       } else {
         advanceSurfaceTrail(trailRef.current, previous, playerRef.current, dt, surfaceRef.current, !reducedMotion.matches);
         const wild=wildlifeRef.current.filter(a=>!pet||a.variant!==pet.variant||a.species!==pet.species);
         updateWildlife(wild,playerRef.current,dt,(climate?.hour??12)+(climate?.minute??0)/60,climate?.weather??null,!reducedMotion.matches,castRef.current,walking);
         renderScene(ctx, terrain, atlas, sprites, props, character,
           playerRef.current, pose, cameraRef.current,
-          climate,activeCompanion?[...wild,activeCompanion]:wild,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind,robots,robotAtlasesRef.current,controlledRobot,trainingRef.current);
+          climate,activeCompanion?[...wild,activeCompanion]:wild,castRef.current,time,!reducedMotion.matches,surfaceRef.current,trailRef.current,seated?seatDepth(seated.object):playerRef.current.y,effectsRef.current,wind,robots,robotAtlasesRef.current,controlledRobot,trainingRef.current,availableSources(climate?.season??"summer",gatheredSources.current,Date.now()),sceneLife);
       }
 
       if (reducedMotion.matches || room) {
@@ -1242,13 +1394,16 @@ export default function PixelJijiaPage() {
       const nextNearby = seated || room || nearRobot ? null : closestFeature(playerRef.current, directionRef.current, targetRef.current as Feature|null);
       const cast=castRef.current;
       const ready=cast&&!cast.pending&&fishingReady(wildlifeRef.current,cast,time);
-      const animal=(!nextNearby||heldFood)&&!seated?nearAnimal():null;
-      const source=!room?closestFoodSource(playerRef.current):null;
+      const animal=(!nextNearby||heldItem)&&!seated?nearAnimal():null;
+      const source=!room?nearbySource():null;
       const labelAnimal=animal?(animal.id==="companion"?pet?.name??animalLabel(animal):animalLabel(animal)):"";
+      const life=!seated&&!nearRobot&&!cast&&!studyEditing?nearLife():null;
+      const lifeLabelNow=life?lifeLabel(life):!seated&&!nearRobot&&!cast&&!studyEditing&&!nextNearby&&!targetRef.current&&mayPlace()&&validPlacement(aheadPoint())?(heldItem?.item.kind==="seed"?"播种":"放置"+heldItem?.item.name):"";
+      lifePromptRef.current=lifeLabelNow;
       const prompt=seated||selectedRef.current||transitionRef.current||animalMenu?"":cast?(cast.caughtAt!==undefined?"":ready?"收竿":"等待鱼咬钩"):
         nearRobot?(robotControlled?"退出机器人":nearRobot.model.capability==="display"?"观看飞镖展示":"接管"+nearRobot.model.name.replace("机器人","")):
-        animal&&heldFood?.item.feeds?.includes(animal.species)?"喂食"+labelAnimal:source?"拿取"+worldItems.get(source.id)?.name:nextNearby?"":
-        !room&&fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+labelAnimal:"";
+        animal&&heldItem?.item.feeds?.includes(animal.species)?"喂食"+labelAnimal:lifeLabelNow|| (source?"拿取"+worldItems.get(source.id)?.name:nextNearby?"":
+        !room&&fishingTarget(playerRef.current)?"钓鱼":animal?"观察"+labelAnimal:"");
       if(prompt!==naturePromptRef.current){naturePromptRef.current=prompt;setNaturePrompt(prompt);}
       if(noticeUntilRef.current&&time>=noticeUntilRef.current){noticeUntilRef.current=0;setNatureNotice("");}
       canvas.dataset.wildlife=String(room?0:wildlifeRef.current.length);
@@ -1270,10 +1425,12 @@ export default function PixelJijiaPage() {
         setNearby(nextNearby);
       }
       const feature=room?nextRoom:nextNearby;
-      const label=seated?"起身":room&&nextRoom?roomAction(nextRoom,room.id,baseState):naturePromptRef.current || (nextNearby?featureAction(nextNearby):"");
+      const label=seated?"起身":lifeLabelNow|| (room&&nextRoom?(room.id==="mechanical"&&nextRoom.kind==="workbench"&&heldItem?.row&&["wrench","wheel"].includes(heldItem.item.id)?"清理"+heldItem.item.name:roomAction(nextRoom,room.id,baseState)):naturePromptRef.current || (nextNearby?featureAction(nextNearby):""));
+      canvas.dataset.life=JSON.stringify(sceneLife.map(o=>({type:o.type,id:o.type==="loan"?o.value.itemId:o.value.id,x:o.point.x,y:o.point.y,stage:o.type==="plant"?plantStage(o.value):undefined})));
+      canvas.dataset.held=heldItem?.item.id??"";
       if(!studyEditing&&!menuOpen&&!mapOpen&&!selectedRef.current&&!selectedRoom&&!catalogueDetail&&!animalMenu&&!transitionRef.current&&label&&label!=="等待鱼咬钩"&&!(robotControlled&&trainingRef.current)){
         const c=snapCamera(cameraRef.current);
-        const anchor=nearRobot?{x:nearRobot.x,y:nearRobot.y-nearRobot.model.anchorY/TILE}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
+        const anchor=nearRobot?{x:nearRobot.x,y:nearRobot.y-nearRobot.model.anchorY/TILE}:life&&lifeLabelNow?{x:life.point.x,y:life.point.y-1.6}:seated||!feature?{x:playerRef.current.x,y:playerRef.current.y-3}:"kind" in feature?(room&&room.id!=="study"&&feature.kind!=="exit"?roomObjectVisualBounds(feature):{x:feature.x+feature.width/2,y:feature.y-1}):"href" in feature?{x:feature.x+feature.width/2,y:feature.y+feature.height-2}:{x:feature.x,y:feature.y-feature.height/TILE};
         const text=(mobile?"":"E ")+label;
         ctx.save();ctx.font="bold 10px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
         const w=ctx.measureText(text).width+12;
@@ -1347,7 +1504,7 @@ export default function PixelJijiaPage() {
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [assetState, resizeCanvas, setMapZoom, seated, mapOpen, room, roomScale, selectedRoom,
-    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, controlledRobot,robots,activeRobot,baseState,studyAchievements,pet,heldFood,animalWalkable,nearAnimal,animalMenu,visibleAnimals,studyGuest]);
+    climate?.season, enterRoom, exitRoom, discoveries, clearInput, menuOpen, mobile, catalogueDetail, studyEditing, controlledRobot,robots,activeRobot,baseState,studyAchievements,pet,heldItem,animalWalkable,nearAnimal,animalMenu,visibleAnimals,studyGuest,sceneLife,animalBusy]);
 
   const handleMapClick = (event: {clientX: number; clientY: number}) => {
     const canvas = canvasRef.current;
@@ -1370,7 +1527,7 @@ export default function PixelJijiaPage() {
         const shape = furnitureSize(studyTool);
         const player = playerRef.current;
         const companion=companionRef.current;
-        const actors=companion?.scene==="study"?[player,companion]:[player];
+        const actors=[player,...(companion?.scene==="study"?[companion]:[]),...sceneLife.map(o=>o.point)];
         if (actors.some(actor=>actor.x + 0.3 > cellX && actor.x - 0.3 < cellX + shape.width &&
             actor.y + 0.3 > cellY && actor.y - 0.3 < cellY + shape.height)) {
           setStudyNotice("不能将家具放在角色或宠物脚下");
@@ -1391,17 +1548,20 @@ export default function PixelJijiaPage() {
       const target=robots.filter(robot=>robotInReach(robot,playerRef.current)&&Math.abs(x-robot.x)<robot.model.width/TILE/2&&y>=robot.y-robot.model.anchorY/TILE&&y<=robot.y+.7).sort((a,b)=>b.y-a.y)[0];
       if(target&&toggleRobot(target))return;
     }
-    const clickedAnimal=visibleAnimals().filter(a=>Math.abs(a.x-x)<1&&y>=a.y-2&&y<=a.y+.4&&reachableAnimal(a,heldFood?.item.feeds?.includes(a.species)?a.species==="fish"?5:3.5:2.7)).sort((a,b)=>b.y-a.y)[0];
+    if(!castRef.current&&interactLife(nearLife({x,y})))return;
+    const clickedAnimal=visibleAnimals().filter(a=>Math.abs(a.x-x)<1&&y>=a.y-2&&y<=a.y+.4&&reachableAnimal(a,heldItem?.item.feeds?.includes(a.species)?a.species==="fish"?5:3.5:2.7)).sort((a,b)=>b.y-a.y)[0];
     if(clickedAnimal){openAnimal(clickedAnimal);return;}
     if(!room){
-      const source=closestFoodSource(playerRef.current);
-      if(source&&Math.hypot(source.x-x,source.y-y)<1){void collectFood(source.id);return;}
+      const source=nearbySource();
+      if(source&&Math.hypot(source.x-x,source.y-y)<1){void collectSource(source);return;}
     }
     if (room) {
       const object = roomObjectAt(room, { x, y });
       if (object) interactRoom(object);
+      else if(mayPlace())placeHeld(placePoint({x,y}));
       return;
     }
+    if(mayPlace()&&placeHeld(placePoint({x,y})))return;
     const sprites = artIndexRef.current;
     const place = sprites && [...PLACES].sort((a,b) => b.y + b.height - a.y - a.height).find(p => {
       const bounds = buildingBounds(p, sprites);
@@ -1566,9 +1726,10 @@ export default function PixelJijiaPage() {
             ))}
           </div>
         </details>
-        <PixelInventory change={inventoryChange} atWater={()=>!room&&Boolean(fishingTarget(playerRef.current))} onInspect={(item,row,owner)=>{
-          if(item.kind==="food"){pendingFood.current=null;setHeldFood({item,row,owner});inspecting.current=null;}
-          else inspecting.current={item,until:performance.now()+3200};
+        <PixelInventory change={inventoryChange} atWater={()=>!room&&Boolean(fishingTarget(playerRef.current))} onRelease={id=>setHeldItem(old=>old?.row?.id===id?null:old)} onInspect={(item,row,owner)=>{
+          if(animalBusy)return;
+          restoreHeld();setHeldItem({item,row,owner});
+          if(baseState.item==="held")setBaseState(old=>transferItem(old,"source"));
           setMapOpen(false);fishingNotice(item.name);
         }}/>
         {pet&&<details className="pixel-world-map-discoveries">
@@ -1596,10 +1757,18 @@ export default function PixelJijiaPage() {
         </div>}
       </aside>}
       {room && <div className="pixel-world-room-name">{room.title}</div>}
-      {heldFood&&!animalMenu&&!menuOpen&&!mapOpen&&!robotControlled&&<div className="pixel-base-toolbelt pixel-world-held-food">
-        <span>手持 · {heldFood.item.name}</span>
-        <button type="button" disabled={animalBusy} onClick={()=>{pendingFood.current=null;setHeldFood(null);}}>收回</button>
+      {heldItem&&!animalMenu&&!menuOpen&&!mapOpen&&!robotControlled&&<div className="pixel-base-toolbelt pixel-world-held-food">
+        <span>手持 · {heldItem.item.name}</span>
+        {heldItem.item.id==="pinecone"&&heldItem.row&&<button type="button" disabled={animalBusy} onClick={()=>combineItem("open")}>剥取松子</button>}
+        <button type="button" disabled={animalBusy} onClick={restoreHeld}>{heldItem.loan?"归还":heldItem.plant?"取消移动":"收回"}</button>
       </div>}
+      {!heldItem&&!seated&&!menuOpen&&!mapOpen&&!robotControlled&&!studyGuest&&!animalMenu&&(()=>{
+        const object=nearLife();
+        if(object?.type==="loan"&&object.value.itemId==="picnic-mat")return <div className="pixel-base-toolbelt pixel-world-life-action"><button type="button" onClick={()=>restOnMat(object)}>坐在野餐垫上</button></div>;
+        if(room?.id==="study"&&object?.type==="plant"&&plantStage(object.value)===3)return <div className="pixel-base-toolbelt pixel-world-life-action"><button type="button" disabled={animalBusy} onClick={()=>{setHeldItem({item:worldItems.get("flowerpot")!,plant:object.value});lifePose(object.point);}}>移动花盆</button></div>;
+        if(object?.type==="loan"&&["toolbox","lantern"].includes(object.value.itemId))return <div className="pixel-base-toolbelt pixel-world-life-action"><button type="button" onClick={()=>{setLoans(old=>old.map(o=>o.key===object.value.key?{...o,active:!o.active}:o));lifePose(object.point);}}>{object.value.itemId==="toolbox"?(object.value.active?"合上工具箱":"打开工具箱"):(object.value.active?"熄灭提灯":"点亮提灯")}</button></div>;
+        return null;
+      })()}
       {animalMenu&&(()=>{
         const animal=visibleAnimals().find(a=>a.id===animalMenu);
         if(!animal)return null;
@@ -1614,7 +1783,7 @@ export default function PixelJijiaPage() {
                 if(petAnimal(animal,playerRef.current)){setAnimalMenu(null);fishingNotice((own?pet?.name:animalLabel(animal))+" 亲近了你");}
                 else fishingNotice("先在它身边安静停留一会儿");
               }}>抚摸</button>}
-              {heldFood?.item.feeds?.includes(animal.species)&&<button type="button" disabled={animalBusy} onClick={()=>feedAnimal(animal)}>喂食 · {heldFood.item.name}</button>}
+              {heldItem?.item.feeds?.includes(animal.species)&&<button type="button" disabled={animalBusy} onClick={()=>feedAnimal(animal)}>喂食 · {heldItem.item.name}</button>}
               {canAdopt&&(getCachedCurrentUser()?<form onSubmit={e=>{e.preventDefault();adoptAnimal(animal);}}>
                 <input aria-label="宠物名称" placeholder="给它取个名字" value={petName} maxLength={16} onChange={e=>setPetName(e.target.value)}/>
                 <button type="submit" disabled={animalBusy||!petName.trim()}>领养</button>
@@ -1687,8 +1856,8 @@ export default function PixelJijiaPage() {
         发现共建彩蛋 · {natureNotice.title}{natureNotice.community?.sources.map((source,index)=>source.authorName&&<span key={source.comment}> · {communityCreditRole(natureNotice.community!.sources,index)}：{source.authorName}</span>)}
       </>}</div>}
       {mobile && !studyEditing && !menuOpen && !mapOpen && !selected && !selectedRoom && !catalogueDetail && !animalMenu && (seated || nearbyRoom || nearby || (naturePrompt && naturePrompt!=="等待鱼咬钩")) &&
-        <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : nearbyRoom ? interactRoom(nearbyRoom) : toggleRobot()?undefined:naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
-          {seated?"起身":nearbyRoom?roomAction(nearbyRoom,room?.id,baseState):naturePrompt|| (nearby?featureAction(nearby):"")}
+        <button type="button" className="pixel-world-interact" onClick={() => seated ? standUp() : toggleRobot()?undefined:!castRef.current&&interactLife()?undefined:nearbyRoom ? interactRoom(nearbyRoom) : lifePromptRef.current&&placeHeld(aheadPoint())?undefined:naturePrompt ? interactNature() : nearby && interactFeature(nearby)}>
+          {seated?"起身":lifePromptRef.current|| (nearbyRoom?(room?.id==="mechanical"&&nearbyRoom.kind==="workbench"&&heldItem?.row&&["wrench","wheel"].includes(heldItem.item.id)?"清理"+heldItem.item.name:roomAction(nearbyRoom,room?.id,baseState)):naturePrompt|| (nearby?featureAction(nearby):""))}
         </button>}
 
       {selected && (

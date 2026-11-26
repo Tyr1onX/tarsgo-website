@@ -21,10 +21,15 @@ import (
 var pixelCatalogJSON []byte
 
 type fishingItem struct {
-	ID    string
-	Kind  string
-	Ponds []int
-	Feeds []string
+	ID      string
+	Kind    string
+	Ponds   []int
+	Feeds   []string
+	Gather  uint64
+	Sources []struct {
+		X, Y   float64
+		Season string
+	}
 }
 
 var fishingCatalog = func() []fishingItem {
@@ -59,6 +64,8 @@ type pixelItemAction struct {
 	Variant  string `json:"variant"`
 	Name     string `json:"name"`
 	Mode     string `json:"mode"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
 }
 
 func pixelAction(c *gin.Context) (pixelItemAction, bool) {

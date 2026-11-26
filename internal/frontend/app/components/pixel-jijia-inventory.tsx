@@ -12,7 +12,7 @@ function ItemIcon({ item }:{ item:WorldItem }) {
   }}/>;
 }
 
-export function PixelInventory({ change, atWater, onInspect }:{change:number; atWater:()=>boolean; onInspect:(item:WorldItem,row:ItemRow,owner:number)=>void}) {
+export function PixelInventory({ change, atWater, onInspect, onRelease }:{change:number; atWater:()=>boolean; onRelease:(id:string)=>void; onInspect:(item:WorldItem,row:ItemRow,owner:number)=>void}) {
   const [open,setOpen]=useState(false);
   const [rows,setRows]=useState<ItemRow[]>([]);
   const [loading,setLoading]=useState(true);
@@ -56,7 +56,7 @@ export function PixelInventory({ change, atWater, onInspect }:{change:number; at
     if(!id||busy)return;
     setBusy(true);
     let message="已放生";
-    try{await apiRequest("/api/pixel-home/release",{method:"POST",body:{owner:id,id:row.id,revision:row.revision}});}
+    try{await apiRequest("/api/pixel-home/release",{method:"POST",body:{owner:id,id:row.id,revision:row.revision}});if(getCachedCurrentUser()?.id===id)onRelease(row.id);}
     catch(error){message=error instanceof Error?error.message:"请重新查看背包";}
     if(getCachedCurrentUser()?.id!==id)return;
     await load();
@@ -74,11 +74,11 @@ export function PixelInventory({ change, atWater, onInspect }:{change:number; at
         return <div key={row.id}><ItemIcon item={item}/><span>{item.name} · {row.quantity? "×"+row.quantity:"已发现"}</span>
           {row.quantity>0&&<button type="button" disabled={busy} onClick={()=>{
             if(owner.current!==null&&owner.current===getCachedCurrentUser()?.id)onInspect(item,row,owner.current);
-          }}>{item.kind==="food"?"拿取":"拿起看看"}</button>}
+          }}>{["food","seed","tool"].includes(item.kind)||item.id==="pinecone"||item.id==="wheel"?"拿取":"拿起看看"}</button>}
           {item.kind==="fish"&&row.quantity>0&&<button type="button" disabled={busy} onClick={()=>void release(row)}>放生一条</button>}
         </div>;
       })}
-      {guest?<Link to="/login">登录后保存渔获</Link>:notice?<span role="status">{notice}</span>:!rows.length&&<span>{loading?"读取背包中…":"暂无收藏"}</span>}
+      {guest?<Link to="/login">登录后保存物品</Link>:notice?<span role="status">{notice}</span>:!rows.length&&<span>{loading?"读取背包中…":"暂无收藏"}</span>}
       {notice&&!guest&&rows.length===0&&<button type="button" onClick={()=>void load()}>刷新背包</button>}
     </div>}
   </details>;

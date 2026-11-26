@@ -1,5 +1,6 @@
 import { drawItem } from "./pixel-jijia-item-art.ts";
-import { FOOD_SOURCES,worldItems } from "./pixel-jijia-items.ts";
+import { drawLifeObject,type LifeObject } from "./pixel-jijia-nature.ts";
+import { availableSources,worldItems,type ItemSource } from "./pixel-jijia-items.ts";
 import {
   FOUNTAIN, TRAINING_FIELD, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt, puddleCell, worldHash as hash,
   type Direction, type Place, type Position, type PropSprite, type Scenery, type SurfaceMark,
@@ -17,7 +18,7 @@ const PROP_CELLS: Record<PropSprite, number> = {
   bench: 0, lamp: 1, sign: 2, planter: 3,
   oak: 4, lime_tree: 5, cherry: 6, rocks: 7,
   fence: 8, hydrangea: 9, statue: 10, arch: 11,
-  "training-base-red":12,"training-base-blue":13,"training-outpost":14,"training-rune":15,"training-cover":16,
+  "training-base-red":12,"training-base-blue":13,"training-outpost":14,"training-rune":15,"training-cover":16,pine:17,
 };
 const PROP_CELL = 128;
 export const GROUND_PATCH=128,GROUND_TEXTURE_TILE=32,GROUND_ATLAS_HEIGHT=1376;
@@ -536,7 +537,7 @@ function silhouette(image:HTMLImageElement,box:SpriteBox,key:string){
   ctx.globalCompositeOperation="source-in";ctx.fillStyle="#263d35";ctx.fillRect(0,0,canvas.width,canvas.height);
   shadowCache.set(key,canvas);return canvas;
 }
-const isTree=(p:Scenery)=>["oak","lime_tree","cherry"].includes(p.sprite);
+const isTree=(p:Scenery)=>["oak","lime_tree","cherry","pine"].includes(p.sprite);
 function drawSun(ctx:CanvasRenderingContext2D,atlas:HTMLImageElement,sprites:SpriteIndex,props:HTMLImageElement,camera:Position,c:OutdoorClimate,width:number,height:number,
   character:HTMLImageElement,player:Position,pose:ExplorerAnimation,time:number,wind:number){
   if(c.sunHeight<=.035||c.weather==="fog"||c.weather==="rain"||c.weather==="storm"||c.weather==="snow")return;
@@ -786,7 +787,7 @@ export function renderScene(
   ctx: CanvasRenderingContext2D, terrain: Terrain,
   atlas: HTMLImageElement, sprites: SpriteIndex, props: HTMLImageElement,
   characterSheet: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
-  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,wind=0,robots:readonly CampusRobot[]=[],robotAtlases?:RobotAtlases,controlledRobot:CampusRobot|null=null,training:TrainingSession|null=null,
+  climate:OutdoorClimate|null=null,animals:Animal[]=[],cast:FishingCast|null=null,time=0,motion=true,surface:SurfaceWeather={wet:0,snow:0},marks:SurfaceMark[]=[],seatDepth=player.y,effects?:ReadonlyMap<string,number>,wind=0,robots:readonly CampusRobot[]=[],robotAtlases?:RobotAtlases,controlledRobot:CampusRobot|null=null,training:TrainingSession|null=null,sources:readonly ItemSource[]=availableSources(climate?.season??"summer",new Map(),time),life:LifeObject[]=[],
 ) {
   const screenCamera = snapCamera(camera);
   const w=ctx.canvas.width/WORLD_ART_SCALE,h=ctx.canvas.height/WORLD_ART_SCALE;
@@ -794,7 +795,7 @@ export function renderScene(
   drawTrainingGround(ctx,screenCamera,w,h);
   drawWater(ctx,screenCamera,w,h,marks,time,motion,climate,wind);
   if(climate){drawDew(ctx,screenCamera,climate,w,h);drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
-  for(const source of FOOD_SOURCES){
+  for(const source of sources){
     const item=worldItems.get(source.id);
     const x=point(source.x)-screenCamera.x,y=point(source.y)-screenCamera.y;
     if(item&&x>-15&&x<w+15&&y>-15&&y<h+15){
@@ -806,12 +807,13 @@ export function renderScene(
     }
   }
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
-  const land:(Animal|CampusRobot)[]=animals.filter(a=>a.species!=="fish");
+  const land:(Animal|CampusRobot|LifeObject)[]=[...animals.filter(a=>a.species!=="fish"),...life];
   if(robotAtlases)land.push(...robots);
   if(training&&robotAtlases)land.push(training.opponent);
-  const depth=(a:Animal|CampusRobot)=>a.y+("species" in a?0:.65);
+  const depth=(a:Animal|CampusRobot|LifeObject)=>"point" in a?a.point.y:a.y+("species" in a?0:.65);
   land.sort((a,b)=>depth(a)-depth(b));
-  const drawLand=(a:Animal|CampusRobot)=>{
+  const drawLand=(a:Animal|CampusRobot|LifeObject)=>{
+    if("point" in a){drawLifeObject(ctx,a,screenCamera,Date.now());return;}
     if("species" in a)drawAnimal(ctx,a,screenCamera,motion);
     else if(robotAtlases){
       ctx.save();

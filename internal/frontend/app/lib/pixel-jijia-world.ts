@@ -106,7 +106,7 @@ export function waterDepthAt(x: number, y: number): 0 | 1 | 2 {
 }
 
 export type PropSprite =
-  | "bench" | "lamp" | "sign" | "planter" | "oak" | "lime_tree"
+  | "bench" | "lamp" | "sign" | "planter" | "oak" | "lime_tree" | "pine"
   | "cherry" | "rocks" | "fence" | "hydrangea" | "statue" | "arch"
   | "training-base-red" | "training-base-blue" | "training-outpost" | "training-rune" | "training-cover";
 export type Scenery = Position & {
@@ -135,6 +135,7 @@ export const SCENERY: Scenery[] = [
   { sprite: "hydrangea", x: 83.5, y: 32, width: 45, height: 36 },
   // Landscape framing extends beyond the hero square, using the same authored kit.
   { sprite: "oak", x: 50.5, y: 39.5, habitat: "sparrow", width: 86, height: 101 },
+  { sprite: "pine", x: 93.5, y: 42.5, width: 65, height: 90 },
   { sprite: "cherry", x: 93.5, y: 39.5, habitat: "squirrel", width: 86, height: 102, story: { title: "樱树下的约定", caption: "BLOSSOM PROMISE", description: "每年花开时，总有人重新走过这里。机器会更换零件，但一些约定会慢慢长成树。", action: "接住一片花瓣", result: "花瓣停在掌心一瞬，又被风带走。你记住了它落下的方向。" } },
   { sprite: "oak", x: 53, y: 62, width: 86, height: 101 },
   { sprite: "lime_tree", x: 91, y: 62, width: 86, height: 101 },
@@ -221,6 +222,7 @@ const GROUND_RULES: Record<PropSprite, { natural: boolean; shape: "broad" | "rou
   hydrangea: { natural: true, shape: "broad", depth: .52 },
   oak: { natural: true, shape: "round", depth: .9 },
   lime_tree: { natural: true, shape: "round", depth: .9 },
+  pine: { natural: true, shape: "round", depth: .9 },
   cherry: { natural: true, shape: "round", depth: .9 },
   lamp: { natural: false, shape: "round", depth: .4 },
   sign: { natural: false, shape: "round", depth: .38 },
@@ -314,7 +316,7 @@ export function isWalkable(x: number, y: number, radius = 0.3): boolean {
 // building eave. Wildlife and rainfall use the same spatial definition.
 export function shelteredAt(x:number,y:number):boolean {
   if(PLACES.some(p=>x>=p.x+.35&&x<=p.x+p.width-.35&&y>=p.y&&y<=p.y+p.height+.65))return true;
-  return SCENERY.some(p=>["oak","lime_tree","cherry"].includes(p.sprite)&&
+  return SCENERY.some(p=>["oak","lime_tree","cherry","pine"].includes(p.sprite)&&
     ((x-p.x)/(p.width/TILE*.43))**2+((y-(p.y-.8))/(p.height/TILE*.27))**2<=1);
 }
 
