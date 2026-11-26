@@ -1,3 +1,4 @@
+import {readFileSync} from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {ITEM_SOURCES,availableSources,closestItemSource,worldItems} from "./pixel-jijia-items.ts";
@@ -52,4 +53,13 @@ test("种子、发芽、生长、开花由一次浇水时间决定且移动不�
  assert.equal(plantStage(moved,25000),3);assert.deepEqual(plantPoint(moved),{x:10.5,y:11.5});
  assert.equal(lifeObjects([], [moved],{item:worldItems.get("flowerpot"),plant:moved}).length,0);
  assert.ok(plantCarrySprite(moved).pixels.length>worldItems.get("flowerpot").pixels.length);
+});
+
+test("合法物件放置优先于宠物观察，鼠标与触控共享场景点击",()=>{
+ const route=readFileSync(new URL("../routes/pixel-jijia.tsx",import.meta.url),"utf8");
+ const click=route.slice(route.indexOf("const handleMapClick"),route.indexOf("const handleTouchDown"));
+ assert.ok(click.indexOf("interactLife(nearLife")>=0);
+ assert.ok(click.indexOf("placeHeld(placePoint")>click.indexOf("interactLife(nearLife"));
+ assert.ok(click.indexOf("placeHeld(placePoint")<click.indexOf("const clickedAnimal"));
+ assert.equal(click.match(/placeHeld\(placePoint/g)?.length,1);
 });

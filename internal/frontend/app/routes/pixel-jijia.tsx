@@ -447,7 +447,7 @@ export default function PixelJijiaPage() {
   const validPlacement=(point:Position,ignore?:LifeObject)=>{
     if(studyGuest||room&&room.id!=="study")return false;
     const valid=(p:Position)=>room?studyPlacement(p)&&isRoomWalkable(room,p.x,p.y):outdoorPlacement(p);
-    if(freshLoans(sceneRef.current).some(o=>o.key!==heldItem?.loan?.key&&!(ignore?.type==="loan"&&ignore.value.key===o.key)&&Math.hypot(o.x-point.x,o.y-point.y)<.8))return false;
+    if(freshLoans(sceneRef.current).some(o=>o.key!==heldItem?.loan?.key&&o.key!==heldItem?.plant?.potKey&&!(ignore?.type==="loan"&&ignore.value.key===o.key)&&Math.hypot(o.x-point.x,o.y-point.y)<.8))return false;
     const companion=companionRef.current;
     if(companion?.scene===(room?.id??"campus")&&Math.hypot(companion.x-point.x,companion.y-point.y)<.75)return false;
     if(!room&&robots.some(robot=>robotBlocksPlayer(robot,point.x,point.y)))return false;
@@ -1549,6 +1549,7 @@ export default function PixelJijiaPage() {
       if(target&&toggleRobot(target))return;
     }
     if(!castRef.current&&interactLife(nearLife({x,y})))return;
+    if(!castRef.current&&mayPlace()&&placeHeld(placePoint({x,y})))return;
     const clickedAnimal=visibleAnimals().filter(a=>Math.abs(a.x-x)<1&&y>=a.y-2&&y<=a.y+.4&&reachableAnimal(a,heldItem?.item.feeds?.includes(a.species)?a.species==="fish"?5:3.5:2.7)).sort((a,b)=>b.y-a.y)[0];
     if(clickedAnimal){openAnimal(clickedAnimal);return;}
     if(!room){
@@ -1558,10 +1559,8 @@ export default function PixelJijiaPage() {
     if (room) {
       const object = roomObjectAt(room, { x, y });
       if (object) interactRoom(object);
-      else if(mayPlace())placeHeld(placePoint({x,y}));
       return;
     }
-    if(mayPlace()&&placeHeld(placePoint({x,y})))return;
     const sprites = artIndexRef.current;
     const place = sprites && [...PLACES].sort((a,b) => b.y + b.height - a.y - a.height).find(p => {
       const bounds = buildingBounds(p, sprites);
