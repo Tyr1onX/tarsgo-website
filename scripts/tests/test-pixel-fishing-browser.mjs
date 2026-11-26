@@ -483,7 +483,7 @@ try {
   const account=()=>evaluate('fetch("/api/me",{cache:"no-store"}).then(r=>r.json()).then(r=>r.data?.user?.id)');
   const ownerId=await account();
   assert.ok(ownerId);
-  const signOut=()=>evaluate('fetch("/api/logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}).then(r=>r.status)');
+  const signOut=()=>evaluate('fetch("/api/logout",{method:"POST",headers:{"Content-Type":"application/json","X-Tarsgo-Account-Action":"1"},body:"{}"}).then(r=>r.status)');
   const signIn=(email,password)=>evaluate(`fetch("/api/login/email/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:${JSON.stringify(email)},password:${JSON.stringify(password)}})}).then(r=>r.status)`);
   assert.equal(await signOut(),200);
   assert.equal(await evaluate('fetch("/api/pixel-home/items",{cache:"no-store"}).then(r=>r.status)'),401);
