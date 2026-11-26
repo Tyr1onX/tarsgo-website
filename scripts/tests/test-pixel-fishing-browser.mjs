@@ -68,13 +68,23 @@ try {
   }
   diagnose=async label=>{
     try{
-      const d=await evaluate(`(()=>{const d=${state};return d?{scene:d.scene,x:d.playerX,y:d.playerY,interaction:d.interaction,held:d.held,life:d.life,animals:d.animals,pet:d.pet,transition:d.transition}:null})()`);
+      const d=await evaluate(`(()=>{const d=${state};return d?{scene:d.scene,x:d.playerX,y:d.playerY,interaction:d.interaction,held:d.held,life:d.life,animals:d.animals,pet:d.pet,transition:d.transition,calendar:new Date().toISOString(),climate:document.querySelector(".pixel-world-climate")?.textContent}:null})()`);
       console.log("Browser timeout evidence",label,JSON.stringify(d));
       await screenshot("failure-"+label.replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,80));
     }catch(error){console.log("Browser evidence unavailable",String(error));}
   };
+  // Register the real browser's calendar fixture before its first navigation.
+  // Date.now remains the real wall clock for database cooldowns and plant growth.
+  await command("Page.enable");
+  const fixedCalendar="2026-11-26T04:00:00.000Z";
+  await command("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{
+    const RealDate=Date;
+    function FixtureDate(...args){if(!new.target)return new RealDate(${JSON.stringify(fixedCalendar)}).toString();return args.length?new RealDate(...args):new RealDate(${JSON.stringify(fixedCalendar)});}
+    Object.setPrototypeOf(FixtureDate,RealDate);FixtureDate.prototype=RealDate.prototype;globalThis.Date=FixtureDate;
+  })()`});
   await command("Page.navigate",{url:origin+"/healthz"});
   await until(()=>evaluate(`location.origin===${JSON.stringify(origin)}`),"local acceptance site");
+  assert.equal(await evaluate("new Date().toISOString()"),fixedCalendar,"calendar fixture installed");
   const status=await evaluate(`fetch("/api/login/email/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:"test-user@tarsgo.test",password:"synthetic-user-only"})}).then(r=>r.status)`);
   assert.equal(status,200,"synthetic login");
   const bag=()=>evaluate('fetch("/api/pixel-home/items",{cache:"no-store"}).then(r=>r.json()).then(r=>r.data)');
@@ -132,16 +142,9 @@ try {
   await screenshot("mobile-release");
   console.log("Four banks, desktop keyboard, mobile touch, reload and release passed.");
   }
-  // The same real built game, session and inventory now exercise wildlife and
-  // companions. Freeze only the browser calendar for repeatable daytime weather;
-  // wall clock timers and server authentication remain real.
+  // The same built game, session and inventory exercise wildlife and companions.
   await command("Emulation.setDeviceMetricsOverride",{width:1200,height:850,deviceScaleFactor:1,mobile:false});
   await command("Emulation.setTouchEmulationEnabled",{enabled:false});
-  await command("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{
-    const RealDate=Date;
-    function FixtureDate(...args){if(!new.target)return RealDate();return args.length?new RealDate(...args):new RealDate("2026-11-26T08:40:00Z");}
-    Object.setPrototypeOf(FixtureDate,RealDate);FixtureDate.prototype=RealDate.prototype;globalThis.Date=FixtureDate;
-  })()`});
   const animals=()=>evaluate(`JSON.parse(${state}?.animals||"[]")`);
   const pet=()=>evaluate('fetch("/api/pixel-home/pet",{cache:"no-store"}).then(r=>r.json()).then(r=>r.data)');
   async function click(selector,label) {
@@ -153,6 +156,7 @@ try {
     await evaluate(`history.replaceState({usr:{pixelReturn:{x:${x},y:${y},zoom:1.35,parent:"/"}},key:"animal",idx:0},"","/pixel-jijia")`);
     await command("Page.reload",{ignoreCache:true});
     await until(()=>evaluate(`${state}?.animals && +${state}?.playerX===${x} && +${state}?.playerY===${y}`),"animal starting position",45000);
+    assert.equal(await evaluate("new Date().toISOString()"),fixedCalendar,"calendar fixture after reload");
   }
   async function equip(item,mobile=false) {
     if(mobile){await tap(".pixel-world-menu-toggle","");await tap(".pixel-world-tool","地图");}
@@ -326,8 +330,11 @@ try {
   await clickWorld(68.5,77.5);
   await holding("picnic-mat");
   assert.ok(!(await life()).some(o=>o.id==="picnic-mat"));
-  await clickWorld(69.5,77.5);
-  await loanAt("picnic-mat",69.5,77.5);
+  await clickWorld(69.5,77.5); // brick path: reject without losing the held mat
+  await holding("picnic-mat");
+  assert.ok(!(await life()).some(o=>o.id==="picnic-mat"));
+  await clickWorld(68.5,78.5); // verified grass on the same lawn
+  await loanAt("picnic-mat",68.5,78.5);
   await holding("");
   await click("button","坐在野餐垫上");
   await until(()=>evaluate(`["sit","sit-rest"].includes(${state}?.action)&&${state}?.pet!=="away"`),"picnic rest with pet");
@@ -335,7 +342,7 @@ try {
   await screenshot("picnic-rest");
   await key("e");
   await until(()=>evaluate(`!["sit","sit-rest"].includes(${state}?.action)`),"stand after rest");
-  await clickWorld(69.5,77.5);
+  await clickWorld(68.5,78.5);
   await holding("picnic-mat");
   await click(".pixel-world-held-food button","归还");
   await loanAt("picnic-mat",68.5,77.5);
