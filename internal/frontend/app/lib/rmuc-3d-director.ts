@@ -1,5 +1,5 @@
 import type {DamageEvent,MatchEvent,Match,Team} from './rmuc-3d-match.ts';
-export type Shot={kind:'all'}|{kind:'follow'|'ai-first';robot:string}|{kind:'detail';team:Team;object:'base'|'outpost'|'core'|'rune'};
+export type Shot={kind:'all'}|{kind:'follow'|'ai-first';robot:string}|{kind:'detail';team:Team;object:'base'|'outpost'|'core'|'rune'|'dart'};
 type Candidate={shot:Shot;priority:number;until:number};
 // Only presentation candidates; never writes Match or consumes its random streams.
 export function createDirector(){
@@ -15,7 +15,7 @@ export function createDirector(){
    case 'outpost-destroyed':case 'outpost-rebuilt':offer({kind:'detail',team:e.location,object:'outpost'},9,e.at);break;
    case 'cover-opening':case 'cover-open':offer({kind:'detail',team:e.location,object:'base'},10,e.at);break;
    case 'robot-dead':case 'robot-revived':offer({kind:'follow',robot:e.robot},5,e.at);break;
-   case 'dart-launch':offer({kind:'detail',team:e.location,object:e.mode==='outpost'?'outpost':'base'},8,e.at);break;
+   case 'dart-launch':offer({kind:'detail',team:e.team,object:'dart'},9,e.at,2.5);break;
    case 'dart-hit':offer({kind:'detail',team:e.location,object:e.mode==='outpost'?'outpost':'base'},9,e.at);break;
   }
  }

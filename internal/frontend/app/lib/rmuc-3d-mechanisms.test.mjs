@@ -613,7 +613,9 @@ test("both virtual dart models use real CAD guides and the single referee flight
  const mechanism=installMechanisms(field,parts,darts),visual=createDartVisual(scene,mechanism);
  const m=createMatch([],1,1);startMatch(m);updateMatch(m,30);
  for(const team of TEAMS){assert.ok(selectDart(m,team,"fixed"));assert.ok(openDart(m,team));}
- updateMatch(m,7);mechanism.applyDart(m);
+ updateMatch(m,7);mechanism.applyDart(m);visual.update(m);
+ const redStation=visual.group.getObjectByName("red-dart-station-visual"),blueStation=visual.group.getObjectByName("blue-dart-station-visual");
+ const lamps=redStation.children.slice(-4);assert.equal(lamps[0].material.color.getHex(),0xf1d794);
  assert.ok(launchDart(m,"red"));assert.ok(launchDart(m,"blue",false));visual.update(m);
  for(const b of mechanism.dartBindings){
    const model=visual.group.getObjectByName(b.team+"-dart-model");
@@ -631,8 +633,13 @@ test("both virtual dart models use real CAD guides and the single referee flight
  assert.equal(m.sides.red.dart.hits,1);assert.equal(m.sides.blue.dart.hits,0);
  assert.equal(visual.group.children.filter(o=>o.isSprite&&o.visible).length,2);
  visual.update(m);assert.equal(m.sides.blue.base,9800);
- updateMatch(m,.3);visual.update(m);assert.ok(visual.group.children.every(o=>!o.visible));
- visual.update(createMatch([]));assert.ok(visual.group.children.every(o=>!o.visible));
+ updateMatch(m,.3);visual.update(m);assert.ok(visual.group.children.filter(o=>!o.name.endsWith("-dart-station-visual")).every(o=>!o.visible));
+ assert.ok(redStation.visible&&blueStation.visible);
+ assert.equal(lamps[0].material.color.getHex(),0x66716b);assert.equal(lamps[3].material.color.getHex(),0x101512);
+ updateMatch(m,2);visual.update(m);assert.equal(lamps[0].material.color.getHex(),0xf1d794);
+ visual.update(m,"blue");assert.ok(lamps.every(o=>!o.visible));assert.ok(blueStation.children.slice(-4).every(o=>o.visible));
+ visual.update(createMatch([]));assert.ok(visual.group.children.filter(o=>!o.name.endsWith("-dart-station-visual")).every(o=>!o.visible));
+ assert.ok(lamps.every(o=>o.visible&&o.material.color.getHex()===0x66716b));
  visual.dispose();assert.equal(visual.group.parent,null);
 });
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import * as T from "three";
-import {createRobotFeedback,mergeDamageBurst,placeArenaMarker} from "./rmuc-3d-robot-feedback.ts";
+import {createRobotFeedback,mergeDamageBurst,placeArenaMarker,shieldClipPlanes} from "./rmuc-3d-robot-feedback.ts";
 import {createMatch,startMatch,damageTarget,reviveRobot,revivalStatus} from "./rmuc-3d-match.ts";
 import {createProjectileSystem,ballisticAim} from "./rmuc-3d-projectiles.ts";
 import {GROUND_ROSTER} from "./rmuc-3d-identity.ts";
@@ -102,4 +102,35 @@ test("referee immunity and shield visibility use exact state, depth and team per
  robot.visible=false;feedback.update(m,camera,720,"all",true,{firstPerson:true});assert.equal(shell.visible,false);
  robot.visible=true;m.robots[1].hp=0;feedback.update(m,camera,720,"all",true);assert.equal(shell.visible,false);
  feedback.clear();assert.equal(shell.visible,false);feedback.dispose();assert.equal(scene.getObjectByName("ion-shield"),undefined);
+});
+
+test("shield local clipping uses actual world wall normals and floor; no collision geometry changes",()=>{
+ const wall=new T.Mesh(new T.BoxGeometry(.2,2,4),new T.MeshStandardMaterial());wall.position.set(.7,1,0);wall.updateMatrixWorld(true);
+ const ray=new T.Raycaster(),center=new T.Vector3(0,.8,0),planes=Array.from({length:5},()=>new T.Vector4());
+ const trace=(from,direction,distance)=>{ray.set(from,direction);ray.far=distance;return ray.intersectObject(wall,false)[0];};
+ const geometry=wall.geometry,material=wall.material;
+ const count=shieldClipPlanes(planes,center,1,.75,0,trace);assert.equal(count,2);
+ const values=(x,y,z)=>planes.slice(0,count).map(p=>p.dot(new T.Vector4(x,y,z,1)));
+ assert.ok(values(0,.8,0).every(v=>v>0));assert.ok(values(.85,.8,0).some(v=>v<0));assert.ok(values(0,-.1,0).some(v=>v<0));
+ assert.equal(wall.geometry,geometry);assert.equal(wall.material,material);assert.equal(shieldClipPlanes(planes,center,.2,.4,0,trace),1);
+});
+test("live entity accents and event pulses honor priority, team visibility, reduced motion and cleanup",()=>{
+ const id=GROUND_ROSTER.find(r=>r.team==="blue"&&r.number==="03").id,robot=new T.Group();robot.name=id;
+ const body=new T.Mesh(new T.BoxGeometry(.7,.6,.7),new T.MeshStandardMaterial());body.position.y=.3;robot.add(body);
+ const scene=new T.Scene();scene.add(robot);scene.updateMatrixWorld(true);
+ globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
+ let feedback;try{feedback=createRobotFeedback(scene,[robot]);}finally{delete globalThis.document;}
+ const m=createMatch([{id,team:"blue",heavy:false,maxHp:200}]),state=m.robots[0],camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(0,2,5);camera.lookAt(0,.5,0);startMatch(m);
+ const accent=scene.getObjectByName("state-accent"),pulse=scene.getObjectByName("state-pulse");
+ m.elapsed=1;state.powerLockUntil=2;state.thermalLock="cooling";
+ feedback.update(m,camera,720,"all");assert.equal(accent.visible,true);assert.equal(accent.material.color.getHex(),0x8c9791);
+ m.elapsed=2.05;feedback.update(m,camera,720,"all");assert.equal(accent.material.color.getHex(),0xf1a67f);assert.equal(pulse.visible,true);
+ feedback.event({type:"robot-revived",robot:id,team:"blue",hp:100,at:2.1,visibility:"blue"});
+ feedback.event({type:"heal",robot:id,team:"blue",status:"completed",amount:5,at:2.2,visibility:"blue"});m.elapsed=2.4;
+ feedback.update(m,camera,720,"blue");assert.ok(pulse.visible&&pulse.userData.alpha>0);pulse.onBeforeRender();assert.equal(pulse.material.uniforms.tint.value.getHex(),0x65bdff);
+ feedback.update(m,camera,720,"red");assert.equal(accent.visible,false);assert.equal(pulse.visible,false);
+ feedback.update(m,camera,720,"all",true);assert.equal(accent.visible,true);assert.equal(pulse.visible,false);
+ feedback.update(m,camera,720,"all",false,{reserved:[{x:360,y:360,w:720,h:720}]});assert.ok(feedback.group.children.every(o=>!o.visible));
+ robot.visible=false;feedback.update(m,camera,720,"all",false,{firstPerson:true});assert.equal(accent.visible,false);assert.equal(pulse.visible,false);
+ robot.visible=true;feedback.clear();assert.equal(accent.visible,false);assert.equal(pulse.visible,false);feedback.dispose();assert.equal(scene.getObjectByName("state-accent"),undefined);
 });

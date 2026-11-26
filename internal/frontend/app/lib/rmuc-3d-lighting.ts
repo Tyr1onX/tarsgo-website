@@ -66,11 +66,11 @@ export function createArmorGlow(scene:THREE.Scene,robots:THREE.Object3D[]){
 export function createIonShieldMaterial(){
   return new THREE.ShaderMaterial({
     transparent:true,depthTest:true,depthWrite:false,side:THREE.FrontSide,
-    uniforms:{strength:{value:0},time:{value:0},rippleAge:{value:2},rippleDirection:{value:new THREE.Vector3(0,1,0)}},
+    uniforms:{strength:{value:0},time:{value:0},rippleAge:{value:2},rippleDirection:{value:new THREE.Vector3(0,1,0)},clipCount:{value:0},clipPlanes:{value:Array.from({length:5},()=>new THREE.Vector4())}},
     vertexShader:`
-      varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal;
+      varying vec3 vNormal; varying vec3 vView; varying vec3 vLocal; varying vec3 vWorld;
       void main(){
-        vLocal=normalize(position);
+        vLocal=normalize(position);vWorld=(modelMatrix*vec4(position,1.)).xyz;
         vec4 p=modelViewMatrix*vec4(position,1.);
         vNormal=normalize(normalMatrix*normal);vView=normalize(-p.xyz);
         gl_Position=projectionMatrix*p;
@@ -78,7 +78,8 @@ export function createIonShieldMaterial(){
     fragmentShader:`
       uniform float strength,time,rippleAge;
       uniform vec3 rippleDirection;
-      varying vec3 vNormal,vView,vLocal;
+      uniform int clipCount;uniform vec4 clipPlanes[5];
+      varying vec3 vNormal,vView,vLocal,vWorld;
       float hexEdge(vec2 p){
         vec2 r=vec2(1.,1.7320508);
         vec2 a=mod(p,r)-r*.5;
@@ -87,6 +88,7 @@ export function createIonShieldMaterial(){
         return max(abs(h.x),dot(abs(h),normalize(r)));
       }
       void main(){
+        for(int i=0;i<5;i++){if(i<clipCount&&dot(clipPlanes[i],vec4(vWorld,1.))<0.)discard;}
         vec3 n=normalize(vLocal);
         float edge=pow(1.-max(0.,dot(normalize(vNormal),normalize(vView))),2.6);
         vec2 uv=vec2(atan(n.z,n.x)*3.82,asin(n.y)*3.82);
