@@ -7,12 +7,12 @@ export const STADIUM_DEPTH = 54;
 // Small, deterministic tiles; no extra network assets. Each material is
 // shared by every instance of its architectural part.
 function surfaceTexture(kind: "steel" | "concrete") {
-  const size = 128;
+  const size = 512;
   const pixels = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const noise = ((Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663)) >>> 0) % 19;
-    const joint = kind === "concrete" && (x < 2 || y < 2);
-    const brush = kind === "steel" ? Math.round(8 * Math.sin(y * Math.PI / 4)) : 0;
+    const joint = kind === "concrete" && (x < 3 || y < 3);
+    const brush = kind === "steel" ? Math.round(5 * Math.sin(y * Math.PI / 13)+3*Math.sin(y*Math.PI/3)) : 0;
     const v = joint ? 152 : 214 + noise + brush;
     pixels.set([v, v, v, 255], (y * size + x) * 4);
   }
@@ -27,11 +27,12 @@ function surfaceTexture(kind: "steel" | "concrete") {
   return texture;
 }
 
-export function createStadium() {
+export function createStadium(anisotropy=1) {
   const stadium = new THREE.Group();
   stadium.name = "arena-stadium";
-  const steel = new THREE.MeshStandardMaterial({ color: 0x343d3a, metalness: .6, roughness: .54, map: surfaceTexture("steel") });
-  const concrete = surfaceTexture("concrete");
+  const steel = new THREE.MeshStandardMaterial({ color: 0x343d3a, metalness: .65, roughness: .46, map: surfaceTexture("steel") });
+  steel.map!.anisotropy=Math.min(4,anisotropy);
+  const concrete = surfaceTexture("concrete");concrete.anisotropy=Math.min(4,anisotropy);
   const wall = new THREE.MeshStandardMaterial({ color: 0x222a28, roughness: .92, map: concrete });
   const concourse = new THREE.MeshStandardMaterial({ color: 0x454e49, roughness: .94, map: concrete });
   const seat = new THREE.MeshStandardMaterial({ color: 0x343c39, roughness: .9 });
@@ -40,7 +41,7 @@ export function createStadium() {
   const red = new THREE.MeshStandardMaterial({ color: 0xa72b39, emissive: 0x8a1824, emissiveIntensity: .85, roughness: .45 });
   const blue = new THREE.MeshStandardMaterial({ color: 0x2454ad, emissive: 0x1b499f, emissiveIntensity: .95, roughness: .45 });
   const white = new THREE.MeshStandardMaterial({ color: 0xf2eee1, emissive: 0xffebc9, emissiveIntensity: 2.2 });
-  const clear = new THREE.MeshStandardMaterial({ color: 0x9ac2dc, transparent: true, opacity: .14, roughness: .19, metalness: .05, depthWrite: false });
+  const clear = new THREE.MeshStandardMaterial({ color: 0x9ac2dc, transparent: true, opacity: .14, roughness: .24, metalness: .05, depthWrite: false });
   const cube = new THREE.BoxGeometry(1, 1, 1);
   const parts = new Map<THREE.Material, THREE.Matrix4[]>();
   const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), scale = new THREE.Vector3(), quaternion = new THREE.Quaternion();

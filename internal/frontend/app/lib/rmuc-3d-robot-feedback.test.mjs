@@ -22,7 +22,7 @@ test("actual projectile damage drives one robot's feedback; geometry, team LEDs 
  plate.userData={armorSurface:true,hitPlate:true,target:{type:"robot",id:blue.id}};led.userData={armorLed:true,hitPlate:true};body.position.y=.2;plate.position.y=1;led.position.y=1.4;
  g.name=blue.id;g.position.x=5;g.add(body,plate,led);scene.add(g);owner.name=red.id;scene.add(owner);
  scene.updateMatrixWorld(true);
- const drawTexts=[];globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(s){drawTexts.push(s);}})})};
+ const drawTexts=[];globalThis.document={createElement:()=>({getContext:()=>({scale(){},clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(s){drawTexts.push(s);}})})};
  let feedback;try{feedback=createRobotFeedback(scene,[owner,g]);}finally{delete globalThis.document;}
  const count=g.children.length,geometry=plate.geometry,camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(3,4,8);camera.lookAt(5,1,0);
  const projectile=createProjectileSystem(scene);startMatch(m);m.robots[0].ammo=10;m.onDamage=feedback.damage;
@@ -31,7 +31,7 @@ test("actual projectile damage drives one robot's feedback; geometry, team LEDs 
  assert.equal(m.robots[1].hp,180);
  feedback.update(m,camera,720,"all");
  assert.notEqual(plate.material,plateMaterial);assert.equal(plate.material.map,plateMaterial.map);assert.equal(plate.material.roughness,plateMaterial.roughness);assert.equal(plate.material.metalness,plateMaterial.metalness);assert.notEqual(body.material,bodyMaterial);assert.equal(led.material,ledMaterial);
- assert.ok(drawTexts.includes("−20"));assert.ok(drawTexts.includes("L1"));assert.ok(feedback.group.children.every(o=>o.material.depthTest&&o.material.depthWrite===false));assert.equal(feedback.group.children.length,4);
+ assert.ok(drawTexts.includes("步兵机器人"));assert.equal(feedback.group.children[2].material.map.image.width,320);assert.equal(feedback.group.children[2].material.map.image.height,120);assert.ok(drawTexts.includes("−20"));assert.ok(drawTexts.includes("L1"));assert.ok(feedback.group.children.every(o=>o.material.depthTest&&o.material.depthWrite===false));assert.equal(feedback.group.children.length,4);
  feedback.restoreMaterials();assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);assert.equal(g.children.length,count);assert.equal(plate.geometry,geometry);
  feedback.update(m,camera,720,"all",true);assert.equal(plate.material,plateMaterial);assert.equal(body.material,bodyMaterial);
  const damageSprite=feedback.group.children[3],fixedY=damageSprite.position.y;assert.equal(damageSprite.visible,true);assert.equal(damageSprite.material.opacity,1);
@@ -46,7 +46,7 @@ test("unlocated referee damage has a number but cannot invent a contact surface"
  const id=GROUND_ROSTER[0].id,robot=new T.Group();robot.name=id;
  const plate=new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial());plate.userData={armorSurface:true,hitPlate:true,target:{type:"robot",id}};robot.add(plate);
  const scene=new T.Scene();scene.add(robot);scene.updateMatrixWorld(true);
- globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
+ globalThis.document={createElement:()=>({getContext:()=>({scale(){},clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
  let feedback;try{feedback=createRobotFeedback(scene,[robot]);}finally{delete globalThis.document;}
  const m=createMatch([{id,team:"blue",heavy:false,maxHp:200}],1,1),camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.z=5;startMatch(m);m.elapsed=2;
  const original=plate.material;
@@ -57,7 +57,7 @@ test("unlocated referee damage has a number but cannot invent a contact surface"
 
 test("same-tick structural destruction and rebuild stay visible beside damage and later low-priority hit notices",()=>{
  const scene=new T.Scene(),structure=new T.Group();structure.add(new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial()));scene.add(structure);scene.updateMatrixWorld(true);
- const texts=[];globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(s){texts.push(s);}})})};
+ const texts=[];globalThis.document={createElement:()=>({getContext:()=>({scale(){},clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(s){texts.push(s);}})})};
  let feedback;try{feedback=createRobotFeedback(scene,[],[{key:"blue-outpost",team:"blue",kind:"outpost",object:structure}]);}finally{delete globalThis.document;}
  const m=createMatch([],1,1);startMatch(m);m.elapsed=20;m.sides.blue.outpost=500;m.sides.blue.outpostOwner="red";
  const camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(0,2,5);camera.lookAt(0,1,0);
@@ -86,7 +86,7 @@ test("referee immunity and shield visibility use exact state, depth and team per
  const r=GROUND_ROSTER.find(r=>r.team==="red"&&r.number==="03"),b=GROUND_ROSTER.find(r=>r.team==="blue"&&r.number==="03");
  const m=createMatch([r,b].map(x=>({id:x.id,team:x.team,heavy:false,maxHp:200})),1,1);startMatch(m);
  const scene=new T.Scene(),robot=new T.Group();robot.name=b.id;robot.add(new T.Mesh(new T.BoxGeometry(.8,.8,.8),new T.MeshStandardMaterial()));scene.add(robot);scene.updateMatrixWorld(true);
- globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
+ globalThis.document={createElement:()=>({getContext:()=>({scale(){},clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
  let feedback;try{feedback=createRobotFeedback(scene,[robot]);}finally{delete globalThis.document;}
  let blocks=0;const hit=()=>damageTarget(m,m.robots[0],{type:"robot",id:b.id},undefined,()=>blocks++);
  assert.equal(hit(),20);assert.equal(blocks,0);
@@ -118,7 +118,7 @@ test("live entity accents and event pulses honor priority, team visibility, redu
  const id=GROUND_ROSTER.find(r=>r.team==="blue"&&r.number==="03").id,robot=new T.Group();robot.name=id;
  const body=new T.Mesh(new T.BoxGeometry(.7,.6,.7),new T.MeshStandardMaterial());body.position.y=.3;robot.add(body);
  const scene=new T.Scene();scene.add(robot);scene.updateMatrixWorld(true);
- globalThis.document={createElement:()=>({getContext:()=>({clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
+ globalThis.document={createElement:()=>({getContext:()=>({scale(){},clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(){}})})};
  let feedback;try{feedback=createRobotFeedback(scene,[robot]);}finally{delete globalThis.document;}
  const m=createMatch([{id,team:"blue",heavy:false,maxHp:200}]),state=m.robots[0],camera=new T.PerspectiveCamera(48,1,.025,100);camera.position.set(0,2,5);camera.lookAt(0,.5,0);startMatch(m);
  const accent=scene.getObjectByName("state-accent"),pulse=scene.getObjectByName("state-pulse");
@@ -133,4 +133,17 @@ test("live entity accents and event pulses honor priority, team visibility, redu
  feedback.update(m,camera,720,"all",false,{reserved:[{x:360,y:360,w:720,h:720}]});assert.ok(feedback.group.children.every(o=>!o.visible));
  robot.visible=false;feedback.update(m,camera,720,"all",false,{firstPerson:true});assert.equal(accent.visible,false);assert.equal(pulse.visible,false);
  robot.visible=true;feedback.clear();assert.equal(accent.visible,false);assert.equal(pulse.visible,false);feedback.dispose();assert.equal(scene.getObjectByName("state-accent"),undefined);
+});
+
+test("overview marker retains readable projected size, exact name and depth testing at 50m",()=>{
+ const identity=GROUND_ROSTER.find(r=>r.team==="red"&&r.number==="01"),robot=new T.Group(),scene=new T.Scene();
+ robot.name=identity.id;robot.add(new T.Mesh(new T.BoxGeometry(.7,.6,.7),new T.MeshStandardMaterial()));scene.add(robot);scene.updateMatrixWorld(true);
+ const texts=[];globalThis.document={createElement:()=>({getContext:()=>({scale(){},clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},fill(){},strokeText(){},fillText(s){texts.push(s);}})})};
+ let feedback;try{feedback=createRobotFeedback(scene,[robot]);}finally{delete globalThis.document;}
+ const m=createMatch([{id:identity.id,team:"red",heavy:true,maxHp:400}]),camera=new T.PerspectiveCamera(48,1184/721,.025,220);
+ camera.position.set(0,2,50);camera.lookAt(0,1,0);camera.updateMatrixWorld(true);startMatch(m);
+ feedback.update(m,camera,721,"all");
+ const sprite=feedback.group.children[0],depth=-sprite.position.clone().applyMatrix4(camera.matrixWorldInverse).z,width=sprite.scale.x*721*camera.projectionMatrix.elements[5]/2/depth;
+ assert.ok(sprite.visible&&width>=105&&width<=119,width);assert.ok(texts.includes("重装机器人"));
+ assert.equal(sprite.material.depthTest,true);assert.equal(sprite.material.depthWrite,false);feedback.update(m,camera,721,"blue");assert.equal(sprite.visible,false);feedback.dispose();
 });

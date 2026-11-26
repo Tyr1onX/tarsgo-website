@@ -19,7 +19,7 @@ import { CAD_MODELS, resolveCadModel } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, canSpinChassis, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent,type MatchEvent } from "./rmuc-3d-match";
 import { traceArenaShot, createArenaShotPreparer, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
-import { createArmorGlow } from "./rmuc-3d-lighting";
+import { applyArenaSurfaceDetail,createArmorGlow } from "./rmuc-3d-lighting";
 import { createDartVisual } from "./rmuc-3d-dart-visual";
 import { createProjectileSystem, projectileSpeed, softGlowTexture } from "./rmuc-3d-projectiles";
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
@@ -141,7 +141,7 @@ export function mountArena(
   ground.position.y = -.06;
   scene.add(ground);
   const explorer = new THREE.Vector3();
-  const stadium = createStadium();
+  const stadium = createStadium(renderer.capabilities.getMaxAnisotropy());
   scene.add(stadium);
 
   let disposed = false, ready = false, frame = 0, firstFrameStarted=0;
@@ -211,7 +211,7 @@ export function mountArena(
     if(now-lastMarkerLayout<160)return markerReserved;
     lastMarkerLayout=now;
     const base=host.getBoundingClientRect();
-    markerReserved=Array.from(host.parentElement?.querySelectorAll<HTMLElement>(".rmul3d-score,.rmul3d-focus-panel,.rmul3d-minimap,.rmul3d-event-feed,.rmul3d-event-banner,.rmul3d-header-actions,.rmul3d-view-dock,.rmul3d-actions,.rmul3d-joystick,.rmul3d-combat-live")??[]).flatMap(el=>{
+    markerReserved=Array.from(host.parentElement?.querySelectorAll<HTMLElement>(".rmul3d-score,.rmul3d-focus-panel,.rmul3d-minimap,.rmul3d-event-feed,.rmul3d-event-banner,.rmul3d-header-actions,.rmul3d-view-dock,.rmul3d-actions,.rmul3d-joystick,.rmul3d-combat")??[]).flatMap(el=>{
       const r=el.getBoundingClientRect();
       return r.width>0&&r.height>0?[{x:r.left-base.left+r.width/2,y:r.top-base.top+r.height/2,w:r.width,h:r.height}]:[];
     });
@@ -1478,15 +1478,26 @@ export function mountArena(
     coreGeometry=installCoreGeometry(field,coreParts);
     coreGeometry.group.removeFromParent();
     terrain = createArenaTerrain(root);
-    const mini=document.createElement("canvas");mini.width=280;mini.height=150;
-    const ctx=mini.getContext("2d")!;
-    const pixels=ctx.createImageData(280,150);
-    for(let j=0;j<150;j++)for(let i=0;i<280;i++){
-      const h=terrain.heightAt(14-(i+.5)/10,7.5-(j+.5)/10),v=Number.isFinite(h)?Math.min(160,Math.round(42+Math.max(0,h)*65)):16,k=(j*280+i)*4;
-      pixels.data[k]=v;pixels.data[k+1]=Math.min(255,v+9);pixels.data[k+2]=Math.min(255,v+18);pixels.data[k+3]=255;
-    }
-    ctx.putImageData(pixels,0,0);mapImage=mini.toDataURL();
     performance.measure("arena:terrain",{start:phaseStarted,end:performance.now()});
+    const surfaceStarted=performance.now();
+    applyArenaSurfaceDetail(root,renderer.capabilities.getMaxAnisotropy());
+    performance.measure("arena:surface-detail",{start:surfaceStarted,end:performance.now()});
+    const mapStarted=performance.now();
+    const mini=document.createElement("canvas");mini.width=560;mini.height=300;
+    const ctx=mini.getContext("2d")!;
+    const heights=new Float32Array(280*150);
+    for(let j=0;j<150;j++)for(let i=0;i<280;i++)
+      heights[j*280+i]=terrain.heightAt(14-(i+.5)/10,7.5-(j+.5)/10);
+    const pixels=ctx.createImageData(560,300);
+    // Preserve CAD support-grid precision; delineate measured elevation breaks.
+    for(let j=0;j<300;j++)for(let i=0;i<560;i++){
+      const x=i>>1,y=j>>1,n=y*280+x,h=heights[n];
+      const edge=Number.isFinite(h)&&((i%2===0&&x>0&&Math.abs(h-heights[n-1])>.18)||(j%2===0&&y>0&&Math.abs(h-heights[n-280])>.18));
+      const v=Number.isFinite(h)?Math.min(157,Math.round(54+Math.max(0,h)*77))+(edge?35:0):16,k=(j*560+i)*4;
+      pixels.data[k]=v;pixels.data[k+1]=v+9;pixels.data[k+2]=v+16;pixels.data[k+3]=255;
+    }
+    ctx.putImageData(pixels,0,0);mapImage=mini.toDataURL("image/png");
+    performance.measure("arena:minimap",{start:mapStarted,end:performance.now()});
     onProgress({phase:"initialize"});await yieldForPaint();abort.signal.throwIfAborted();
     phaseStarted=performance.now();
     field.add(coreGeometry.group);

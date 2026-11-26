@@ -103,3 +103,71 @@ export function createIonShieldMaterial(){
       }`
   });
 }
+
+// Official CAD has solid PBR colors and no UVs. Refine only identified
+// neutral architectural surfaces. Painted rule markings keep source colors.
+export function applyArenaSurfaceDetail(root:THREE.Object3D,anisotropy:number){
+  const surfaces=new Map<THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>,"floor"|"concrete">();
+  root.traverse(o=>{
+    if(!(o instanceof THREE.Mesh)||!(o.material instanceof THREE.MeshStandardMaterial))return;
+    let node:THREE.Object3D|null=o;
+    while(node&&node!==root&&!/^(floor_|red-road_|blue-road_|centre-platform_|red-ramp-dart-station_|blue-ramp-dart-station_|red-resource-zone_|blue-resource-zone_|base-footing_)/.test(node.name))node=node.parent;
+    if(!node||node===root)return;
+    const name=o.material.name;
+    if(name==="colour_default"||name==="colour_0.2549,0.2549,0.2549"||name==="colour_0.2000,0.2000,0.2000"&&node.name.startsWith("floor_"))surfaces.set(o,"floor");
+    else if(name==="colour_0.7843,0.7843,0.7059")surfaces.set(o,"concrete");
+  });
+  if(!surfaces.size)return;
+  const tiles=new Map<"floor"|"concrete",THREE.DataTexture>();
+  const materials=new Map<THREE.MeshStandardMaterial,Map<string,THREE.MeshStandardMaterial>>();
+  const originals=new Set<THREE.Material>();
+  const point=new THREE.Vector3(),normal=new THREE.Vector3();
+  for(const [mesh,kind] of surfaces){
+    let tile=tiles.get(kind);
+    if(!tile){
+      const size=512,data=new Uint8Array(size*size*4);
+      // Periodic low-frequency variation survives mipmapping; fine grains
+      // distinguish the near-field finish without a seam at tile borders.
+      const grid=kind==="floor"?16:8;
+      const noise=(x:number,y:number)=>(((Math.imul((x%grid)+1,73856093)^Math.imul((y%grid)+1,19349663))>>>0)%1021)/1020;
+      for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+        const h=(Math.imul(x+1,73856093)^Math.imul(y+1,19349663))>>>0;
+        const u=x*grid/size,vv=y*grid/size,i0=Math.floor(u),j0=Math.floor(vv),a=u-i0,b=vv-j0;
+        const coarse=THREE.MathUtils.lerp(THREE.MathUtils.lerp(noise(i0,j0),noise(i0+1,j0),a),THREE.MathUtils.lerp(noise(i0,j0+1),noise(i0+1,j0+1),a),b)-.5;
+        const v=kind==="floor"?226+(h%31)-15+coarse*52:237+(h%15)-7+coarse*26;
+        const i=(y*size+x)*4;
+        data[i]=data[i+1]=data[i+2]=Math.min(255,v);data[i+3]=255;
+      }
+      tile=new THREE.DataTexture(data,size,size);
+      tile.wrapS=tile.wrapT=THREE.RepeatWrapping;tile.magFilter=THREE.LinearFilter;
+      tile.minFilter=THREE.LinearMipmapLinearFilter;tile.generateMipmaps=true;
+      tile.anisotropy=Math.min(4,anisotropy);tile.needsUpdate=true;tiles.set(kind,tile);
+    }
+    const geometry=mesh.geometry,position=geometry.getAttribute("position"),normals=geometry.getAttribute("normal");
+    // Dominant-axis projection avoids stretching vertical CAD walls. Local
+    // coordinates also keep UVs valid when mirrored instances share geometry.
+    if(!geometry.hasAttribute("uv")){
+      const uv=new Float32Array(position.count*2);
+      for(let i=0;i<position.count;i++){
+        point.fromBufferAttribute(position,i);normal.fromBufferAttribute(normals,i);
+        const x=Math.abs(normal.x),y=Math.abs(normal.y),z=Math.abs(normal.z);
+        uv[i*2]=(x>y&&x>z?point.z:point.x)*2;
+        uv[i*2+1]=(z>=x&&z>=y||x>y&&x>z?point.y:point.z)*2;
+      }
+      geometry.setAttribute("uv",new THREE.BufferAttribute(uv,2));
+    }
+    const source=mesh.material;
+    let variants=materials.get(source);
+    if(!variants){variants=new Map();materials.set(source,variants);}
+    let material=variants.get(kind);
+    if(!material){
+      material=source.clone();material.map=tile;material.roughnessMap=tile;
+      material.roughness=kind==="floor"?.94:.88;
+      variants.set(kind,material);originals.add(source);
+    }
+    mesh.material=material;
+  }
+  // Dispose replaced source materials only if no other CAD mesh uses them.
+  root.traverse(o=>{if(o instanceof THREE.Mesh){for(const m of Array.isArray(o.material)?o.material:[o.material])originals.delete(m);}});
+  for(const m of originals)m.dispose();
+}
