@@ -278,6 +278,10 @@ try {
         }
       }finally{await command("Input.dispatchKeyEvent",{type:"keyUp",...data});}
       actual=await evaluate(`+${state}?.${axis}`);
+      if(Math.abs(actual-target)>=.5){
+        console.log("Movement failure evidence",await evaluate(`(()=>({detail:!!document.querySelector(".pixel-world-detail"),focus:document.activeElement?.tagName,x:${state}?.playerX,y:${state}?.playerY,transition:${state}?.transition}))()`));
+        await diagnose("move-"+axis+"-"+target);
+      }
       assert.ok(Math.abs(actual-target)<.5,"could not walk to "+axis+" "+target+" actual "+actual);
     }
   }
@@ -596,6 +600,8 @@ try {
   await click(".pixel-study-choices button",item(repaired.id).name);
   await until(async()=> (await home()).displays.some(d=>d.facilityId===cabinet.id&&d.id===repaired.id),"repaired item displayed");
   await click(".pixel-world-detail-close","×");
+  console.log("Cabinet close evidence",await evaluate(`(()=>({detail:!!document.querySelector(".pixel-world-detail"),focus:document.activeElement?.tagName,x:${state}?.playerX,y:${state}?.playerY,transition:${state}?.transition}))()`));
+  await until(()=>evaluate(`!document.querySelector(".pixel-world-detail")&&document.activeElement===document.querySelector("canvas[data-player-x]")&&${state}?.transition==="idle"`),"cabinet closed and canvas focus restored");
   await moveTo(21.2,14.2);
   await clickWorld(21,15.5);
   await until(()=>evaluate('document.querySelector(".pixel-world-detail h1")?.textContent==="宠物窝"'),"pet bed");
