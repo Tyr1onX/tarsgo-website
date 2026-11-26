@@ -2,6 +2,7 @@ import { ROBOT_MODELS } from "./pixel-jijia-robot.ts";
 import { baseAction, type BaseRoomState, type Achievement, EXHIBIT_IDS } from "./pixel-jijia-base.ts";
 import { TILE, overlapsRect, snapCamera, benchSeat, benchExit, facingScore, type Scenery, type Direction, type Position } from "./pixel-jijia-world.ts";
 import { renderExplorer } from "./pixel-jijia-scene.ts";
+import { drawAnimal,type Animal } from "./pixel-jijia-life.ts";
 import type { ExplorerAnimation } from "./pixel-jijia-explorer.ts";
 import { COMMUNITY_ROOM_OBJECTS, type CommunityContribution } from "./pixel-jijia-community.ts";
 import { ROOM_ART_SCALE, drawPublicRoomObject, drawStudyChair, drawRoomLight, drawRoomWindows,drawRoomAmbient, type RoomClimate, renderPublicRoomTerrain, publicRoomObjectAt } from "./pixel-jijia-room-art.ts";
@@ -379,7 +380,7 @@ export function renderRoomScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
   elapsed: number, motionAllowed: boolean,
-  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement,
+  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement, companion:Animal|null=null,
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -402,14 +403,14 @@ export function renderRoomScene(
         drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour,base?.power[object.id]);
     }
   }
-  let playerDrawn = false;
+  const actors=[{depth:seatDepth,draw:()=>renderExplorer(ctx, character, player, pose, screenCamera)}];
+  if(companion)actors.push({depth:companion.y,draw:()=>drawAnimal(ctx,companion,screenCamera,motionAllowed)});
+  actors.sort((a,b)=>a.depth-b.depth);
+  let actorIndex=0;
   const props = room.objects.filter(o => o.kind !== "exit" && (room.id === "study" || o.solid))
     .sort((a, b) => a.y + a.height - b.y - b.height);
   for (const object of props) {
-    if (!playerDrawn && seatDepth < object.y + object.height) {
-      renderExplorer(ctx, character, player, pose, screenCamera);
-      playerDrawn = true;
-    }
+    while(actorIndex<actors.length&&actors[actorIndex].depth<object.y+object.height)actors[actorIndex++].draw();
     if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
     else {
       drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour,base?.power[object.id]);
@@ -417,7 +418,7 @@ export function renderRoomScene(
         drawPublicRoomObject(ctx, child, screenCamera, elapsed, motionAllowed, effects?.get(child.id),viewWidth,viewHeight,hour,base?.power[child.id]);
     }
   }
-  if (!playerDrawn) renderExplorer(ctx, character, player, pose, screenCamera);
+  while(actorIndex<actors.length)actors[actorIndex++].draw();
   if(base?.drank&&elapsed-(effects?.get("burger")??-Infinity)<700){
     const x=Math.round(player.x*TILE-screenCamera.x),y=Math.round(player.y*TILE-screenCamera.y)-19;
     ctx.fillStyle="#e4d4a1";ctx.fillRect(x+3,y-6,5,8);ctx.fillStyle="#88aaa7";ctx.fillRect(x+4,y-5,3,4);

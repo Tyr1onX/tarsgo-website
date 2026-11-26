@@ -24,6 +24,7 @@ type fishingItem struct {
 	ID    string
 	Kind  string
 	Ponds []int
+	Feeds []string
 }
 
 var fishingCatalog = func() []fishingItem {
@@ -53,6 +54,11 @@ type pixelItemAction struct {
 	Token    string `json:"token"`
 	ID       string `json:"id"`
 	Revision uint64 `json:"revision"`
+	Species  string `json:"species"`
+	Target   string `json:"target"`
+	Variant  string `json:"variant"`
+	Name     string `json:"name"`
+	Mode     string `json:"mode"`
 }
 
 func pixelAction(c *gin.Context) (pixelItemAction, bool) {

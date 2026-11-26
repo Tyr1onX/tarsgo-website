@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { getCurrentUser, getCachedCurrentUser, subscribeAccountSessionChange, subscribeAuthStateChange } from "~/lib/auth-client";
-import { worldItems, type WorldItem } from "~/lib/pixel-jijia-items";
+import { worldItems, type WorldItem, type ItemRow } from "~/lib/pixel-jijia-items";
 import { drawItem } from "~/lib/pixel-jijia-item-art";
-
-type ItemRow = { id:string; quantity:number; revision:number };
 
 function ItemIcon({ item }:{ item:WorldItem }) {
   return <canvas width={32} height={24} aria-hidden="true" ref={node=>{
@@ -14,7 +12,7 @@ function ItemIcon({ item }:{ item:WorldItem }) {
   }}/>;
 }
 
-export function PixelInventory({ change, atWater, onInspect }:{change:number; atWater:()=>boolean; onInspect:(item:WorldItem)=>void}) {
+export function PixelInventory({ change, atWater, onInspect }:{change:number; atWater:()=>boolean; onInspect:(item:WorldItem,row:ItemRow,owner:number)=>void}) {
   const [open,setOpen]=useState(false);
   const [rows,setRows]=useState<ItemRow[]>([]);
   const [loading,setLoading]=useState(true);
@@ -75,8 +73,8 @@ export function PixelInventory({ change, atWater, onInspect }:{change:number; at
         if(!item)return null;
         return <div key={row.id}><ItemIcon item={item}/><span>{item.name} · {row.quantity? "×"+row.quantity:"已发现"}</span>
           {row.quantity>0&&<button type="button" disabled={busy} onClick={()=>{
-            if(owner.current===getCachedCurrentUser()?.id)onInspect(item);
-          }}>拿起看看</button>}
+            if(owner.current!==null&&owner.current===getCachedCurrentUser()?.id)onInspect(item,row,owner.current);
+          }}>{item.kind==="food"?"拿取":"拿起看看"}</button>}
           {item.kind==="fish"&&row.quantity>0&&<button type="button" disabled={busy} onClick={()=>void release(row)}>放生一条</button>}
         </div>;
       })}

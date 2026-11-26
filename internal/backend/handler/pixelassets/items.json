@@ -28,5 +28,10 @@
   {"id": "bottle", "name": "漂流瓶", "kind": "keepsake", "color": "#7baca5", "ponds": [0, 2], "pixels": ["....xx.", "...xax.", "...xbx.", "..xaaax", ".xabbax", "xaaaax.", ".xxxx.."]},
   {"id": "notebook", "name": "旧调试笔记", "kind": "keepsake", "color": "#ba996e", "ponds": [2, 3], "pixels": [".xxxxxx.", "xabbbbax", "xabaaxax", "xabbbbax", "xabaaxax", "xaaaaaax", ".xxxxxxx"]},
   {"id": "spool", "name": "漆包线圈", "kind": "rm", "color": "#b98053", "ponds": [3], "pixels": [".xxxxxx.", ".xaaaax.", "..xbbx..", "..xaax..", "..xbbx..", ".xaaaax.", ".xxxxxx."]},
-  {"id": "gear", "name": "微型齿轮", "kind": "rm", "color": "#8dabb4", "ponds": [2, 3], "pixels": ["..xx.xx..", ".xxxaxxx.", "xaaxxxaax", ".axx.xxa.", "xaaxxxaax", ".xxxaxxx.", "..xx.xx.."]}
+  {"id": "gear", "name": "微型齿轮", "kind": "rm", "color": "#8dabb4", "ponds": [2, 3], "pixels": ["..xx.xx..", ".xxxaxxx.", "xaaxxxaax", ".axx.xxa.", "xaaxxxaax", ".xxxaxxx.", "..xx.xx.."]},
+  {"id": "wild-seeds", "name": "草籽", "kind": "food", "color": "#d5b46b", "ponds": [], "feeds": ["sparrow"], "pixels": ["...x...", "..xax..", ".xaba..", ".xbax..", "..xx...", "...xx.."]},
+  {"id": "pine-nut", "name": "松子", "kind": "food", "color": "#ab7849", "ponds": [], "feeds": ["squirrel"], "pixels": ["...x...", "..xax..", ".xabbx.", ".xabax.", "..xxx.."]},
+  {"id": "fish-pellets", "name": "鱼粮", "kind": "food", "color": "#bb9368", "ponds": [], "feeds": ["fish"], "pixels": [".xx.xx.", "xaxbxax", ".xxxax.", "..xx..."]},
+  {"id": "cat-food", "name": "猫咪粮", "kind": "food", "color": "#c99a75", "ponds": [], "feeds": ["cat"], "pixels": ["..xxx..", ".xababx", "xabbabx", ".xxxxxx"]},
+  {"id": "dog-food", "name": "狗狗粮", "kind": "food", "color": "#b68e65", "ponds": [], "feeds": ["dog"], "pixels": [".xx.xx.", "xaxbxax", "xxaaaxx", ".xxxxx."]}
 ]

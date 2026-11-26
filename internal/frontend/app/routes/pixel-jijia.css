@@ -490,3 +490,12 @@
 .pixel-base-study-achievements>div{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:6px}
 .pixel-base-toolbelt button,.pixel-base-fish>button,.pixel-base-study-achievements button{background:#39594d;color:#f9e6bf;border:1px solid #a0b19c;padding:3px 5px}
 @media(prefers-reduced-motion:reduce){.pixel-base-feed-target{animation:none}}
+
+.pixel-world-animal-detail h1{margin:0 0 8px;font-size:24px}
+.pixel-world-animal-detail .pixel-world-animal-actions{display:grid;gap:8px;margin-top:12px}
+.pixel-world-animal-actions form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pixel-world-animal-actions input{min-width:0;flex:1;padding:8px;border:1px solid #d5bd8a;background:#142d2e;color:#fff0c5}
+.pixel-world-animal-actions button,.pixel-world-animal-actions a{padding:8px 10px;border:1px solid #d5bd8a;background:#39594d;color:#fff0c5}
+.pixel-world-animal-actions button:disabled{opacity:.55}
+.pixel-world-held-food{bottom:150px}
+.is-mobile .pixel-world-animal-actions button,.is-mobile .pixel-world-animal-actions input{min-height:44px}

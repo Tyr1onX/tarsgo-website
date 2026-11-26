@@ -3,8 +3,9 @@
 export const ANIMAL_WIDTH = 64;
 export const ANIMAL_HEIGHT = 56;
 export const ANIMAL_FRAMES = 8;
-export type AnimalPose = "idle" | "forage" | "run" | "alert" | "shelter" | "sleep" | "hop" | "fly" | "perch" | "swim" | "dart" | "walk" | "jump" | "land" | "climb" | "turn" | "groom" | "takeoff" | "surface";
-type Species = "sparrow" | "squirrel" | "fish";
+export type AnimalPose = "idle" | "forage" | "run" | "alert" | "shelter" | "sleep" | "hop" | "fly" | "perch" | "swim" | "dart" | "walk" | "jump" | "land" | "climb" | "turn" | "groom" | "takeoff" | "surface" | "sit" | "lie" | "eat" | "pet" | "observe";
+type Species = "sparrow" | "squirrel" | "fish" | "cat" | "dog";
+type View = "up"|"down"|"left"|"right";
 type Color = [number,number,number];
 type Point = [number,number];
 const outline:Color=[65,49,45];
@@ -222,21 +223,140 @@ function fishArt(p:Frame,pose:AnimalPose,k:number,variant:number){
   p.ellipse(43,y-1,2.5,2.5,[33,65,70],[51,94,99],0);p.dot(43,y-2,[231,241,218]);
   p.line(38,y-3,39,y+3,[75,118,121]);p.line(47,y+2,49,y+1,[45,83,91]);
 }
-export function animalFramePixels(species:Species,pose:AnimalPose,frame:number,variant=0){
+// Cats have a long flexible trunk, pointed ears and a curling tail. Small
+// dogs have a shorter trunk, a deep chest, floppy ears and a bounding gait.
+// Every pose shares the original 64×56 density and foot anchor.
+function companionArt(p:Frame,species:"cat"|"dog",pose:AnimalPose,k:number,variant:number,view:View){
+  const cat=species==="cat",tux=cat&&variant===1;
+  const coat:Color=tux?[51,55,57]:cat?[209,137,70]:[172,129,86];
+  const pale:Color=tux?[232,229,211]:cat?[244,204,143]:[225,197,157];
+  const mark:Color=tux?[39,43,45]:cat?[150,81,42]:[115,78,53];
+  const edge:Color=tux?[35,38,42]:[76,54,45];
+  const nose:Color=cat?[130,85,80]:[48,43,40];
+  const moving=pose==="walk"||pose==="run",run=pose==="run";
+  const sleeping=pose==="sleep",low=pose==="lie"||sleeping;
+  const sitting=pose==="sit"||pose==="pet";
+  const eating=pose==="eat";
+  const wave=Math.sin(k*Math.PI/4),opposite=Math.sin((k+4)*Math.PI/4);
+  const bounce=moving?(cat?Math.round(Math.abs(wave)*(run?2:1)):Math.round(Math.abs(wave)*(run?4:2))):0;
+  const blink=sleeping||pose==="pet"&&k%4!==0||k===7&&!moving;
+  const side=view==="left"||view==="right";
+  const paw=(x:number,y:number,dx:number,dy:number,far=false)=>{
+    p.polygon([[x-3,y-2],[x+3,y-2],[x+dx+3,y+dy-1],[x+dx+4,y+dy+1],[x+dx-4,y+dy+1],[x+dx-4,y+dy-2]],far?mark:coat,edge,1);
+    p.ellipse(x+dx,y+dy,4,2,tux||!cat?pale:coat,edge,0);
+  };
+  if(side){
+    const by=low?44:sitting?39:36-bounce;
+    const hy=low?42:eating?43:sitting?(pose==="pet"?26:27):29-bounce-(pose==="observe"?2:pose==="alert"?3:0);
+    const headX=(cat?45:44)-(pose==="turn"?Math.max(0,3-Math.floor(k/2)):0),tailX=cat?14:17;
+    // Far legs and tail sit behind the silhouette.
+    if(low){
+      p.ellipse(29,49,17,3,mark,edge,0);
+    }else{
+      const swing=moving?Math.round(wave*(run?6:3)):0;
+      paw(22,by+4,-swing,51-(by+4),true);paw(39,by+4,swing,51-(by+4),true);
+    }
+    if(cat){
+      if(low){
+        p.ellipse(16,44,10,5,coat,edge,2);p.ellipse(14,44,4,3,mark,edge);
+      }else{
+        const curl=pose==="pet"?Math.round(wave*3):Math.round(wave*2);
+        p.polygon([[tailX+3,by+2],[tailX-4,by-1],[6,by-11],[5+curl,by-21],[9+curl,by-25],[14+curl,by-24],[15+curl,by-20],[11+curl,by-18],[12,by-10],[20,by-3]],coat,edge,2);
+        if(!tux)for(let i=0;i<3;i++)p.line(8+i,by-10-i*4,12+i,by-9-i*4,mark);
+      }
+    }else{
+      p.polygon([[19,by-1],[12,by-5],[10,by-13],[13,by-19],[19,by-20+Math.round(wave*2)],[22,by-15],[19,by-12],[17,by-14],[16,by-9],[23,by-3]],coat,edge,2);
+      p.ellipse(19,by-16,3,3,pale,edge,0);
+    }
+    if(sitting){
+      p.ellipse(25,43,cat?12:13,8,coat,edge,2);p.ellipse(36,36,cat?10:11,13,coat,edge,2);
+    }else p.ellipse(30,by,cat?19:16,low?7:cat?9:11,coat,edge,2);
+    if(tux)p.ellipse(38,by+4,7,low?3:6,pale,edge,1);
+    else if(cat)for(let i=0;i<3;i++)p.polygon([[19+i*8,by-7],[22+i*8,by-6],[24+i*7,by+1],[21+i*8,by-2]],mark,mark,0);
+    else p.ellipse(29,by+2,9,6,pale,shift(coat,-12),1);
+    if(low){
+      p.ellipse(39,50,8,2,pale,edge,0);p.ellipse(21,50,7,2,tux?pale:coat,edge,0);
+    }else if(sitting){
+      paw(24,44,0,7);paw(41,40,0,11);
+    }else{
+      const swing=moving?Math.round(opposite*(run?6:3)):0;
+      paw(23,by+4,-swing,51-(by+4));paw(40,by+4,swing,51-(by+4));
+    }
+    if(cat){
+      p.polygon([[headX-11,hy-2],[headX-9,hy-16],[headX-1,hy-8]],coat,edge,1);
+      p.polygon([[headX+1,hy-8],[headX+8,hy-15],[headX+10,hy-2]],coat,edge,1);
+      p.polygon([[headX-8,hy-12],[headX-7,hy-5],[headX-3,hy-6]],[186,128,116],edge,0);
+      p.ellipse(headX,hy,11,9,coat,edge,2);
+      if(tux)p.polygon([[headX+1,hy-6],[headX+7,hy-3],[headX+10,hy+4],[headX+4,hy+8],[headX-2,hy+5]],pale,edge,1);
+      else {p.line(headX-5,hy-7,headX-2,hy-3,mark);p.line(headX+1,hy-7,headX+2,hy-4,mark);}
+      p.ellipse(headX+6,hy+5,5,3,pale,edge,1);
+      if(blink)p.line(headX+3,hy,headX+7,hy+1,edge);
+      else {p.ellipse(headX+4,hy,2.7,2,[163,181,104],edge,0);p.dot(headX+5,hy,edge);p.dot(headX+4,hy-1,shine);}
+      p.dot(headX+10,hy+3,nose);p.dot(headX+9,hy+4,nose);
+      for(let j=0;j<2;j++){p.line(headX+8,hy+5+j,headX+14,hy+3+j*3,pale);p.line(headX+2,hy+5+j,headX-5,hy+4+j*3,pale);}
+    }else{
+      p.ellipse(headX,hy,12,11,coat,edge,2);
+      p.polygon([[headX-9,hy-7],[headX-15,hy-6],[headX-15,hy+5],[headX-9,hy+10],[headX-5,hy+4]],mark,edge,2);
+      p.ellipse(headX+8,hy+4,8,5,pale,edge,1);p.ellipse(headX+14,hy+2,3,2.5,nose,edge,0);
+      if(blink)p.line(headX+2,hy-2,headX+6,hy-1,edge);
+      else {p.ellipse(headX+4,hy-2,2.5,3,[79,57,43],edge,0);p.dot(headX+4,hy-3,shine);}
+      if(!sleeping&&k%4<2&&pose==="pet")p.ellipse(headX+9,hy+8,2.5,2.5,[192,117,112],edge,0);
+    }
+  }else{
+    const back=view==="up";
+    const by=low?43:sitting?40:36-bounce;
+    const hy=low?43:eating?42:sitting?27:28-bounce;
+    const width=cat?12:15;
+    const tailDir=k<4?1:-1;
+    if(cat){
+      p.polygon([[30,by+2],[22+tailDir*3,by-4],[21+tailDir*4,by-14],[25+tailDir*5,by-20],[30+tailDir*5,by-18],[27+tailDir*4,by-12],[29,by-2]],coat,edge,2);
+    }else p.ellipse(32+Math.round(wave*4),by-9,6,8,coat,edge,2);
+    p.ellipse(32,by,width,low?7:sitting?11:13,coat,edge,2);
+    if(!back)p.ellipse(32,by+4,cat?7:9,low?3:7,pale,edge,1);
+    else if(cat&&!tux)for(let i=0;i<3;i++)p.line(32-8+i*7,by-8,32-6+i*6,by+1,mark);
+    const stride=moving?Math.round(wave*(run?4:2)):0;
+    if(low){p.ellipse(23,50,7,2,tux?pale:coat,edge);p.ellipse(41,50,7,2,pale,edge);}
+    else {paw(24,by+6,0,Math.max(3,51-(by+6)+stride));paw(40,by+6,0,Math.max(3,51-(by+6)-stride));}
+    if(cat){
+      p.polygon([[20,hy-3],[19,hy-15],[29,hy-8]],coat,edge,1);
+      p.polygon([[35,hy-8],[45,hy-15],[44,hy-3]],coat,edge,1);
+      if(!back){p.polygon([[21,hy-11],[23,hy-5],[26,hy-6]],[186,128,116],edge,0);p.polygon([[43,hy-11],[41,hy-5],[38,hy-6]],[186,128,116],edge,0);}
+      p.ellipse(32,hy,13,10,coat,edge,2);
+      if(!tux){p.line(29,hy-8,30,hy-4,mark);p.line(34,hy-8,33,hy-4,mark);}
+    }else{
+      p.ellipse(32,hy,14,11,coat,edge,2);
+      p.ellipse(18,hy,5,10,mark,edge,2);p.ellipse(46,hy,5,10,mark,edge,2);
+    }
+    if(!back){
+      p.ellipse(32,hy+5,cat?7:10,cat?4:6,pale,edge,1);
+      for(const ex of [25,39]){
+        if(blink)p.line(ex-2,hy,ex+2,hy,edge);
+        else {p.ellipse(ex,hy,cat?2.8:3,cat?2.3:3,cat?[166,184,108]:[79,57,43],edge,0);p.dot(ex,hy,edge);p.dot(ex-1,hy-1,shine);}
+      }
+      p.ellipse(32,hy+3,cat?2:3,2,nose,edge,0);
+      p.line(32,hy+5,30,hy+7,edge);p.line(32,hy+5,34,hy+7,edge);
+      if(cat)for(let j=0;j<2;j++){p.line(27,hy+5+j,17,hy+3+j*3,pale);p.line(37,hy+5+j,47,hy+3+j*3,pale);}
+    }else if(tux)p.ellipse(32,hy+7,5,2,pale,edge,1);
+  }
+  if(sleeping){const x=side?50:44,y=low?25:17;p.line(x,y,x+5,y,pale);p.line(x+5,y,x,y+4,pale);p.line(x,y+4,x+5,y+4,pale);}
+  if(eating&&k%2===0){p.dot(side?56:29,49,pale);p.dot(side?59:34,48,mark);}
+}
+export function animalFramePixels(species:Species,pose:AnimalPose,frame:number,variant=0,view:View="right"){
   const p=new Frame(),k=((frame%ANIMAL_FRAMES)+ANIMAL_FRAMES)%ANIMAL_FRAMES;
   if(species==="squirrel")squirrelArt(p,pose,k);
   else if(species==="sparrow")sparrowArt(p,pose,k);
-  else fishArt(p,pose,k,variant);
+  else if(species==="fish")fishArt(p,pose,k,variant);
+  else companionArt(p,species,pose,k,variant,view);
   return p.pixels;
 }
 const cache=new Map<string,HTMLCanvasElement>();
-export function animalFrame(species:Species,pose:AnimalPose,frame:number,variant=0){
-  const key=species+":"+pose+":"+frame+":"+variant;
+export function animalFrame(species:Species,pose:AnimalPose,frame:number,variant=0,view:View="right"){
+  const key=species+":"+pose+":"+frame+":"+variant+":"+(species==="cat"||species==="dog"?view:"side");
   let canvas=cache.get(key);
   if(!canvas){
     canvas=document.createElement("canvas");canvas.width=ANIMAL_WIDTH;canvas.height=ANIMAL_HEIGHT;
     const ctx=canvas.getContext("2d")!,data=ctx.createImageData(ANIMAL_WIDTH,ANIMAL_HEIGHT);
-    data.data.set(animalFramePixels(species,pose,frame,variant));ctx.putImageData(data,0,0);cache.set(key,canvas);
+    data.data.set(animalFramePixels(species,pose,frame,variant,view));ctx.putImageData(data,0,0);cache.set(key,canvas);
   }
   return canvas;
 }

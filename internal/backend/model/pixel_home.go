@@ -39,3 +39,23 @@ type PixelCast struct {
 	ReadyAt int64  `gorm:"not null"`
 	CatchID string `gorm:"size:48;not null"`
 }
+
+// PixelPet is private account state. Its position and animation are local scene state.
+type PixelPet struct {
+	UserID   uint64 `json:"-" gorm:"primaryKey;autoIncrement:false"`
+	Species  string `json:"species" gorm:"size:12;not null"`
+	Variant  string `json:"variant" gorm:"size:24;not null"`
+	Name     string `json:"name" gorm:"size:64;not null"`
+	Mode     string `json:"mode" gorm:"size:12;not null"`
+	Revision uint64 `json:"revision" gorm:"not null"`
+}
+
+// PixelFoodUse is a receipt for one consumed inventory revision. Retries never
+// charge a second unit and cannot redirect a completed use to another animal.
+type PixelFoodUse struct {
+	UserID   uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ItemID   string `gorm:"size:48;primaryKey"`
+	Revision uint64 `gorm:"primaryKey;autoIncrement:false"`
+	Species  string `gorm:"size:12;not null"`
+	Target   string `gorm:"size:64;not null"`
+}
