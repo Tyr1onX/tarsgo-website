@@ -8,7 +8,7 @@ import {
   groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, puddleCell, puddleAt, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, facingScore, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 import { explorerAnimation, explorerFrameBox, initialExplorerAnimation, EXPLORER_ACTIONS } from "./pixel-jijia-explorer.ts";
-import { createWildlife, updateWildlife, animalAnimation, fishingTarget, beginFishing, fishingReady, fishingPose, catchFish, FISH_NAMES } from "./pixel-jijia-life.ts";
+import { createWildlife, updateWildlife, animalAnimation, fishingTarget, beginFishing, fishingReady, fishingPose } from "./pixel-jijia-life.ts";
 import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt, roomInteractable, chairExit, meetingChair, meetingSeat, seatPlacement, seatDepth } from "./pixel-jijia-room.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -662,8 +662,8 @@ test("野生动物使用可通行栖息地，降水时返回庇护处，鱼留�
   assert.ok(animals.filter(a=>a.species!=="fish").every(a=>a.behavior==="rest"));
 });
 
-test("钓鱼仅从可达的休闲水岸抛竿，鱼种属于图鉴", () => {
-  for (const pos of [{x:14.5,y:60},{x:130.5,y:32},{x:36.5,y:48.5},{x:107.5,y:48.5}]) {
+test("四处水岸分别关联正确的渔获池，鱼到达浮漂才能收竿", () => {
+  for (const [pond,pos] of [{x:14.5,y:60},{x:130.5,y:32},{x:36.5,y:48.5},{x:107.5,y:48.5}].entries()) {
     assert.ok(isWalkable(pos.x,pos.y));
     const target=fishingTarget(pos);
     assert.ok(target && waterDepthAt(target.x,target.y)>0);
@@ -671,13 +671,13 @@ test("钓鱼仅从可达的休闲水岸抛竿，鱼种属于图鉴", () => {
       const animals = createWildlife();
       const cast = beginFishing(animals,target,2000);
       assert.ok(cast);
-      assert.equal(catchFish(animals,cast,2000),null);
+      assert.equal(fishingReady(animals,cast,2000),false);
       const fish = animals.find(a => a.id===cast.fishId);
       assert.equal(fish.species,"fish");
-      assert.equal(catchFish(animals,cast,4000),null, "不能在鱼尚未到达浮漂时收竿");
+      assert.equal(fishingReady(animals,cast,4000),false, "不能在鱼尚未到达浮漂时收竿");
       for (let i=1;i<=600;i++) updateWildlife(animals,pos,1/60,12,"clear",motion,cast);
       assert.ok(fishingReady(animals,cast,12000), "实际鱼必须游到浮漂");
-      assert.ok(FISH_NAMES.includes(catchFish(animals,cast,12000)));
+      assert.equal(cast.pond,pond);
       assert.ok(waterDepthAt(fish.x,fish.y)>0);
     }
   }

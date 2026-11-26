@@ -22,3 +22,20 @@ type PixelAchievement struct {
 }
 
 func (PixelAchievement) TableName() string { return "pixel_achievements" }
+
+// A row also records discovery. Releasing the last fish leaves quantity at zero.
+type PixelItem struct {
+	UserID   uint64 `json:"-" gorm:"primaryKey;autoIncrement:false"`
+	ItemID   string `json:"id" gorm:"size:48;primaryKey"`
+	Quantity uint64 `json:"quantity" gorm:"not null"`
+	Revision uint64 `json:"revision" gorm:"not null"`
+}
+
+// Each account has at most one current cast across tabs.
+type PixelCast struct {
+	UserID  uint64 `gorm:"primaryKey;autoIncrement:false"`
+	Token   string `gorm:"size:32;not null"`
+	Pond    int    `gorm:"not null"`
+	ReadyAt int64  `gorm:"not null"`
+	CatchID string `gorm:"size:48;not null"`
+}

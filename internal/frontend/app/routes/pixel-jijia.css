@@ -133,6 +133,10 @@
   overflow-y: auto;
   padding-top: 4px;
 }
+.pixel-world-inventory { grid-template-columns: 1fr; }
+.pixel-world-inventory > div { display: flex; align-items: center; gap: 6px; }
+.pixel-world-inventory canvas { flex: none; image-rendering: pixelated; }
+.pixel-world-inventory button { margin-inline-start: auto; }
 .pixel-world-story-result {
   margin-top: 12px;
   padding: 10px 12px;

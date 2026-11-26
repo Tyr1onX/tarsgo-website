@@ -1,3 +1,4 @@
+import { drawItem, type ItemSprite } from "./pixel-jijia-item-art.ts";
 import { PONDS, SCENERY, TILE, groundAt, isWalkable, pathIsWalkable, waterDepthAt, shelteredAt, worldHash, type Position } from "./pixel-jijia-world.ts";
 import type { WeatherKind } from "./pixel-jijia-climate.ts";
 import { animalFrame, ANIMAL_WIDTH, ANIMAL_HEIGHT, ANIMAL_FRAMES, type AnimalPose } from "./pixel-jijia-animal-art.ts";
@@ -118,26 +119,19 @@ export function fishingTarget(position: Position): Position|null {
   }
   return null;
 }
-export type FishingCast = { target: Position; started: number; fishId: string; caughtAt?:number };
-export const FISH_NAMES = ["鲫鱼","鲤鱼","小银鱼"] as const;
+export type FishingCast = { target: Position; started: number; fishId: string; pond:number; caughtAt?:number; sprite?:ItemSprite; owner?:number; token?:string; pending?:boolean };
 export function beginFishing(animals: Animal[], target: Position, started: number): FishingCast | null {
   const pond = ponds.find(p => target.x>=p.x && target.x<p.x+p.width && target.y>=p.y && target.y<p.y+p.height);
   if (!pond || !waterDepthAt(target.x,target.y)) return null;
   const fish = animals.filter(a => a.species==="fish" && a.home.x>=pond.x && a.home.x<pond.x+pond.width &&
     a.home.y>=pond.y && a.home.y<pond.y+pond.height)
     .sort((a,b)=>Math.hypot(a.x-target.x,a.y-target.y)-Math.hypot(b.x-target.x,b.y-target.y))[0];
-  return fish ? {target,started,fishId:fish.id} : null;
+  return fish ? {target,started,fishId:fish.id,pond:ponds.indexOf(pond)} : null;
 }
 export function fishingReady(animals: Animal[], cast: FishingCast, time: number): boolean {
   const fish=animals.find(a=>a.id===cast.fishId);
   return Boolean(cast.caughtAt===undefined && fish && time-cast.started>=1800 && Math.hypot(fish.x-cast.target.x,fish.y-cast.target.y)<.18);
 }
-export function catchFish(animals: Animal[], cast: FishingCast, time: number): string | null {
-  if (!fishingReady(animals,cast,time)) return null;
-  const fish=animals.find(a=>a.id===cast.fishId)!;
-  return FISH_NAMES[fish.fishKind??0];
-}
-
 // The animation is selected from actual behavior and movement, not from
 // a generic bobbing timer. The existing world clock is the only scheduler.
 export function animalAnimation(a:Animal,motion:boolean):{pose:AnimalPose;frame:number;lift:number}{
@@ -218,7 +212,8 @@ export function drawFishing(ctx:CanvasRenderingContext2D,player:Position,cast:Fi
   ctx.lineWidth=.75;ctx.strokeStyle="#e7d9b1";ctx.beginPath();ctx.moveTo(rodX,rodY);ctx.lineTo(x,y);ctx.stroke();
   if(phase==="catch"||phase==="reel"){
     ctx.save();ctx.translate(x,y-4);ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(animalFrame("fish","swim",Math.floor(time/100)%ANIMAL_FRAMES),-11,-8,22,19);ctx.restore();
+    if(cast.sprite)drawItem(ctx,cast.sprite,0,0,2);
+    ctx.restore();
   }else{
     ctx.fillStyle="#f3e5d1";ctx.fillRect(x-1,y-3,3,5);ctx.fillStyle="#b96c51";ctx.fillRect(x-1,y-3,3,2);
     if(phase!=="cast"){ctx.strokeStyle=ready?"#e4f5dc":"rgba(218,240,223,.48)";ctx.beginPath();ctx.ellipse(x,y+2,ready?8:4,ready?3:2,0,0,Math.PI*2);ctx.stroke();}
