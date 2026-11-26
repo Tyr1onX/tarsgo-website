@@ -1,4 +1,5 @@
 import { drawItem } from "./pixel-jijia-item-art.ts";
+import { FOOD_SOURCES,worldItems } from "./pixel-jijia-items.ts";
 import {
   FOUNTAIN, TRAINING_FIELD, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt, puddleCell, worldHash as hash,
   type Direction, type Place, type Position, type PropSprite, type Scenery, type SurfaceMark,
@@ -793,6 +794,17 @@ export function renderScene(
   drawTrainingGround(ctx,screenCamera,w,h);
   drawWater(ctx,screenCamera,w,h,marks,time,motion,climate,wind);
   if(climate){drawDew(ctx,screenCamera,climate,w,h);drawWetGround(ctx,screenCamera,w,h,climate,time,motion,surface,marks);drawSun(ctx,atlas,sprites,props,screenCamera,climate,w,h,characterSheet,player,pose,motion?time:0,wind);drawCloudShadows(ctx,screenCamera,climate,w,h,motion?time:0);drawGroundLights(ctx,screenCamera,climate.night,w,h,surface.wet);}
+  for(const source of FOOD_SOURCES){
+    const item=worldItems.get(source.id);
+    const x=point(source.x)-screenCamera.x,y=point(source.y)-screenCamera.y;
+    if(item&&x>-15&&x<w+15&&y>-15&&y<h+15){
+      ctx.fillStyle="#5b59434a";ctx.fillRect(x-6,y-1,12,3);
+      if(source.id.endsWith("-food")||source.id==="fish-pellets"){
+        ctx.fillStyle="#a78b5d";ctx.fillRect(x-6,y-7,12,7);ctx.fillStyle="#e4cc94";ctx.fillRect(x-5,y-6,10,4);
+      }
+      drawItem(ctx,item,x,y-5,1.3);
+    }
+  }
   for(const a of animals.filter(a=>a.species==="fish"))drawAnimal(ctx,a,screenCamera,motion);
   const land:(Animal|CampusRobot)[]=animals.filter(a=>a.species!=="fish");
   if(robotAtlases)land.push(...robots);

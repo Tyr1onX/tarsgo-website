@@ -8,7 +8,7 @@ import {
   groundAt, waterDepthAt, sceneryGroundValid, sceneryOverlaps, advanceSurfaceTrail, puddleCell, puddleAt, shelteredAt, pathIsWalkable, benchExit, benchSeat, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, facingScore, isWalkable, movePlayer, outdoorDoorAt, sceneryBlocks, snapCamera,
 } from "./pixel-jijia-world.ts";
 import { explorerAnimation, explorerFrameBox, initialExplorerAnimation, EXPLORER_ACTIONS } from "./pixel-jijia-explorer.ts";
-import { createWildlife, updateWildlife, animalAnimation, fishingTarget, beginFishing, fishingReady, fishingPose } from "./pixel-jijia-life.ts";
+import { createWildlife, createCampusPets, updateWildlife, animalAnimation, foodPosition, placeAnimalFood, observeAnimal, petAnimal, createCompanion, updateCompanion, dryAnimalWalkable, fishingTarget, beginFishing, fishingReady, fishingPose } from "./pixel-jijia-life.ts";
 import { ROOMS, isRoomWalkable, closestRoomObject, roomExitAt, roomInteractable, chairExit, meetingChair, meetingSeat, seatPlacement, seatDepth } from "./pixel-jijia-room.ts";
 
 test("六个场景均有独立地址与可用官网入口", () => {
@@ -901,4 +901,83 @@ test("雨水脚步反馈仅发生在实际绘制的积水，干燥或静止不�
   assert.equal(marks.length,1);
   advanceSurfaceTrail(marks,current,current,.1,{wet:.01,snow:0},true);
   assert.equal(marks.length,0);
+});
+
+test("三种校园宠物位于可通行地面，安静观察抚摸后才熟悉",()=>{
+  const pets=createCampusPets();
+  assert.deepEqual(pets.map(p=>p.variant),["orange","tuxedo","small"]);
+  for(const a of pets){
+    assert.ok(dryAnimalWalkable(a.x,a.y));
+    assert.equal(petAnimal(a,a),false);
+    observeAnimal(a);
+    assert.equal(petAnimal(a,a),false);
+    a.calm=2;
+    assert.equal(petAnimal(a,a),true);
+    assert.equal(a.familiar,60);
+  }
+});
+test("松鼠、麻雀、猫狗在实际可达食物点进食，熟悉状态自然消退",()=>{
+  const species=["sparrow","squirrel","cat","dog"];
+  for(const kind of species){
+    const a=[...createWildlife(),...createCampusPets()].find(a=>a.species===kind);
+    assert.ok(a);
+    const player=a.sites.find(p=>Math.hypot(a.x-p.x,a.y-p.y)>1.5&&Math.hypot(a.x-p.x,a.y-p.y)<3.5)??a.home;
+    const point=foodPosition(a,player);
+    assert.ok(point,kind);
+    placeAnimalFood(a,point,{width:1,height:1,pixels:[]});
+    let ate=false,approached=false;
+    for(let i=0;i<600;i++){
+      updateWildlife([a],player,.05,12,"clear",false,null,false);
+      if(a.behavior==="eat")ate=true;
+      if(a.behavior==="approach")approached=true;
+      assert.ok(dryAnimalWalkable(a.x,a.y));
+      if(!a.food)break;
+    }
+    assert.ok(approached&&ate,kind);
+    assert.ok(a.familiar>0,kind);
+    for(let i=0;i<1300;i++)updateWildlife([a],player,.05,12,"clear",false,null,false);
+    assert.equal(a.familiar,0);
+  }
+});
+test("陪伴动物追随真实路点、停下休息、等待驾驶者并跨场景出现",()=>{
+  const a=createCompanion({species:"dog",variant:"small",name:"小七",mode:"follow",revision:1});
+  const valid=(x,y)=>x>=0&&x<=30&&y>=0&&y<=30&&!(x>11&&x<14&&y<14);
+  let player={x:9,y:10};
+  assert.equal(updateCompanion(a,player,.05,"campus",valid,false,false,false),true);
+  for(const target of [{x:9,y:16},{x:16,y:16},{x:16,y:10}]){
+    for(let i=0;i<160;i++){
+      const d=Math.hypot(target.x-player.x,target.y-player.y);
+      if(d>.05){player={x:player.x+(target.x-player.x)/d*Math.min(.06,d),y:player.y+(target.y-player.y)/d*Math.min(.06,d)};}
+      updateCompanion(a,player,.05,"campus",valid,false,false,d>.05);
+      assert.ok(valid(a.x,a.y));
+    }
+  }
+  assert.ok(Math.hypot(a.x-player.x,a.y-player.y)<3);
+  for(let i=0;i<400;i++)updateCompanion(a,player,.05,"campus",valid,false,false,false);
+  assert.equal(a.behavior,"sleep");
+  const before={x:a.x,y:a.y};
+  for(let i=0;i<60;i++)updateCompanion(a,{x:24,y:24},.05,"campus",valid,true,false,true);
+  assert.deepEqual({x:a.x,y:a.y},before);
+  assert.equal(updateCompanion(a,{x:5,y:5},.05,"study",valid,false,true,false),true);
+  assert.equal(a.scene,"study");
+  assert.ok(Math.hypot(a.x-5,a.y-5)<3);
+});
+
+test("岸上投入鱼粮后鱼在水中发现、靠近、进食",()=>{
+  const a=createWildlife().find(a=>a.id==="fish-2-0");
+  const target=fishingTarget({x:30.5,y:43.5});
+  assert.ok(target);
+  a.x=target.x;a.y=target.y+1;
+  const player={x:30.5,y:43.5};
+  const point=foodPosition(a,player);
+  assert.ok(point);
+  placeAnimalFood(a,point,{width:1,height:1,pixels:[]});
+  let approached=false,ate=false;
+  for(let i=0;i<300;i++){
+    updateWildlife([a],player,.05,12,"rain",false,null,false);
+    assert.ok(waterDepthAt(a.x,a.y)>0);
+    approached||=a.behavior==="approach";ate||=a.behavior==="eat";
+    if(!a.food)break;
+  }
+  assert.ok(approached&&ate&&a.familiar>0);
 });
