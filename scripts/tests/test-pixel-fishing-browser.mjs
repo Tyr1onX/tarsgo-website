@@ -14,6 +14,7 @@ const chrome = spawn(process.env.CHROME_BIN || "google-chrome", [
 ], {stdio:"ignore"});
 const output = process.env.PIXEL_QA_OUTPUT;
 const natureOnly=process.env.PIXEL_QA_PHASE3_ONLY==="true";
+let diagnose=async()=>{};
 if (output) await mkdir(output, {recursive:true});
 async function until(check, label, ms=30000) {
   const end = Date.now()+ms;
@@ -22,6 +23,7 @@ async function until(check, label, ms=30000) {
     if(result)return result;
     await delay(150);
   }
+  await diagnose(label);
   throw Error("Timed out: "+label);
 }
 let socket;
@@ -64,6 +66,13 @@ try {
     const r=await command("Page.captureScreenshot",{format:"png"});
     await writeFile(join(output,name+".png"),Buffer.from(r.data,"base64"));
   }
+  diagnose=async label=>{
+    try{
+      const d=await evaluate(`(()=>{const d=${state};return d?{scene:d.scene,x:d.playerX,y:d.playerY,interaction:d.interaction,held:d.held,life:d.life,animals:d.animals,pet:d.pet,transition:d.transition}:null})()`);
+      console.log("Browser timeout evidence",label,JSON.stringify(d));
+      await screenshot("failure-"+label.replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,80));
+    }catch(error){console.log("Browser evidence unavailable",String(error));}
+  };
   await command("Page.navigate",{url:origin+"/healthz"});
   await until(()=>evaluate(`location.origin===${JSON.stringify(origin)}`),"local acceptance site");
   const status=await evaluate(`fetch("/api/login/email/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:"test-user@tarsgo.test",password:"synthetic-user-only"})}).then(r=>r.status)`);
@@ -178,7 +187,7 @@ try {
     return fed.id;
   }
   if(!natureOnly){
-  await feedAt("wild-seeds","sparrow",[51.5,40.5]);
+  await feedAt("wild-seeds","sparrow",[51.5,40.5],[52.5,40.5]);
   await feedAt("pine-nut","squirrel",[94.5,43.5],[94.5,41.5]);
   await feedAt("fish-pellets","fish",[39.5,47.5],[30.5,43.5]);
   const cat=await feedAt("cat-food","cat",[68.5,57.5]);
@@ -436,6 +445,47 @@ try {
   await plantAt("cornflower-seed",65.5,77.5,1);
   await screenshot("mobile-nature-water");
   console.log("Workbench conversion and mobile-only gathering, pot interaction and watering passed.");
+
+  // Exit and switch accounts while a borrowed tool is in hand. No permanent
+  // inventory row is allocated to a scene loan, and host plants stay private.
+  await command("Emulation.setDeviceMetricsOverride",{width:1200,height:850,deviceScaleFactor:1,mobile:false});
+  await command("Emulation.setTouchEmulationEnabled",{enabled:false});
+  await startAt(64.5,76.5);
+  await clickWorld(64.5,77.5);
+  await holding("water-can");
+  const ownerBag=await bag();
+  const ownerHome=await home();
+  const account=()=>evaluate('fetch("/api/me",{cache:"no-store"}).then(r=>r.json()).then(r=>r.data?.user?.id)');
+  const ownerId=await account();
+  assert.ok(ownerId);
+  const signOut=()=>evaluate('fetch("/api/logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}).then(r=>r.status)');
+  const signIn=(email,password)=>evaluate(`fetch("/api/login/email/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:${JSON.stringify(email)},password:${JSON.stringify(password)}})}).then(r=>r.status)`);
+  assert.equal(await signOut(),200);
+  assert.equal(await evaluate('fetch("/api/pixel-home/items",{cache:"no-store"}).then(r=>r.status)'),401);
+  assert.equal(await signIn("test-admin@tarsgo.test","synthetic-admin-only"),200);
+  assert.notEqual(await account(),ownerId);
+  await startAt(64.5,76.5);
+  await holding("");
+  await loanAt("water-can",64.5,77.5);
+  assert.ok(!(await bag()).some(r=>r.id==="clean-wrench"&&r.quantity>0));
+  assert.ok(!(await home()).plants.some(p=>ownerHome.plants.some(q=>q.id===p.id)));
+  await command("Page.navigate",{url:invite});
+  await until(()=>evaluate(`${state}?.scene==="study"&&Boolean(document.querySelector(".pixel-world-study-guest"))`),"different-account visitor");
+  await plantAt("daisy-seed",12.5,8.5,0);
+  await moveTo(11.5,8.5);
+  await clickWorld(12.5,8.5);
+  await holding("");
+  assert.ok(!await evaluate('Boolean(document.querySelector(".pixel-world-study-tools"))'));
+  await screenshot("different-account-readonly");
+  assert.equal(await signOut(),200);
+  assert.equal(await signIn("test-user@tarsgo.test","synthetic-user-only"),200);
+  assert.equal(await account(),ownerId);
+  await command("Page.navigate",{url:origin+"/pixel-jijia"});
+  await until(()=>evaluate(`${state}?.scene==="outdoor"&&${state}?.transition==="idle"`),"owner restored");
+  assert.deepEqual(await bag(),ownerBag);
+  assert.deepEqual((await home()).plants,ownerHome.plants);
+  await loanAt("water-can",64.5,77.5);
+  console.log("Actual account switch, logout, visitor read-only and restored owner inventory passed.");
 
 } finally {
   socket?.close();

@@ -1242,7 +1242,7 @@ export default function PixelJijiaPage() {
       }
       if (!robotControlled && !transitionRef.current && (x !== 0 || y !== 0) && !selectedRef.current && !selectedRoom && !seated && !menuOpen && !mapOpen && !catalogueDetail && !animalMenu) {
         const next = movePlayer(previous, x, y, dt, sprinting,
-          (px,py)=>!lifeBlocks(sceneLife,px,py)&&(room?isRoomWalkable(room,px,py):!robots.some(robot=>robotBlocksPlayer(robot,px,py))&&isWalkable(px,py)),!room);
+          (px, py) => !lifeBlocks(sceneLife, px, py) && (room ? isRoomWalkable(room, px, py) : !robots.some(robot=>robotBlocksPlayer(robot,px,py)) && isWalkable(px,py)),!room);
         const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
         playerRef.current = next;
         directionRef.current = Math.abs(x) >= Math.abs(y) ? (x > 0 ? "right" : "left") : (y > 0 ? "down" : "up");
