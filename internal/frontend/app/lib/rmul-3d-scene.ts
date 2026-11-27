@@ -815,7 +815,10 @@ export function mountArena(
     };
     const supply=zoneGoal(state.team,"supply");
     const repair=ARENA_ZONES.filter(z=>z.kind==="outpost"&&controlsOutpost(currentMatch!,z.team,state.team,true))
-      .map(z=>zoneGoal(z.team,"outpost")).sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position))[0];
+      .flatMap(z=>{
+        const p=zoneGoal(z.team,"outpost");
+        return zonesAtPosition(p).includes(z.id)&&supportedHeight(currentTerrain!,p.x,p.z,bot.radius,p.y,.23)!==null?[p]:[];
+      }).sort((a,b)=>a.distanceToSquared(bot.position)-b.distanceToSquared(bot.position))[0];
     const recovering=revival.weak||state.hp<state.maxHp*.55;
     if(state.hp<state.maxHp*.5&&canPurchaseHealth(currentMatch,state)&&side.coins>remoteHealthCost(currentMatch)+150)purchaseHealth(currentMatch,state.id);
     if(state.heavy&&launcherStatus(currentMatch,state,bot.position).canInstall){installLauncher(currentMatch,state.id,bot.position);syncLaunchers();poseShotIndex=undefined;}

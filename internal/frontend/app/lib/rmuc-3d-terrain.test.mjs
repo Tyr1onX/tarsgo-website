@@ -124,6 +124,18 @@ test("each estimated referee zone has a supported goal on actual CAD terrain",()
  assert.deepEqual(zonesAtPosition({x:3.23,y:.3,z:0}),[],"below central highland is not an activation");
 });
 
+test("recorded infantry recovery goal requires support for its actual footprint",()=>{
+ // #702 seed 2062, red 04 at 124 seconds. The smaller generic zone
+ // test footprint was valid, but the actual in-match footprint is not.
+ const radius=.7085378400813248;
+ const outpost=new THREE.Vector3(2.4,terrain.heightAt(2.4,-4),-4);
+ const supply=new THREE.Vector3(11.5,terrain.heightAt(11.5,-5.65),-5.65);
+ assert.ok(zonesAtPosition(outpost).includes("red-outpost"));
+ assert.equal(supportedHeight(terrain,outpost.x,outpost.z,radius,outpost.y,.23),null);
+ assert.ok(zonesAtPosition(supply).includes("red-supply"));
+ assert.notEqual(supportedHeight(terrain,supply.x,supply.z,radius,supply.y,.23),null);
+});
+
 test("navigation reaches an exact off-grid goal rather than stopping short",async()=>{
  const {findArenaPath,stepChassis}=await import("./rmuc-3d-navigation.ts");
  const floor={heightAt:()=>.2},start=new THREE.Vector3(0,.2,0),goal=new THREE.Vector3(2.4,.2,0);
