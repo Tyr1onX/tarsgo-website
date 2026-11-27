@@ -53,7 +53,8 @@ if result.returncode or skipped or not passed:
     sys.exit(f"Database suite failed: exit={result.returncode}, skipped={skipped}, passed={len(passed)}")
 print(f"Database suite passed: {len(passed)} tests/subtests, zero skips.")
 
-if os.environ.get("TARSGO_PIXEL_BROWSER_ACCEPTANCE") == "true":
+if any(os.environ.get(flag) == "true" for flag in (
+        "TARSGO_PIXEL_BROWSER_ACCEPTANCE", "TARSGO_RMUC_BROWSER_ACCEPTANCE")):
     subprocess.run(["make", "build"], cwd=ROOT, env=env, check=True)
     server = subprocess.Popen([ROOT / "dist/tarsgo-backend"], cwd=ROOT, env=env)
     try:

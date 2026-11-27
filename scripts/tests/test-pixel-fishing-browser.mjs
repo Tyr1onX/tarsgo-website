@@ -5,6 +5,7 @@ import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { testRMUCAcademy } from "./test-rmuc-academy-browser.mjs";
 
 const origin = "http://127.0.0.1:8182";
 const profile = await mkdtemp(join(tmpdir(), "pixel-fishing-browser-"));
@@ -61,10 +62,11 @@ try {
     await command("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[box]});
     await command("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   }
-  async function screenshot(name){
-    if(!output)return;
+  async function screenshot(name,directory=output){
+    if(!directory)return;
+    await mkdir(directory,{recursive:true});
     const r=await command("Page.captureScreenshot",{format:"png"});
-    await writeFile(join(output,name+".png"),Buffer.from(r.data,"base64"));
+    await writeFile(join(directory,name+".png"),Buffer.from(r.data,"base64"));
   }
   diagnose=async label=>{
     try{
@@ -73,9 +75,14 @@ try {
       await screenshot("failure-"+label.replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,80));
     }catch(error){console.log("Browser evidence unavailable",String(error));}
   };
+  await command("Page.enable");
+  // RMUC uses the same real browser and server, before the fishing calendar fixture.
+  if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE==="true"){
+    await testRMUCAcademy({origin,command,evaluate,until,screenshot:name=>screenshot(name,process.env.RMUC_QA_OUTPUT)});
+  }
+  if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE!=="true"||process.env.TARSGO_PIXEL_BROWSER_ACCEPTANCE==="true"){
   // Register the real browser's calendar fixture before its first navigation.
   // Date.now remains the real wall clock for database cooldowns and plant growth.
-  await command("Page.enable");
   const fixedCalendar="2026-11-26T04:00:00.000Z";
   await command("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{
     const RealDate=Date;
@@ -512,6 +519,7 @@ try {
   await loanAt("water-can",64.5,77.5);
   console.log("Actual account switch, logout, visitor read-only and restored owner inventory passed.");
 
+  }
 } finally {
   socket?.close();
   chrome.kill("SIGTERM");
