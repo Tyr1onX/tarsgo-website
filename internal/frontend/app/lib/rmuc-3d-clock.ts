@@ -1,5 +1,5 @@
-// One match tick = 25ms. RAF only deposits elapsed wall time.
-// Carry fractional debt across frames, and cap catch-up work per render.
+// One match tick = 25ms. Carry fractional wall-time debt across scheduled
+// batches, independently of rendering; cap work per browser task.
 export const SIM_STEP_MS=25;
 export const MATCH_STEPS=420000/SIM_STEP_MS;
 export const MAX_FRAME_STEPS=3;

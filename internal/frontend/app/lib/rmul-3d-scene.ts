@@ -170,6 +170,33 @@ export function mountArena(
   let coreGeometry: ReturnType<typeof installCoreGeometry> | null = null;
   let match: Match | null = null;
   const simClock=new ArenaClock();
+  let simulationTimer:number|undefined;
+  // Rendering must never set the pace of the fixed-step referee. Drain elapsed
+  // time in bounded batches between browser tasks, including when RAF stalls.
+  function stopSimulation(){
+    if(simulationTimer!==undefined)window.clearTimeout(simulationTimer);
+    simulationTimer=undefined;
+    simClock.pause();
+  }
+  function queueSimulation(){
+    if(simulationTimer!==undefined||disposed||paused||document.hidden||experiment?.running||match?.phase!=="running")return;
+    simulationTimer=window.setTimeout(()=>{
+      simulationTimer=undefined;
+      if(disposed||paused||document.hidden||experiment?.running||match?.phase!=="running")return;
+      simClock.deposit(performance.now());
+      simClock.run(tick=>simulate(tick)&&!paused,8);
+      publish();
+      // Defer expensive draws while draining a delayed frame's tick debt.
+      // Render the newest authoritative state once caught up.
+      if(simClock.debt<SIM_STEP_MS||paused||match?.phase!=="running")invalidate();
+      queueSimulation();
+    },Math.max(0,SIM_STEP_MS-simClock.debt));
+  }
+  function resumeSimulation(){
+    if(experiment?.running||document.hidden||paused||match?.phase!=="running")return;
+    simClock.deposit(performance.now());
+    queueSimulation();
+  }
   let seed=crypto.getRandomValues(new Uint32Array(1))[0];
   let strategies:Record<Team,Strategy>={red:defaultStrategy(),blue:defaultStrategy()};
   const taskLog:TaskDecision[]=[];
@@ -414,6 +441,11 @@ export function mountArena(
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
         pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
         healCost:remoteHealthCost(match)+(vehicle?sentryCommandCost(vehicle):0),canHeal:!!driving&&!!vehicle&&canPurchaseHealth(match,vehicle,true),maxHp:vehicle?.maxHp??0,level:vehicle?robotLevel(vehicle,match):1,xp:vehicle&&!vehicle.heavy&&!vehicle.sentry?vehicle.xp:null,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle,true):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle,focus?.position):null,energy:vehicle?.heavy&&focus?energyStatus(match,vehicle,focus.position):null,technology:vehicle&&focus?assemblyStatus(match,vehicle,focus.position):null,dart:vehicle?dartStatus(match,vehicle.team):null,armor:vehicle?armorStatus(match,vehicle.team):null,terrain:vehicle?terrainStatus(match,vehicle):null} : undefined };
+    if(import.meta.env.DEV&&territoryLesson&&match){
+      const g=territoryLesson;
+      const describe=(bot:Robot)=>({p:bot.position.toArray(),zones:zonesAtPosition(bot.position),yaw:bot.object.rotation.y,hp:match!.robots.find(r=>r.id===bot.object.name)?.hp,goal:botPaths.get(bot)?.goal.toArray(),speed:motions.get(bot)?.speed});
+      canvas.dataset.territoryTrace=JSON.stringify({elapsed:match.elapsed,debt:simClock.debt,step:lesson.step,error:lesson.error,red:describe(g.red),blue:describe(g.blue),redGoal:g.redGoal.toArray(),redStart:g.redStart.toArray(),look,touchMove,moveOwner,paused});
+    }
     const signature = JSON.stringify({...status,experiment:status.experiment?{...status.experiment,results:undefined}:undefined});
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
   }
@@ -552,10 +584,6 @@ export function mountArena(
       else if(time>=countdownEnd){countdownEnd=0;beginMatch();time=performance.now();}
       else{const remaining=Math.ceil((countdownEnd-time)/1000);if(remaining!==countdownCue){countdownCue=remaining;audio.play("countdown");}invalidate();}
     }
-    if(match?.phase==="running"&&!experiment?.running){
-      if(document.hidden||paused)simClock.pause();
-      else{simClock.deposit(time);simClock.run(simulate);invalidate();}
-    }
     if(director.enabled&&!paused){
       if(!canDirect())stopDirector();
       else{const shot=director.choose(match!);if(shot)showShot(shot);}
@@ -654,7 +682,7 @@ export function mountArena(
 
   function beginMatch(){
     if(!match||match.phase!=="ready")return;
-    simClock.reset();startMatch(match);
+    stopSimulation();simClock.reset();startMatch(match);resumeSimulation();
     if(canDirect())enableDirector();publish();invalidate();
   }
   function start(){
@@ -673,7 +701,7 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    poseShotIndex=undefined;
+    stopSimulation();poseShotIndex=undefined;
     countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     defeatedPush.clear();nextBotTurn=0;botCursor=combatCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();combatCadence.clear();syncLaunchers();
@@ -731,7 +759,7 @@ export function mountArena(
     const blue=fieldRobots.find(r=>groundIdentity(r.object.name)?.team==="blue"&&groundIdentity(r.object.name)?.kind==="infantry")!;
     const support=terrain;
     const isArea=(p:THREE.Vector3)=>zonesAtPosition(p).some(id=>id==="blue-central"||id==="blue-outpost");
-    function approach(bot:Robot,id:ZoneId,preferred:readonly [number,number]){
+    function approach(bot:Robot,id:ZoneId,preferred:readonly [number,number],practice=false){
       const zone=ARENA_ZONES.find(z=>z.id===id)!;
       const occupants=fieldRobots.filter(r=>r!==bot);
       const legal=(x:number,z:number)=>{
@@ -755,11 +783,37 @@ export function mountArena(
         }
       }
       // Prefer proximity to the selected valid zone point, then a readable approach.
-      const best=candidates.sort((a,b)=>Math.hypot(a.to.x-x,a.to.z-z)-Math.hypot(b.to.x-x,b.to.z-z)||Math.abs(a.from.distanceTo(a.to)-1.6)-Math.abs(b.from.distanceTo(b.to)-1.6))[0];
+      candidates.sort((a,b)=>Math.hypot(a.to.x-x,a.to.z-z)-Math.hypot(b.to.x-x,b.to.z-z)||Math.abs(a.from.distanceTo(a.to)-1.6)-Math.abs(b.from.distanceTo(b.to)-1.6));
+      // The practice approach needs enough *continuous* legal contact to
+      // accommodate normal human reaction time at the actual chassis speed.
+      // Test the same CAD footprint and the same referee polygon as driving.
+      function stoppingRoom({from,to}:{from:THREE.Vector3;to:THREE.Vector3}){
+        const direction=to.clone().sub(from);direction.y=0;const length=direction.length();direction.normalize();
+        const cursor=from.clone(),others=occupants.filter(r=>Math.abs(r.position.y-from.y)<1.15);
+        let contact=0;
+        for(let distance=0;distance<length+2.2;distance+=.1){
+          const old=cursor.clone();
+          moveOnArena(support,cursor,direction.x*.1,direction.z*.1,bot.radius,.23,others);
+          if(Math.hypot(cursor.x-old.x,cursor.z-old.z)<.095)break;
+          if(zonesAtPosition(cursor).includes(id)){contact+=.1;if(contact>=2)return contact;}
+          else if(contact>0)break;
+        }
+        return contact;
+      }
+      let best=candidates[0];
+      if(practice){
+        let room=0;
+        for(const candidate of candidates){
+          const available=stoppingRoom(candidate);
+          if(available>room){room=available;best=candidate;}
+          if(room>=1.8)break;
+        }
+      }
       if(best){bot.position.copy(best.from);bot.object.rotation.y=Math.atan2(best.from.x-best.to.x,best.from.z-best.to.z);bot.object.updateMatrixWorld(true);}
       return best;
     }
-    const r=approach(red,"blue-central",[-3.1,1.6]),b=approach(blue,"blue-outpost",[-2.25,4]);
+    const b=approach(blue,"blue-outpost",[-2.25,4]),r=approach(red,"blue-central",[-3.1,1.6],true);
+    if(import.meta.env.DEV)canvas.dataset.approaches=JSON.stringify({r:r&&{from:r.from.toArray(),to:r.to.toArray()},b:b&&{from:b.from.toArray(),to:b.to.toArray()}});
     if(!r||!b){lesson.error="未找到合法的阵地教学路径";publish();return;}
     territoryLesson={red,blue,redStart:r.from,blueStart:b.from,redGoal:r.to,blueGoal:b.to,since:0,blueDamage:0,practiceCaptured:false};
     territoryVisuals??=createTerritoryTeachingVisuals(scene,support,red.object,blue.object);
@@ -1553,7 +1607,8 @@ export function mountArena(
     if(paused===value)return;
     paused = value;if(guided)lesson.paused=value;
     if(!experiment?.running){
-      simClock.pause();
+      stopSimulation();
+      if(!value)resumeSimulation();
       if(countdownEnd){if(value)countdownPausedAt=performance.now();else if(countdownPausedAt){countdownEnd+=performance.now()-countdownPausedAt;countdownPausedAt=0;}}
       if(value)audio.stop();
     }
@@ -1566,7 +1621,7 @@ export function mountArena(
   function mousemove(event: MouseEvent) {
     if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
   }
-  function visibilityChange(){if(document.hidden){cancelStart();audio.stop();}simClock.pause();clearInput();invalidate();queueExperiment();}
+  function visibilityChange(){if(document.hidden){cancelStart();audio.stop();}stopSimulation();clearInput();resumeSimulation();invalidate();queueExperiment();}
   function lockchange() { if (document.pointerLockElement !== canvas) clearInput(); }
 
   function wheel(e:WheelEvent){if(paused||!ready)return;if(director.enabled)setView("third");if(mode!=="third")return;e.preventDefault();flightSpeed=THREE.MathUtils.clamp(flightSpeed*Math.exp(-e.deltaY*.002),1,24);publish();invalidate();}
@@ -1802,7 +1857,7 @@ export function mountArena(
     dartOpen:()=>{const r=activeRobot();if(match&&r)openDart(match,r.team);publish();invalidate();},
     dartFire:()=>{const r=activeRobot();if(match&&r)launchDart(match,r.team);publish();invalidate();},
     dispose() {
-      disposed = true;experimentChannel.port1.close();experimentChannel.port2.close();
+      disposed = true;stopSimulation();experimentChannel.port1.close();experimentChannel.port2.close();
       abort.abort();
       clearInput();
       cancelAnimationFrame(frame);
