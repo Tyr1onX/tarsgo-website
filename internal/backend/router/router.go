@@ -424,6 +424,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService), requireSameOriginRequest(cfg))
+	rmucProgressHandler := handler.NewRMUCProgressHandler(db)
+	authenticatedAPI.GET("/rmuc-academy/progress", rmucProgressHandler.List)
+	authenticatedAPI.PUT("/rmuc-academy/progress", rmucProgressHandler.Save)
 	communityAPI := authenticatedAPI.Group("/community")
 	communityAPI.GET("/growth", communityHandler.Growth)
 	communityAPI.GET("/members/:id", communityHandler.GetMemberProfile)

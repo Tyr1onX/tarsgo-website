@@ -403,3 +403,39 @@
 @media (min-width:760px) and (orientation:landscape) and (max-height:500px){
   .rmul3d-roster{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
+
+/* Academy layout: no scene mount until a spatial course or atlas is entered. */
+.rmul3d-academy{padding:clamp(12px,3vw,32px);overflow:auto}
+.rmul3d-academy-home>*{max-width:760px;margin-inline:auto}
+.rmul3d-academy-home>header,.rmul3d-academy-panel>header{display:grid;gap:8px;margin-bottom:20px}
+.rmul3d-academy-home>header button,.rmul3d-academy-panel>header button{justify-self:start}
+.rmul3d-academy-home>header small,.rmul3d-academy-panel>header small{color:var(--arena-gold)}
+.rmul3d-academy :is(h1,h2,h3){margin:0;color:#edf1ed}
+.rmul3d-academy h1{font-size:clamp(28px,5vw,44px)}
+.rmul3d-academy h2{font-size:21px}
+.rmul3d-academy h3{font-size:16px}
+.rmul3d-academy p{font-size:14px;line-height:1.65;margin:10px 0}
+.rmul3d-academy-progress{display:grid;gap:12px;margin-bottom:24px}
+.rmul3d-academy-progress progress{width:100%;accent-color:var(--arena-gold)}
+.rmul3d-academy-list,.rmul3d-academy-answers{display:grid;gap:8px}
+.rmul3d-academy-list button{display:flex;align-items:center;justify-content:space-between;text-align:left;gap:12px;min-height:52px}
+.rmul3d-academy-list small{color:var(--arena-gold-light);flex-shrink:0}
+.rmul3d-academy-atlas{display:block;width:100%;margin-top:20px;text-align:left}
+.rmul3d-academy-text .rmul3d-academy-panel{max-width:760px;margin-inline:auto}
+.rmul3d-academy-panel{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;overflow:auto}
+.rmul3d-academy-panel select{width:100%;max-width:100%;display:block;background:var(--arena-panel);color:inherit;border:1px solid var(--arena-border);padding:10px;border-radius:4px;margin-top:6px}
+.rmul3d-rule{border-bottom:1px solid var(--arena-border);padding:12px 0}
+.rmul3d-rule a{color:var(--arena-gold-light);font-size:12px;line-height:1.5}
+.rmul3d-rule summary{cursor:pointer;font-size:13px;color:#b6c7d7;margin:8px 0}
+.rmul3d-rule-boundary{color:#aab9c9}
+.rmul3d-academy-answers button{text-align:left}
+.rmul3d-academy-answers [data-correct=true]{border-color:#83b998}
+.rmul3d-academy-answers [data-correct=false]{border-color:#d88579}
+.rmul3d-academy-error{font-size:13px;color:#ffb5ab;display:flex;align-items:center;gap:10px}
+.rmul3d-academy-practice{padding:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,320px);height:100dvh;overflow:hidden}
+.rmul3d-academy-stage{min-width:0;min-height:0;overflow:hidden}
+.rmul3d-academy-practice .rmul3d-academy-panel{padding:14px;border-left:1px solid var(--arena-border);background:#101715}
+.rmul3d-teaching-scene{height:100%;width:100%}
+.rmul3d-academy-collapse{display:none}
+@media(max-width:760px){.rmul3d-academy-practice{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(130px,35dvh)}.rmul3d-academy-practice .rmul3d-academy-panel{border-left:0;border-top:1px solid var(--arena-border);padding:10px}.rmul3d-academy-practice .rmul3d-academy-panel header{grid-template-columns:1fr auto;margin:0}.rmul3d-academy-practice .rmul3d-academy-panel header h2{grid-column:1/-1}.rmul3d-academy-collapse{display:block}.rmul3d-academy-practice.is-collapsed{grid-template-rows:minmax(0,1fr) auto}.rmul3d-academy-practice.is-collapsed header :is(h2,small){display:none}}
+@media(max-height:500px) and (orientation:landscape){.rmul3d-academy-practice{grid-template-columns:minmax(0,1fr) minmax(220px,30vw);grid-template-rows:minmax(0,1fr)}}
