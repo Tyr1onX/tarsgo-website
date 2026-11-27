@@ -439,3 +439,59 @@
 .rmul3d-academy-collapse{display:none}
 @media(max-width:760px){.rmul3d-academy-practice{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(130px,35dvh)}.rmul3d-academy-practice .rmul3d-academy-panel{border-left:0;border-top:1px solid var(--arena-border);padding:10px}.rmul3d-academy-practice .rmul3d-academy-panel header{grid-template-columns:1fr auto;margin:0}.rmul3d-academy-practice .rmul3d-academy-panel header h2{grid-column:1/-1}.rmul3d-academy-collapse{display:block}.rmul3d-academy-practice.is-collapsed{grid-template-rows:minmax(0,1fr) auto}.rmul3d-academy-practice.is-collapsed header :is(h2,small){display:none}}
 @media(max-height:500px) and (orientation:landscape){.rmul3d-academy-practice{grid-template-columns:minmax(0,1fr) minmax(220px,30vw);grid-template-rows:minmax(0,1fr)}}
+
+/* Rule experiments use referee snapshots without creating a second scene. */
+.rmul3d-lab-directory,.rmul3d-lab-guides{margin-block:16px}
+.rmul3d-lab-search{display:grid;gap:6px;margin-bottom:14px;font-size:13px}
+.rmul3d-lab-search input,.rmul3d-lab select{background:var(--arena-panel);color:inherit;border:1px solid var(--arena-border);border-radius:4px;padding:10px;min-width:0}
+.rmul3d-lab-directory details,.rmul3d-lab-guides{border-bottom:1px solid var(--arena-border);padding:12px 0}
+.rmul3d-lab-directory summary,.rmul3d-lab-guides summary{cursor:pointer;color:#edf1ed;line-height:1.6;min-height:28px}
+.rmul3d-lab-directory summary small{float:right;color:var(--arena-gold)}
+.rmul3d-lab-case-list{display:grid;gap:6px;margin-top:8px}
+.rmul3d-lab-case-list button{display:flex;justify-content:space-between;gap:12px;text-align:left}
+.rmul3d-lab-case-list small{white-space:nowrap;color:var(--arena-gold-light)}
+.rmul3d-lab-guides nav{margin-top:10px}
+.rmul3d-lab>*{max-width:1120px;margin-inline:auto}
+.rmul3d-lab-header{display:grid;gap:8px;margin-bottom:16px}
+.rmul3d-lab-header button{justify-self:start}
+.rmul3d-lab-header small{color:var(--arena-gold)}
+.rmul3d-lab-header h1{font-size:clamp(24px,4vw,36px)}
+.rmul3d-lab-variant{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:13px}
+.rmul3d-lab-variant select{flex:1}
+.rmul3d-lab-body{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(250px,1fr);gap:24px;align-items:start}
+.rmul3d-lab-live,.rmul3d-lab-rules{min-width:0}
+.rmul3d-lab-state-head{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center}
+.rmul3d-lab-state-head small,.rmul3d-lab-time span,.rmul3d-lab-axis{color:#aab9ae;font-size:12px}
+.rmul3d-lab-time{display:flex;align-items:baseline;gap:10px;margin:12px 0}
+.rmul3d-lab-time strong{font-size:30px;color:var(--arena-gold-light)}
+.rmul3d-lab-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.rmul3d-lab-metrics>div{border-bottom:1px solid var(--arena-border);padding:8px 0;display:grid;gap:5px}
+.rmul3d-lab-metrics small{color:#aab9ae;font-size:12px}
+.rmul3d-lab-metrics strong{font-size:18px;overflow-wrap:anywhere}
+.rmul3d-lab-metrics progress,.rmul3d-lab input[type=range]{width:100%;accent-color:var(--arena-gold)}
+.rmul3d-lab-trend{margin:18px 0}
+.rmul3d-lab-trend label{display:flex;align-items:center;gap:8px;font-size:13px}
+.rmul3d-lab-trend svg{width:100%;max-height:220px;display:block}
+.rmul3d-lab-axis,.rmul3d-lab-actions{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.rmul3d-lab-actions{justify-content:flex-start;margin:10px 0 20px}
+.rmul3d-lab-events ol{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px;font-size:12px}
+.rmul3d-lab-events li{display:flex;gap:10px;border-bottom:1px solid #a18a5e22;padding:5px 0}
+.rmul3d-lab-events time{color:var(--arena-gold);flex-shrink:0;min-width:48px}
+.rmul3d-lab-events details ol{max-height:240px;overflow:auto}
+.rmul3d-lab-rules{border-left:1px solid var(--arena-border);padding-left:20px}
+.rmul3d-lab-rules dl{margin:14px 0}
+.rmul3d-lab-rules dt{font-weight:650;color:var(--arena-gold);font-size:13px;margin-top:12px}
+.rmul3d-lab-rules dd{margin:4px 0;font-size:14px;line-height:1.65}
+.rmul3d-lab-rules a{display:block;color:var(--arena-gold-light);font-size:12px;margin:12px 0}
+.rmul3d-lab-question{margin-top:20px;display:grid;gap:10px}
+@media(max-width:760px){.rmul3d-lab-body{grid-template-columns:minmax(0,1fr);gap:20px}.rmul3d-lab-rules{border-left:0;border-top:1px solid var(--arena-border);padding:16px 0 0}.rmul3d-lab-metrics strong{font-size:16px}.rmul3d-lab-variant{align-items:start;flex-direction:column}.rmul3d-lab-variant select{width:100%}}
+.rmul3d-lab-diagram{border:1px solid var(--arena-border);padding:12px;display:grid;gap:10px;margin:14px 0}
+.rmul3d-lab-territory{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center}
+.rmul3d-lab-territory>div,.rmul3d-lab-territory-result{display:grid;gap:5px;border:1px solid var(--arena-border);padding:10px;min-width:0}
+.rmul3d-lab-territory>[data-side=red][data-active=true],.rmul3d-lab-territory-result[data-side=red]{border-color:#dd776f;color:#ffc2bd}
+.rmul3d-lab-territory>[data-side=blue][data-active=true],.rmul3d-lab-territory-result[data-side=blue]{border-color:#76a9e4;color:#b9d9ff}
+.rmul3d-lab-territory-result progress{width:100%;accent-color:currentColor}
+.rmul3d-lab-assembly-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(24px,1fr));gap:5px}
+.rmul3d-lab-assembly-steps span{padding:7px 2px;text-align:center;border:1px solid var(--arena-border);color:#aab9ae}
+.rmul3d-lab-assembly-steps span[data-done=true]{color:#151b13;background:var(--arena-gold);border-color:var(--arena-gold)}
+.rmul3d-lab-step-log{margin:0;padding-left:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:4px 20px;font-size:12px}

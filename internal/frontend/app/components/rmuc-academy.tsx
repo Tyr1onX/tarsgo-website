@@ -4,9 +4,11 @@ import {apiRequest} from "~/lib/api-client";
 import {COURSES,KNOWLEDGE,RULE_SOURCE,RULE_VERSION,knowledgeForObject,type Course,type KnowledgeId} from "~/lib/rmuc-academy";
 import {ARENA_ZONES} from "~/lib/rmuc-3d-zones";
 import {GROUND_ROSTER,groundLabel} from "~/lib/rmuc-3d-identity";
+import { LAB_CASES,LAB_VERSION,labProgressId,relatedLabs,type LabCase } from "~/lib/rmuc-academy-lab";
+import {LabDirectory,RuleLab} from "./rmuc-academy-lab";
 import type {ArenaController,ArenaStatus,TeachingMode} from "~/lib/rmul-3d-scene";
 
-type SceneRenderer=(mode:TeachingMode,controller:RefObject<ArenaController|null>,onStatus:(status:ArenaStatus)=>void,onExit:()=>void)=>ReactNode;
+type SceneRenderer=(mode:TeachingMode,controller:RefObject<ArenaController|null>,onStatus:(status:ArenaStatus)=>void,onExit:()=>void,initialFocus?:string)=>ReactNode;
 type Props={onExit:()=>void;renderScene:SceneRenderer};
 type RecordInput={courseId:string;version:number;completed:boolean;position:number};
 type Progress=RecordInput&{updatedAt:string};
@@ -19,7 +21,7 @@ const atlasObjects=[
     {id:team+"-core",label:(team==="red"?"红":"蓝")+"方科技核心",knowledge:"energy" as const},
     {id:team+"-energy",label:(team==="red"?"红":"蓝")+"方能量单元",knowledge:"energy" as const},
     {id:team+"-rune",label:(team==="red"?"红":"蓝")+"方能量机关",knowledge:"rune" as const},
-    ...[["air","空中系统"],["dart","飞镖系统"],["radar","雷达系统"]].map(([kind,label])=>({id:team+"-"+kind,label:(team==="red"?"红":"蓝")+"方"+label,knowledge:"systems" as const}))
+    ...[["air","空中系统"],["dart","飞镖系统"],["radar","雷达系统"]].map(([kind,label])=>({id:team+"-"+kind,label:(team==="red"?"红":"蓝")+"方"+label,knowledge:kind as "air"|"dart"|"radar"}))
   ])
 ];
 function Rule({id}:{id:KnowledgeId}){
@@ -52,6 +54,7 @@ function AcademySession({userId,onExit,renderScene}:Props&{userId:number|null}){
   const [fromAtlas,setFromAtlas]=useState(false);
   const [collapsed,setCollapsed]=useState(false);
   const controller=useRef<ArenaController|null>(null);
+  const atlasFocus=useRef<string|null>(null);
   const request=useRef<AbortController|null>(null);
   function load(){
     if(userId===null)return;
@@ -62,6 +65,11 @@ function AcademySession({userId,onExit,renderScene}:Props&{userId:number|null}){
   }
   useEffect(()=>{load();return ()=>request.current?.abort();},[userId]);
   const current=COURSES.find(c=>c.id===selection);
+  const demo=LAB_CASES.find(c=>labProgressId(c)===selection);
+  const labRecord=(c:LabCase)=>rows.find(r=>r.courseId===labProgressId(c)&&r.version===LAB_VERSION);
+  const labCompleted=(c:LabCase)=>!!labRecord(c)?.completed;
+  const labCount=LAB_CASES.filter(labCompleted).length;
+  const resumeLab=LAB_CASES.find(c=>labProgressId(c)===rows.find(r=>r.courseId.startsWith("lab-")&&!r.completed&&r.version===LAB_VERSION)?.courseId);
   const atlas=selection==="atlas";
   const record=(c:Course)=>rows.find(r=>r.courseId===c.id&&r.version===c.version);
   const count=COURSES.filter(c=>record(c)?.completed).length;
@@ -83,10 +91,17 @@ function AcademySession({userId,onExit,renderScene}:Props&{userId:number|null}){
     finally{if(!abort.signal.aborted)setSaving(false);}
   }
   function open(c:Course,repeat=false,from=false){
+    if(from&&status?.teaching?.selected)atlasFocus.current=status.teaching.selected;
     const row=record(c);
     const pos=repeat||row?.completed?0:Math.min(row?.position??0,c.questions.length);
     setFromAtlas(from);setSelection(c.id);setPosition(pos);setAnswer(null);setFinished(false);setStatus(null);setCollapsed(false);
     void persist({courseId:c.id,version:c.version,position:pos,completed:false});
+  }
+  function openLab(c:LabCase,from=false){
+    if(saving||saveError)return;
+    if(from&&status?.teaching?.selected)atlasFocus.current=status.teaching.selected;
+    setFromAtlas(from);setSelection(labProgressId(c));setStatus(null);
+    void persist({courseId:labProgressId(c),version:LAB_VERSION,position:0,completed:false});
   }
   function back(){
     if(saving||saveError)return;
@@ -114,13 +129,15 @@ function AcademySession({userId,onExit,renderScene}:Props&{userId:number|null}){
     }
   }
   const saveFeedback=saveError?<div role="alert" className="rmul3d-academy-error">进度未保存 <button disabled={saving} onClick={()=>void retry()}>重试</button></div>:null;
-  if(!selection)return <main className="rmul3d rmul3d-academy rmul3d-academy-home"><header><button onClick={onExit}>← 主菜单</button><small>{RULE_VERSION}</small><h1>规则学院</h1></header>
+  if(!selection)return <main className="rmul3d rmul3d-academy rmul3d-academy-home"><header><button onClick={onExit}>← 主菜单</button><small>{RULE_VERSION}</small><h1>规则实验室</h1></header>
     {loading?<p role="status">读取学习进度…</p>:loadError?<div role="alert">学习进度加载失败 <button onClick={load}>重试</button></div>:<>
-    <section className="rmul3d-academy-progress"><strong>{count} / {COURSES.length} 已完成</strong><progress aria-label="课程进度" value={count} max={COURSES.length}/>{userId===null&&<small>未登录，本次学习进度仅保留在当前页面。</small>}{next&&<button className="rmul3d-primary" disabled={saving||!!saveError} onClick={()=>open(next)}>{latest?"继续学习":"开始学习"} · {next.title}</button>}</section>
-    {saveFeedback}<nav aria-label="章节课程" className="rmul3d-academy-list">{COURSES.map((c,i)=><button key={c.id} disabled={saving||!!saveError} onClick={()=>open(c,!!record(c)?.completed)}><span>{String(i+1).padStart(2,"0")}　{c.title}</span><small>{record(c)?.completed?"已完成 · 重学":record(c)?"继续":"开始"} ›</small></button>)}</nav>
-    <button className="rmul3d-academy-atlas" disabled={saving||!!saveError} onClick={()=>{setSelection("atlas");setStatus(null);}}>规则图鉴 ›</button>
+    <section className="rmul3d-academy-progress"><strong>{labCount} / {LAB_CASES.length} 案例已验证</strong><progress aria-label="规则案例进度" value={labCount} max={LAB_CASES.length}/>{userId===null&&<small>未登录，本次学习进度仅保留在当前页面。</small>}{resumeLab&&<button className="rmul3d-primary" disabled={saving||!!saveError} onClick={()=>openLab(resumeLab)}>继续案例 · {resumeLab.title}</button>}</section>
+    {saveFeedback}<LabDirectory completed={labCompleted} onOpen={openLab}/><details className="rmul3d-lab-guides"><summary>基础引导与三维练习 · {count}/{COURSES.length}</summary>{next&&<button className="rmul3d-primary" disabled={saving||!!saveError} onClick={()=>open(next)}>{latest?"继续引导":"开始引导"} · {next.title}</button>}<nav aria-label="章节课程" className="rmul3d-academy-list">{COURSES.map((c,i)=><button key={c.id} disabled={saving||!!saveError} onClick={()=>open(c,!!record(c)?.completed)}><span>{String(i+1).padStart(2,"0")}　{c.title}</span><small>{record(c)?.completed?"已完成 · 重学":record(c)?"继续":"开始"} ›</small></button>)}</nav></details>
+    <details className="rmul3d-lab-guides"><summary>暂不提供动态裁判演示的规则</summary><Rule id="air"/></details>
+    <button className="rmul3d-academy-atlas" disabled={saving||!!saveError} onClick={()=>{atlasFocus.current=null;setSelection("atlas");setStatus(null);}}>规则图鉴 ›</button>
     </>}
   </main>;
+  if(demo)return <RuleLab key={demo.id} demo={demo} completed={labCompleted(demo)} onBack={back} onOpen={c=>openLab(c,fromAtlas)} saving={saving||!!saveError} saveFeedback={saveFeedback} onComplete={()=>persist({courseId:labProgressId(demo),version:LAB_VERSION,position:1,completed:true})}/>;
   const ruleIds=atlas?Object.keys(KNOWLEDGE) as KnowledgeId[]:current?.knowledge??[];
   const canFocus=mode==="atlas"||mode==="observe";
   const practiceReady=!!status?.teaching;
@@ -131,7 +148,7 @@ function AcademySession({userId,onExit,renderScene}:Props&{userId:number|null}){
     {!collapsed&&<>
     {finished?<><h3>课程已完成</h3><button className="rmul3d-primary" onClick={back}>返回{fromAtlas?"规则图鉴":"课程目录"}</button><button onClick={()=>current&&open(current,true,fromAtlas)}>重新学习</button></>:
     canFocus?<><label>场地对象<select aria-label="场地对象" disabled={!practiceReady} value={object?.id??""} onChange={e=>controller.current?.teachingFocus(e.target.value)}><option value="">选择场地对象</option>{atlasObjects.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
-      {selectedKnowledge?<><Rule id={selectedKnowledge}/>{atlas&&COURSES.filter(c=>c.knowledge.includes(selectedKnowledge)||c.questions.some(q=>q.knowledge===selectedKnowledge)).map(c=><button key={c.id} disabled={saving||!!saveError} onClick={()=>open(c,false,true)}>{c.title} ›</button>)}</>:<p>点击场地、小地图或上方索引查看对应规则。</p>}
+      {selectedKnowledge?<><Rule id={selectedKnowledge}/>{atlas&&relatedLabs(selectedKnowledge).length>0&&<details open><summary>关联动态演示 · {relatedLabs(selectedKnowledge).length}</summary><div className="rmul3d-lab-case-list">{relatedLabs(selectedKnowledge).map(c=><button key={labProgressId(c)} disabled={saving||!!saveError} onClick={()=>openLab(c,true)}>{c.title} ›</button>)}</div></details>}{atlas&&COURSES.filter(c=>c.knowledge.includes(selectedKnowledge)||c.questions.some(q=>q.knowledge===selectedKnowledge)).map(c=><button key={c.id} disabled={saving||!!saveError} onClick={()=>open(c,false,true)}>{c.title} ›</button>)}</>:<p>点击场地、小地图或上方索引查看对应规则。</p>}
       {current&&<button className="rmul3d-primary" disabled={!practiceDone||saving||!!saveError} onClick={()=>void advance()}>开始情境判断</button>}
       <details><summary>规则索引</summary>{(atlas?ruleIds:current?.knowledge??[]).map(id=><Rule key={id} id={id}/>)}</details>
       </>:
@@ -141,5 +158,5 @@ function AcademySession({userId,onExit,renderScene}:Props&{userId:number|null}){
     question?<><small>情境 {position} / {current?.questions.length}</small><h3>{question.prompt}</h3><div className="rmul3d-academy-answers">{question.options.map((value,i)=><button key={i} disabled={saving} aria-pressed={answer===i} data-correct={answer===i?i===question.answer:undefined} onClick={()=>setAnswer(i)}>{value}</button>)}</div>{answer!==null&&<><p role="status">{answer===question.answer?"回答正确":"再想一想"}：{question.explanation}</p><Rule id={question.knowledge}/></>}<button className="rmul3d-primary" disabled={answer!==question.answer||saving||!!saveError} onClick={()=>void advance()}>{position===current?.questions.length?"完成课程":"下一题"}</button></>:null}
     </>}
   </section>;
-  return <main className={"rmul3d rmul3d-academy "+(mode?"rmul3d-academy-practice":"rmul3d-academy-text")+(collapsed?" is-collapsed":"")}>{mode&&<div className="rmul3d-academy-stage">{renderScene(mode,controller,setStatus,back)}</div>}{panel}</main>;
+  return <main className={"rmul3d rmul3d-academy "+(mode?"rmul3d-academy-practice":"rmul3d-academy-text")+(collapsed?" is-collapsed":"")}>{mode&&<div className="rmul3d-academy-stage">{renderScene(mode,controller,setStatus,back,atlas?atlasFocus.current??undefined:undefined)}</div>}{panel}</main>;
 }

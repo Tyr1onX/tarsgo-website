@@ -19,7 +19,7 @@ test("atlas maps existing zones, roster and symmetric special systems",()=>{
  for(const z of ARENA_ZONES)assert.equal(knowledgeForObject(z.id),z.kind);
  for(const r of GROUND_ROSTER)assert.equal(knowledgeForObject(r.id),r.kind);
  for(const team of ["red","blue"]){
-  for(const kind of ["air","dart","radar"])assert.equal(knowledgeForObject(team+"-"+kind),"systems");
+  for(const kind of ["air","dart","radar"])assert.equal(knowledgeForObject(team+"-"+kind),kind);
   assert.equal(knowledgeForObject(team+"-core"),"energy");
  }
  assert.equal(knowledgeForObject("unknown"),undefined);

@@ -140,9 +140,9 @@ function TouchJoystick({controller,resetRef}:{controller:RefObject<ArenaControll
 }
 export default function PixelJijiaArenaPage() {
   const [academy,setAcademy]=useState(false);
-  return academy?<RMUCAcademy onExit={()=>setAcademy(false)} renderScene={(mode,controller,onStatus,onExit)=><ArenaSurface key={mode} teaching={mode} providedController={controller} onTeachingStatus={onStatus} onTeachingExit={onExit}/>}/>:<ArenaSurface onAcademy={()=>setAcademy(true)}/>;
+  return academy?<RMUCAcademy onExit={()=>setAcademy(false)} renderScene={(mode,controller,onStatus,onExit,initialFocus)=><ArenaSurface key={mode} teaching={mode} teachingInitialFocus={initialFocus} providedController={controller} onTeachingStatus={onStatus} onTeachingExit={onExit}/>}/>:<ArenaSurface onAcademy={()=>setAcademy(true)}/>;
 }
-function ArenaSurface({teaching,providedController,onTeachingStatus,onTeachingExit,onAcademy}:{teaching?:TeachingMode;providedController?:RefObject<ArenaController|null>;onTeachingStatus?:(status:ArenaStatus)=>void;onTeachingExit?:()=>void;onAcademy?:()=>void}) {
+function ArenaSurface({teaching,teachingInitialFocus,providedController,onTeachingStatus,onTeachingExit,onAcademy}:{teaching?:TeachingMode;teachingInitialFocus?:string;providedController?:RefObject<ArenaController|null>;onTeachingStatus?:(status:ArenaStatus)=>void;onTeachingExit?:()=>void;onAcademy?:()=>void}) {
   const location=useLocation();
   const returnTo=getExperienceReturnTo(location.state);
   const pixelReturn=getPixelReturn(location.state);
@@ -197,6 +197,7 @@ function ArenaSurface({teaching,providedController,onTeachingStatus,onTeachingEx
     const host = mountRef.current;
     if (!host||!entry) return;
     let active = true;
+    let teachingReady=false;
     const importStarted=performance.now();
     function fail(message:string){
       if(!active)return;
@@ -214,7 +215,7 @@ function ArenaSurface({teaching,providedController,onTeachingStatus,onTeachingEx
           const arena=controller.current;
           if(!arena)return;
           arena.settings(settingsRef.current);
-          if(teaching)arena.teachingReset();
+          if(teaching){teachingReady=true;arena.teachingReset();if(teaching==="atlas"&&teachingInitialFocus)arena.teachingFocus(teachingInitialFocus);}
           else if(entry==="match")arena.start();
           else if(entry==="explore")arena.view("third");
           else if(launchConfig.current){
@@ -224,7 +225,7 @@ function ArenaSurface({teaching,providedController,onTeachingStatus,onTeachingEx
           setLoading(false);
         },
         fail,
-        value=>{if(active){setStatus(value);onTeachingStatus?.(value);}},
+        value=>{if(active){setStatus(value);if(teachingReady)onTeachingStatus?.(value);}},
         ()=>resetTouch.current(),
         teaching,
       );
