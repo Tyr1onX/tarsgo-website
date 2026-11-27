@@ -52,7 +52,7 @@ export function createWorldControls(scene:THREE.Scene,terrainHeight:(x:number,z:
     const visible=actions.map(a=>remoteButtons.find(b=>b.name==="world-"+a)!);
     remote.quaternion.copy(camera.quaternion);
     const halfHeight=1.5*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
-    remote.position.copy(camera.position).add(offset.set(0,-halfHeight*.79,-1.5).applyQuaternion(camera.quaternion));
+    remote.position.copy(camera.position).add(offset.set(0,-halfHeight*(state.driving && camera.aspect < .8 ? .53 : .79),-1.5).applyQuaternion(camera.quaternion));
     remote.scale.setScalar(Math.min(halfHeight*.42,halfHeight*camera.aspect*.72));
     visible.forEach((mesh,i)=>mesh.position.x=(i-(visible.length-1)/2)*.43);
     for(const mesh of remoteButtons){mesh.renderOrder=100;const material=mesh.material as THREE.MeshBasicMaterial;material.depthTest=false;material.depthWrite=false;}
