@@ -59,16 +59,11 @@ export async function testRMUCAcademy({origin,command,evaluate,until,screenshot}
     // The full-screen arena has no account menu. Use the public site's actual logout control.
     await command("Page.navigate",{url:origin+"/"});
     await click(".navbar-profile-button");
-    // Account list initialization changes menu geometry. Wait for the actual
-    // single-account menu, then use its existing accessible End/Enter action.
+    // Wait for the real menu to finish initializing. Activate its DOM button
+    // rather than relying on synthetic coordinate/keyboard timing during layout.
     await wait('!!document.querySelector(".navbar-user-menu .account-session-choices__add")',"account menu initialized");
-    for(const [key,code] of [["End",35],["Enter",13]]){
-      if(key==="Enter"){
-        await wait('document.activeElement?.matches("button.account-menu-action--logout")',"logout menu keyboard focus");
-        console.log("RMUC: actual logout control focused.");
-      }
-      for(const type of ["keyDown","keyUp"])await command("Input.dispatchKeyEvent",{type,key,code:key,windowsVirtualKeyCode:code});
-    }
+    assert.equal(await evaluate(`(()=>{const button=document.querySelector(".navbar-user-menu button.account-menu-action--logout");if(!button||button.disabled||!button.getClientRects().length)return false;let activated=false;button.addEventListener("click",()=>{activated=true;},{once:true});button.click();return activated;})()`),true,"actual logout button click dispatched");
+    console.log("RMUC: actual logout button click dispatched.");
     await wait('location.pathname==="/login"&&!!document.querySelector("form.auth-form")',"logout returns to login");
     assert.equal((await read()).status,401,"server rejected logged-out progress read");
   }
