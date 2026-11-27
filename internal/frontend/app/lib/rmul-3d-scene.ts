@@ -678,21 +678,55 @@ export function mountArena(
     driving=null;observed=null;observerPointer=null;followTime=null;radarPerspective="all";clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
     mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyTechnology(match);syncArmorLights();setView(experiment?.running?"all":"first");publish();invalidate();
   }
-  function teachingFocus(id:string){
+  // Teaching selection uses visible scene objects, not damage eligibility.
+  // Some visual-only objects are outside the normal collision roots.
+  function teachingObjects(){
+    const objects:{id:string;object:THREE.Object3D;extra?:boolean}[]=[];
+    const add=(id:string,object:THREE.Object3D|undefined,extra=false)=>{if(object)objects.push({id,object,extra});};
+    for(const [index,team] of (["red","blue"] as const).entries()){
+      add(team+"-base",mechanism?.parts.getObjectByName(team+"-base-assembly"));
+      add(team+"-outpost",mechanism?.parts.getObjectByName(team+"-outpost-assembly"));
+      add(team+"-rune",mechanism?.banks[index]);
+      add(team+"-core",coreGeometry?.cores[index]?.object);
+      for(const unit of coreGeometry?.units??[])if(unit.team===team)add(team+"-energy",unit.object);
+      add(team+"-air",air?.sides[team].hangar,true);
+      for(const vehicle of air?.sides[team].vehicles??[])add(team+"-air",vehicle.object,true);
+      add(team+"-dart",dartVisual?.group.getObjectByName(team+"-dart-station-visual"),true);
+      const dart=mechanism?.dartBindings.find(b=>b.team===team);
+      add(team+"-dart",dart?.door.parent??undefined);
+      add(team+"-radar",scene.getObjectByName(team+"-radar"),true);
+    }
+    return objects;
+  }
+  function teachingFocus(id:string,picked?:THREE.Object3D){
     if(!teaching||!ready||driving)return;
     const robot=fieldRobots.find(r=>r.object.name===id);
     if(robot){lesson.selected=id;observe(id);return;}
     const zone=ARENA_ZONES.find(z=>z.id===id);
     const team=id.startsWith("red-")?"red":"blue";
-    const index=team==="red"?0:1;
-    const object=id.endsWith("-rune")?mechanism?.banks[index]:id.endsWith("-energy")?coreGeometry?.units.find(u=>u.team===team)?.object:id.endsWith("-core")?coreGeometry?.cores[index]?.object:id.endsWith("-air")?scene.getObjectByName(team+"-hangar"):id.endsWith("-dart")?dartVisual?.group.getObjectByName(team+"-dart-station-visual"):scene.getObjectByName(id);
-    const target=zone?new THREE.Vector3(zone.goal[0],(zone.height[0]+zone.height[1])/2,zone.goal[1]):object?new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3()):null;
+    const object=picked??teachingObjects().find(o=>o.id===id)?.object;
+    const target=object?new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3()):zone?new THREE.Vector3(zone.goal[0],(zone.height[0]+zone.height[1])/2,zone.goal[1]):null;
     if(!target||!Number.isFinite(target.x))return;
     lesson.selected=id;
     setView("all");
     controls.target.copy(target);
     camera.position.copy(target).add(new THREE.Vector3(team==="red"?-3:3,4,3));
     controls.update();publish();invalidate();
+  }
+  function teachingPick(hit:THREE.Intersection|undefined){
+    const objects=teachingObjects();
+    const extra=observerRay.intersectObjects(objects.filter(o=>o.extra&&o.object.visible).map(o=>o.object),true)
+      .find(h=>{for(let node:THREE.Object3D|null=h.object;node;node=node.parent)if(!node.visible)return false;return true;});
+    const selected=extra&&(!hit||extra.distance<hit.distance)?extra:hit;
+    if(!selected)return;
+    for(let node:THREE.Object3D|undefined=selected.object;node;node=node.parent??undefined){
+      const robot=fieldRobots.find(r=>r.object===node);
+      if(robot){teachingFocus(robot.object.name);return;}
+      const object=objects.find(o=>o.object===node);
+      if(object){teachingFocus(object.id,object.object);return;}
+    }
+    const zone=zonesAtPosition({x:selected.point.x,y:terrain?.heightAt(selected.point.x,selected.point.z)??selected.point.y,z:selected.point.z})[0];
+    if(zone)teachingFocus(zone);
   }
   function teachingReset(){
     if(!teaching||!match||!terrain||!ready)return;
@@ -1417,14 +1451,8 @@ export function mountArena(
         observerRay.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
         if(mode==="follow"){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}
         const hit=traceArenaShot(observerRay,shotRoots(),observerRay.ray.origin.clone(),observerRay.ray.direction.clone(),220,prepareShots());
-        let selectedRobot=false;
-        for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);if(teaching)lesson.selected=robot.object.name;selectedRobot=true;break;}}
-        if(teaching&&!selectedRobot&&hit){
-          const target=arenaHitTarget(hit,observerRay.ray.direction);
-          if(target&&(target.type==="base"||target.type==="outpost"))teachingFocus(target.team+"-"+target.type);
-          else if(target?.type==="rune")teachingFocus(target.team+"-rune");
-          else {const zone=zonesAtPosition({x:hit.point.x,y:terrain?.heightAt(hit.point.x,hit.point.z)??hit.point.y,z:hit.point.z})[0];if(zone)teachingFocus(zone);}
-        }
+        if(teaching)teachingPick(hit);
+        else for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);break;}}
       }
     }
     if (drag?.id !== event.pointerId) return;
@@ -1718,6 +1746,7 @@ export function mountArena(
       for(const old of coreGeometry?.old??[])disposeObjects(old);
       environment.dispose();
       qualityCalibration.reset();renderer.dispose();
+      if(teaching)renderer.forceContextLoss();
       canvas.remove();
     },
   };

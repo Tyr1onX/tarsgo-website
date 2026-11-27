@@ -87,3 +87,75 @@ test("crossing order, radar decay, dart window and result are live state transit
  const dart=traces.get("dart-window");assert.ok(ever(dart,"裁判窗口许可","是"));assert.ok(ever(dart,"闸门状态","开启中"));assert.equal(end(dart,"裁判窗口许可"),"否");
  for(const id of ["outcome-control","outcome-damage","outcome-hp","outcome-draw"])assert.ok(event(traces.get(id),"match-end"));
 });
+
+test("all 56 cases have a purposeful teaching presentation and a separate initialization phase",async()=>{
+ const {labPresentation}=await import("./rmuc-academy-lab.ts");
+ const counts={space:0,process:0,number:0};
+ for(const c of LAB_CASES){
+  const t=traces.get(c.id),p=labPresentation(c),start=t.frames[0];
+  counts[p.kind]++;
+  assert.ok(p.focus.some(label=>start.metrics.some(m=>m.label===label)),c.id);
+  assert.equal(start.eventCount,0,c.id);assert.equal(start.inputCount,0,c.id);
+  assert.equal(t.setupEvents[0]?.type,"match-start",c.id);
+  assert.ok(t.setupEvents.every(e=>e.at<=start.time+.00001),c.id);
+  assert.ok(t.events.every(e=>e.at>=start.time-.00001),c.id);
+  for(const f of t.frames)for(const c of f.contacts)assert.ok(Number.isFinite(c.position.x)&&Number.isFinite(c.position.z));
+ }
+ assert.equal(Object.values(counts).reduce((a,b)=>a+b,0),56);
+ assert.ok(counts.space>0&&counts.process>0&&counts.number>0);
+ const tech=traces.get("tech-4-first");
+ assert.deepEqual(tech.setupEvents.filter(e=>e.type==="assembly-end").map(e=>e.level),[1,2,3]);
+ assert.deepEqual(tech.events.filter(e=>e.type==="assembly-end").map(e=>e.level),[4]);
+ assert.ok(traces.get("revive-read").setupEvents.some(e=>e.type==="robot-dead"));
+ assert.ok(!traces.get("revive-read").events.some(e=>e.type==="robot-dead"));
+});
+test("all supported combinations use new referee instances, not a second rule engine",async()=>{
+ const {labExperiment,labPresentation}=await import("./rmuc-academy-lab.ts");
+ let experiments=0,combinations=0;
+ for(const c of LAB_CASES){
+  const experiment=labExperiment(c);if(!experiment)continue;experiments++;
+  for(const values of experiment.fields.reduce((a,f)=>a.flatMap(v=>f.options.map(o=>[...v,o.value])),[[]])){
+   const variant=experiment.create(values),t=buildLabTrace(variant);
+   combinations++;
+   assert.equal(variant.id,c.id);
+   assert.ok(labPresentation(variant).focus.some(label=>t.frames[0].metrics.some(m=>m.label===label)));
+   assert.equal(t.frames[0].eventCount,0);assert.equal(t.frames[0].inputCount,0);
+   assert.ok(t.frames.length>=2);assert.deepEqual(buildLabTrace(variant),t);
+   assert.ok(t.frames.every(f=>f.metrics.every(m=>typeof m.value==="string"||Number.isFinite(m.value))));
+   if(c.id==="heal-supply"){
+    const [base,method,time,combat]=values;
+    assert.equal(val(t.frames[0],"红方步兵血量"),100);
+    assert.equal(val(t.frames[0],"己方基地血量"),Number(base));
+    if(method==="remote"){
+     assert.equal(t.inputs[0].accepted,combat==="safe");
+     assert.equal(end(t,"红方步兵血量"),combat==="combat"?100:base==="10000"?200:base==="5000"?190:178);
+    }else{
+     assert.ok(end(t,"红方步兵血量")>100);
+     if(time==="0"&&method==="supply")assert.equal(end(t,"红方步兵血量"),base==="10000"?200:base==="5000"?175:165);
+    }
+   }
+   if(c.id==="revive-read"){
+    const [,mode,coins]=values;
+    assert.equal(end(t,"步兵血量"),mode==="read"?20:coins==="800"?200:0);
+    if(mode==="paid")assert.equal(t.inputs[0].accepted,coins==="800");
+   }
+   if(c.id==="economy-local"){
+    const [mode,coins,combat]=values;
+    assert.equal(t.inputs[0].accepted,coins==="800"&&(mode==="local"||combat==="safe"));
+    assert.equal(end(t,"允许发弹量"),t.inputs[0].accepted?(mode==="local"?10:100):0);
+   }
+   if(c.id==="tech-2-first"){
+    const [time,prior,units]=values,allowed=time==="60"&&prior==="yes"&&units==="1";
+    assert.equal(t.inputs[0].accepted,allowed);
+    assert.equal(end(t,"科技等级"),allowed?2:prior==="yes"?1:0);
+   }
+   if(c.id==="outcome-control"){
+    const [kind,team]=values;
+    assert.equal(end(t,"结算"),kind==="draw"?"平局":team==="red"?"红方胜":"蓝方胜");
+    if(kind==="base")assert.ok(event(t,"match-end").at<420);
+   }
+  }
+  assert.deepEqual(buildLabTrace(c),traces.get(c.id),"changing conditions must not mutate original case");
+ }
+ assert.equal(experiments,5);assert.equal(combinations,74);
+});
