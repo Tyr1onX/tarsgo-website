@@ -59,7 +59,16 @@ export async function testRMUCAcademy({origin,command,evaluate,until,screenshot}
     // The full-screen arena has no account menu. Use the public site's actual logout control.
     await command("Page.navigate",{url:origin+"/"});
     await click(".navbar-profile-button");
-    await click('button[role="menuitem"].account-menu-action--logout',"退出登录");
+    // Account list initialization changes menu geometry. Wait for the actual
+    // single-account menu, then use its existing accessible End/Enter action.
+    await wait('!!document.querySelector(".navbar-user-menu .account-session-choices__add")',"account menu initialized");
+    for(const [key,code] of [["End",35],["Enter",13]]){
+      if(key==="Enter"){
+        await wait('document.activeElement?.matches("button.account-menu-action--logout")',"logout menu keyboard focus");
+        console.log("RMUC: actual logout control focused.");
+      }
+      for(const type of ["keyDown","keyUp"])await command("Input.dispatchKeyEvent",{type,key,code:key,windowsVirtualKeyCode:code});
+    }
     await wait('location.pathname==="/login"&&!!document.querySelector("form.auth-form")',"logout returns to login");
     assert.equal((await read()).status,401,"server rejected logged-out progress read");
   }
