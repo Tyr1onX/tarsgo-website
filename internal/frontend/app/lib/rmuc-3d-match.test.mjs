@@ -118,6 +118,33 @@ test("territory progress regresses, pauses under contest, and destroyed outposts
  assert.equal(m.sides.blue.outpost,500);assert.equal(m.sides.blue.outpostOwner,"blue");
  assert.equal(m.sides.blue.outpostArea.full,true);assert.equal(m.pose.outpostAngle.blue,0);
 });
+test("living combatants contest independently of damage; withdrawal and recovery preserve the outpost",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const [r,b]=m.robots;
+ const central={x:-3.1,y:.558,z:1.6},outpost={x:-2.25,y:.495,z:4};
+ const outside={x:-1.62,y:.542,z:2.21};
+ const red=new Map([["r",central]]);
+ const both=new Map([["r",central],["b",outpost]]);
+ updateMatch(m,2,red);
+ assert.equal(territoryStatus(m,"blue","outpost").progress,20);
+ updateMatch(m,1,both);
+ assert.ok(damageTarget(m,r,{type:"robot",id:"b"})>0);
+ assert.ok(damageTarget(m,b,{type:"robot",id:"r"})>0);
+ updateMatch(m,2,both);
+ assert.equal(territoryStatus(m,"blue","outpost").contested,true);
+ assert.equal(territoryStatus(m,"blue","outpost").progress,20);
+ updateMatch(m,1.9,red);
+ assert.equal(territoryStatus(m,"blue","outpost").contested,true);
+ updateMatch(m,3.1,red);
+ assert.equal(m.sides.blue.outpostArea.controller,"red");
+ assert.equal(m.sides.blue.outpostArea.full,false);
+ const defense=new Map([["r",outside],["b",outpost]]);
+ updateMatch(m,7,defense);
+ assert.equal(m.sides.blue.outpostArea.controller,"blue");
+ assert.equal(m.sides.blue.outpostArea.full,true);
+ assert.equal(m.sides.blue.outpostOwner,"blue");
+ assert.equal(m.sides.blue.outpost,1000);
+});
 test("base capture is independent from outpost and territory scoring includes temporary control",()=>{
  const m=createMatch(roster,1,1);startMatch(m);
  const base=new Map([["r",{x:-10.15,y:.3,z:0}]]);

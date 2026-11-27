@@ -27,6 +27,7 @@ import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLA
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneId, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
+import { createTerritoryTeachingVisuals } from "./rmuc-3d-teaching-visual";
 import { arenaPixelRatio, createArenaQualityCalibration, type ArenaSettings } from "./rmuc-3d-settings";
 import {boundedMove,movementIntent,ZERO_MOVE,type MoveVector} from "./rmuc-3d-input";
 
@@ -325,8 +326,8 @@ export function mountArena(
   const lesson:TeachingStatus={step:0,done:false,selected:null};
   const lessonRobot=GROUND_ROSTER.find(r=>r.team==="red"&&r.kind===(teaching==="assembly"?"heavy":"infantry"))!.id;
   const guided=teaching==="territory";
-  const territoryMarks:THREE.LineLoop<THREE.BufferGeometry,THREE.LineBasicMaterial>[]=[];
-  let territoryLesson:{red:Robot;blue:Robot;redStart:THREE.Vector3;blueStart:THREE.Vector3;redGoal:THREE.Vector3;blueGoal:THREE.Vector3;since:number;shots:number}|null=null;
+  let territoryVisuals:ReturnType<typeof createTerritoryTeachingVisuals>|null=null;
+  let territoryLesson:{red:Robot;blue:Robot;redStart:THREE.Vector3;blueStart:THREE.Vector3;redGoal:THREE.Vector3;blueGoal:THREE.Vector3;since:number;blueDamage:number;practiceCaptured:boolean}|null=null;
   const canDirect=()=>!teaching&&!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
   function stopDirector(){if(!director.enabled)return;director.stop();controls.enabled=!paused&&mode!=="first"&&mode!=="third"&&mode!=="ai-first"&&mode!=="detail";}
   function enableDirector(){if(!canDirect())return;director.start(match!.elapsed);setView("all",true);}
@@ -364,6 +365,7 @@ export function mountArena(
     if(experiment?.running)experiment.telemetry?.damage(event);
     robotFeedback?.damage(event);if(!experiment?.running)director.damage(event);
     const target=event.target;
+    if(guided&&territoryLesson&&lesson.step===4&&event.source==="projectile"&&target.type==="robot"&&target.id===territoryLesson.blue.object.name)territoryLesson.blueDamage+=event.amount;
     if(target.type==="robot"&&target.id===activeRobot()?.id&&activeRobot()?.hp===0)clearInput();
   }
   function damageFor(key:string){
@@ -460,7 +462,7 @@ export function mountArena(
     observed=robot;setView("follow");
   }
   function takeControl(){
-    if(guided&&(lesson.step!==7||observed!==territoryLesson?.red||lesson.done))return;
+    if(guided&&(lesson.step!==10||observed!==territoryLesson?.red||lesson.done))return;
     if(!ready||!match||countdownEnd||!observed||!allowedObservation(observed)||experiment?.running||match.phase==="finished")return;
     const robot=observed;
     const state=match.robots.find(r=>r.id===robot.object.name);
@@ -468,7 +470,7 @@ export function mountArena(
     stopDirector();audio.stop();driving=robot;clearInput();botPaths.delete(robot);shotIntents.delete(robot);combatCadence.delete(robot);motions.delete(robot);
     look={yaw:robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0),pitch:robot.object.getObjectByName("weapon-pitch")?.rotation.x??0};
     setView("first");
-    if(guided&&territoryLesson){territoryLesson.since=match.elapsed;lesson.caption="按 W 或向前推动摇杆，进入标记区后停留，直到获得临时控制。";pause(false);publish();}
+    if(guided&&territoryLesson){territoryLesson.since=match.elapsed;lesson.caption="进入中央高地并停留，取得临时控制后主动退回区域外。";pause(false);publish();}
   }
   function syncObserver(time:number){
     const robot=following();if(!robot)return;
@@ -540,7 +542,7 @@ export function mountArena(
     advanceAiming(dt,{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt});
     if(activeRobot()?.hp===0)triggers.clear();
     if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
-    if((!teaching||guided&&lesson.step===7)&&(triggers.size||shotRequested))fire();
+    if((!teaching||guided&&lesson.step===10)&&(triggers.size||shotRequested))fire();
     shotRequested=false;
     // Renderer-independent collision transforms, including the gimbal's
     // siblings whose world matrices aimWeapon does not traverse.
@@ -597,7 +599,7 @@ export function mountArena(
     const hidden=mode==="first"?driving:mode==="ai-first"?observed:null;
     if(hidden)hidden.object.visible=false;
     armorGlow?.update();
-    if(match&&territoryMarks.length){const area=territoryStatus(match,"blue","outpost");for(const mark of territoryMarks)mark.material.color.set(area.contested?0xffcc55:area.controller==="red"?0xff6262:0x54b4ff);}
+    if(match&&territoryVisuals)territoryVisuals.update(match,camera,viewportHeight,driving?.object);
     if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match,audioPerspective(),reducedMotion.matches);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first",reducedMotion.matches);
     if(mode==="follow")followRendered.copy(camera.position);
@@ -616,7 +618,7 @@ export function mountArena(
 
   function setView(next: ArenaView,automatic=false) {
     if (!ready||driving&&next!=="first"||(next==="follow"||next==="ai-first")&&!observed||experiment?.running&&next!=="all"||next==="third"&&radarPerspective!=="all"||next==="detail"&&!automatic) return;
-    if(guided&&territoryLesson&&lesson.step<7&&!automatic)return;
+    if(guided&&territoryLesson&&lesson.step<10&&!automatic)return;
     if(!automatic)stopDirector();
     if(mode!==next){if(mode==="follow"&&next==="third"){camera.position.copy(followRendered);camera.updateMatrixWorld(true);}clearInput();drag=null;observerPointer=null;}
     if(next!==mode&&(mode==="ai-first"||next==="ai-first"||next==="first"))audio.stop();mode = next;
@@ -741,13 +743,8 @@ export function mountArena(
     const red=fieldRobots.find(r=>r.object.name===lessonRobot)!;
     const blue=fieldRobots.find(r=>groundIdentity(r.object.name)?.team==="blue"&&groundIdentity(r.object.name)?.kind==="infantry")!;
     const support=terrain;
-    if(!territoryMarks.length)for(const zone of ARENA_ZONES.filter(z=>z.id==="blue-central"||z.id==="blue-outpost")){
-      const points=zone.polygon.map(([x,z])=>new THREE.Vector3(x,zone.height[1]+.035,z));
-      const mark=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0x54b4ff,depthTest:true}));
-      territoryMarks.push(mark);scene.add(mark);
-    }
     const isArea=(p:THREE.Vector3)=>zonesAtPosition(p).some(id=>id==="blue-central"||id==="blue-outpost");
-    function approach(bot:Robot,id:ZoneId){
+    function approach(bot:Robot,id:ZoneId,preferred:readonly [number,number]){
       const zone=ARENA_ZONES.find(z=>z.id===id)!;
       const occupants=fieldRobots.filter(r=>r!==bot);
       const legal=(x:number,z:number)=>{
@@ -756,9 +753,9 @@ export function mountArena(
         if(y===null||occupants.some(r=>Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))return null;
         return new THREE.Vector3(x,y,z);
       };
-      const [x,z]=zone.goal;
+      const [x,z]=preferred;
       const candidates:{from:THREE.Vector3;to:THREE.Vector3}[]=[];
-      for(const [ox,oz] of [[0,0],[.15,0],[-.15,0],[0,.2],[0,-.2],[.3,.3],[-.3,-.3]]){
+      for(const [ox,oz] of [[0,0],[.15,0],[-.15,0],[0,.2],[0,-.2],[.3,.3],[-.3,-.3],[zone.goal[0]-x,zone.goal[1]-z]]){
         const to=legal(x+ox,z+oz);if(!to||![[0,0],[.02,0],[-.02,0],[0,.02],[0,-.02]].every(([dx,dz])=>zonesAtPosition({x:to.x+dx,y:to.y,z:to.z+dz}).includes(id)))continue;
         for(let d=0;d<16;d++){
           const a=d*Math.PI/8;
@@ -770,18 +767,19 @@ export function mountArena(
           }
         }
       }
-      // Prefer the shortest traversable approach, with the retreat facing the target.
-      const best=candidates.sort((a,b)=>a.from.distanceTo(a.to)-b.from.distanceTo(b.to))[0];
+      // Prefer proximity to the selected valid zone point, then a readable approach.
+      const best=candidates.sort((a,b)=>Math.hypot(a.to.x-x,a.to.z-z)-Math.hypot(b.to.x-x,b.to.z-z)||Math.abs(a.from.distanceTo(a.to)-1.6)-Math.abs(b.from.distanceTo(b.to)-1.6))[0];
       if(best){bot.position.copy(best.from);bot.object.rotation.y=Math.atan2(best.from.x-best.to.x,best.from.z-best.to.z);bot.object.updateMatrixWorld(true);}
       return best;
     }
-    const r=approach(red,"blue-central"),b=approach(blue,"blue-outpost");
+    const r=approach(red,"blue-central",[-3.1,1.6]),b=approach(blue,"blue-outpost",[-2.25,4]);
     if(!r||!b){lesson.error="未找到合法的阵地教学路径";publish();return;}
-    territoryLesson={red,blue,redStart:r.from,blueStart:b.from,redGoal:r.to,blueGoal:b.to,since:0,shots:0};
-    for(const bot of [red,blue])match.robots.find(r=>r.id===bot.object.name)!.ammo=5;
+    territoryLesson={red,blue,redStart:r.from,blueStart:b.from,redGoal:r.to,blueGoal:b.to,since:0,blueDamage:0,practiceCaptured:false};
+    territoryVisuals??=createTerritoryTeachingVisuals(scene,support,red.object,blue.object);
+    for(const bot of [red,blue])match.robots.find(r=>r.id===bot.object.name)!.ammo=3;
     // The initial positions and ammo are a teaching preset only.
     beginMatch();showShot({kind:"all"});
-    lesson.caption="蓝方完全控制自己的前哨阵地。";
+    lesson.caption="蓝方完全控制前哨阵地。中央高地和前哨增益点都属于这片阵地。";
     publish();
   }
   function advanceTerritoryLesson(){
@@ -794,46 +792,82 @@ export function mountArena(
       lesson.step=step;lesson.caption=caption;g.since=at;if(shot)showShot(shot);
     };
     const near=(bot:Robot,p:THREE.Vector3)=>Math.hypot(bot.position.x-p.x,bot.position.z-p.z)<.15;
-
-    if((age>40&&(lesson.step!==7||driving===g.red))||red.hp===0){
-      lesson.error=red.hp===0?"红方机器人战亡，请重播":"未满足当前阶段条件，请重播";
+    const pairView=()=>{
+      setView("detail",true);
+      const bounds=new THREE.Box3().setFromObject(g.red.object).union(new THREE.Box3().setFromObject(g.blue.object));
+      bounds.expandByPoint(g.redGoal).expandByPoint(g.blueGoal).expandByScalar(1.1);
+      controls.target.copy(frameArena(camera,"all",bounds));
+      publish();invalidate();
+    };
+    const inCentral=()=>zonesAtPosition(g.red.position).includes("blue-central");
+    const inArea=()=>zonesAtPosition(g.red.position).some(id=>id==="blue-central"||id==="blue-outpost");
+    if((age>(lesson.step===10?60:40)&&(lesson.step!==10||driving===g.red))||red.hp===0||blue.hp===0){
+      lesson.error=red.hp===0||blue.hp===0?"教学步兵战亡，请重播":"未满足当前阶段条件，请重播";
       pause(true);return;
     }
     switch(lesson.step){
       case 0:
-        if(age>=3){goal(g.red,g.redGoal);stage(1,"红方步兵前往中央高地。",{kind:"follow",robot:red.id});}
+        if(age>=6){stage(1,"红方要夺取阵地，目标是蓝方中央高地。",{kind:"follow",robot:red.id});}
         break;
       case 1:
-        if(area.progress>0){goal(g.blue,g.blueGoal);stage(2,"红方激活增益点，开始占领。",{kind:"follow",robot:blue.id});}
+        if(age>=1.5&&!botPaths.has(g.red))goal(g.red,g.redGoal);
+        if(area.progress>0){stage(2,"红方已进入有效区域，裁判开始累计占领进度。");pairView();}
         break;
       case 2:
-        if(area.contested){goal(g.blue,g.blueGoal,true);goal(g.red,g.redGoal,true);stage(3,"双方争夺，控制进度暂停。");
-          setView("detail",true);
-          controls.target.copy(frameArena(camera,"all",new THREE.Box3().setFromObject(g.red.object).union(new THREE.Box3().setFromObject(g.blue.object)).expandByScalar(.8)));
-          publish();invalidate();}
+        if(age>=1.4&&area.full){goal(g.blue,g.blueGoal);stage(3,"蓝方驶入另一处有效区域，试图阻止红方占领。",{kind:"follow",robot:blue.id});}
         break;
       case 3:
-        if(area.contested&&age>=2.5&&g.shots>0){goal(g.blue,g.blueStart);goal(g.red,g.redGoal);stage(4,"蓝方退出阵地，等待区域接触失效。",{kind:"follow",robot:blue.id});}
+        if(area.contested){
+          stage(4,"两队均具备占领资格，裁判暂停累计。");pairView();
+        }
         break;
       case 4:
-        if(area.controller==="red"&&!area.full){goal(g.red,g.redStart);goal(g.blue,g.blueGoal);stage(5,"红方取得临时控制，蓝方开始反攻。",{kind:"detail",team:"blue",object:"outpost"});}
+        if(age>=2.5&&!botPaths.get(g.red)?.combat){
+          goal(g.blue,g.blueGoal,true);goal(g.red,g.redGoal,true);
+          lesson.caption="双方尝试攻击。只要双方都具备占领资格，进度就保持暂停。";
+        }
+        if(area.contested&&age>=4&&(g.blueDamage>0||age>=10)){
+          goal(g.blue,g.blueStart);goal(g.red,g.redGoal);
+          stage(5,g.blueDamage>0?"蓝方实际受击，选择撤离。区域接触尚未失效，争夺仍然继续。":"蓝方主动战术撤离。是否命中不决定占领，区域接触才决定。");
+          pairView();
+        }
         break;
       case 5:
-        if(area.controller==="blue"&&area.full){goal(g.blue,g.blueStart);stage(6,"蓝方恢复完全控制。阵地控制与前哨站归属是不同状态。",{kind:"detail",team:"blue",object:"outpost"});}
+        if(!area.contested&&area.progressing){stage(6,"蓝方区域接触已失效，只剩红方有效占领，进度继续累计。");pairView();}
         break;
       case 6:
-        if(age>=3&&near(g.red,g.redStart)&&near(g.blue,g.blueStart)&&!area.contested){
-          botPaths.delete(g.red);botPaths.delete(g.blue);
-          stage(7,"接管红方步兵，进入蓝方中央高地并取得临时控制。",{kind:"follow",robot:red.id});
-          // Orient the player's view toward the actual target on takeover.
-          g.red.object.getObjectByName("gimbal")!.rotation.y=Math.atan2(g.red.position.x-g.redGoal.x,g.red.position.z-g.redGoal.z)-g.red.object.rotation.y;
-          g.red.object.updateMatrixWorld(true);
-          pause(true);
+        if(area.controller==="red"&&!area.full){
+          stage(7,"红方获得临时控制。前哨站仍属于蓝方，血量没有因占领而改变。",{kind:"detail",team:"blue",object:"outpost"});
         }
         break;
       case 7:
-        if(driving===g.red&&area.controller==="red"&&!area.full&&zonesAtPosition(g.red.position).includes("blue-central")){
-          lesson.done=true;lesson.caption="任务完成：红方取得临时控制。";pause(true);
+        if(age>=7){
+          goal(g.red,g.redStart);goal(g.blue,g.blueGoal);
+          stage(8,"蓝方返回前哨增益点，红方撤出中央高地。",{kind:"follow",robot:blue.id});
+        }
+        break;
+      case 8:
+        if(area.controller==="blue"&&area.full){
+          stage(9,"红方已失去有效占领；蓝方恢复完全控制。前哨站归属始终未改变。",{kind:"detail",team:"blue",object:"outpost"});
+          goal(g.blue,g.blueStart);
+        }
+        break;
+      case 9:
+        if(age>=7&&near(g.red,g.redStart)&&near(g.blue,g.blueStart)&&!area.contested){
+          botPaths.delete(g.red);botPaths.delete(g.blue);
+          stage(10,"轮到你：夺取中央高地，取得临时控制后退出，让蓝方恢复。",{kind:"follow",robot:red.id});
+          g.red.object.getObjectByName("gimbal")!.rotation.y=Math.atan2(g.red.position.x-g.redGoal.x,g.red.position.z-g.redGoal.z)-g.red.object.rotation.y;
+          g.red.object.updateMatrixWorld(true);pause(true);
+        }
+        break;
+      case 10:
+        if(driving===g.red){
+          if(!g.practiceCaptured&&area.controller==="red"&&!area.full&&inCentral()){
+            g.practiceCaptured=true;goal(g.blue,g.blueGoal);
+            lesson.caption="已取得临时控制。蓝方正在反攻，向后退出两处有效区域。";
+          }else if(g.practiceCaptured&&!inArea()&&!area.contested&&area.controller==="blue"&&area.full){
+            lesson.done=true;lesson.caption="任务完成：你取得了临时控制，撤离后蓝方恢复完全控制。";pause(true);
+          }
         }
         break;
     }
@@ -843,6 +877,7 @@ export function mountArena(
     territoryLesson=null;
     Object.assign(lesson,{step:0,done:false,selected:null,error:undefined,caption:undefined,paused:false});
     pause(false);
+    if(guided)seed=706;
     reset();
     if(guided){startTerritoryLesson();return;}
     if(teaching==="atlas"||teaching==="observe"){setView("all");if(teaching==="observe")teachingFocus("red-base");return;}
@@ -1363,11 +1398,12 @@ export function mountArena(
     // by actual occlusion rays before it becomes a copied observation.
     const contacts=combatCadence.get(bot)?.shieldContacts;
     if(contacts)for(const [id,until] of contacts)if(until<=at)contacts.delete(id);
-    const near=fieldRobots.filter(r=>r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position)&&!contacts?.has(r.object.name))
+    const opponent=guided&&territoryLesson?(bot===territoryLesson.red?territoryLesson.blue:territoryLesson.red):null;
+    const near=fieldRobots.filter(r=>(!opponent||r===opponent)&&r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position)&&!contacts?.has(r.object.name))
       .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
     const candidates:THREE.Vector3[]=[];
     for(const enemy of near.slice(0,2))candidates.push(...visiblePoints(eye,enemy,roots,index,bot.object,true));
-    for(const location of ["red","blue"] as const)if(match.sides[location].outpostOwner!==state.team&&match.sides[location].outpost>0)
+    if(!guided)for(const location of ["red","blue"] as const)if(match.sides[location].outpostOwner!==state.team&&match.sides[location].outpost>0)
       for(let i=0;i<3;i++){
         const point=new THREE.Box3().setFromObject(mechanism.parts.getObjectByName(location+"-outpost-armor-"+i)!).getCenter(new THREE.Vector3());
         if(inSight(point))candidates.push(point);
@@ -1433,7 +1469,8 @@ export function mountArena(
       if(!desired&&!manual&&!intent&&botPaths.get(bot)?.combat&&state.hp>0){
         // Recover the virtual sensor field after a lost target rather than
         // retaining the last world yaw forever. No target or damage is implied.
-        desired={yaw:bot.object.rotation.y+Math.sin(match.elapsed*1.1+aiSample(seed,state.id,0,7)*Math.PI*2)*.65,pitch:0};
+        const other=guided&&territoryLesson?(bot===territoryLesson.red?territoryLesson.blue:territoryLesson.red):null;
+        desired={yaw:other?Math.atan2(bot.position.x-other.position.x,bot.position.z-other.position.z):bot.object.rotation.y+Math.sin(match.elapsed*1.1+aiSample(seed,state.id,0,7)*Math.PI*2)*.65,pitch:0};
       }
       if(!desired)continue;
       const yaw=turnTowards(bot.object.rotation.y+g.rotation.y,desired.yaw,Math.PI*4*dt);
@@ -1458,7 +1495,6 @@ export function mountArena(
   function shoot(robot:Robot,from:THREE.Vector3,direction:THREE.Vector3){
     if(!match||!map)return false;
     const fired=projectiles.fire(match,robot.object.name,from,direction,robot.object);
-    if(fired&&guided&&territoryLesson)territoryLesson.shots++;
     if(fired&&experiment?.running)experiment.telemetry?.shot(match.robots.find(r=>r.id===robot.object.name)!,match.elapsed);
     if(fired&&!experiment?.running){const state=match.robots.find(r=>r.id===robot.object.name);if(state&&audioVisible(state.team,audioPerspective()))audio.play(state.heavy?"heavy":"light",from);}
     return fired;
@@ -1856,7 +1892,7 @@ export function mountArena(
       projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();robotFeedback?.dispose();
       for(const asset of pendingAssets)if(!asset.parent)disposeObjects(asset);
       pendingAssets.clear();
-      for(const mark of territoryMarks){mark.removeFromParent();mark.geometry.dispose();mark.material.dispose();}
+      territoryVisuals?.dispose();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);
