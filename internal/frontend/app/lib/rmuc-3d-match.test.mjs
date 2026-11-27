@@ -7,7 +7,7 @@ import {gunzipSync} from "node:zlib";
 import * as THREE from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
-import {createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance,selectSentryControl,markSentry,removeLauncher} from "./rmuc-3d-match.ts";
+import {activeZone,territoryStatus,createMatch,startMatch,updateMatch,purchaseAmmo,purchaseHealth,remoteHealthCost,fireRound,damageTarget,reviveRobot,revivalStatus,ammoOffer,launcherStatus,installLauncher,activateRune,runeStatus,runeLights,robotLevel,powerLimit,sentryStatus,switchSentry,selectInfantryPerformance,selectSentryControl,markSentry,removeLauncher} from "./rmuc-3d-match.ts";
 import {MECHANISM_ASSET,REPLACEMENTS,installMechanisms} from "./rmuc-3d-mechanisms.ts";
 const roster=[{id:"r",team:"red",heavy:false,maxHp:200},{id:"b",team:"blue",heavy:false,maxHp:200}];
 test("training controls ammo, friendly fire, damage, cooldown, and round reset",()=>{
@@ -117,6 +117,33 @@ test("territory progress regresses, pauses under contest, and destroyed outposts
  for(let i=0;i<25;i++)damageTarget(m,b,{type:"outpost",team:"blue"});
  assert.equal(m.sides.blue.outpost,500);assert.equal(m.sides.blue.outpostOwner,"blue");
  assert.equal(m.sides.blue.outpostArea.full,true);assert.equal(m.pose.outpostAngle.blue,0);
+});
+test("living combatants contest independently of damage; withdrawal and recovery preserve the outpost",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const [r,b]=m.robots;
+ const central={x:-3.1,y:.558,z:1.6},outpost={x:-2.25,y:.495,z:4};
+ const outside={x:-1.62,y:.542,z:2.21};
+ const red=new Map([["r",central]]);
+ const both=new Map([["r",central],["b",outpost]]);
+ updateMatch(m,2,red);
+ assert.equal(territoryStatus(m,"blue","outpost").progress,20);
+ updateMatch(m,1,both);
+ assert.ok(damageTarget(m,r,{type:"robot",id:"b"})>0);
+ assert.ok(damageTarget(m,b,{type:"robot",id:"r"})>0);
+ updateMatch(m,2,both);
+ assert.equal(territoryStatus(m,"blue","outpost").contested,true);
+ assert.equal(territoryStatus(m,"blue","outpost").progress,20);
+ updateMatch(m,1.9,red);
+ assert.equal(territoryStatus(m,"blue","outpost").contested,true);
+ updateMatch(m,3.1,red);
+ assert.equal(m.sides.blue.outpostArea.controller,"red");
+ assert.equal(m.sides.blue.outpostArea.full,false);
+ const defense=new Map([["r",outside],["b",outpost]]);
+ updateMatch(m,7,defense);
+ assert.equal(m.sides.blue.outpostArea.controller,"blue");
+ assert.equal(m.sides.blue.outpostArea.full,true);
+ assert.equal(m.sides.blue.outpostOwner,"blue");
+ assert.equal(m.sides.blue.outpost,1000);
 });
 test("base capture is independent from outpost and territory scoring includes temporary control",()=>{
  const m=createMatch(roster,1,1);startMatch(m);
@@ -622,4 +649,28 @@ test("event consumer does not change actual referee state or damage; phase and s
  const a=run(false),b=run(true);assert.deepEqual(a.state,b.state);assert.deepEqual(a.damage,b.damage);
  assert.deepEqual(b.events.filter(e=>e.type==="ammo").map(e=>[e.status,e.amount]),[["requested",100],["completed",100]]);
  for(const type of ["match-start","match-end","robot-dead","robot-revived"])assert.equal(b.events.filter(e=>e.type===type).length,1,type);
+});
+
+// Official Q&A #188 / #208: a disabled gain point still counts for territory control.
+for(const kind of ["base","outpost"])for(const disabled of [false,true])test(`territory contact remains independent of ${kind} gain eligibility (disabled=${disabled})`,()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const [r,b]=m.robots, side=m.sides.blue;
+ const id="blue-"+kind, p=kind==="base"?{x:-10.15,y:.3,z:0}:{x:-2.4,y:.5,z:4};
+ if(disabled)side[kind+"ZoneUntil"]=30;
+ const positions=new Map([["r",p]]);
+ for(let i=0;i<20;i++)updateMatch(m,.1,positions);
+ assert.equal(activeZone(m,r,id),!disabled);
+ const before=territoryStatus(m,"blue",kind);
+ assert.ok(before.progress>0);
+ positions.set("b",p);
+ for(let i=0;i<20;i++)updateMatch(m,.1,positions);
+ assert.equal(activeZone(m,b,id),!disabled);
+ assert.equal(territoryStatus(m,"blue",kind).contested,true);
+ assert.equal(territoryStatus(m,"blue",kind).progress,before.progress);
+ positions.delete("b");
+ for(let i=0;i<100;i++)updateMatch(m,.1,positions);
+ const after=territoryStatus(m,"blue",kind);
+ assert.equal(after.controller,"red");assert.equal(after.full,false);
+ assert.equal(activeZone(m,r,id),!disabled);
+ if(disabled){side[kind+"ZoneUntil"]=m.elapsed;updateMatch(m,.1,positions);assert.equal(activeZone(m,r,id),true);}
 });

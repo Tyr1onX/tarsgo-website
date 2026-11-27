@@ -25,8 +25,10 @@ import { createProjectileSystem, projectileSpeed, softGlowTexture } from "./rmuc
 import { addRobotPreviews, aimWeapon, previewWeaponAt, bindLauncherModule, setArmorLight } from "./rmuc-3d-robots";
 import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLAYER_RADIUS, type ArenaTerrain } from "./rmuc-3d-terrain";
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
-import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneKind } from "./rmuc-3d-zones";
+import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneId, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
+import {createWorldControls,type WorldAction} from "./rmuc-3d-world-controls";
+import { createTerritoryTeachingVisuals } from "./rmuc-3d-teaching-visual";
 import { arenaPixelRatio, createArenaQualityCalibration, type ArenaSettings } from "./rmuc-3d-settings";
 import {boundedMove,movementIntent,ZERO_MOVE,type MoveVector} from "./rmuc-3d-input";
 
@@ -37,13 +39,12 @@ type RadarSummary={opportunities:number;doubleUntil:number;encryptionLevel:numbe
 type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Partial<Record<Team,RadarSummary>>};
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
-export type TeachingMode = "observe"|"controls"|"heal"|"assembly"|"atlas";
-export type TeachingStatus = {step:number;done:boolean;selected:string|null;error?:string};
+export type TeachingStatus = {step:number;done:boolean;error?:string;paused?:boolean;captured?:boolean};
 export type ArenaStatus = { teaching?:TeachingStatus; impact?:{kind:"damage"|"contact";serial:number};sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export type ArenaLoadProgress = { phase:"program"|"download"|"verify"|"parse"|"terrain"|"initialize"|"firstFrame"; received?:number; total?:number };
 export interface ArenaController {
-  teachingFocus: (id:string)=>void;
-  teachingReset: ()=>void;
+  explore:()=>void;
+  territoryCompleted:(value:boolean)=>void;
   view: (side: ArenaView) => void;
   director: (enabled:boolean)=>void;
   cancelStart:()=>void;
@@ -98,7 +99,7 @@ export function mountArena(
   onError: (message: string) => void,
   onStatus: (status: ArenaStatus) => void,
   onInputReset:()=>void,
-  teaching?:TeachingMode,
+  onSettingsChange:(value:ArenaSettings)=>void,
 ): ArenaController {
   const programStarted=performance.now();
   const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -256,6 +257,7 @@ export function mountArena(
   let moveOwner:number|null=null,touchMove=ZERO_MOVE;
   const touchActions=new Map<number,string>();
   function move(id:number,vector:MoveVector|null,begin=false){
+    if(guided&&!driving&&vector)return false;
     if(vector===null){if(moveOwner===id){moveOwner=null;touchMove=ZERO_MOVE;invalidate();}return false;}
     if(!ready||paused||countdownEnd||document.hidden||experiment?.running||(!isPlaying(mode)&&mode!=="third"))return false;
     if(begin&&moveOwner===null)moveOwner=id;
@@ -263,6 +265,7 @@ export function mountArena(
     touchMove=boundedMove(vector.f,vector.r);invalidate();return true;
   }
   function touchAction(id:number,key:string,pressed:boolean){
+    if(guided&&!driving&&pressed)return;
     if(!pressed){touchActions.delete(id);invalidate();return;}
     if(ready&&!paused&&!countdownEnd&&!document.hidden&&!experiment?.running&&(mode==="third"&&["Space","ShiftLeft","ControlLeft"].includes(key)||isPlaying(mode)&&key==="ShiftLeft"&&(!driving||!!manualRobot()&&!!activeRobot()?.hp))){
       touchActions.set(id,key);invalidate();
@@ -322,9 +325,15 @@ export function mountArena(
     audio.play(shielded?"shield":damage>0?"hit":"contact",hit.point);
   }
   let countdownEnd=0,countdownPausedAt=0,flightSpeed=6,flyBounds:THREE.Box3|null=null;
-  const lesson:TeachingStatus={step:0,done:false,selected:null};
-  const lessonRobot=GROUND_ROSTER.find(r=>r.team==="red"&&r.kind===(teaching==="assembly"?"heavy":"infantry"))!.id;
-  const canDirect=()=>!teaching&&!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
+  const lesson:TeachingStatus={step:0,done:false};
+  const lessonRobot=GROUND_ROSTER.find(r=>r.team==="red"&&r.kind==="infantry")!.id;
+  let guided=false,territoryCompleted=false;
+  let worldControls:ReturnType<typeof createWorldControls>|null=null;
+  let explorationPose:{position:THREE.Vector3;look:typeof look}|null=null;
+  let ordinarySeed=seed;
+  let territoryVisuals:ReturnType<typeof createTerritoryTeachingVisuals>|null=null;
+  let territoryLesson:{red:Robot;blue:Robot;redStart:THREE.Vector3;blueStart:THREE.Vector3;redGoal:THREE.Vector3;blueGoal:THREE.Vector3;since:number;blueDamage:number;practiceCaptured:boolean}|null=null;
+  const canDirect=()=>!guided&&!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
   function stopDirector(){if(!director.enabled)return;director.stop();controls.enabled=!paused&&mode!=="first"&&mode!=="third"&&mode!=="ai-first"&&mode!=="detail";}
   function enableDirector(){if(!canDirect())return;director.start(match!.elapsed);setView("all",true);}
   function cancelStart(){if(!countdownEnd)return;countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();clearInput();publish();invalidate();}
@@ -351,16 +360,12 @@ export function mountArena(
   function recordEvent(event:MatchEvent){
     if(experiment?.running){experiment.telemetry?.event(event);return;}
     eventFeed.add(event,performance.now());robotFeedback?.event(event);director.event(event);soundEvent(event);
-    if(teaching==="heal"&&event.type==="heal"&&event.robot===lessonRobot&&event.status==="completed"&&(event.amount??0)>0){
-      const robot=positions.get(lessonRobot);
-      if(robot&&zonesAtPosition(robot).includes("red-supply"))lesson.done=true;
-    }
-    if(teaching==="assembly"&&event.type==="assembly-end"&&event.robot===lessonRobot&&event.technology===1)lesson.done=true;
   }
   function recordDamage(event:DamageEvent){
     if(experiment?.running)experiment.telemetry?.damage(event);
     robotFeedback?.damage(event);if(!experiment?.running)director.damage(event);
     const target=event.target;
+    if(guided&&territoryLesson&&lesson.step===4&&event.source==="projectile"&&target.type==="robot"&&target.id===territoryLesson.blue.object.name)territoryLesson.blueDamage+=event.amount;
     if(target.type==="robot"&&target.id===activeRobot()?.id&&activeRobot()?.hp===0)clearInput();
   }
   function damageFor(key:string){
@@ -401,15 +406,7 @@ export function mountArena(
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
     const events=eventFeed.view(perspective,performance.now());
     if(events.items.length&&!experiment?.running)invalidate();
-    if(teaching==="controls"&&!lesson.done){
-      if(lesson.step===0&&mode==="follow"&&identity?.id===lessonRobot)lesson.step++;
-      else if(lesson.step===1&&mode==="ai-first"&&identity?.id===lessonRobot)lesson.step++;
-      else if(lesson.step===2&&mode==="all")lesson.step++;
-      else if(lesson.step===3&&mode==="follow"&&identity?.id===lessonRobot)lesson.step++;
-      else if(lesson.step===4&&mode==="first"&&manualRobot()&&identity?.id===lessonRobot)lesson.step++;
-      else if(lesson.step===6&&!driving){lesson.step++;lesson.done=true;}
-    }
-    const status: ArenaStatus = {...(teaching?{teaching:{...lesson}}:{}),impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    const status: ArenaStatus = {...(guided?{teaching:{...lesson,captured:territoryLesson?.practiceCaptured}}:{}),impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -450,13 +447,14 @@ export function mountArena(
   }
   function focusPoint(robot:Robot){return robot.position.clone().add(new THREE.Vector3(0,robot.eyeHeight*.7,0));}
   function observe(id:string){
-    if(!ready||driving||experiment?.running)return;
+    if(!ready||driving||experiment?.running||guided)return;
     const robot=fieldRobots.find(r=>r.object.name===id);
     if(!robot||!allowedObservation(robot))return;
     stopDirector();if(observed===robot&&mode==="follow"){publish();return;}
     observed=robot;setView("follow");
   }
   function takeControl(){
+    if(guided&&(lesson.step!==10||observed!==territoryLesson?.red||lesson.done||lesson.error))return;
     if(!ready||!match||countdownEnd||!observed||!allowedObservation(observed)||experiment?.running||match.phase==="finished")return;
     const robot=observed;
     const state=match.robots.find(r=>r.id===robot.object.name);
@@ -464,6 +462,7 @@ export function mountArena(
     stopDirector();audio.stop();driving=robot;clearInput();botPaths.delete(robot);shotIntents.delete(robot);combatCadence.delete(robot);motions.delete(robot);
     look={yaw:robot.object.rotation.y+(robot.object.getObjectByName("gimbal")?.rotation.y??0),pitch:robot.object.getObjectByName("weapon-pitch")?.rotation.x??0};
     setView("first");
+    if(guided&&territoryLesson){territoryLesson.since=match.elapsed;pause(false);publish();}
   }
   function syncObserver(time:number){
     const robot=following();if(!robot)return;
@@ -499,7 +498,7 @@ export function mountArena(
     projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact,projectileImpact);
     if(experiment?.running)experiment.telemetry?.observe(match);
     if(match.phase!=="running"){air?.finish();shotIntents.clear();combatCadence.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
-    if(!teaching)for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
+    if(!guided)for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
       if(radarOpportunities(match.radar[team])&&match.robots.some(r=>radarVulnerability(match!.radar,team,r,match!.elapsed)>0))activateRadarDouble(match.radar,team,match.elapsed);
       if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
       const d=match.sides[team].dart,status=dartStatus(match,team);
@@ -510,13 +509,14 @@ export function mountArena(
       if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,plan.baseMode);
       if(status.canFire&&d.shots<d.used*2&&d.openedAt!==null&&match.elapsed>=d.openedAt+7+plan.fireDelay+Math.max(0,d.shots-(d.used-1)*2)*plan.spacing)launchDart(match,team);
     }
-    if(!teaching&&tick*SIM_STEP_MS>=nextBotTurn){
+    if(!guided&&tick*SIM_STEP_MS>=nextBotTurn){
       nextBotTurn+=120;
       updateBots();
     }
     // One independently staggered perception refresh every other fixed tick.
     // Strategic tasks retain their slower scheduling and cannot pace firing.
-    if(!teaching&&tick%2===0)refreshCombat(fieldRobots[combatCursor++%fieldRobots.length],tick);
+    if(guided)advanceTerritoryLesson();
+    if(tick%2===0)refreshCombat(fieldRobots[combatCursor++%fieldRobots.length],tick);
     // Deterministic round-robin work across pending searches. Each yield
     // is one actual CAD footprint check, never a wall-clock cutoff.
     for(let remaining=PATH_CHECKS_PER_STEP;remaining>0;){
@@ -534,7 +534,7 @@ export function mountArena(
     advanceAiming(dt,{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt});
     if(activeRobot()?.hp===0)triggers.clear();
     if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
-    if(!teaching&&(triggers.size||shotRequested))fire();
+    if((!guided||lesson.step===10)&&(triggers.size||shotRequested))fire();
     shotRequested=false;
     // Renderer-independent collision transforms, including the gimbal's
     // siblings whose world matrices aimWeapon does not traverse.
@@ -591,6 +591,8 @@ export function mountArena(
     const hidden=mode==="first"?driving:mode==="ai-first"?observed:null;
     if(hidden)hidden.object.visible=false;
     armorGlow?.update();
+    if(guided&&match&&territoryLesson&&territoryVisuals)territoryVisuals.update(match,camera,viewportHeight,driving?.object,{target:territoryLesson.practiceCaptured?territoryLesson.redStart:territoryLesson.redGoal,practice:lesson.step===10,done:lesson.done,failed:!!lesson.error});
+    worldControls?.update(camera,{guided,active:!!match&&(match.phase!=="ready"||!!countdownEnd),paused,take:!driving&&!!observed&&(guided?lesson.step===10&&!lesson.done&&!lesson.error:match?.phase!=="finished"),driving:!!driving,done:guided&&(lesson.done||!!lesson.error),view:mode,experiment:!!experiment?.running,completed:territoryCompleted,settings});
     if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match,audioPerspective(),reducedMotion.matches);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first",reducedMotion.matches);
     if(mode==="follow")followRendered.copy(camera.position);
@@ -603,12 +605,14 @@ export function mountArena(
     if(match)robotFeedback?.update(match,camera,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{firstPerson:mode==="first"||mode==="ai-first",shieldTrace});
     if(settings.quality==="auto")qualityCalibration.beginFrame(time,ready&&!paused&&!document.hidden&&match?.phase==="running"&&!experiment?.running,mode);
     try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{qualityCalibration.endFrame();robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
+    if(import.meta.env.DEV){canvas.dataset.geometryCount=String(renderer.info.memory.geometries);canvas.dataset.textureCount=String(renderer.info.memory.textures);canvas.dataset.drawCalls=String(renderer.info.render.calls);}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
 
   }
 
   function setView(next: ArenaView,automatic=false) {
     if (!ready||driving&&next!=="first"||(next==="follow"||next==="ai-first")&&!observed||experiment?.running&&next!=="all"||next==="third"&&radarPerspective!=="all"||next==="detail"&&!automatic) return;
+    if(guided&&territoryLesson&&lesson.step<10&&!automatic)return;
     if(!automatic)stopDirector();
     if(mode!==next){if(mode==="follow"&&next==="third"){camera.position.copy(followRendered);camera.updateMatrixWorld(true);}clearInput();drag=null;observerPointer=null;}
     if(next!==mode&&(mode==="ai-first"||next==="ai-first"||next==="first"))audio.stop();mode = next;
@@ -655,7 +659,7 @@ export function mountArena(
   }
   function start(){
     if(!match||match.phase!=="ready"||countdownEnd)return;
-    if(experiment?.running||teaching){beginMatch();return;}
+    if(experiment?.running||guided){beginMatch();return;}
     audio.unlock();countdownCue=0;clearInput();if(!driving&&radarPerspective==="all")setView("all");countdownEnd=performance.now()+3000;publish();invalidate();
   }
   function revive(paid:boolean) {
@@ -669,124 +673,189 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
+    poseShotIndex=undefined;
     countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     defeatedPush.clear();nextBotTurn=0;botCursor=combatCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();combatCadence.clear();syncLaunchers();
     for(const [robot,pose] of initial){robot.position.copy(pose.position);robot.object.rotation.y=pose.yaw;robot.object.getObjectByName("gimbal")?.rotation.set(0,0,0);robot.object.getObjectByName("weapon-pitch")?.rotation.set(0,0,0);for(const w of wheels.get(robot)??[])w.rotation.x=0;}
     for(const bot of fieldRobots)bot.object.updateMatrixWorld(true);
     projectiles.clear();dartVisual?.clear();air?.reset();
-    driving=null;observed=null;observerPointer=null;followTime=null;radarPerspective="all";clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
+    driving=null;observed=null;observerPointer=null;followTime=null;radarPerspective="all";clearInput();look={yaw:-.7,pitch:-.08};spawnExplorer();
     mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyTechnology(match);syncArmorLights();setView(experiment?.running?"all":"first");publish();invalidate();
   }
-  // Teaching selection uses visible scene objects, not damage eligibility.
-  // Some visual-only objects are outside the normal collision roots.
-  function teachingObjects(){
-    const objects:{id:string;object:THREE.Object3D;extra?:boolean}[]=[];
-    const add=(id:string,object:THREE.Object3D|undefined,extra=false)=>{if(object)objects.push({id,object,extra});};
-    for(const [index,team] of (["red","blue"] as const).entries()){
-      add(team+"-base",mechanism?.parts.getObjectByName(team+"-base-assembly"));
-      add(team+"-outpost",mechanism?.parts.getObjectByName(team+"-outpost-assembly"));
-      add(team+"-rune",mechanism?.banks[index]);
-      add(team+"-core",coreGeometry?.cores[index]?.object);
-      for(const unit of coreGeometry?.units??[])if(unit.team===team)add(team+"-energy",unit.object);
-      add(team+"-air",air?.sides[team].hangar,true);
-      for(const vehicle of air?.sides[team].vehicles??[])add(team+"-air",vehicle.object,true);
-      add(team+"-dart",dartVisual?.group.getObjectByName(team+"-dart-station-visual"),true);
-      const dart=mechanism?.dartBindings.find(b=>b.team===team);
-      add(team+"-dart",dart?.door.parent??undefined);
-      add(team+"-radar",scene.getObjectByName(team+"-radar"),true);
+  function spawnExplorer(){
+    if(!terrain)return;
+    const x=-.12,z=4;
+    explorer.set(x,terrain.heightAt(x,z),z);look={yaw:Math.PI/2,pitch:-.12};
+  }
+  function exploreWorld(){
+    if(!ready||!match||experiment?.running)return;
+    guided=false;
+    territoryLesson=null;territoryVisuals?.visible(false);
+    seed=ordinarySeed;pause(false);reset();
+    if(explorationPose){explorer.copy(explorationPose.position);look={...explorationPose.look};explorationPose=null;}
+    else spawnExplorer();
+    setView("first",true);publish();invalidate();
+  }
+  function enterTerritory(){
+    if(!ready||!match||!terrain||experiment?.running)return;
+    if(!guided){ordinarySeed=seed;explorationPose={position:explorer.clone(),look:{...look}};}
+    if(document.pointerLockElement===canvas)document.exitPointerLock();
+    guided=true;
+    territoryLesson=null;
+    Object.assign(lesson,{step:0,done:false,error:undefined,paused:false});
+    seed=706;pause(false);reset();startTerritoryLesson();
+  }
+  function worldAction(action:WorldAction){
+    switch(action){
+      case "territory":enterTerritory();break;
+      case "match":if(!guided&&match?.phase==="ready")start();break;
+      case "pause":pause(true);break;
+      case "resume":pause(false);break;
+      case "replay":if(guided)enterTerritory();else{exploreWorld();start();}break;
+      case "explore":exploreWorld();break;
+      case "take":takeControl();break;
+      case "sound":onSettingsChange({...settings,muted:!settings.muted});break;
+      case "quality":{const values=["auto","low","medium","high"] as const;onSettingsChange({...settings,quality:values[(values.indexOf(settings.quality)+1)%values.length]});break;}
+      case "red":case "blue":if(!guided&&match?.phase==="ready"&&!driving){radarPerspective=action;setView(action);}break;
     }
-    return objects;
   }
-  function teachingFocus(id:string,picked?:THREE.Object3D){
-    if(!teaching||!ready||driving)return;
-    const robot=fieldRobots.find(r=>r.object.name===id);
-    if(robot){lesson.selected=id;observe(id);return;}
-    const zone=ARENA_ZONES.find(z=>z.id===id);
-    const team=id.startsWith("red-")?"red":"blue";
-    const object=picked??teachingObjects().find(o=>o.id===id)?.object;
-    const target=object?new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3()):zone?new THREE.Vector3(zone.goal[0],(zone.height[0]+zone.height[1])/2,zone.goal[1]):null;
-    if(!target||!Number.isFinite(target.x))return;
-    lesson.selected=id;
-    setView("all");
-    controls.target.copy(target);
-    camera.position.copy(target).add(new THREE.Vector3(team==="red"?-3:3,4,3));
-    controls.update();publish();invalidate();
+  function pickWorld(x=0,y=0){
+    const action=worldControls?.pick(camera,x,y);
+    if(!action)return false;
+    audio.unlock();worldAction(action);return true;
   }
-  function teachingPick(hit:THREE.Intersection|undefined){
-    const objects=teachingObjects();
-    const extra=observerRay.intersectObjects(objects.filter(o=>o.extra&&o.object.visible).map(o=>o.object),true)
-      .find(h=>{for(let node:THREE.Object3D|null=h.object;node;node=node.parent)if(!node.visible)return false;return true;});
-    const selected=extra&&(!hit||extra.distance<hit.distance)?extra:hit;
-    if(!selected)return;
-    for(let node:THREE.Object3D|undefined=selected.object;node;node=node.parent??undefined){
-      const robot=fieldRobots.find(r=>r.object===node);
-      if(robot){teachingFocus(robot.object.name);return;}
-      const object=objects.find(o=>o.object===node);
-      if(object){teachingFocus(object.id,object.object);return;}
-    }
-    const zone=zonesAtPosition({x:selected.point.x,y:terrain?.heightAt(selected.point.x,selected.point.z)??selected.point.y,z:selected.point.z})[0];
-    if(zone)teachingFocus(zone);
-  }
-  function teachingReset(){
-    if(!teaching||!match||!terrain||!ready)return;
-    Object.assign(lesson,{step:0,done:false,selected:null,error:undefined});
-    reset();
-    if(teaching==="atlas"||teaching==="observe"){setView("all");if(teaching==="observe")teachingFocus("red-base");return;}
-    const bot=fieldRobots.find(r=>r.object.name===lessonRobot)!;
-    const state=match.robots.find(r=>r.id===lessonRobot)!;
+  function startTerritoryLesson(){
+    if(!match||!terrain)return;
+    const red=fieldRobots.find(r=>r.object.name===lessonRobot)!;
+    const blue=fieldRobots.find(r=>groundIdentity(r.object.name)?.team==="blue"&&groundIdentity(r.object.name)?.kind==="infantry")!;
     const support=terrain;
-    const occupants=fieldRobots.filter(r=>r!==bot);
-    function position(x:number,z:number){
-      const h=support.heightAt(x,z);
-      const y=supportedHeight(support,x,z,bot.radius,h,.4);
-      if(y===null||occupants.some(r=>Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))return null;
-      return new THREE.Vector3(x,y,z);
-    }
-    if(teaching==="heal"){
-      // Choose a legal entrance from the existing zone and terrain, not a
-      // fixed waypoint or a special-case region predicate.
-      const zone=ARENA_ZONES.find(z=>z.id==="red-supply")!;
-      let entrance:{from:THREE.Vector3;to:THREE.Vector3}|undefined;
-      const xs=zone.polygon.map(p=>p[0]),zs=zone.polygon.map(p=>p[1]);
-      for(let x=Math.min(...xs)-1.2;x<=Math.max(...xs)+1.2&&!entrance;x+=.2)
-        for(let z=Math.min(...zs)-1.2;z<=Math.max(...zs)+1.2&&!entrance;z+=.2){
-          const from=position(x,z);if(!from||zonesAtPosition(from).includes(zone.id))continue;
-          for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
-            const to=position(x+dx,z+dz);
-            if(!to||!zonesAtPosition(to).includes(zone.id))continue;
-            const moved=moveOnArena(support,from.clone(),dx,dz,bot.radius,.4,occupants.filter(r=>Math.abs(r.position.y-from.y)<1.15));
-            if(moved.distanceTo(to)<.06){entrance={from,to};break;}
+    const isArea=(p:THREE.Vector3)=>zonesAtPosition(p).some(id=>id==="blue-central"||id==="blue-outpost");
+    function approach(bot:Robot,id:ZoneId,preferred:readonly [number,number]){
+      const zone=ARENA_ZONES.find(z=>z.id===id)!;
+      const occupants=fieldRobots.filter(r=>r!==bot);
+      const legal=(x:number,z:number)=>{
+        const h=support.heightAt(x,z);
+        const y=supportedHeight(support,x,z,bot.radius,h,.23);
+        if(y===null||occupants.some(r=>Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))return null;
+        return new THREE.Vector3(x,y,z);
+      };
+      const [x,z]=preferred;
+      const candidates:{from:THREE.Vector3;to:THREE.Vector3}[]=[];
+      for(const [ox,oz] of [[0,0],[.15,0],[-.15,0],[0,.2],[0,-.2],[.3,.3],[-.3,-.3],[zone.goal[0]-x,zone.goal[1]-z]]){
+        const to=legal(x+ox,z+oz);if(!to||![[0,0],[.02,0],[-.02,0],[0,.02],[0,-.02]].every(([dx,dz])=>zonesAtPosition({x:to.x+dx,y:to.y,z:to.z+dz}).includes(id)))continue;
+        for(let d=0;d<16;d++){
+          const a=d*Math.PI/8;
+          for(const distance of [.8,1,1.2,1.4,1.6,2]){
+            const from=legal(to.x+Math.cos(a)*distance,to.z+Math.sin(a)*distance);
+            if(!from||isArea(from))continue;
+            const moved=moveOnArena(support,from.clone(),to.x-from.x,to.z-from.z,bot.radius,.23,occupants.filter(r=>Math.abs(r.position.y-from.y)<1.15));
+            if(moved.distanceTo(to)<.07)candidates.push({from,to});
           }
         }
-      if(!entrance){lesson.error="未找到可通行的补给区练习入口";publish();return;}
-      bot.position.copy(entrance.from);
-      bot.object.rotation.y=Math.atan2(entrance.from.x-entrance.to.x,entrance.from.z-entrance.to.z);
-      state.hp=Math.floor(state.maxHp/2);
+      }
+      // Prefer proximity to the selected valid zone point, then a readable approach.
+      const best=candidates.sort((a,b)=>Math.hypot(a.to.x-x,a.to.z-z)-Math.hypot(b.to.x-x,b.to.z-z)||Math.abs(a.from.distanceTo(a.to)-1.6)-Math.abs(b.from.distanceTo(b.to)-1.6))[0];
+      if(best){bot.position.copy(best.from);bot.object.rotation.y=Math.atan2(best.from.x-best.to.x,best.from.z-best.to.z);bot.object.updateMatrixWorld(true);}
+      return best;
     }
-    if(teaching==="assembly"){
-      // Independent exercise preset: one own dropped unit near a legal
-      // assembly position. Pickup and all assembly actions still use referee.
-      const zone=ARENA_ZONES.find(z=>z.id==="red-assembly")!;
-      const socket=match.coreSockets.red;
-      const unit=match.energyUnits.find(u=>u.team==="red");
-      const candidates:THREE.Vector3[]=[];
-      for(let x=Math.min(...zone.polygon.map(p=>p[0]));x<=Math.max(...zone.polygon.map(p=>p[0]));x+=.1)
-        for(let z=Math.min(...zone.polygon.map(p=>p[1]));z<=Math.max(...zone.polygon.map(p=>p[1]));z+=.1){
-          const p=position(x,z);if(p&&zonesAtPosition(p).includes(zone.id))candidates.push(p);
+    const r=approach(red,"blue-central",[-3.1,1.6]),b=approach(blue,"blue-outpost",[-2.25,4]);
+    if(!r||!b){lesson.error="未找到合法的阵地教学路径";publish();return;}
+    territoryLesson={red,blue,redStart:r.from,blueStart:b.from,redGoal:r.to,blueGoal:b.to,since:0,blueDamage:0,practiceCaptured:false};
+    territoryVisuals??=createTerritoryTeachingVisuals(scene,support,red.object,blue.object);
+    territoryVisuals.visible(true);
+    for(const bot of [red,blue])match.robots.find(r=>r.id===bot.object.name)!.ammo=3;
+    // The initial positions and ammo are a teaching preset only.
+    beginMatch();showShot({kind:"all"});
+    publish();
+  }
+  function advanceTerritoryLesson(){
+    const g=territoryLesson;
+    if(!g||!match||lesson.error||lesson.done)return;
+    const area=territoryStatus(match,"blue","outpost"),at=match.elapsed,age=at-g.since;
+    const red=match.robots.find(r=>r.id===g.red.object.name)!,blue=match.robots.find(r=>r.id===g.blue.object.name)!;
+    const goal=(bot:Robot,p:THREE.Vector3,combat=false)=>setBotGoal(bot,p,.015,combat);
+    const stage=(step:number,shot?:Shot)=>{
+      lesson.step=step;g.since=at;if(shot)showShot(shot);
+    };
+    const near=(bot:Robot,p:THREE.Vector3)=>Math.hypot(bot.position.x-p.x,bot.position.z-p.z)<.15;
+    const pairView=()=>{
+      setView("detail",true);
+      const bounds=new THREE.Box3().setFromObject(g.red.object).union(new THREE.Box3().setFromObject(g.blue.object));
+      bounds.expandByPoint(g.redGoal).expandByPoint(g.blueGoal).expandByScalar(1.1);
+      controls.target.copy(frameArena(camera,"all",bounds));
+      publish();invalidate();
+    };
+    const inCentral=()=>zonesAtPosition(g.red.position).includes("blue-central");
+    const inArea=()=>zonesAtPosition(g.red.position).some(id=>id==="blue-central"||id==="blue-outpost");
+    if((age>(lesson.step===10?60:40)&&(lesson.step!==10||driving===g.red))||red.hp===0||blue.hp===0){
+      lesson.error=red.hp===0||blue.hp===0?"教学步兵战亡，请重播":"未满足当前阶段条件，请重播";
+      pause(true);return;
+    }
+    switch(lesson.step){
+      case 0:
+        if(age>=6){stage(1,{kind:"follow",robot:red.id});}
+        break;
+      case 1:
+        if(age>=1.5&&!botPaths.has(g.red))goal(g.red,g.redGoal);
+        if(area.progress>0){stage(2);pairView();}
+        break;
+      case 2:
+        if(age>=1.4&&area.full){goal(g.blue,g.blueGoal);stage(3,{kind:"follow",robot:blue.id});}
+        break;
+      case 3:
+        if(area.contested){
+          stage(4);pairView();
         }
-      const best=socket&&candidates.sort((a,b)=>Math.hypot(a.x-socket.position.x,a.z-socket.position.z)-Math.hypot(b.x-socket.position.x,b.z-socket.position.z))[0];
-      if(!best||!socket||!unit){lesson.error="未找到合法装配练习位置";publish();return;}
-      bot.position.copy(best);
-      bot.object.rotation.y=Math.atan2(best.x-socket.position.x,best.z-socket.position.z);
-      unit.location={kind:"ground",position:{x:best.x,y:best.y+.15,z:best.z}};
-      coreGeometry?.applyTechnology(match);
+        break;
+      case 4:
+        if(age>=2.5&&!botPaths.get(g.red)?.combat){
+          goal(g.blue,g.blueGoal,true);goal(g.red,g.redGoal,true);
+        }
+        if(area.contested&&age>=4&&(g.blueDamage>0||age>=10)){
+          goal(g.blue,g.blueStart);goal(g.red,g.redGoal);
+          stage(5);
+          pairView();
+        }
+        break;
+      case 5:
+        if(!area.contested&&area.progressing){stage(6);pairView();}
+        break;
+      case 6:
+        if(area.controller==="red"&&!area.full){
+          stage(7,{kind:"detail",team:"blue",object:"outpost"});
+        }
+        break;
+      case 7:
+        if(age>=7){
+          goal(g.red,g.redStart);goal(g.blue,g.blueGoal);
+          stage(8,{kind:"follow",robot:blue.id});
+        }
+        break;
+      case 8:
+        if(area.controller==="blue"&&area.full){
+          stage(9,{kind:"detail",team:"blue",object:"outpost"});
+          goal(g.blue,g.blueStart);
+        }
+        break;
+      case 9:
+        if(age>=7&&near(g.red,g.redStart)&&near(g.blue,g.blueStart)&&!area.contested){
+          botPaths.delete(g.red);botPaths.delete(g.blue);
+          stage(10,{kind:"follow",robot:red.id});
+          g.red.object.getObjectByName("gimbal")!.rotation.y=Math.atan2(g.red.position.x-g.redGoal.x,g.red.position.z-g.redGoal.z)-g.red.object.rotation.y;
+          g.red.object.updateMatrixWorld(true);pause(true);
+        }
+        break;
+      case 10:
+        if(driving===g.red){
+          if(!g.practiceCaptured&&area.controller==="red"&&!area.full&&inCentral()){
+            g.practiceCaptured=true;goal(g.blue,g.blueGoal);
+          }else if(g.practiceCaptured&&!inArea()&&!area.contested&&area.controller==="blue"&&area.full){
+            lesson.done=true;pause(true);
+          }
+        }
+        break;
     }
-    bot.object.updateMatrixWorld(true);
-    beginMatch();
-    if(teaching==="controls")setView("all");
-    else {observe(lessonRobot);takeControl();}
-    publish();invalidate();
   }
   function pickup(){
     const robot=activeRobot();
@@ -1211,7 +1280,6 @@ export function mountArena(
         },defeatedPush);
         if(traveled>0)for(const other of fieldRobots)other.object.updateMatrixWorld(true);
       }
-      if(teaching==="controls"&&lesson.step===5&&manual&&state.id===lessonRobot&&traveled>.0001)lesson.step++;
       if(!manual&&experiment?.running&&traveled>0)experiment.telemetry?.move(state.id,traveled,route?.maneuver,spin);
       bot.object.rotation.y=motion.yaw;
       // Preserve gun world yaw while the chassis turns underneath it.
@@ -1250,11 +1318,12 @@ export function mountArena(
     // by actual occlusion rays before it becomes a copied observation.
     const contacts=combatCadence.get(bot)?.shieldContacts;
     if(contacts)for(const [id,until] of contacts)if(until<=at)contacts.delete(id);
-    const near=fieldRobots.filter(r=>r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position)&&!contacts?.has(r.object.name))
+    const opponent=guided&&territoryLesson?(bot===territoryLesson.red?territoryLesson.blue:territoryLesson.red):null;
+    const near=fieldRobots.filter(r=>(!opponent||r===opponent)&&r.object.userData.team!==state.team&&armorLit.get(r)!==false&&inSight(r.position)&&!contacts?.has(r.object.name))
       .sort((a,b)=>a.position.distanceToSquared(bot.position)-b.position.distanceToSquared(bot.position));
     const candidates:THREE.Vector3[]=[];
     for(const enemy of near.slice(0,2))candidates.push(...visiblePoints(eye,enemy,roots,index,bot.object,true));
-    for(const location of ["red","blue"] as const)if(match.sides[location].outpostOwner!==state.team&&match.sides[location].outpost>0)
+    if(!guided)for(const location of ["red","blue"] as const)if(match.sides[location].outpostOwner!==state.team&&match.sides[location].outpost>0)
       for(let i=0;i<3;i++){
         const point=new THREE.Box3().setFromObject(mechanism.parts.getObjectByName(location+"-outpost-armor-"+i)!).getCenter(new THREE.Vector3());
         if(inSight(point))candidates.push(point);
@@ -1320,7 +1389,8 @@ export function mountArena(
       if(!desired&&!manual&&!intent&&botPaths.get(bot)?.combat&&state.hp>0){
         // Recover the virtual sensor field after a lost target rather than
         // retaining the last world yaw forever. No target or damage is implied.
-        desired={yaw:bot.object.rotation.y+Math.sin(match.elapsed*1.1+aiSample(seed,state.id,0,7)*Math.PI*2)*.65,pitch:0};
+        const other=guided&&territoryLesson?(bot===territoryLesson.red?territoryLesson.blue:territoryLesson.red):null;
+        desired={yaw:other?Math.atan2(bot.position.x-other.position.x,bot.position.z-other.position.z):bot.object.rotation.y+Math.sin(match.elapsed*1.1+aiSample(seed,state.id,0,7)*Math.PI*2)*.65,pitch:0};
       }
       if(!desired)continue;
       const yaw=turnTowards(bot.object.rotation.y+g.rotation.y,desired.yaw,Math.PI*4*dt);
@@ -1350,6 +1420,8 @@ export function mountArena(
     return fired;
   }
   function interact() {
+    if(pickWorld())return;
+    if(guided){if(lesson.step===10&&!driving&&!lesson.done)takeControl();return;}
     if (!ready || paused || !terrain || !isPlaying(mode)||experiment?.running) return;
     if (driving) {
       const robot = driving;
@@ -1384,7 +1456,7 @@ export function mountArena(
   const flightKeys=new Set(["Space","ControlLeft","ControlRight"]);
   const movement = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"]);
   function input(key: string, pressed: boolean) {
-    if ((!movement.has(key)&&!flightKeys.has(key))||experiment?.running) return;
+    if ((!movement.has(key)&&!flightKeys.has(key))||experiment?.running||guided&&!driving) return;
     if (!pressed) keys.delete(key);
     else if(ready&&!paused&&!countdownEnd){
       if(director.enabled)setView("third");
@@ -1399,6 +1471,11 @@ export function mountArena(
     const motion=motionFor(bot);motion.spin=!motion.spin;publish();invalidate();
   }
   function keydown(event: KeyboardEvent) {
+    if(ready&&!event.repeat&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement||event.target instanceof HTMLSelectElement)){
+      if(event.code==="KeyE"&&guided){event.preventDefault();interact();return;}
+      if(event.code==="Escape"&&guided){event.preventDefault();if(document.pointerLockElement===canvas)document.exitPointerLock();else exploreWorld();return;}
+      if(event.code==="KeyP"&&guided&&!(lesson.step===10&&!driving)&&!lesson.done){event.preventDefault();pause(!paused);return;}
+    }
     if (!ready || paused || event.metaKey || event.ctrlKey&&mode!=="third"&&!(director.enabled&&flightKeys.has(event.code)) || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
     if(countdownEnd){if(event.code==="Escape")cancelStart();return;}
     if(event.code==="Escape"&&mode==="third"){clearInput();if(document.pointerLockElement===canvas)document.exitPointerLock();return;}
@@ -1415,13 +1492,17 @@ export function mountArena(
   function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);input(event.code, false); }
   function clearInput() { impactFeedback=null;shotRequested=false;triggers.clear();keys.clear();moveOwner=null;touchMove=ZERO_MOVE;touchActions.clear();onInputReset(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
   function turn(dx: number, dy: number) {
-    if (!ready || paused || (!isPlaying(mode)&&mode!=="third")) return;
+    if (!ready || paused || guided&&!driving || (!isPlaying(mode)&&mode!=="third")) return;
     look = turnWithSettings(dx, dy);
     invalidate();
   }
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
+  let worldPointer:{id:number;x:number;y:number}|null=null;
   function pointerdown(event: PointerEvent) {
-    if(!ready||paused||countdownEnd||event.button!==0)return;
+    if(!ready||event.button!==0)return;
+    const rect=canvas.getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width*2-1,y=1-(event.clientY-rect.top)/rect.height*2;
+    if(worldControls?.pick(camera,x,y)){event.preventDefault();worldPointer={id:event.pointerId,x:event.clientX,y:event.clientY};return;}
+    if(paused||countdownEnd||guided&&!driving)return;
     if(!isPlaying(mode)&&mode!=="third"){observerPointer={id:event.pointerId,x:event.clientX,y:event.clientY};return;}
     if(event.pointerType==="touch"&&event.clientX<canvas.getBoundingClientRect().left+canvas.clientWidth/2)return;
     if(drag&&drag.id!==event.pointerId)return;
@@ -1440,6 +1521,13 @@ export function mountArena(
     drag.x = event.clientX; drag.y = event.clientY;
   }
   function pointerup(event: PointerEvent) {
+    if(worldPointer?.id===event.pointerId){
+      const start=worldPointer;worldPointer=null;
+      if(event.type==="pointerup"&&Math.hypot(event.clientX-start.x,event.clientY-start.y)<6){
+        const rect=canvas.getBoundingClientRect();pickWorld((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2);
+      }
+      return;
+    }
     trigger("mouse:"+event.pointerId,false);
     trigger("button:"+event.pointerId,false);
     touchActions.delete(event.pointerId);
@@ -1451,8 +1539,7 @@ export function mountArena(
         observerRay.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
         if(mode==="follow"){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}
         const hit=traceArenaShot(observerRay,shotRoots(),observerRay.ray.origin.clone(),observerRay.ray.direction.clone(),220,prepareShots());
-        if(teaching)teachingPick(hit);
-        else for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);break;}}
+        for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);break;}}
       }
     }
     if (drag?.id !== event.pointerId) return;
@@ -1464,7 +1551,7 @@ export function mountArena(
   }
   function pause(value: boolean) {
     if(paused===value)return;
-    paused = value;
+    paused = value;if(guided)lesson.paused=value;
     if(!experiment?.running){
       simClock.pause();
       if(countdownEnd){if(value)countdownPausedAt=performance.now();else if(countdownPausedAt){countdownEnd+=performance.now()-countdownPausedAt;countdownPausedAt=0;}}
@@ -1678,7 +1765,8 @@ export function mountArena(
     // Three.js raycasting can reject misses against local geometry boxes
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});
-    explorer.set(-10, terrain.heightAt(-10, -1.25), -1.25);
+    spawnExplorer();
+    worldControls=createWorldControls(scene,(x,z)=>terrain!.heightAt(x,z));
     for(const robot of robots){
       const r=match.robots.find(r=>r.id===robot.object.name);
       if(r?.heavy)launcherModels.set(r.id,bindLauncherModule(robot.object,benchModules,launcherBench(r.team).pad));
@@ -1699,13 +1787,13 @@ export function mountArena(
   });
 
   return {
-    teachingFocus,teachingReset,
+    explore:exploreWorld,territoryCompleted(value){territoryCompleted=value;invalidate();},
     radarView(value){if(!activeRobot()&&mode!=="ai-first"){if(radarPerspective!==value)audio.stop();radarPerspective=value;if(value!=="all"){stopDirector();if(mode==="third"||mode==="detail")setView("all");}if(observed&&!allowedObservation(observed)){observed=null;if(mode==="follow")setView("all");}publish();invalidate();}},
     airStop(team){if(!experiment?.running&&match?.phase==="running"&&!activeRobot()&&radarPerspective==="all"){air?.stop(team);publish();invalidate();}},
     radarDouble(){const r=activeRobot();if(match?.phase==="running"&&r)activateRadarDouble(match.radar,r.team,match.elapsed);publish();},
     configureStrategies(value){if(!match||match.phase==="running"||experiment?.running||!validStrategy(value.red)||!validStrategy(value.blue))return false;strategies=structuredClone(value);return true;},
     startExperiment,cancelExperiment,
-    configureSeed(value){if(!match||experiment?.running||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;reset();return true;},
+    configureSeed(value){if(!match||experiment?.running||match.phase==="running"||!Number.isInteger(value)||value<0||value>0xffffffff)return false;seed=value;ordinarySeed=value;reset();return true;},
     director:enabled=>{if(enabled)enableDirector();else{stopDirector();publish();invalidate();}},cancelStart,view: next=>setView(next), observe, takeControl, toggleSpin, interact, move, touchAction, pause, settings:applySettings, start, buy, heal, revive, install, removeLauncher:detachLauncher, pickup, drop, assembly, assemblyStep, cancelAssembly:cancel, fire:trigger, reset:()=>{if(!experiment?.running)reset();},performance:value=>{if(match&&driving)selectInfantryPerformance(match,driving.object.name,value);publish();invalidate();},stance:(mode,enhanced)=>{if(match&&driving)switchSentry(match,driving.object.name,mode,enhanced,true);publish();invalidate();},rune:()=>{if(match&&driving)activateRune(match,driving.object.name);publish();invalidate();},
     sentryControl:value=>{if(match&&driving)selectSentryControl(match,driving.object.name,value);publish();invalidate();},
     sentryMark:kind=>{const r=activeRobot();if(match&&r)markSentry(match,r.id,`${r.team}-${kind}`);publish();invalidate();},
@@ -1741,12 +1829,13 @@ export function mountArena(
       projectiles.dispose();dartVisual?.dispose();armorGlow?.dispose();robotFeedback?.dispose();
       for(const asset of pendingAssets)if(!asset.parent)disposeObjects(asset);
       pendingAssets.clear();
+      worldControls?.dispose();territoryVisuals?.dispose();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);
       environment.dispose();
       qualityCalibration.reset();renderer.dispose();
-      if(teaching)renderer.forceContextLoss();
+      renderer.forceContextLoss();
       canvas.remove();
     },
   };

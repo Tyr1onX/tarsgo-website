@@ -615,8 +615,11 @@ function zoneEnabled(m:Match,id:ZoneId,time=m.elapsed){
   const [t,kind]=id.split("-"),s=m.sides[t as Team];
   return kind==="base"?time>=s.baseZoneUntil:kind==="outpost"?time>=s.outpostZoneUntil:true;
 }
+function zoneContact(robot:MatchRobot,id:ZoneId,tick:number){
+  return robot.hp>0&&(robot.zones[id]??0)>tick;
+}
 export function activeZone(match:Match,robot:MatchRobot,id:ZoneId) {
-  return zoneEnabled(match,id)&&robot.hp>0&&(robot.zones[id]??0)>Math.floor((match.elapsed+1e-8)*10);
+  return zoneEnabled(match,id)&&zoneContact(robot,id,Math.floor((match.elapsed+1e-8)*10));
 }
 export function controlsOutpost(match:Match,location:Team,team:Team,full=false){
   const a=match.sides[location].outpostArea;
@@ -629,7 +632,7 @@ function territoryDirection(area:Territory,own:boolean,other:boolean){
 export function territoryStatus(match:Match,location:Team,kind:"outpost"|"base"){
   const area=kind==="outpost"?match.sides[location].outpostArea:match.sides[location].baseArea;
   const ids=territoryZones(location,kind);
-  const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>activeZone(match,r,id)));
+  const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>zoneContact(r,id,Math.floor((match.elapsed+1e-8)*10))));
   const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
   return {...area,contested:direction===0,progressing:direction>0,enabled:zoneEnabled(match,`${location}-${kind}`)};
 }
@@ -680,13 +683,12 @@ export function robotDefense(match:Match,robot:MatchRobot,withRadar=true) {
   return 1-defense+Math.max(stanceVulnerability,vulnerable?1:0);
 }
 function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,coverOpened:Partial<Record<Team,number>>){
-  const active=(robot:MatchRobot,id:ZoneId)=>zoneEnabled(match,id,tick/10)&&robot.hp>0&&(robot.zones[id]??0)>tick;
+  const active=(robot:MatchRobot,id:ZoneId)=>zoneEnabled(match,id,tick/10)&&zoneContact(robot,id,tick);
   for(const r of match.robots){
     if(r.hp<=0){r.zones={};continue;}
-    for(const id of Object.keys(r.zones) as ZoneId[])if(!active(r,id))delete r.zones[id];
+    for(const id of Object.keys(r.zones) as ZoneId[])if(!zoneContact(r,id,tick))delete r.zones[id];
   }
   for(const zone of ARENA_ZONES){
-    if(!zoneEnabled(match,zone.id,tick/10))continue;
     const candidates=match.robots.filter(r=>r.hp>0&&raw.get(r.id)?.includes(zone.id)&&
       (zone.kind!=="highpoint"||r.team===zone.team)&&
       (zone.kind!=="assembly"||r.heavy&&r.team===zone.team)&&
@@ -757,7 +759,7 @@ function advanceTerritories(match:Match,tick:number,raw:Map<string,ZoneId[]>,cov
       ["outpost",side.outpostArea,territoryZones(location,"outpost")],
       ["base",side.baseArea,territoryZones(location,"base")],
     ] as const){
-      const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>active(r,id)));
+      const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>zoneContact(r,id,tick)));
       const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
       if(direction===0)continue;
       area.progress=Math.max(0,Math.min(50,area.progress+direction));
