@@ -106,19 +106,24 @@ jobs:
         with:
           go-version-file: internal/backend/go.mod
           cache-dependency-path: internal/backend/go.sum
-      - name: Check for pixel world changes
+      - name: Check for browser acceptance changes
         id: pixel
         run: |
           if git diff --name-only HEAD^ HEAD | grep -Eq '(^|/)(pixel[-_]|pixelassets/|test-pixel-fishing-browser)'; then
             echo 'browser=true' >> "$GITHUB_OUTPUT"
           fi
+          if git diff --name-only HEAD^ HEAD | grep -Eq 'rmuc-academy|pixel-jijia-arena|test-database-integration|test-pixel-fishing-browser|production-ops[.]yml|rmuc_progress'; then
+            echo 'rmuc=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        if: steps.pixel.outputs.browser == 'true'
+        if: steps.pixel.outputs.browser == 'true' || steps.pixel.outputs.rmuc == 'true'
         with:
           node-version-file: internal/frontend/.nvmrc
       - name: Run mandatory synthetic MariaDB workflows and migrations
         env:
           TARSGO_PIXEL_BROWSER_ACCEPTANCE: ${{ steps.pixel.outputs.browser }}
+          TARSGO_RMUC_BROWSER_ACCEPTANCE: ${{ steps.pixel.outputs.rmuc }}
+          RMUC_QA_OUTPUT: ${{ runner.temp }}/rmuc-academy
           PIXEL_QA_OUTPUT: ${{ runner.temp }}/pixel-fishing
         run: python3 scripts/tests/test-database-integration.py
       - name: Save fishing acceptance screenshots
@@ -128,6 +133,14 @@ jobs:
           name: pixel-fishing-browser
           path: ${{ runner.temp }}/pixel-fishing/
           if-no-files-found: ignore
+
+      - name: Save RMUC academy acceptance screenshots
+        if: always() && steps.pixel.outputs.rmuc == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rmuc-academy-browser
+          path: ${{ runner.temp }}/rmuc-academy/
+          if-no-files-found: error
 
   publish-production-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.outputs.deploy_required == 'true'

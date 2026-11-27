@@ -37,9 +37,13 @@ type RadarSummary={opportunities:number;doubleUntil:number;encryptionLevel:numbe
 type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Partial<Record<Team,RadarSummary>>};
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
-export type ArenaStatus = { impact?:{kind:"damage"|"contact";serial:number};sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
+export type TeachingMode = "observe"|"controls"|"heal"|"assembly"|"atlas";
+export type TeachingStatus = {step:number;done:boolean;selected:string|null;error?:string};
+export type ArenaStatus = { teaching?:TeachingStatus; impact?:{kind:"damage"|"contact";serial:number};sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export type ArenaLoadProgress = { phase:"program"|"download"|"verify"|"parse"|"terrain"|"initialize"|"firstFrame"; received?:number; total?:number };
 export interface ArenaController {
+  teachingFocus: (id:string)=>void;
+  teachingReset: ()=>void;
   view: (side: ArenaView) => void;
   director: (enabled:boolean)=>void;
   cancelStart:()=>void;
@@ -94,6 +98,7 @@ export function mountArena(
   onError: (message: string) => void,
   onStatus: (status: ArenaStatus) => void,
   onInputReset:()=>void,
+  teaching?:TeachingMode,
 ): ArenaController {
   const programStarted=performance.now();
   const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -317,7 +322,9 @@ export function mountArena(
     audio.play(shielded?"shield":damage>0?"hit":"contact",hit.point);
   }
   let countdownEnd=0,countdownPausedAt=0,flightSpeed=6,flyBounds:THREE.Box3|null=null;
-  const canDirect=()=>!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
+  const lesson:TeachingStatus={step:0,done:false,selected:null};
+  const lessonRobot=GROUND_ROSTER.find(r=>r.team==="red"&&r.kind===(teaching==="assembly"?"heavy":"infantry"))!.id;
+  const canDirect=()=>!teaching&&!!match&&match.phase==="running"&&!driving&&!experiment?.running&&radarPerspective==="all";
   function stopDirector(){if(!director.enabled)return;director.stop();controls.enabled=!paused&&mode!=="first"&&mode!=="third"&&mode!=="ai-first"&&mode!=="detail";}
   function enableDirector(){if(!canDirect())return;director.start(match!.elapsed);setView("all",true);}
   function cancelStart(){if(!countdownEnd)return;countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();clearInput();publish();invalidate();}
@@ -344,6 +351,11 @@ export function mountArena(
   function recordEvent(event:MatchEvent){
     if(experiment?.running){experiment.telemetry?.event(event);return;}
     eventFeed.add(event,performance.now());robotFeedback?.event(event);director.event(event);soundEvent(event);
+    if(teaching==="heal"&&event.type==="heal"&&event.robot===lessonRobot&&event.status==="completed"&&(event.amount??0)>0){
+      const robot=positions.get(lessonRobot);
+      if(robot&&zonesAtPosition(robot).includes("red-supply"))lesson.done=true;
+    }
+    if(teaching==="assembly"&&event.type==="assembly-end"&&event.robot===lessonRobot&&event.technology===1)lesson.done=true;
   }
   function recordDamage(event:DamageEvent){
     if(experiment?.running)experiment.telemetry?.damage(event);
@@ -389,7 +401,15 @@ export function mountArena(
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
     const events=eventFeed.view(perspective,performance.now());
     if(events.items.length&&!experiment?.running)invalidate();
-    const status: ArenaStatus = {impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+    if(teaching==="controls"&&!lesson.done){
+      if(lesson.step===0&&mode==="follow"&&identity?.id===lessonRobot)lesson.step++;
+      else if(lesson.step===1&&mode==="ai-first"&&identity?.id===lessonRobot)lesson.step++;
+      else if(lesson.step===2&&mode==="all")lesson.step++;
+      else if(lesson.step===3&&mode==="follow"&&identity?.id===lessonRobot)lesson.step++;
+      else if(lesson.step===4&&mode==="first"&&manualRobot()&&identity?.id===lessonRobot)lesson.step++;
+      else if(lesson.step===6&&!driving){lesson.step++;lesson.done=true;}
+    }
+    const status: ArenaStatus = {...(teaching?{teaching:{...lesson}}:{}),impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -479,7 +499,7 @@ export function mountArena(
     projectiles.advance(match,dt,projectiles.activeCount?shotRoots():[],shotIndex,robotFeedback?.contact,projectileImpact);
     if(experiment?.running)experiment.telemetry?.observe(match);
     if(match.phase!=="running"){air?.finish();shotIntents.clear();combatCadence.clear();motions.clear();projectiles.clear();triggers.clear();return false;}
-    for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
+    if(!teaching)for(const team of ["red","blue"] as const)if(activeRobot()?.team!==team){
       if(radarOpportunities(match.radar[team])&&match.robots.some(r=>radarVulnerability(match!.radar,team,r,match!.elapsed)>0))activateRadarDouble(match.radar,team,match.elapsed);
       if(armorStatus(match,team).canFortify&&match.sides[team==="red"?"blue":"red"].armor.hits.length)fortifyArmor(match,team,recommendedArmorCenter(match,team));
       const d=match.sides[team].dart,status=dartStatus(match,team);
@@ -490,13 +510,13 @@ export function mountArena(
       if(status.canSelect&&status.phase==="open"&&d.mode==="outpost")selectDart(match,team,plan.baseMode);
       if(status.canFire&&d.shots<d.used*2&&d.openedAt!==null&&match.elapsed>=d.openedAt+7+plan.fireDelay+Math.max(0,d.shots-(d.used-1)*2)*plan.spacing)launchDart(match,team);
     }
-    if(tick*SIM_STEP_MS>=nextBotTurn){
+    if(!teaching&&tick*SIM_STEP_MS>=nextBotTurn){
       nextBotTurn+=120;
       updateBots();
     }
     // One independently staggered perception refresh every other fixed tick.
     // Strategic tasks retain their slower scheduling and cannot pace firing.
-    if(tick%2===0)refreshCombat(fieldRobots[combatCursor++%fieldRobots.length],tick);
+    if(!teaching&&tick%2===0)refreshCombat(fieldRobots[combatCursor++%fieldRobots.length],tick);
     // Deterministic round-robin work across pending searches. Each yield
     // is one actual CAD footprint check, never a wall-clock cutoff.
     for(let remaining=PATH_CHECKS_PER_STEP;remaining>0;){
@@ -514,7 +534,7 @@ export function mountArena(
     advanceAiming(dt,{rune:(match.pose.runeAngle-oldRune)/dt,red:(match.pose.outpostAngle.red-oldOutpost.red)/dt,blue:(match.pose.outpostAngle.blue-oldOutpost.blue)/dt});
     if(activeRobot()?.hp===0)triggers.clear();
     if(driving&&activeRobot()&&!canDriveRobot(match,activeRobot()!))clearInput();
-    if(triggers.size||shotRequested)fire();
+    if(!teaching&&(triggers.size||shotRequested))fire();
     shotRequested=false;
     // Renderer-independent collision transforms, including the gimbal's
     // siblings whose world matrices aimWeapon does not traverse.
@@ -635,7 +655,7 @@ export function mountArena(
   }
   function start(){
     if(!match||match.phase!=="ready"||countdownEnd)return;
-    if(experiment?.running){beginMatch();return;}
+    if(experiment?.running||teaching){beginMatch();return;}
     audio.unlock();countdownCue=0;clearInput();if(!driving&&radarPerspective==="all")setView("all");countdownEnd=performance.now()+3000;publish();invalidate();
   }
   function revive(paid:boolean) {
@@ -657,6 +677,116 @@ export function mountArena(
     projectiles.clear();dartVisual?.clear();air?.reset();
     driving=null;observed=null;observerPointer=null;followTime=null;radarPerspective="all";clearInput();look={yaw:-.7,pitch:-.08};explorer.set(-10,terrain.heightAt(-10,-1.25),-1.25);
     mechanism.apply(match.pose);mechanism.applyDart(match);mechanism.setRuneLights(runeLights(match,"red"),runeLights(match,"blue"));coreGeometry?.applyTechnology(match);syncArmorLights();setView(experiment?.running?"all":"first");publish();invalidate();
+  }
+  // Teaching selection uses visible scene objects, not damage eligibility.
+  // Some visual-only objects are outside the normal collision roots.
+  function teachingObjects(){
+    const objects:{id:string;object:THREE.Object3D;extra?:boolean}[]=[];
+    const add=(id:string,object:THREE.Object3D|undefined,extra=false)=>{if(object)objects.push({id,object,extra});};
+    for(const [index,team] of (["red","blue"] as const).entries()){
+      add(team+"-base",mechanism?.parts.getObjectByName(team+"-base-assembly"));
+      add(team+"-outpost",mechanism?.parts.getObjectByName(team+"-outpost-assembly"));
+      add(team+"-rune",mechanism?.banks[index]);
+      add(team+"-core",coreGeometry?.cores[index]?.object);
+      for(const unit of coreGeometry?.units??[])if(unit.team===team)add(team+"-energy",unit.object);
+      add(team+"-air",air?.sides[team].hangar,true);
+      for(const vehicle of air?.sides[team].vehicles??[])add(team+"-air",vehicle.object,true);
+      add(team+"-dart",dartVisual?.group.getObjectByName(team+"-dart-station-visual"),true);
+      const dart=mechanism?.dartBindings.find(b=>b.team===team);
+      add(team+"-dart",dart?.door.parent??undefined);
+      add(team+"-radar",scene.getObjectByName(team+"-radar"),true);
+    }
+    return objects;
+  }
+  function teachingFocus(id:string,picked?:THREE.Object3D){
+    if(!teaching||!ready||driving)return;
+    const robot=fieldRobots.find(r=>r.object.name===id);
+    if(robot){lesson.selected=id;observe(id);return;}
+    const zone=ARENA_ZONES.find(z=>z.id===id);
+    const team=id.startsWith("red-")?"red":"blue";
+    const object=picked??teachingObjects().find(o=>o.id===id)?.object;
+    const target=object?new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3()):zone?new THREE.Vector3(zone.goal[0],(zone.height[0]+zone.height[1])/2,zone.goal[1]):null;
+    if(!target||!Number.isFinite(target.x))return;
+    lesson.selected=id;
+    setView("all");
+    controls.target.copy(target);
+    camera.position.copy(target).add(new THREE.Vector3(team==="red"?-3:3,4,3));
+    controls.update();publish();invalidate();
+  }
+  function teachingPick(hit:THREE.Intersection|undefined){
+    const objects=teachingObjects();
+    const extra=observerRay.intersectObjects(objects.filter(o=>o.extra&&o.object.visible).map(o=>o.object),true)
+      .find(h=>{for(let node:THREE.Object3D|null=h.object;node;node=node.parent)if(!node.visible)return false;return true;});
+    const selected=extra&&(!hit||extra.distance<hit.distance)?extra:hit;
+    if(!selected)return;
+    for(let node:THREE.Object3D|undefined=selected.object;node;node=node.parent??undefined){
+      const robot=fieldRobots.find(r=>r.object===node);
+      if(robot){teachingFocus(robot.object.name);return;}
+      const object=objects.find(o=>o.object===node);
+      if(object){teachingFocus(object.id,object.object);return;}
+    }
+    const zone=zonesAtPosition({x:selected.point.x,y:terrain?.heightAt(selected.point.x,selected.point.z)??selected.point.y,z:selected.point.z})[0];
+    if(zone)teachingFocus(zone);
+  }
+  function teachingReset(){
+    if(!teaching||!match||!terrain||!ready)return;
+    Object.assign(lesson,{step:0,done:false,selected:null,error:undefined});
+    reset();
+    if(teaching==="atlas"||teaching==="observe"){setView("all");if(teaching==="observe")teachingFocus("red-base");return;}
+    const bot=fieldRobots.find(r=>r.object.name===lessonRobot)!;
+    const state=match.robots.find(r=>r.id===lessonRobot)!;
+    const support=terrain;
+    const occupants=fieldRobots.filter(r=>r!==bot);
+    function position(x:number,z:number){
+      const h=support.heightAt(x,z);
+      const y=supportedHeight(support,x,z,bot.radius,h,.4);
+      if(y===null||occupants.some(r=>Math.abs(r.position.y-y)<1.15&&Math.hypot(r.position.x-x,r.position.z-z)<r.radius+bot.radius))return null;
+      return new THREE.Vector3(x,y,z);
+    }
+    if(teaching==="heal"){
+      // Choose a legal entrance from the existing zone and terrain, not a
+      // fixed waypoint or a special-case region predicate.
+      const zone=ARENA_ZONES.find(z=>z.id==="red-supply")!;
+      let entrance:{from:THREE.Vector3;to:THREE.Vector3}|undefined;
+      const xs=zone.polygon.map(p=>p[0]),zs=zone.polygon.map(p=>p[1]);
+      for(let x=Math.min(...xs)-1.2;x<=Math.max(...xs)+1.2&&!entrance;x+=.2)
+        for(let z=Math.min(...zs)-1.2;z<=Math.max(...zs)+1.2&&!entrance;z+=.2){
+          const from=position(x,z);if(!from||zonesAtPosition(from).includes(zone.id))continue;
+          for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+            const to=position(x+dx,z+dz);
+            if(!to||!zonesAtPosition(to).includes(zone.id))continue;
+            const moved=moveOnArena(support,from.clone(),dx,dz,bot.radius,.4,occupants.filter(r=>Math.abs(r.position.y-from.y)<1.15));
+            if(moved.distanceTo(to)<.06){entrance={from,to};break;}
+          }
+        }
+      if(!entrance){lesson.error="未找到可通行的补给区练习入口";publish();return;}
+      bot.position.copy(entrance.from);
+      bot.object.rotation.y=Math.atan2(entrance.from.x-entrance.to.x,entrance.from.z-entrance.to.z);
+      state.hp=Math.floor(state.maxHp/2);
+    }
+    if(teaching==="assembly"){
+      // Independent exercise preset: one own dropped unit near a legal
+      // assembly position. Pickup and all assembly actions still use referee.
+      const zone=ARENA_ZONES.find(z=>z.id==="red-assembly")!;
+      const socket=match.coreSockets.red;
+      const unit=match.energyUnits.find(u=>u.team==="red");
+      const candidates:THREE.Vector3[]=[];
+      for(let x=Math.min(...zone.polygon.map(p=>p[0]));x<=Math.max(...zone.polygon.map(p=>p[0]));x+=.1)
+        for(let z=Math.min(...zone.polygon.map(p=>p[1]));z<=Math.max(...zone.polygon.map(p=>p[1]));z+=.1){
+          const p=position(x,z);if(p&&zonesAtPosition(p).includes(zone.id))candidates.push(p);
+        }
+      const best=socket&&candidates.sort((a,b)=>Math.hypot(a.x-socket.position.x,a.z-socket.position.z)-Math.hypot(b.x-socket.position.x,b.z-socket.position.z))[0];
+      if(!best||!socket||!unit){lesson.error="未找到合法装配练习位置";publish();return;}
+      bot.position.copy(best);
+      bot.object.rotation.y=Math.atan2(best.x-socket.position.x,best.z-socket.position.z);
+      unit.location={kind:"ground",position:{x:best.x,y:best.y+.15,z:best.z}};
+      coreGeometry?.applyTechnology(match);
+    }
+    bot.object.updateMatrixWorld(true);
+    beginMatch();
+    if(teaching==="controls")setView("all");
+    else {observe(lessonRobot);takeControl();}
+    publish();invalidate();
   }
   function pickup(){
     const robot=activeRobot();
@@ -1081,6 +1211,7 @@ export function mountArena(
         },defeatedPush);
         if(traveled>0)for(const other of fieldRobots)other.object.updateMatrixWorld(true);
       }
+      if(teaching==="controls"&&lesson.step===5&&manual&&state.id===lessonRobot&&traveled>.0001)lesson.step++;
       if(!manual&&experiment?.running&&traveled>0)experiment.telemetry?.move(state.id,traveled,route?.maneuver,spin);
       bot.object.rotation.y=motion.yaw;
       // Preserve gun world yaw while the chassis turns underneath it.
@@ -1320,7 +1451,8 @@ export function mountArena(
         observerRay.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
         if(mode==="follow"){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}
         const hit=traceArenaShot(observerRay,shotRoots(),observerRay.ray.origin.clone(),observerRay.ray.direction.clone(),220,prepareShots());
-        for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);break;}}
+        if(teaching)teachingPick(hit);
+        else for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);break;}}
       }
     }
     if (drag?.id !== event.pointerId) return;
@@ -1567,6 +1699,7 @@ export function mountArena(
   });
 
   return {
+    teachingFocus,teachingReset,
     radarView(value){if(!activeRobot()&&mode!=="ai-first"){if(radarPerspective!==value)audio.stop();radarPerspective=value;if(value!=="all"){stopDirector();if(mode==="third"||mode==="detail")setView("all");}if(observed&&!allowedObservation(observed)){observed=null;if(mode==="follow")setView("all");}publish();invalidate();}},
     airStop(team){if(!experiment?.running&&match?.phase==="running"&&!activeRobot()&&radarPerspective==="all"){air?.stop(team);publish();invalidate();}},
     radarDouble(){const r=activeRobot();if(match?.phase==="running"&&r)activateRadarDouble(match.radar,r.team,match.elapsed);publish();},
@@ -1613,6 +1746,7 @@ export function mountArena(
       for(const old of coreGeometry?.old??[])disposeObjects(old);
       environment.dispose();
       qualityCalibration.reset();renderer.dispose();
+      if(teaching)renderer.forceContextLoss();
       canvas.remove();
     },
   };
