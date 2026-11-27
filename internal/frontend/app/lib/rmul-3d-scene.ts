@@ -27,9 +27,9 @@ import { createArenaTerrain, moveOnArena, nearestDriveable, supportedHeight, PLA
 import { findArenaPath, stepChassis, clearDefeatedPath, turnTowards, angleDelta, type ChassisMotion } from "./rmuc-3d-navigation";
 import { ARENA_ZONES, zonesAtPosition, launcherBench, type ZoneId, type ZoneKind } from "./rmuc-3d-zones";
 import { createStadium, STADIUM_WIDTH, STADIUM_DEPTH } from "./rmuc-3d-stadium";
-import {createWorldControls,type WorldAction} from "./rmuc-3d-world-controls";
+import {createWorldControls,type WorldAction,type WorldCommand} from "./rmuc-3d-world-controls";
 import { createTerritoryTeachingVisuals } from "./rmuc-3d-teaching-visual";
-import { arenaPixelRatio, createArenaQualityCalibration, type ArenaSettings } from "./rmuc-3d-settings";
+import { arenaPixelRatio, createArenaQualityCalibration, DEFAULT_ARENA_SETTINGS, type ArenaSettings } from "./rmuc-3d-settings";
 import {boundedMove,movementIntent,ZERO_MOVE,type MoveVector} from "./rmuc-3d-input";
 
 export type FieldView = "all" | "red" | "blue" | "top";
@@ -40,7 +40,7 @@ type RadarMap={image:string;perspective:"all"|Team;tracks:MapTrack[];summary:Par
 type RobotStatus={id:string;number:string;kind:"heavy"|"infantry"|"sentry";hp:number;maxHp:number;detail?:{level:number;powerOff:boolean;launcherLocked:boolean;revival:number|null;weak:boolean;immune:boolean;damage:number}};
 type SideStatus = { base:number; outpost:number; baseDamage:number;outpostDamage:number;coins:number|null;technology:number|null;robots:RobotStatus[];outpostOwner:Team; control:number; outpostArea:ReturnType<typeof territoryStatus>; baseArea:ReturnType<typeof territoryStatus> };
 export type TeachingStatus = {step:number;done:boolean;error?:string;paused?:boolean;captured?:boolean};
-export type ArenaStatus = { teaching?:TeachingStatus; impact?:{kind:"damage"|"contact";serial:number};sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
+export type ArenaStatus = { paused?:boolean; teaching?:TeachingStatus; impact?:{kind:"damage"|"contact";serial:number};sound?:boolean; director?:boolean;canDirect?:boolean;countdown?:number;flightSpeed?:number; events?:ReturnType<ReturnType<typeof createEventFeed>["view"]>; experiment?:ExperimentProgress; air?:ReturnType<ReturnType<typeof createAirSystem>["view"]>; radarMap?:RadarMap; view: ArenaView; focus?: {id:string;number:string;kind:RobotStatus["kind"];team:Team;manual:boolean;sight:boolean;demand:number;spin:boolean;canSpin:boolean;canTakeControl:boolean}; selected?:string|null; robot: string | null; nearby: string | null; match?: { phase: Match["phase"]; seconds: number; winner: Match["winner"]; sides: Record<Team,SideStatus>; coins: number; ammo: number; reserve:number; power:ReturnType<typeof chassisStatus>|null; stance:ReturnType<typeof sentryStatus>; performance:InfantryPerformance|null; hp: number; level:number; xp:number|null; buff: number; rune:ReturnType<typeof runeStatus>|null; canBuy: boolean; canFire: boolean; heat: number; heatLimit: number; thermalLock: false|"cooling"|"permanent"; pendingAmmo: number; pendingHeal: number; healCost: number; canHeal: boolean; maxHp: number; ammoCount:number; ammoCost:number; revival:ReturnType<typeof revivalStatus>|null; launcher:ReturnType<typeof launcherStatus>|null; energy:ReturnType<typeof energyStatus>|null; technology:ReturnType<typeof assemblyStatus>|null; dart:ReturnType<typeof dartStatus>|null; armor:ReturnType<typeof armorStatus>|null; terrain:ReturnType<typeof terrainStatus>|null } };
 export type ArenaLoadProgress = { phase:"program"|"download"|"verify"|"parse"|"terrain"|"initialize"|"firstFrame"; received?:number; total?:number };
 export interface ArenaController {
   explore:()=>void;
@@ -100,6 +100,7 @@ export function mountArena(
   onStatus: (status: ArenaStatus) => void,
   onInputReset:()=>void,
   onSettingsChange:(value:ArenaSettings)=>void,
+  onExit:()=>void,
 ): ArenaController {
   const programStarted=performance.now();
   const reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -126,6 +127,10 @@ export function mountArena(
   room.dispose();
   pmrem.dispose();
   const canvas = renderer.domElement;
+  const traceEnabled=import.meta.env.DEV||(window as Window & {__rmucQA?:boolean}).__rmucQA===true;
+  const qaEvents:MatchEvent[]=[],qaDamage:DamageEvent[]=[];
+  let qaFrames=0,qaBatches=0,qaFrameMs=0;
+  if(traceEnabled)Object.defineProperties(canvas,{__qaRenderer:{value:renderer},__qaEvents:{value:qaEvents},__qaDamage:{value:qaDamage}});
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", "RMUC 2027 三维战场");
   host.appendChild(canvas);
@@ -184,11 +189,13 @@ export function mountArena(
       simulationTimer=undefined;
       if(disposed||paused||document.hidden||experiment?.running||match?.phase!=="running")return;
       simClock.deposit(performance.now());
+      if(traceEnabled)qaBatches++;
       simClock.run(tick=>simulate(tick)&&!paused,8);
       publish();
       // Defer expensive draws while draining a delayed frame's tick debt.
       // Render the newest authoritative state once caught up.
-      if(simClock.debt<SIM_STEP_MS||paused||match?.phase!=="running")invalidate();
+      if(simClock.debt<SIM_STEP_MS||paused||match?.phase!=="running")requestFrame();
+      else if(frame){cancelAnimationFrame(frame);frame=0;}
       queueSimulation();
     },Math.max(0,SIM_STEP_MS-simClock.debt));
   }
@@ -265,6 +272,18 @@ export function mountArena(
   const combatCadence=new Map<Robot,{nextFire:number;remaining:number;shieldContacts?:Map<string,number>}>();
   const wheels=new Map<Robot,THREE.Object3D[]>();
   let fieldRobots:Robot[]=[];
+  const healthGeometry=new THREE.PlaneGeometry(.84,.075);
+  const healthMaterials={red:new THREE.MeshBasicMaterial({color:0xff7777,depthWrite:false,toneMapped:false}),blue:new THREE.MeshBasicMaterial({color:0x70baff,depthWrite:false,toneMapped:false}),track:new THREE.MeshBasicMaterial({color:0x18201f,depthWrite:false,toneMapped:false})};
+  const healthBars=new Map<Robot,{group:THREE.Group;fill:THREE.Mesh}>();
+  function updateHealthBars(){
+    for(const [robot,{group,fill}] of healthBars){
+      const state=match?.robots.find(r=>r.id===robot.object.name);
+      group.visible=!guided&&!!state&&state.hp>0&&robot!==driving&&(mode!=="ai-first"||robot!==observed);
+      if(!group.visible||!state)continue;
+      group.position.copy(robot.position);group.position.y+=robot.eyeHeight+.35;group.quaternion.copy(camera.quaternion);
+      const ratio=state.hp/state.maxHp;fill.scale.x=ratio;fill.position.x=-.42*(1-ratio);
+    }
+  }
   const positions=new Map<string,THREE.Vector3>();
   const motionFor=(bot:Robot)=>{let m=motions.get(bot);if(!m){m={speed:0,yaw:bot.object.rotation.y};motions.set(bot,m);}return m;};
   const armorCenters = new Map<Robot,{object:THREE.Object3D;center:THREE.Vector3}[]>();
@@ -355,6 +374,7 @@ export function mountArena(
   const lesson:TeachingStatus={step:0,done:false};
   const lessonRobot=GROUND_ROSTER.find(r=>r.team==="red"&&r.kind==="infantry")!.id;
   let guided=false,territoryCompleted=false;
+  let controlPanel:"settings"|"actions"|null=null,showRadar=false;
   let worldControls:ReturnType<typeof createWorldControls>|null=null;
   let explorationPose:{position:THREE.Vector3;look:typeof look}|null=null;
   let ordinarySeed=seed;
@@ -385,10 +405,12 @@ export function mountArena(
     camera.lookAt(target);camera.updateMatrixWorld(true);publish();invalidate();
   }
   function recordEvent(event:MatchEvent){
+    if(traceEnabled)qaEvents.push(event);
     if(experiment?.running){experiment.telemetry?.event(event);return;}
     eventFeed.add(event,performance.now());robotFeedback?.event(event);director.event(event);soundEvent(event);
   }
   function recordDamage(event:DamageEvent){
+    if(traceEnabled)qaDamage.push(event);
     if(experiment?.running)experiment.telemetry?.damage(event);
     robotFeedback?.damage(event);if(!experiment?.running)director.damage(event);
     const target=event.target;
@@ -432,8 +454,8 @@ export function mountArena(
     const stance=match&&vehicle?sentryStatus(match,vehicle):null;
     const radarSide=(team:Team)=>({encryptionLevel:match!.radar[team].encryptionLevel,opportunities:radarOpportunities(match!.radar[team]),doubleUntil:Math.max(0,Math.ceil(match!.radar[team].doubleUntil-match!.elapsed))});
     const events=eventFeed.view(perspective,performance.now());
-    if(events.items.length&&!experiment?.running)invalidate();
-    const status: ArenaStatus = {...(guided?{teaching:{...lesson,captured:territoryLesson?.practiceCaptured}}:{}),impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
+
+    const status: ArenaStatus = {paused,...(guided?{teaching:{...lesson,captured:territoryLesson?.practiceCaptured}}:{}),impact:impactFeedback&&match?.phase==="running"&&manualRobot()&&activeRobot()?.id===impactFeedback.robot&&match.elapsed-impactFeedback.at<.22?{kind:impactFeedback.kind,serial:impactFeedback.serial}:undefined,sound:audio.enabled,director:director.enabled,canDirect:canDirect(),countdown:countdownEnd?Math.max(1,Math.ceil((countdownEnd-(countdownPausedAt||performance.now()))/1000)):undefined,flightSpeed:mode==="third"?flightSpeed:undefined,events,air:air?.view(perspective),experiment:experiment?{running:experiment.running,completed:experiment.results.length,total:experiment.config.pairs*2,elapsed:match?.elapsed??0,results:experiment.results.slice()}:undefined,radarMap:match&&mapImage?{image:mapImage,perspective,tracks:mapTracks(perspective,perspective!=="all"),summary:perspective==="all"?{red:radarSide("red"),blue:radarSide("blue")}:{[perspective]:radarSide(perspective)}}:undefined,view: mode,selected:observed?.object.name??null,focus:vehicle&&identity?{id:identity.id,number:identity.number,kind:identity.kind,team:identity.team,manual:manualRobot()===focus,sight:!!focus?.object.getObjectByName("weapon-muzzle"),demand:vehicle.powerDemand*(power?.limit??0),spin:!!focus&&canSpinChassis(match!,vehicle)&&!!motions.get(focus)?.spin,canSpin:!!focus&&manualRobot()===focus&&canSpinChassis(match!,vehicle),canTakeControl:!driving&&!experiment?.running&&match?.phase!=="finished"&&vehicle.hp>0&&vehicle.sentryControl!=="auto"}:undefined, robot: driving?.name ?? null, nearby: nearby()?.name ?? null,
       match: match ? {phase:match.phase,seconds:Math.ceil(420-match.elapsed),winner:match.winner,sides:{red:teamStatus("red"),blue:teamStatus("blue")},
         coins:side?.coins??0,ammo:vehicle?.ammo??0,reserve:vehicle?reserveAmmo(match,vehicle):0,power:power?{...power,buffer:Math.ceil(power.buffer),locked:Math.ceil(power.locked)}:null,stance,performance:vehicle?.performance??null,hp:vehicle?.hp??0,buff:Math.ceil(rune?.buff??0),rune:rune&&vehicle&&!vehicle.heavy?{...rune,buff:Math.ceil(rune.buff)}:null,
         canBuy:!!driving&&!!vehicle&&canPurchaseAmmo(match,vehicle,true),canFire:!!vehicle&&!!manualRobot()&&canFire(match,vehicle),
@@ -441,17 +463,27 @@ export function mountArena(
         pendingAmmo:vehicle?.pendingAmmoAt!=null?Math.max(0,Math.ceil(vehicle.pendingAmmoAt-match.elapsed)):0,
         pendingHeal:vehicle?.pendingHealAt!=null?Math.max(0,Math.ceil(vehicle.pendingHealAt-match.elapsed)):0,
         healCost:remoteHealthCost(match)+(vehicle?sentryCommandCost(vehicle):0),canHeal:!!driving&&!!vehicle&&canPurchaseHealth(match,vehicle,true),maxHp:vehicle?.maxHp??0,level:vehicle?robotLevel(vehicle,match):1,xp:vehicle&&!vehicle.heavy&&!vehicle.sentry?vehicle.xp:null,ammoCount:offer?.count??100,ammoCost:offer?.cost??150,revival:vehicle?revivalStatus(match,vehicle,true):null,launcher:vehicle?.heavy?launcherStatus(match,vehicle,focus?.position):null,energy:vehicle?.heavy&&focus?energyStatus(match,vehicle,focus.position):null,technology:vehicle&&focus?assemblyStatus(match,vehicle,focus.position):null,dart:vehicle?dartStatus(match,vehicle.team):null,armor:vehicle?armorStatus(match,vehicle.team):null,terrain:vehicle?terrainStatus(match,vehicle):null} : undefined };
-    if(import.meta.env.DEV&&territoryLesson&&match){
+    if(traceEnabled&&territoryLesson&&match){
       const g=territoryLesson;
       const describe=(bot:Robot)=>({p:bot.position.toArray(),zones:zonesAtPosition(bot.position),yaw:bot.object.rotation.y,hp:match!.robots.find(r=>r.id===bot.object.name)?.hp,goal:botPaths.get(bot)?.goal.toArray(),speed:motions.get(bot)?.speed});
-      canvas.dataset.territoryTrace=JSON.stringify({elapsed:match.elapsed,debt:simClock.debt,step:lesson.step,error:lesson.error,red:describe(g.red),blue:describe(g.blue),redGoal:g.redGoal.toArray(),redStart:g.redStart.toArray(),look,touchMove,moveOwner,paused});
+      canvas.dataset.territoryTrace=JSON.stringify({elapsed:match.elapsed,debt:simClock.debt,step:lesson.step,error:lesson.error,red:describe(g.red),blue:describe(g.blue),redGoal:g.redGoal.toArray(),redStart:g.redStart.toArray(),look,touchMove,moveOwner,paused,keys:[...keys],power:match.robots.find(r=>r.id===g.red.object.name)?.powerBuffer});
     }
+    if(traceEnabled)canvas.dataset.simTrace=JSON.stringify({elapsed:match?.elapsed,phase:match?.phase,winner:match?.winner,debt:simClock.debt,batches:qaBatches,frames:qaFrames,frameMs:qaFrameMs,paused,hidden:document.hidden,queued:simulationTimer!==undefined,experiment:!!experiment?.running});
     const signature = JSON.stringify({...status,experiment:status.experiment?{...status.experiment,results:undefined}:undefined});
     if (signature !== lastStatus) { lastStatus = signature; onStatus(status); }
+    return status;
   }
 
-  function invalidate() {
-    if (!disposed && !frame) frame = requestAnimationFrame(render);
+  function requestFrame(){
+    if(!disposed&&!frame)frame=requestAnimationFrame(render);
+  }
+  function invalidate(){
+    // A running match has exactly one redraw owner: its simulation scheduler.
+    // Camera changes, held keys, and event effects cannot enqueue more renders
+    // while it drains debt. Paused, ready, and experimental views still redraw
+    // on demand.
+    if(match?.phase==="running"&&!paused&&!experiment?.running)return;
+    requestFrame();
   }
 
   const armorLit=new Map<Robot,boolean>();
@@ -578,6 +610,7 @@ export function mountArena(
   function render(time: number) {
     frame = 0;
     if (disposed) return;
+    const frameStart=performance.now();
     const ratio=pixelRatio();if(ratio!==nativeRatio){qualityCalibration.reset();renderer.setPixelRatio(nativeRatio=ratio);}
     if(countdownEnd&&!paused){
       if(document.hidden)cancelStart();
@@ -615,12 +648,12 @@ export function mountArena(
       syncCamera();
     } else if(following())syncObserver(time);
     else if (controls.enabled) controls.update();
-    publish();
+    const status=publish();
     const hidden=mode==="first"?driving:mode==="ai-first"?observed:null;
     if(hidden)hidden.object.visible=false;
-    armorGlow?.update();
+    armorGlow?.update();updateHealthBars();
     if(guided&&match&&territoryLesson&&territoryVisuals)territoryVisuals.update(match,camera,viewportHeight,driving?.object,{target:territoryLesson.practiceCaptured?territoryLesson.redStart:territoryLesson.redGoal,practice:lesson.step===10,done:lesson.done,failed:!!lesson.error});
-    worldControls?.update(camera,{guided,active:!!match&&(match.phase!=="ready"||!!countdownEnd),paused,take:!driving&&!!observed&&(guided?lesson.step===10&&!lesson.done&&!lesson.error:match?.phase!=="finished"),driving:!!driving,done:guided&&(lesson.done||!!lesson.error),view:mode,experiment:!!experiment?.running,completed:territoryCompleted,settings});
+    worldControls?.update(camera,{guided,active:!!match&&(match.phase!=="ready"||!!countdownEnd),paused,take:!driving&&!!observed&&(guided?lesson.step===10&&!lesson.done&&!lesson.error:!!status.focus?.canTakeControl),driving:!!driving,done:guided&&(lesson.done||!!lesson.error),view:mode,experiment:!!experiment?.running,completed:territoryCompleted,settings,nearby:!!nearby(),panel:controlPanel,status,extra:worldCommands(status),radar:showRadar});
     if(match){mechanism?.setOutpostLights(match);dartVisual?.update(match,audioPerspective(),reducedMotion.matches);}
     projectiles.visual(camera,viewportHeight,isPlaying(mode)||mode==="ai-first",reducedMotion.matches);
     if(mode==="follow")followRendered.copy(camera.position);
@@ -632,8 +665,9 @@ export function mountArena(
     };
     if(match)robotFeedback?.update(match,camera,activeRobot()?.team??(mode==="ai-first"?groundIdentity(observed?.object.name??"")?.team:undefined)??radarPerspective,reducedMotion.matches,{firstPerson:mode==="first"||mode==="ai-first",shieldTrace});
     if(settings.quality==="auto")qualityCalibration.beginFrame(time,ready&&!paused&&!document.hidden&&match?.phase==="running"&&!experiment?.running,mode);
+    if(traceEnabled)canvas.dataset.worldTargets=JSON.stringify(worldControls?.targets(camera)??{});
     try{renderer.render(scene, camera);}catch(error){if(firstFrameStarted){firstFrameStarted=0;onError("战场渲染失败，请重试");return;}throw error;}finally{qualityCalibration.endFrame();robotFeedback?.restoreMaterials();if(hidden)hidden.object.visible=true;if(mode==="follow"&&following()){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}}
-    if(import.meta.env.DEV){canvas.dataset.geometryCount=String(renderer.info.memory.geometries);canvas.dataset.textureCount=String(renderer.info.memory.textures);canvas.dataset.drawCalls=String(renderer.info.render.calls);}
+    if(traceEnabled){qaFrames++;qaFrameMs=performance.now()-frameStart;canvas.dataset.geometryCount=String(renderer.info.memory.geometries);canvas.dataset.textureCount=String(renderer.info.memory.textures);canvas.dataset.drawCalls=String(renderer.info.render.calls);}
     if(firstFrameStarted){performance.measure("arena:first-frame",{start:firstFrameStarted,end:performance.now()});firstFrameStarted=0;onReady();}
 
   }
@@ -701,7 +735,7 @@ export function mountArena(
   }
   function reset() {
     if(!match||!mechanism||!terrain)return;
-    stopSimulation();poseShotIndex=undefined;
+    stopSimulation();qaEvents.length=0;qaDamage.length=0;qaBatches=0;controlPanel=null;showRadar=false;poseShotIndex=undefined;
     countdownEnd=0;countdownPausedAt=0;countdownCue=0;audio.stop();stopDirector();match=createMatch(roster(),undefined,undefined,coreGeometry?.energySpawns,coreGeometry?.coreSockets,seed);
     eventFeed.clear();robotFeedback?.clear();taskLog.length=0;match.onDamage=recordDamage;match.onEvent=recordEvent;
     defeatedPush.clear();nextBotTurn=0;botCursor=combatCursor=0;simClock.reset();botPaths.clear();botObserved.clear();motions.clear();shotIntents.clear();combatCadence.clear();syncLaunchers();
@@ -737,21 +771,106 @@ export function mountArena(
   function worldAction(action:WorldAction){
     switch(action){
       case "territory":enterTerritory();break;
-      case "match":if(!guided&&match?.phase==="ready")start();break;
+      case "match":if(!guided&&match?.phase==="ready"){controlPanel=null;start();}break;
       case "pause":pause(true);break;
       case "resume":pause(false);break;
       case "replay":if(guided)enterTerritory();else{exploreWorld();start();}break;
       case "explore":exploreWorld();break;
       case "take":takeControl();break;
-      case "sound":onSettingsChange({...settings,muted:!settings.muted});break;
-      case "quality":{const values=["auto","low","medium","high"] as const;onSettingsChange({...settings,quality:values[(values.indexOf(settings.quality)+1)%values.length]});break;}
-      case "red":case "blue":if(!guided&&match?.phase==="ready"&&!driving){radarPerspective=action;setView(action);}break;
+      case "red":case "blue":if(!guided&&match?.phase==="ready"&&!driving){controller.radarView(action);setView(action);}break;
+      case "settings":controlPanel="settings";break;
+      case "actions":controlPanel="actions";break;
+      case "close":controlPanel=null;break;
+      case "interact":interact(false);break;
+      case "exit":onExit();break;
+      case "radar":showRadar=!showRadar;break;
+      case "view":{
+        if(driving||guided)break;
+        const views:ArenaView[]=observed?["follow","ai-first","all","first"]:radarPerspective==="all"?["first","all","third","top","red","blue"]:["first","all",radarPerspective,"top"];
+        setView(views[(views.indexOf(mode)+1)%views.length]);break;
+      }
+      case "next":case "previous":break;
     }
+    invalidate();
+  }
+  // One set of actual controller operations, selected from current referee
+  // eligibility. The handheld control is not a second source of game state.
+  function worldCommands(status:ArenaStatus):WorldCommand[]{
+    if(guided)return [];
+    const result:WorldCommand[]=[];
+    const add=(id:string,symbol:string,run:()=>void,detail?:string,color?:string)=>result.push({id,symbol,run,detail,color});
+    if(controlPanel==="settings"){
+      const change=(patch:Partial<ArenaSettings>)=>onSettingsChange({...settings,...patch});
+      const qualities=["auto","low","medium","high"] as const;
+      add("sound",settings.muted?"×":"♪",()=>change({muted:!settings.muted}));
+      add("quality","◈",()=>change({quality:qualities[(qualities.indexOf(settings.quality)+1)%qualities.length]}),({auto:"A",low:"1",medium:"2",high:"3"})[settings.quality]);
+      add("volume","♪",()=>change({volume:settings.volume>=1?0:Math.min(1,Math.round((settings.volume+.2)*100)/100)}),Math.round(settings.volume*100)+"%");
+      add("sensitivity","◉",()=>change({sensitivity:settings.sensitivity>=2?.25:settings.sensitivity+.25}),settings.sensitivity.toFixed(2));
+      add("invert","↕",()=>change({invertY:!settings.invertY}),settings.invertY?"✓":"×");
+      add("default","↻",()=>onSettingsChange({...DEFAULT_ARENA_SETTINGS}));
+      return result;
+    }
+    const m=status.match,r=activeRobot();
+    if(!m||!match)return result;
+    if(!r){
+      if(status.countdown)add("cancelStart","×",cancelStart);
+      if(status.canDirect||status.director)add("director","◉",()=>controller.director(!status.director),status.director?"✓":"×");
+      if(status.radarMap&&(m.phase!=="ready"||!!observed)){
+        add("radar","⌖",()=>worldAction("radar"),showRadar?"✓":"×");
+        if(mode!=="ai-first")add("perspective","◆",()=>controller.radarView(radarPerspective==="all"?"red":radarPerspective==="red"?"blue":"all"),undefined,radarPerspective==="red"?"#ff7777":radarPerspective==="blue"?"#70baff":undefined);
+      }
+      if(m.phase==="running"&&radarPerspective==="all")for(const a of status.air??[])if(a.powered)add("air-"+a.team,"⊘",()=>controller.airStop(a.team),undefined,a.team==="red"?"#ff7777":"#70baff");
+      return result;
+    }
+    if(m.phase==="ready"&&!status.countdown){
+      if(m.performance){
+        const perf=m.performance;
+        add("chassis","♥",()=>controller.performance({...perf,chassis:perf.chassis==="hp"?"power":"hp"}),perf.chassis==="hp"?"♥":"⚡");
+        add("launcher","♨",()=>controller.performance({...perf,launcher:perf.launcher==="cooling"?"burst":"cooling"}),perf.launcher==="cooling"?"♨":"✦");
+      }
+      if(m.stance)add("sentry","✥",()=>controller.sentryControl(m.stance!.control==="auto"?"semi":"auto"),m.stance.control==="auto"?"A":"M");
+      return result;
+    }
+    if(m.phase!=="running")return result;
+    if(m.revival?.dead){
+      if(m.technology?.canCancel)add("cancelAssembly","×",cancel);
+      if(m.revival.canConfirm)add("revive","♥",()=>revive(false),String(m.revival.fee));
+      if(m.revival.canPay)add("paidRevive","♥+",()=>revive(true),String(m.revival.cost));
+      return result;
+    }
+    if(m.canBuy)add("ammo","◉+",buy,String(m.ammoCost));
+    if(m.canHeal)add("heal","♥+",heal,String(m.healCost));
+    if(status.focus?.canSpin)add("spin","↻",toggleSpin,status.focus.spin?"✓":"×");
+    const radar=status.radarMap?.summary[r.team];
+    if(radar){add("radar","⌖",()=>worldAction("radar"),showRadar?"✓":"×");if(radar.opportunities>0&&!radar.doubleUntil&&!m.dart?.blind)add("double","⌖",controller.radarDouble,"×2");}
+    if(m.rune&&!m.rune.active&&!m.rune.buff&&m.rune.available>0&&!m.revival?.weak)add("rune","✺",controller.rune,String(m.rune.available));
+    if(m.stance){
+      const stance=m.stance;
+      if(m.coins>=stance.commandCost&&stance.control==="auto")for(const [kind,symbol] of [["supply","+"],["outpost","⚑"],["central","◎"],["highpoint","▲"]] as const)add("mark-"+kind,symbol,()=>controller.sentryMark(kind),String(stance.commandCost));
+      if(m.coins>=stance.commandCost&&stance.cooldown<=0){
+        for(const [mode,symbol] of [["attack","✦"],["defense","⬟"],["move","➜"]] as const)if(stance.mode!==mode||stance.enhanced)add("stance-"+mode,symbol,()=>controller.stance(mode,false));
+        if(!stance.enhanced&&stance.remaining[stance.mode]>0)add("enhance","⇈",()=>controller.stance(stance.mode,true),String(Math.ceil(stance.remaining[stance.mode])));
+      }
+    }
+    if(m.armor?.canFortify)add("armor","⬟",()=>controller.armorFortify(),String(m.armor.available));
+    if(m.dart){
+      if(m.dart.canSelect)add("dartMode","➤",()=>{const modes:DartMode[]=m.dart!.phase==="open"?["fixed","randomFixed","randomMoving","terminalMoving"]:["outpost","fixed","randomFixed","randomMoving","terminalMoving"];controller.dartSelect(modes[(modes.indexOf(m.dart!.mode)+1)%modes.length]);},({outpost:"⚑",fixed:"◆",randomFixed:"◇",randomMoving:"↔",terminalMoving:"⇆"})[m.dart.mode]);
+      if(m.dart.canOpen)add("dartOpen","⇧",controller.dartOpen,String(m.dart.remaining));
+      if(m.dart.canFire)add("dartFire","➤",controller.dartFire,String(m.dart.remaining));
+    }
+    if(m.energy?.pickup)add("pickup","⬒",pickup);
+    if(m.energy?.canDrop)add("drop","⬓",drop);
+    if(m.launcher?.canInstall)add("install","⊕",install,"42");
+    if(m.launcher?.canRemove)add("detach","⊖",detachLauncher,"42");
+    for(const level of m.technology?.available??[])add("assembly-"+level,"⬡",()=>assembly(level),String(level));
+    for(const action of m.technology?.actions??[])add("step-"+action.core,({2:"⇥",3:"↑",4:"↶",5:"↻",6:"✓"})[action.step],()=>assemblyStep(action.core,action.step,action.angle),action.step===5?String(action.angle)+"°":undefined,action.core==="red"?"#ff7777":"#70baff");
+    if(m.technology?.canCancel)add("cancelAssembly","×",cancel);
+    return result;
   }
   function pickWorld(x=0,y=0){
     const action=worldControls?.pick(camera,x,y);
     if(!action)return false;
-    audio.unlock();worldAction(action);return true;
+    audio.unlock();action.run();invalidate();return true;
   }
   function startTerritoryLesson(){
     if(!match||!terrain)return;
@@ -813,7 +932,7 @@ export function mountArena(
       return best;
     }
     const b=approach(blue,"blue-outpost",[-2.25,4]),r=approach(red,"blue-central",[-3.1,1.6],true);
-    if(import.meta.env.DEV)canvas.dataset.approaches=JSON.stringify({r:r&&{from:r.from.toArray(),to:r.to.toArray()},b:b&&{from:b.from.toArray(),to:b.to.toArray()}});
+    if(traceEnabled)canvas.dataset.approaches=JSON.stringify({r:r&&{from:r.from.toArray(),to:r.to.toArray()},b:b&&{from:b.from.toArray(),to:b.to.toArray()}});
     if(!r||!b){lesson.error="未找到合法的阵地教学路径";publish();return;}
     territoryLesson={red,blue,redStart:r.from,blueStart:b.from,redGoal:r.to,blueGoal:b.to,since:0,blueDamage:0,practiceCaptured:false};
     territoryVisuals??=createTerritoryTeachingVisuals(scene,support,red.object,blue.object);
@@ -1473,8 +1592,8 @@ export function mountArena(
     if(fired&&!experiment?.running){const state=match.robots.find(r=>r.id===robot.object.name);if(state&&audioVisible(state.team,audioPerspective()))audio.play(state.heavy?"heavy":"light",from);}
     return fired;
   }
-  function interact() {
-    if(pickWorld())return;
+  function interact(pick=true) {
+    if(pick&&pickWorld())return;
     if(guided){if(lesson.step===10&&!driving&&!lesson.done)takeControl();return;}
     if (!ready || paused || !terrain || !isPlaying(mode)||experiment?.running) return;
     if (driving) {
@@ -1528,7 +1647,8 @@ export function mountArena(
     if(ready&&!event.repeat&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement||event.target instanceof HTMLSelectElement)){
       if(event.code==="KeyE"&&guided){event.preventDefault();interact();return;}
       if(event.code==="Escape"&&guided){event.preventDefault();if(document.pointerLockElement===canvas)document.exitPointerLock();else exploreWorld();return;}
-      if(event.code==="KeyP"&&guided&&!(lesson.step===10&&!driving)&&!lesson.done){event.preventDefault();pause(!paused);return;}
+      if(event.code==="Escape"&&!guided&&controlPanel){event.preventDefault();controlPanel=null;invalidate();return;}
+      if(event.code==="KeyP"&&(!guided||!(lesson.step===10&&!driving)&&!lesson.done)){event.preventDefault();pause(!paused);return;}
     }
     if (!ready || paused || event.metaKey || event.ctrlKey&&mode!=="third"&&!(director.enabled&&flightKeys.has(event.code)) || event.altKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
     if(countdownEnd){if(event.code==="Escape")cancelStart();return;}
@@ -1551,13 +1671,24 @@ export function mountArena(
     invalidate();
   }
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
-  let worldPointer:{id:number;x:number;y:number}|null=null;
+  let worldPointer:{id:number;x:number;y:number;command:string}|null=null;
+  function robotAtPointer(event:PointerEvent){
+    if(!map||driving||guided)return null;
+    const rect=canvas.getBoundingClientRect();
+    if(mode==="follow"){camera.position.copy(followRendered);camera.updateMatrixWorld(true);}
+    observerRay.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
+    if(mode==="follow"){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}
+    const hit=traceArenaShot(observerRay,shotRoots(),observerRay.ray.origin.clone(),observerRay.ray.direction.clone(),220,prepareShots());
+    for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot&&allowedObservation(robot))return robot;}
+    return null;
+  }
   function pointerdown(event: PointerEvent) {
     if(!ready||event.button!==0)return;
     const rect=canvas.getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width*2-1,y=1-(event.clientY-rect.top)/rect.height*2;
-    if(worldControls?.pick(camera,x,y)){event.preventDefault();worldPointer={id:event.pointerId,x:event.clientX,y:event.clientY};return;}
+    const command=worldControls?.pick(camera,x,y);
+    if(command){event.preventDefault();event.stopImmediatePropagation();worldPointer={id:event.pointerId,x:event.clientX,y:event.clientY,command:command.id};canvas.setPointerCapture(event.pointerId);return;}
     if(paused||countdownEnd||guided&&!driving)return;
-    if(!isPlaying(mode)&&mode!=="third"){observerPointer={id:event.pointerId,x:event.clientX,y:event.clientY};return;}
+    if(!isPlaying(mode)&&mode!=="third"||isPlaying(mode)&&!driving&&robotAtPointer(event)){observerPointer={id:event.pointerId,x:event.clientX,y:event.clientY};return;}
     if(event.pointerType==="touch"&&event.clientX<canvas.getBoundingClientRect().left+canvas.clientWidth/2)return;
     if(drag&&drag.id!==event.pointerId)return;
     if(event.pointerType==="mouse")trigger("mouse:"+event.pointerId,true);
@@ -1567,6 +1698,7 @@ export function mountArena(
     canvas.setPointerCapture(event.pointerId);
   }
   function pointermove(event: PointerEvent) {
+    if(worldPointer?.id===event.pointerId){event.stopImmediatePropagation();return;}
     if(director.enabled&&observerPointer?.id===event.pointerId&&Math.hypot(event.clientX-observerPointer.x,event.clientY-observerPointer.y)>=4){const {x,y}=observerPointer;setView("third");drag={id:event.pointerId,x:event.clientX,y:event.clientY,moved:true};canvas.setPointerCapture(event.pointerId);turn(event.clientX-x,event.clientY-y);return;}
     if (document.pointerLockElement === canvas || drag?.id !== event.pointerId) return;
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
@@ -1576,9 +1708,10 @@ export function mountArena(
   }
   function pointerup(event: PointerEvent) {
     if(worldPointer?.id===event.pointerId){
-      const start=worldPointer;worldPointer=null;
+      const start=worldPointer;worldPointer=null;event.stopImmediatePropagation();
       if(event.type==="pointerup"&&Math.hypot(event.clientX-start.x,event.clientY-start.y)<6){
-        const rect=canvas.getBoundingClientRect();pickWorld((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2);
+        const rect=canvas.getBoundingClientRect(),action=worldControls?.pick(camera,(event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2);
+        if(action?.id===start.command){audio.unlock();action.run();invalidate();}
       }
       return;
     }
@@ -1588,12 +1721,7 @@ export function mountArena(
     if(moveOwner===event.pointerId){moveOwner=null;touchMove=ZERO_MOVE;invalidate();}
     if(observerPointer?.id===event.pointerId){const start=observerPointer;observerPointer=null;
       if(event.type==="pointerup"&&Math.hypot(event.clientX-start.x,event.clientY-start.y)<5&&!driving&&mode!=="ai-first"&&map){
-        const rect=canvas.getBoundingClientRect();
-        if(mode==="follow"){camera.position.copy(followRendered);camera.updateMatrixWorld(true);}
-        observerRay.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
-        if(mode==="follow"){camera.position.copy(followDesired);camera.updateMatrixWorld(true);}
-        const hit=traceArenaShot(observerRay,shotRoots(),observerRay.ray.origin.clone(),observerRay.ray.direction.clone(),220,prepareShots());
-        for(let node=hit?.object;node;node=node.parent??undefined){const robot=fieldRobots.find(r=>r.object===node);if(robot){observe(robot.object.name);break;}}
+        const robot=robotAtPointer(event);if(robot)observe(robot.object.name);
       }
     }
     if (drag?.id !== event.pointerId) return;
@@ -1645,11 +1773,11 @@ export function mountArena(
   const observer = new ResizeObserver(resize);
   observer.observe(host);
   resize();
-  canvas.addEventListener("pointerdown", pointerdown);
-  canvas.addEventListener("pointermove", pointermove);
-  canvas.addEventListener("pointerup", pointerup);
-  canvas.addEventListener("pointercancel", pointerup);
-  canvas.addEventListener("lostpointercapture", pointerup);
+  canvas.addEventListener("pointerdown", pointerdown,true);
+  canvas.addEventListener("pointermove", pointermove,true);
+  canvas.addEventListener("pointerup", pointerup,true);
+  canvas.addEventListener("pointercancel", pointerup,true);
+  canvas.addEventListener("lostpointercapture", pointerup,true);
   document.addEventListener("mousemove", mousemove);
   document.addEventListener("pointerlockchange", lockchange);
   document.addEventListener("visibilitychange",visibilityChange);
@@ -1798,6 +1926,11 @@ export function mountArena(
     fieldRobots=robots.filter(r=>!!groundIdentity(r.object.name));
     armorGlow=createArmorGlow(scene,fieldRobots.map(r=>r.object));
     robotFeedback=createRobotFeedback(scene,fieldRobots.map(r=>r.object));
+    for(const robot of fieldRobots){
+      const group=new THREE.Group(),team=groundIdentity(robot.object.name)!.team;
+      const track=new THREE.Mesh(healthGeometry,healthMaterials.track),fill=new THREE.Mesh(healthGeometry,healthMaterials[team]);
+      fill.position.z=.002;group.add(track,fill);scene.add(group);healthBars.set(robot,{group,fill});
+    }
     for(const robot of fieldRobots){positions.set(robot.object.name,robot.position);const list:THREE.Object3D[]=[];robot.object.traverse(o=>{if(o.name.startsWith("wheel-"))list.push(o);});wheels.set(robot,list);}
     for(const robot of robots){
       initial.set(robot,{position:robot.position.clone(),yaw:robot.object.rotation.y});
@@ -1821,7 +1954,7 @@ export function mountArena(
     // before testing triangles; important for the large CAD field.
     scene.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.computeBoundingBox();});
     spawnExplorer();
-    worldControls=createWorldControls(scene,(x,z)=>terrain!.heightAt(x,z));
+    worldControls=createWorldControls(scene,(x,z)=>terrain!.heightAt(x,z),worldAction);
     for(const robot of robots){
       const r=match.robots.find(r=>r.id===robot.object.name);
       if(r?.heavy)launcherModels.set(r.id,bindLauncherModule(robot.object,benchModules,launcherBench(r.team).pad));
@@ -1841,7 +1974,7 @@ export function mountArena(
     if (!disposed) onError("三维场地加载失败，请重试");
   });
 
-  return {
+  const controller:ArenaController = {
     explore:exploreWorld,territoryCompleted(value){territoryCompleted=value;invalidate();},
     radarView(value){if(!activeRobot()&&mode!=="ai-first"){if(radarPerspective!==value)audio.stop();radarPerspective=value;if(value!=="all"){stopDirector();if(mode==="third"||mode==="detail")setView("all");}if(observed&&!allowedObservation(observed)){observed=null;if(mode==="follow")setView("all");}publish();invalidate();}},
     airStop(team){if(!experiment?.running&&match?.phase==="running"&&!activeRobot()&&radarPerspective==="all"){air?.stop(team);publish();invalidate();}},
@@ -1863,11 +1996,11 @@ export function mountArena(
       cancelAnimationFrame(frame);
       observer.disconnect();
       if (document.pointerLockElement === canvas) document.exitPointerLock();
-      canvas.removeEventListener("pointerdown", pointerdown);
-      canvas.removeEventListener("pointermove", pointermove);
-      canvas.removeEventListener("pointerup", pointerup);
-      canvas.removeEventListener("pointercancel", pointerup);
-      canvas.removeEventListener("lostpointercapture", pointerup);
+      canvas.removeEventListener("pointerdown", pointerdown,true);
+      canvas.removeEventListener("pointermove", pointermove,true);
+      canvas.removeEventListener("pointerup", pointerup,true);
+      canvas.removeEventListener("pointercancel", pointerup,true);
+      canvas.removeEventListener("lostpointercapture", pointerup,true);
       document.removeEventListener("mousemove", mousemove);
       document.removeEventListener("pointerlockchange", lockchange);
       document.removeEventListener("visibilitychange",visibilityChange);
@@ -1885,6 +2018,7 @@ export function mountArena(
       for(const asset of pendingAssets)if(!asset.parent)disposeObjects(asset);
       pendingAssets.clear();
       worldControls?.dispose();territoryVisuals?.dispose();
+      for(const {group} of healthBars.values())group.removeFromParent();healthGeometry.dispose();for(const material of Object.values(healthMaterials))material.dispose();healthBars.clear();
       disposeObjects(scene);
       for(const old of mechanism?.old??[])disposeObjects(old);
       for(const old of coreGeometry?.old??[])disposeObjects(old);
@@ -1894,6 +2028,7 @@ export function mountArena(
       canvas.remove();
     },
   };
+  return controller;
 }
 
 function disposeObjects(root: THREE.Object3D) {

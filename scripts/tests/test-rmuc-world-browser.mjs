@@ -28,7 +28,7 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
   async function press(k){await key(k);await key(k,"keyUp");}
   async function hold(k,expression,label){await key(k);try{await wait(expression,label,30000);}finally{await key(k,"keyUp");}}
   async function sameWorld(){
-    assert.equal(await evaluate('window.__qaCanvas===document.querySelector("canvas")&&window.__qaGL===document.querySelector("canvas").getContext("webgl2")&&document.querySelectorAll("canvas").length===1'),true);
+    assert.equal(await evaluate('window.__qaRenderer&&window.__qaRenderer===document.querySelector("canvas").__qaRenderer&&window.__qaCanvas===document.querySelector("canvas")&&window.__qaGL===document.querySelector("canvas").getContext("webgl2")&&document.querySelectorAll("canvas").length===1'),true);
     assert.equal(await evaluate('performance.getEntriesByName("arena:initialize").length'),1);
     assert.equal(await evaluate('performance.getEntriesByType("measure").filter(e=>e.name.startsWith("arena:parse:")).length'),4);
     assert.equal(await evaluate('performance.getEntriesByType("resource").filter(e=>e.name.includes(".glb.gz")).length'),4);
@@ -67,12 +67,13 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await read()).status,401,"server rejected logged-out progress read");
   }
   try{
+    await command("Page.addScriptToEvaluateOnNewDocument",{source:"window.__rmucQA=true"});
     const passwordA=process.env.TARSGO_TEST_USER_PASSWORD,passwordB=process.env.TARSGO_TEST_ADMIN_PASSWORD;
     assert.ok(passwordA&&passwordB,"synthetic acceptance accounts required");
     const userA=await login("test-user@tarsgo.test",passwordA);
     assert.deepEqual(await rows(),[]);
     assert.equal((await state()).worldView,"first");
-    await evaluate('window.__qaCanvas=document.querySelector("canvas");window.__qaGL=__qaCanvas.getContext("webgl2");true');
+    await evaluate('window.__qaCanvas=document.querySelector("canvas");window.__qaGL=__qaCanvas.getContext("webgl2");window.__qaRenderer=__qaCanvas.__qaRenderer;true');
     await sameWorld();await screenshot("01-world-explore");
     await hit(.5,.54);
     await wait(`!!document.querySelector('[data-world-mode="teaching"]')`,"physical territory start",15000);
@@ -112,7 +113,7 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     console.log("RMUC WORLD BROWSER ACCEPTANCE PASSED");
   }catch(error){
     console.error("RMUC world acceptance failed:",error.message);
-    try{console.log("RMUC world failure",await state());await screenshot("failure");}catch{}
+    try{console.log("RMUC world failure",await state(),await evaluate('JSON.stringify(document.querySelector("canvas")?.dataset)'));await screenshot("failure");}catch{}
     throw error;
   }
 }

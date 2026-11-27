@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {territoryStatus,type Match} from "./rmuc-3d-match";
-import {ARENA_ZONES} from "./rmuc-3d-zones";
+import {ARENA_ZONES,zonesAtPosition} from "./rmuc-3d-zones";
 import type {ArenaTerrain} from "./rmuc-3d-terrain";
 
 // Teaching overlays are render-only, never added to terrain, hit or navigation roots.
@@ -14,7 +14,7 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
       const nx=-dz/length*.045,nz=dx/length*.045;
       const point=(t:number,side:number)=>{
         const x=a[0]+dx*t+nx*side,z=a[1]+dz*t+nz*side;
-        return [x,zone.height[1]+.035,z];
+        return [x,THREE.MathUtils.clamp(terrain.heightAt(x,z),zone.height[0],zone.height[1])+.035,z];
       };
       for(let j=0;j<n;j++){
         const a0=point(j/n,-1),a1=point(j/n,1),b0=point((j+1)/n,-1),b1=point((j+1)/n,1);
@@ -59,7 +59,11 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
   const offset=new THREE.Vector3(),forward=new THREE.Vector3(),goalDirection=new THREE.Vector3();
   return {visible(value:boolean){group.visible=value;},update(match:Match,camera:THREE.PerspectiveCamera,height:number,driving:THREE.Object3D|undefined,practice:{target:THREE.Vector3;practice:boolean;done:boolean;failed:boolean}){
     const area=territoryStatus(match,"blue","outpost"),color=area.contested?"#ffcc55":area.controller==="red"?"#ff7777":"#70baff";
-    for(const {mesh} of boundaries)mesh.material.color.set(color);
+    for(const {mesh,zone} of boundaries){
+      const redInside=zonesAtPosition(red.position).includes(zone.id),blueInside=zonesAtPosition(blue.position).includes(zone.id);
+      const tint=area.contested?(redInside&&blueInside?"#ffcc55":redInside?"#ff7777":blueInside?"#70baff":"#ffcc55"):color;
+      mesh.material.color.set(tint);mesh.material.opacity=area.full?.88:.62;
+    }
     for(const {robot,color,tag} of robotLabels){
       const state=match.robots.find(r=>r.id===robot.name);
       tag.sprite.visible=robot!==driving&&!!state&&state.hp>0;
