@@ -54,3 +54,71 @@
 .rmul3d-experiment-progress{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#101924e8;padding:8px;border-radius:6px;z-index:5;white-space:nowrap}
 .rmul3d-analysis-open,.rmul3d-analysis-exit{position:absolute;z-index:4;top:12px;left:12px}
 .rmul3d-analysis-open{top:62px}
+
+/* Screen-space information and controls; the physical concourse console stays in WebGL. */
+.rmuc-score,.rmuc-telemetry,.rmuc-lesson,.rmuc-radar,.rmuc-command-panel,.rmuc-command-bar{position:absolute;z-index:5;background:#111a1aee;border:1px solid #ffffff26;border-radius:6px;color:#f3f5f4}
+.rmuc-score{top:12px;left:50%;transform:translateX(-50%);width:min(860px,calc(100% - 24px));display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:10px 16px;font-size:12px}
+.rmuc-score-side{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));align-items:center;gap:10px}
+.rmuc-score-side strong,.rmuc-telemetry.red>strong{color:#ff8a8a}
+.rmuc-score-side.blue strong,.rmuc-telemetry.blue>strong{color:#8bc7ff}
+.rmuc-score-side span{display:flex;flex-direction:column;gap:2px;color:#b5c0c0;min-width:0;line-height:1.25}.rmuc-score-side span small{font-size:10px;color:#c6d0d0}.rmuc-score-side b{white-space:nowrap}
+.rmuc-score-side b{font-size:17px;color:#fff}
+.rmuc-score-time{display:grid;text-align:center;gap:3px;min-width:96px}
+.rmuc-score-time small{color:#c6d0d0;font-size:11px}
+.rmuc-score-time>strong{font-size:25px;line-height:1.1}
+.rmuc-score-time>b{font-size:13px}
+.rmuc-telemetry{left:12px;top:106px;padding:10px 12px;max-width:calc(100% - 24px);font-size:12px;pointer-events:none}
+.rmuc-telemetry>div{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:6px}
+.rmuc-telemetry span{color:#c4cece}
+.rmuc-telemetry span b{color:#fff}
+.rmuc-telemetry>span{display:block;margin-top:4px;color:#ffb5ab}
+.rmuc-lesson{top:106px;right:12px;width:min(330px,calc(100% - 24px));padding:14px;pointer-events:none}
+.rmuc-lesson-heading{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.rmuc-lesson-heading strong{font-size:16px}
+.rmuc-lesson-heading>span{font-size:11px;color:#c7d3d2;white-space:nowrap}
+.rmuc-lesson-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:10px}
+.rmuc-lesson-steps span{font-size:10px;text-align:center;color:#9eacaa;border-top:3px solid #44504e;padding-top:4px;white-space:nowrap}
+.rmuc-lesson-steps span[data-active=true]{color:#ffdd9a;border-color:#d0ad69;font-weight:700}
+.rmuc-lesson-steps span[data-done=true]{color:#cfddd5;border-color:#8cbf9b}
+.rmuc-lesson p{font-size:14px;line-height:1.65;margin:12px 0 0}
+.rmuc-lesson .rmuc-lesson-note{font-size:12px;color:#c6d0d0;margin-top:8px}.rmuc-lesson p[role=alert]{color:#ffb5ab}
+.rmuc-lesson-live{display:grid;gap:5px;border-top:1px solid #ffffff26;margin-top:12px;padding-top:10px;font-size:12px;color:#c6d0d0}
+.rmuc-lesson-live b{color:#f4f6f5}
+.rmuc-lesson-live progress{width:100%;height:6px;accent-color:#d0ad69}
+.rmuc-radar{right:12px;top:106px;width:min(280px,calc(100% - 24px));padding:10px;display:grid;gap:5px;font-size:12px}
+.rmuc-radar svg{width:100%;display:block}
+.rmuc-command-bar{bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:5px;justify-content:center;flex-wrap:wrap;padding:5px;max-width:calc(100% - 24px)}
+.rmuc-command-bar button,.rmuc-command-panel button{border:1px solid #ffffff30;background:#25302f;border-radius:4px;min-height:36px;padding:7px 11px;white-space:nowrap}
+.rmuc-command-bar button:hover:not(:disabled),.rmuc-command-panel button:hover:not(:disabled){background:#354442}
+.rmuc-command-panel{left:50%;top:50%;transform:translate(-50%,-50%);width:min(500px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;padding:16px}
+.rmuc-command-panel header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.rmuc-command-panel h2{margin:0;font-size:18px}
+.rmuc-command-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px}
+.rmuc-command-grid button{display:flex;justify-content:space-between;align-items:center;gap:8px;white-space:normal}
+.rmuc-command-grid button small{color:#c2d2d0}
+.rmuc-command-grid button[aria-pressed=true]{border-color:#9dbfab;background:#2b4037}
+.rmuc-catalog ol{margin:0;padding-left:24px}
+.rmuc-catalog li{padding:10px 0;border-top:1px solid #ffffff19;position:relative}
+.rmuc-catalog li>div{display:grid;gap:3px;padding-right:100px}
+.rmuc-catalog li span,.rmuc-catalog li>small{font-size:12px;color:#bdc8c7}
+.rmuc-catalog li>button,.rmuc-catalog li>small{position:absolute;right:0;top:50%;transform:translateY(-50%)}
+.rmuc-movement-help{position:absolute;bottom:76px;left:50%;transform:translateX(-50%);z-index:4;font-size:12px;background:#101818c9;padding:6px 9px;border-radius:4px;white-space:nowrap;pointer-events:none}
+@media(max-width:760px){.rmuc-score{gap:6px;padding:8px;font-size:10px}.rmuc-score-side{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 5px;text-align:center}.rmuc-score-side strong{grid-column:1/-1;text-align:center}.rmuc-score-side b{font-size:14px}.rmuc-score-time{min-width:70px}.rmuc-score-time>strong{font-size:21px}.rmuc-telemetry,.rmuc-lesson,.rmuc-radar{top:116px}.rmuc-lesson{width:min(280px,calc(100% - 24px));padding:10px}.rmuc-lesson p{font-size:13px}.rmuc-lesson-steps span{font-size:9px}.rmuc-telemetry{max-width:calc(100% - 310px);min-width:120px}.rmuc-telemetry>div{gap:4px 6px}}
+@media(max-width:520px){.rmuc-lesson{left:12px;right:12px;width:auto;top:112px;padding:8px 10px}.rmuc-lesson-heading strong{font-size:14px}.rmuc-lesson p{margin-top:6px;font-size:13px;line-height:1.45}.rmuc-lesson-live{grid-template-columns:1fr 1fr;gap:4px 8px;margin-top:5px;padding-top:6px;font-size:11px}.rmuc-lesson-live progress{grid-column:1/-1;grid-row:3}.rmuc-lesson-live span{min-width:0}.rmuc-telemetry{top:auto;bottom:76px;max-width:calc(100% - 24px)}.rmuc-command-bar{width:max-content;gap:4px}.rmuc-command-bar button{padding:6px 8px;font-size:12px}.rmuc-lesson-steps{margin-top:5px}}
+@media(pointer:coarse){.rmul3d[data-touch-controls=true] .rmuc-command-bar{bottom:max(154px,env(safe-area-inset-bottom))}.rmuc-movement-help{display:none}.rmuc-command-bar button,.rmuc-command-panel button{min-height:44px}}
+
+@media (pointer:coarse) and (max-width:520px) {
+  .rmul3d[data-touch-controls=true] .rmuc-telemetry{bottom:218px}
+  .rmuc-score{top:8px;width:calc(100% - 16px);font-size:11px}
+  .rmuc-score-time small{font-size:10px}
+  .rmuc-lesson{top:112px}
+}
+@media (pointer:coarse) and (orientation:landscape) {
+  .rmul3d[data-touch-controls=true] .rmuc-command-bar{bottom:8px;max-width:calc(100% - 310px)}
+  .rmuc-lesson{top:88px;width:min(270px,34%);padding:10px}
+  .rmuc-lesson-heading strong{font-size:14px}
+  .rmuc-lesson p{font-size:12px;line-height:1.45;margin-top:6px}
+  .rmuc-lesson-steps span{font-size:9px}
+  .rmuc-lesson-live{gap:3px;margin-top:6px;padding-top:6px;font-size:11px}
+  .rmuc-telemetry{top:88px;max-width:28%;font-size:11px}
+}

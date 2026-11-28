@@ -1,0 +1,173 @@
+[
+  {
+    "version": "baseline",
+    "mode": "robot-ready",
+    "cap": 0,
+    "n": 26,
+    "holdMs": 1002.5,
+    "distance": 1.7421838781007353,
+    "latencyMs": 129,
+    "intervalMs": 39.74799999952316,
+    "renderMs": 5.384615388054114,
+    "position": [
+      2.7880575599999995,
+      0.9621633331351369,
+      4.62
+    ],
+    "state": {
+      "territoryCompleted": "false",
+      "worldView": "first",
+      "worldMode": "match",
+      "worldDriving": "true",
+      "worldProgress": "0",
+      "worldContested": "false",
+      "worldController": "blue",
+      "worldFull": "true",
+      "worldSeconds": "420",
+      "worldOutpost": "1000"
+    }
+  },
+  {
+    "version": "baseline",
+    "mode": "robot-ready",
+    "cap": 50,
+    "n": 14,
+    "holdMs": 1002.5,
+    "distance": 1.1353705125380256,
+    "latencyMs": 156.09999999403954,
+    "intervalMs": 73.09230769368318,
+    "renderMs": 6.571428571428571,
+    "position": [
+      3.3949999999999982,
+      0.96216333486094,
+      4.62
+    ],
+    "state": {
+      "territoryCompleted": "false",
+      "worldView": "first",
+      "worldMode": "match",
+      "worldDriving": "true",
+      "worldProgress": "0",
+      "worldContested": "false",
+      "worldController": "blue",
+      "worldFull": "true",
+      "worldSeconds": "420",
+      "worldOutpost": "1000"
+    }
+  },
+  {
+    "version": "baseline",
+    "mode": "robot-ready",
+    "cap": 100,
+    "n": 8,
+    "holdMs": 1001.8999999761581,
+    "distance": 0.3611664444879436,
+    "latencyMs": 273.7999999821186,
+    "intervalMs": 131.41428571087974,
+    "renderMs": 5.700000002980232,
+    "position": [
+      4.17,
+      0.9621633368743767,
+      4.62
+    ],
+    "state": {
+      "territoryCompleted": "false",
+      "worldView": "first",
+      "worldMode": "match",
+      "worldDriving": "true",
+      "worldProgress": "0",
+      "worldContested": "false",
+      "worldController": "blue",
+      "worldFull": "true",
+      "worldSeconds": "420",
+      "worldOutpost": "1000"
+    }
+  },
+  {
+    "version": "fixed",
+    "mode": "robot-ready",
+    "cap": 0,
+    "n": 27,
+    "holdMs": 1001.8999999761581,
+    "distance": 2.0046300648881443,
+    "latencyMs": 75.7999999821186,
+    "intervalMs": 37.042307692078445,
+    "renderMs": 5.585185187834281,
+    "position": [
+      2.525579760019766,
+      0.9621633715777511,
+      4.62
+    ],
+    "state": {
+      "touchControls": "true",
+      "territoryCompleted": "false",
+      "worldView": "first",
+      "worldMode": "match",
+      "worldDriving": "true",
+      "worldProgress": "0",
+      "worldContested": "false",
+      "worldController": "blue",
+      "worldFull": "true",
+      "worldSeconds": "420",
+      "worldOutpost": "1000"
+    }
+  },
+  {
+    "version": "fixed",
+    "mode": "robot-ready",
+    "cap": 50,
+    "n": 13,
+    "holdMs": 1002.5,
+    "distance": 2.0007624305590332,
+    "latencyMs": 81.19999998807907,
+    "intervalMs": 78.40833333383004,
+    "renderMs": 5.230769233061717,
+    "position": [
+      2.529447799999844,
+      0.9621633715777511,
+      4.62
+    ],
+    "state": {
+      "touchControls": "true",
+      "territoryCompleted": "false",
+      "worldView": "first",
+      "worldMode": "match",
+      "worldDriving": "true",
+      "worldProgress": "0",
+      "worldContested": "false",
+      "worldController": "blue",
+      "worldFull": "true",
+      "worldSeconds": "420",
+      "worldOutpost": "1000"
+    }
+  },
+  {
+    "version": "fixed",
+    "mode": "robot-ready",
+    "cap": 100,
+    "n": 9,
+    "holdMs": 1001.9000000059605,
+    "distance": 1.989482822584076,
+    "latencyMs": 119,
+    "intervalMs": 129.51250000298023,
+    "renderMs": 5,
+    "position": [
+      2.540728600028122,
+      0.9621633715777511,
+      4.62
+    ],
+    "state": {
+      "touchControls": "true",
+      "territoryCompleted": "false",
+      "worldView": "first",
+      "worldMode": "match",
+      "worldDriving": "true",
+      "worldProgress": "0",
+      "worldContested": "false",
+      "worldController": "blue",
+      "worldFull": "true",
+      "worldSeconds": "420",
+      "worldOutpost": "1000"
+    }
+  }
+]

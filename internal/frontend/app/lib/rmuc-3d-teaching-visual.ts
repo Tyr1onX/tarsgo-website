@@ -3,6 +3,50 @@ import {territoryStatus,type Match} from "./rmuc-3d-match";
 import {ARENA_ZONES,zonesAtPosition} from "./rmuc-3d-zones";
 import type {ArenaTerrain} from "./rmuc-3d-terrain";
 
+function label(group:THREE.Group){
+    const canvas=document.createElement("canvas");canvas.width=480;canvas.height=96;
+    const ctx=canvas.getContext("2d")!;
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+    const material=new THREE.SpriteMaterial({map:texture,depthTest:false,depthWrite:false,toneMapped:false});
+    const sprite=new THREE.Sprite(material);sprite.renderOrder=20;group.add(sprite);
+    let previous="";
+    return {sprite,draw(text:string,color:string){
+      const key=text+color;if(key===previous)return;previous=key;
+      ctx.clearRect(0,0,480,96);ctx.beginPath();ctx.fillStyle="#101715ed";ctx.roundRect(5,5,470,86,14);ctx.fill();
+      ctx.strokeStyle=color;ctx.lineWidth=5;ctx.strokeRect(8,8,464,80);
+      ctx.fillStyle="#ffffff";ctx.textAlign="center";ctx.textBaseline="middle";ctx.font="bold 36px sans-serif";ctx.fillText(text,240,48,452);
+      texture.needsUpdate=true;
+    },dispose(){material.dispose();texture.dispose();}};
+  }
+function scale(sprite:THREE.Sprite,camera:THREE.PerspectiveCamera,height:number,pixels=24){
+    const distance=camera.position.distanceTo(sprite.position);
+    const h=2*distance*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*pixels/Math.max(1,height);
+    sprite.scale.set(h*5,h,1);
+  }
+// Match annotations stay attached to field locations; only active territory
+// changes or nearby structures need a label during normal play.
+export function createTerritoryMatchVisuals(scene:THREE.Scene,terrain:ArenaTerrain){
+  const group=new THREE.Group();scene.add(group);
+  const labels=ARENA_ZONES.filter(z=>z.kind==="base"||z.kind==="outpost").map(zone=>{
+    const tag=label(group),[x,z]=zone.goal;
+    tag.sprite.position.set(x,terrain.heightAt(x,z)+2.1,z);
+    tag.sprite.visible=false;
+    return {zone,tag};
+  });
+  return {update(match:Match,camera:THREE.PerspectiveCamera,height:number,visible:boolean){
+    for(const {zone,tag} of labels){
+      const kind=zone.kind==="base"?"base":"outpost",area=territoryStatus(match,zone.team,kind);
+      tag.sprite.visible=visible&&(area.contested||area.progress>0||area.controller!==zone.team||camera.position.distanceTo(tag.sprite.position)<8);
+      if(!tag.sprite.visible)continue;
+      const name=(zone.team==="red"?"红侧":"蓝侧")+(kind==="base"?"基地阵地":"前哨阵地");
+      const owner=(area.controller==="red"?"红":"蓝")+"方"+(area.full?"完全控制":"临时控制");
+      const state=area.contested?"争夺暂停":area.progress>0?(area.progress/10).toFixed(1)+"/5秒":owner;
+      tag.draw(name+" · "+state,area.contested?"#ffcc55":area.controller==="red"?"#ff7777":"#70baff");
+      scale(tag.sprite,camera,height,25);
+    }
+  },dispose(){group.removeFromParent();for(const {tag} of labels)tag.dispose();}};
+}
+
 // Teaching overlays are render-only, never added to terrain, hit or navigation roots.
 export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTerrain,red:THREE.Object3D,blue:THREE.Object3D){
   const group=new THREE.Group();scene.add(group);
@@ -27,23 +71,8 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
     const mesh=new THREE.Mesh(geometry,material);group.add(mesh);
     return {zone,mesh};
   });
-  function label(){
-    const canvas=document.createElement("canvas");canvas.width=288;canvas.height=96;
-    const ctx=canvas.getContext("2d")!;
-    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-    const material=new THREE.SpriteMaterial({map:texture,depthTest:false,depthWrite:false,toneMapped:false});
-    const sprite=new THREE.Sprite(material);sprite.renderOrder=20;group.add(sprite);
-    let previous="";
-    return {sprite,draw(text:string,color:string){
-      const key=text+color;if(key===previous)return;previous=key;
-      ctx.clearRect(0,0,288,96);ctx.beginPath();ctx.fillStyle="#101715ed";ctx.roundRect(5,5,278,86,14);ctx.fill();
-      ctx.strokeStyle=color;ctx.lineWidth=5;ctx.strokeRect(8,8,272,80);
-      ctx.fillStyle="#ffffff";ctx.textAlign="center";ctx.textBaseline="middle";ctx.font="bold 36px sans-serif";ctx.fillText(text,144,48,260);
-      texture.needsUpdate=true;
-    },dispose(){material.dispose();texture.dispose();}};
-  }
-  const robotLabels=[{robot:red,color:"#ff7777",tag:label()},{robot:blue,color:"#70baff",tag:label()}];
-  const stateTag=label(),outpostTag=label();
+  const robotLabels=[{robot:red,color:"#ff7777",tag:label(group)},{robot:blue,color:"#70baff",tag:label(group)}];
+  const stateTag=label(group),outpostTag=label(group);
   const direction=new THREE.Mesh(new THREE.ConeGeometry(.14,.28,3),new THREE.MeshBasicMaterial({color:0xf4cb65,depthTest:false,depthWrite:false,toneMapped:false}));
   direction.renderOrder=23;group.add(direction);direction.visible=false;
   const track=new THREE.Mesh(new THREE.RingGeometry(.36,.44,64),new THREE.MeshBasicMaterial({color:0x142724,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
@@ -51,11 +80,6 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
   const target=new THREE.Mesh(new THREE.RingGeometry(.22,.32,32),new THREE.MeshBasicMaterial({color:0xf4cb65,side:THREE.DoubleSide,depthWrite:false,toneMapped:false}));
   target.rotation.x=-Math.PI/2;target.visible=false;group.add(track,progress,target);
   track.renderOrder=21;progress.renderOrder=22;
-  function scale(sprite:THREE.Sprite,camera:THREE.PerspectiveCamera,height:number,pixels=24){
-    const distance=camera.position.distanceTo(sprite.position);
-    const h=2*distance*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*pixels/Math.max(1,height);
-    sprite.scale.set(h*3.0,h,1);
-  }
   const offset=new THREE.Vector3(),forward=new THREE.Vector3(),goalDirection=new THREE.Vector3();
   return {visible(value:boolean){group.visible=value;},update(match:Match,camera:THREE.PerspectiveCamera,height:number,driving:THREE.Object3D|undefined,practice:{target:THREE.Vector3;practice:boolean;done:boolean;failed:boolean}){
     const area=territoryStatus(match,"blue","outpost"),color=area.contested?"#ffcc55":area.controller==="red"?"#ff7777":"#70baff";
@@ -69,19 +93,19 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
       tag.sprite.visible=robot!==driving&&!!state&&state.hp>0;
       if(!tag.sprite.visible||!state)continue;
       tag.sprite.position.copy(robot.position);tag.sprite.position.y+=1.05;
-      tag.draw("♥ "+Math.round(state.hp),color);
+      tag.draw((robot===red?"红方":"蓝方")+"步兵 "+Math.round(state.hp),color);
       scale(tag.sprite,camera,height,28);
     }
     // One indicator follows the local region during observation, and the
     // player's control view during practice. All values are referee state.
     const [x,z]=ARENA_ZONES.find(l=>l.id==="blue-central")!.goal;
     const local=!!driving&&practice.practice;
-    const foreground=local||area.contested||area.progress>0;
+    const foreground=area.contested||area.progress>0;
+    stateTag.sprite.position.set(x-.55,terrain.heightAt(x,z)+1.12,z+2.6);
+    track.position.copy(stateTag.sprite.position);track.position.y+=.42;
+    track.scale.setScalar(.8);
     if(local){
       const dist=1.6, h=dist*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
-      track.position.copy(camera.position).add(offset.set(0,.30*h,-dist).applyQuaternion(camera.quaternion));
-      track.scale.setScalar(.24);
-      stateTag.sprite.position.copy(track.position);
       direction.position.copy(camera.position).add(offset.set(0,.60*h,-dist).applyQuaternion(camera.quaternion));
       camera.getWorldDirection(forward);forward.y=0;forward.normalize();
       goalDirection.copy(practice.target).sub(driving.position);goalDirection.y=0;
@@ -89,21 +113,19 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
       direction.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),angle));
       direction.scale.setScalar(.48);direction.visible=!practice.done&&goalDirection.lengthSq()>.09&&!area.progressing;
     }else{
-      stateTag.sprite.position.set(x-.55,terrain.heightAt(x,z)+1.12,z+2.6);
-      track.position.copy(stateTag.sprite.position);track.position.y+=.42;
-      track.scale.setScalar(.8);direction.visible=false;
+      direction.visible=false;
     }
-    stateTag.sprite.visible=true;
-    stateTag.draw(practice.failed?"×":practice.done?"✓":area.contested?"Ⅱ":area.progressing?(area.progress/10).toFixed(1):area.full?"◆":"◇",practice.failed?"#ff7777":practice.done?"#8ce6a4":color);
+    stateTag.sprite.visible=!local;
+    stateTag.draw(practice.failed?"练习失败":practice.done?"练习通过":area.contested?"争夺暂停":area.progressing?(area.full?"临时控制 ":"完全控制 ")+(area.progress/10).toFixed(1)+"/5秒":(area.controller==="red"?"红方":"蓝方")+(area.full?"完全控制":"临时控制"),practice.failed?"#ff7777":practice.done?"#8ce6a4":color);
     scale(stateTag.sprite,camera,height,local?27:26);
     track.quaternion.copy(camera.quaternion);
     progress.position.copy(track.position);progress.quaternion.copy(track.quaternion);progress.scale.copy(track.scale);
-    track.visible=foreground&&!practice.done;progress.visible=track.visible;
+    track.visible=foreground&&!practice.done&&!local;progress.visible=track.visible;
     progress.material.color.set(color);progress.geometry.setDrawRange(0,Math.floor(area.progress/50*64)*6);
     const side=match.sides.blue;
     const [ox,oz]=ARENA_ZONES.find(l=>l.id==="blue-outpost")!.goal;
     outpostTag.sprite.position.set(ox,terrain.heightAt(ox,oz)+2.1,oz);
-    outpostTag.draw("⚑ "+side.outpost,side.outpostOwner==="blue"?"#70baff":"#ff7777");
+    outpostTag.draw("蓝侧前哨站 · "+(side.outpost===0?"已击毁":(side.outpostOwner==="red"?"红方":"蓝方")+" "+side.outpost+" HP"),side.outpostOwner==="blue"?"#70baff":"#ff7777");
     outpostTag.sprite.visible=!driving;scale(outpostTag.sprite,camera,height,23);
     target.visible=practice.practice&&!practice.done;
     target.position.copy(practice.target);target.position.y+=.12;

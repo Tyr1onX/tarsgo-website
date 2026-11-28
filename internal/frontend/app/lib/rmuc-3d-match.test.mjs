@@ -145,6 +145,26 @@ test("living combatants contest independently of damage; withdrawal and recovery
  assert.equal(m.sides.blue.outpostOwner,"blue");
  assert.equal(m.sides.blue.outpost,1000);
 });
+test("read-only teaching activation distinguishes contact expiry, gain effects, control and building ownership",()=>{
+ const m=createMatch(roster,1,1);startMatch(m);
+ const central={x:-3.1,y:.558,z:1.6},outpost={x:-2.25,y:.495,z:4};
+ const red=new Map([["r",central]]),both=new Map([["r",central],["b",outpost]]);
+ updateMatch(m,2,red);
+ let a=territoryStatus(m,"blue","outpost");
+ assert.deepEqual(a.activated,{red:true,blue:false});assert.equal(a.progress,20);
+ m.sides.blue.outpostZoneUntil=m.elapsed+30;
+ updateMatch(m,1,both);a=territoryStatus(m,"blue","outpost");
+ assert.deepEqual(a.activated,{red:true,blue:true});assert.ok(a.contested&&!a.enabled);assert.equal(a.progress,20);
+ updateMatch(m,1.9,red);assert.ok(territoryStatus(m,"blue","outpost").activated.blue);
+ updateMatch(m,3.1,red);a=territoryStatus(m,"blue","outpost");
+ assert.equal(a.controller,"red");assert.equal(a.full,false);assert.equal(m.sides.blue.outpostOwner,"blue");
+ // Nobody needs to enter for the original surviving owner's control to recover.
+ updateMatch(m,1.9,new Map());a=territoryStatus(m,"blue","outpost");
+ assert.deepEqual(a.activated,{red:true,blue:false});
+ updateMatch(m,5,new Map());a=territoryStatus(m,"blue","outpost");
+ assert.deepEqual(a.activated,{red:false,blue:false});assert.equal(a.controller,"blue");assert.ok(a.full);
+ assert.equal(m.sides.blue.outpostOwner,"blue");assert.equal(m.sides.blue.outpost,1000);
+});
 test("base capture is independent from outpost and territory scoring includes temporary control",()=>{
  const m=createMatch(roster,1,1);startMatch(m);
  const base=new Map([["r",{x:-10.15,y:.3,z:0}]]);

@@ -20,7 +20,7 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await command("Input.insertText",{text:value});
     await wait(`document.querySelector(${JSON.stringify(selector)})?.value===${JSON.stringify(value)}`,"field ready");
   }
-  const targets='JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}")';
+  const targets='(()=>{const canvas=document.querySelector("canvas"),r=canvas.getBoundingClientRect(),result=JSON.parse(canvas.dataset.worldTargets||"{}");for(const b of document.querySelectorAll("button[data-world-command]:not(:disabled)")){const q=b.getBoundingClientRect(),x=q.x+q.width/2,y=q.y+q.height/2;if(q.width&&q.height&&b.contains(document.elementFromPoint(x,y)))result[b.dataset.worldCommand]=[(x-r.x)/r.width,(y-r.y)/r.height];}return result})()';
   async function targetPoint(id){
     return wait(`(()=>{const pt=${targets}[${JSON.stringify(id)}];if(!pt)return null;const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x+r.width*pt[0],y:r.y+r.height*pt[1]}})()`,"visible entity "+id);
   }
@@ -135,16 +135,28 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await wait(`(()=>{const frame=JSON.parse(document.querySelector("canvas").dataset.worldFrame||"null");return !!document.querySelector('[data-world-driving="true"]')&&frame?.driving&&frame.view==="first"&&!!${targets}.explore&&!${targets}.take})()`,"robot takeover rendered");
     await hit("explore");await ready();await wait(`!!${targets}.territory`,"return from selected robot");await sameWorld();
     await hit("territory");
-    await wait(`!!document.querySelector('[data-world-mode="teaching"]')`,"physical territory start",15000);
+    await wait('document.querySelector(".rmuc-catalog")?.innerText.includes("完整实战")',"eight-chapter catalog");
+    assert.equal(await evaluate('document.querySelectorAll(".rmuc-catalog li").length'),8);
+    assert.equal(await evaluate('document.querySelectorAll(".rmuc-catalog li button").length'),1);
+    await screenshot("01b-world-catalog");
+    await hit("lessonStart");
+    await wait(`!!document.querySelector('[data-world-mode="teaching"][data-teaching-step="-1"][data-teaching-paused="true"]')`,"rule introduction",15000);
+    assert.ok(await evaluate('document.querySelector(".rmuc-lesson")?.innerText.includes("规则介绍")'));
+    await screenshot("01c-world-introduction");
+    await hit("resume");
+    await wait('document.querySelector(".rmuc-lesson")?.innerText.includes("2/5")',"entity location",15000);
+    await screenshot("01d-world-entity");
     await wait(`!!document.querySelector('[data-world-contested="true"]')`,"referee contest",120000);
     await press("p");await wait(`!!document.querySelector('[data-teaching-paused="true"]')`,"pause");
     const paused=await state();await delay(1000);
     assert.equal((await state()).worldProgress,paused.worldProgress);
     assert.equal((await state()).worldSeconds,paused.worldSeconds);
+    assert.ok(await evaluate('document.querySelector(".rmuc-lesson")?.innerText.includes("有效激活 红方、蓝方")'));
     await screenshot("02-world-contest");await press("p");
     await wait(`!!document.querySelector('[data-teaching-step="10"]')`,"automatic recovery and takeover",180000);
     assert.equal((await state()).worldController,"blue");
     assert.equal((await state()).worldOutpost,"1000");
+    await screenshot("02a-world-practice");
     await press("e");await wait(`!!document.querySelector('[data-world-driving="true"]')`,"actual robot takeover");
     // Exercise the registered blur handler with a pending or applied movement
     // input in the real world. Headless focus changes are not deterministic,
@@ -169,12 +181,14 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await wait(`!!document.querySelector('[data-teaching-captured="true"]')`,"referee temporary control",90000);
     const capturedAt=await evaluate(`document.querySelector("canvas").__qaEvents.find(e=>e.type==="territory"&&e.location==="blue"&&e.structure==="outpost"&&e.team==="red"&&!e.full&&e.at>=${practiceAt})?.at??null`);
     assert.ok(capturedAt!==null,"actual practice referee emitted red temporary control");
+    assert.ok(await evaluate('document.querySelector(".rmuc-lesson")?.innerText.includes("红方临时控制")&&document.querySelector(".rmuc-lesson")?.innerText.includes("蓝方拥有 · 1000 HP")'));
     await screenshot("03-world-capture");
     await moveToward("redStart",q=>!q.red.zones.some(z=>z==="blue-central"||z==="blue-outpost"),"withdrawal");
     await wait('(()=>{const d=document.querySelector("main[data-world-mode]").dataset;return Number(d.worldProgress)>0||d.teachingDone==="true"&&d.worldController==="blue"&&d.worldFull==="true"})()',"withdrawal and defense progress");
     await wait(`!!document.querySelector('[data-teaching-done="true"]')`,"referee full recovery",90000);
     assert.equal(await evaluate(`document.querySelector("canvas").__qaEvents.some(e=>e.type==="territory"&&e.location==="blue"&&e.structure==="outpost"&&e.team==="blue"&&e.full&&e.at>${capturedAt})`),true,"actual practice referee emitted blue full recovery");
     await wait(`!!document.querySelector('[data-territory-completed="true"]')`,"real saved progress",15000);
+    assert.ok(await evaluate('document.querySelector(".rmuc-lesson")?.innerText.includes("建筑摧毁或重建")&&document.querySelector(".rmuc-lesson")?.innerText.includes("蓝方完全控制")'));
     assert.deepEqual(await rows(),[expected]);await sameWorld();await screenshot("04-world-completed");
     await press("Escape");await ready();await sameWorld();
     assert.equal((await state()).worldSeconds,"420");
@@ -182,6 +196,7 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await wait(`!!document.querySelector('[data-world-mode="match"]')`,"normal match start");
     await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldSeconds)<420',"normal referee running",60000);
     await sameWorld();assert.ok(!(await evaluate(`!!${targets}.settings||!!${targets}.territory||!!${targets}.robots`)),"field menus absent during match");await screenshot("05-world-match");
+    assert.ok(await evaluate('document.querySelector(".rmuc-score")?.innerText.includes("基地生命值")&&document.querySelector(".rmuc-score")?.innerText.includes("金币")'));
     await hit("pause");await wait(`!!${targets}.resume&&JSON.parse(document.querySelector("canvas").dataset.simTrace).paused`,"match paused");
     const pausedMatch=await evaluate('JSON.parse(document.querySelector("canvas").dataset.simTrace).elapsed');await delay(1000);
     assert.equal(await evaluate('JSON.parse(document.querySelector("canvas").dataset.simTrace).elapsed'),pausedMatch,"paused match does not advance");

@@ -1,0 +1,1991 @@
+[
+  {
+    "label": "00-console",
+    "wallMs": 1943,
+    "data": {
+      "state": {
+        "touchControls": "true",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "explore",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": null,
+          ".rmuc-lesson": null,
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": null,
+          ".rmul3d-joystick": {
+            "x": 10,
+            "y": 692,
+            "w": 144,
+            "h": 144,
+            "right": 154,
+            "bottom": 836,
+            "font": "16px",
+            "scroll": 142,
+            "client": 142
+          },
+          ".rmul3d-crosshair": {
+            "x": 177,
+            "y": 404,
+            "w": 36,
+            "h": 36,
+            "right": 213,
+            "bottom": 440,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [],
+        "text": null,
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "01-catalog",
+    "wallMs": 2230,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "explore",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": null,
+          ".rmuc-lesson": null,
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": null,
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": {
+            "x": 177,
+            "y": 404,
+            "w": 36,
+            "h": 36,
+            "right": 213,
+            "bottom": 440,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": {
+            "x": 12,
+            "y": 113,
+            "w": 366,
+            "h": 618,
+            "right": 378,
+            "bottom": 731,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          }
+        },
+        "score": [],
+        "text": null,
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "02-introduction",
+    "wallMs": 2435,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "all",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000",
+        "teachingStep": "-1",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 245.1875,
+            "right": 378,
+            "bottom": 357.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 57,
+            "y": 772,
+            "w": 276,
+            "h": 56,
+            "right": 333,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 274,
+            "client": 274
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n1/5 · 规则介绍\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n前哨站增益点与中央高地增益点共同构成前哨阵地。 开局双方分别完全控制己方阵地。对方完全控制时，己方连续激活阵地内任一增益点满5秒可取得临时控制；临时控制方连续5秒不再激活该阵地内任一增益点，可转为另一方完全控制。双方同时激活同一阵地内的增益点时进度暂停；未满5秒的占领中断时进度等速回退。前哨站击毁与重建另有控制转换规则。\n\n本课仅练习阵地控制；建筑归属与阵地控制不同。回血、补弹等增益效果另有条件。",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "03-entity",
+    "wallMs": 2656,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "all",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000",
+        "teachingStep": "0",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 186.03125,
+            "right": 378,
+            "bottom": 298.03125,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 69,
+            "y": 772,
+            "w": 252,
+            "h": 56,
+            "right": 321,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 250,
+            "client": 250
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n2/5 · 实体定位\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n蓝色边界标示蓝侧前哨阵地的两个增益点：中央高地与前哨站。实赛以交互模块检测为准；本场地用几何区域近似，激活失效有2秒延迟。\n\n蓝侧阵地 蓝方完全控制\n有效激活 无\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "04-contest",
+    "wallMs": 13163,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "detail",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "23",
+        "worldContested": "true",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "410",
+        "worldOutpost": "1000",
+        "teachingStep": "4",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 167.1875,
+            "right": 378,
+            "bottom": 279.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 69,
+            "y": 772,
+            "w": 252,
+            "h": 56,
+            "right": 321,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 250,
+            "client": 250
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n3/5 · 动态演示\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n双方均激活同一阵地，进度暂停而非清零。本次交火用于展示争夺；命中步兵不直接改变阵地控制权。\n\n蓝侧阵地 蓝方完全控制\n有效激活 红方、蓝方\n争夺暂停 2.3 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "05-demo-capture",
+    "wallMs": 22849,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "detail",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "red",
+        "worldFull": "false",
+        "worldSeconds": "401",
+        "worldOutpost": "1000",
+        "teachingStep": "7",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 167.1875,
+            "right": 378,
+            "bottom": 279.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 69,
+            "y": 772,
+            "w": 252,
+            "h": 56,
+            "right": 321,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 250,
+            "client": 250
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n3/5 · 动态演示\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n红方已临时控制蓝侧阵地。前哨站未被击毁，仍由蓝方拥有；临时控制不是建筑易主。\n\n蓝侧阵地 红方临时控制\n有效激活 红方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "06-demo-withdraw",
+    "wallMs": 29843,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "follow",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "red",
+        "worldFull": "false",
+        "worldSeconds": "394",
+        "worldOutpost": "1000",
+        "teachingStep": "8",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 167.1875,
+            "right": 378,
+            "bottom": 279.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 704,
+            "w": 321.8125,
+            "h": 64,
+            "right": 333.8125,
+            "bottom": 768,
+            "font": "12px",
+            "scroll": 320,
+            "client": 320
+          },
+          ".rmuc-command-bar": {
+            "x": 69,
+            "y": 772,
+            "w": 252,
+            "h": 56,
+            "right": 321,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 250,
+            "client": 250
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n3/5 · 动态演示\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n红方撤离，蓝方回到增益点是本次演示安排。红方连续5秒不再激活即可转为蓝方完全控制；不要求蓝方必须到场。\n\n蓝侧阵地 红方临时控制\n有效激活 红方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "07-practice-ready",
+    "wallMs": 44163,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "follow",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "380",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 167.1875,
+            "right": 378,
+            "bottom": 279.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 704,
+            "w": 321.8125,
+            "h": 64,
+            "right": 333.8125,
+            "bottom": 768,
+            "font": "12px",
+            "scroll": 320,
+            "client": 320
+          },
+          ".rmuc-command-bar": {
+            "x": 51,
+            "y": 772,
+            "w": 288,
+            "h": 56,
+            "right": 339,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 286,
+            "client": 286
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n4/5 · 玩家实践\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n接管红方步兵，完成有效激活、临时控制和撤离后的完全控制恢复。\n\n蓝侧阵地 蓝方完全控制\n有效激活 无\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "08-practice-driving",
+    "wallMs": 44368,
+    "data": {
+      "state": {
+        "touchControls": "true",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "380",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 167.1875,
+            "right": 378,
+            "bottom": 279.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 562,
+            "w": 321.8125,
+            "h": 64,
+            "right": 333.8125,
+            "bottom": 626,
+            "font": "12px",
+            "scroll": 320,
+            "client": 320
+          },
+          ".rmuc-command-bar": {
+            "x": 69,
+            "y": 634,
+            "w": 252,
+            "h": 56,
+            "right": 321,
+            "bottom": 690,
+            "font": "16px",
+            "scroll": 250,
+            "client": 250
+          },
+          ".rmul3d-joystick": {
+            "x": 10,
+            "y": 692,
+            "w": 144,
+            "h": 144,
+            "right": 154,
+            "bottom": 836,
+            "font": "16px",
+            "scroll": 142,
+            "client": 142
+          },
+          ".rmul3d-crosshair": {
+            "x": 177,
+            "y": 404,
+            "w": 36,
+            "h": 36,
+            "right": 213,
+            "bottom": 440,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n4/5 · 玩家实践\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n用 WASD 或左侧摇杆前往金色标记，保持有效激活直至红方临时控制。本次练习无需开火。\n\n蓝侧阵地 蓝方完全控制\n有效激活 无\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "entered",
+    "wallMs": 46042,
+    "data": {
+      "elapsed": 42.4,
+      "debt": 15.399999976158142,
+      "step": 10,
+      "red": {
+        "p": [
+          -2.982033405080197,
+          0.550246694945453,
+          1.8822342301547628
+        ],
+        "zones": [
+          "blue-central"
+        ],
+        "yaw": -5.887280689080871,
+        "hp": 143,
+        "speed": 0
+      },
+      "blue": {
+        "p": [
+          -0.6649999999999999,
+          0.4952562929804553,
+          4
+        ],
+        "zones": [],
+        "yaw": -1.5707963267948966,
+        "hp": 160,
+        "speed": 0
+      },
+      "redGoal": [
+        -3.1,
+        0.5581024722741927,
+        1.6
+      ],
+      "redStart": [
+        -2.4877065082158563,
+        0.5188236302025855,
+        3.078207252018059
+      ],
+      "look": {
+        "yaw": 0.39590461809871513,
+        "pitch": 0
+      },
+      "touchMove": {
+        "f": 0,
+        "r": 0
+      },
+      "moveOwner": null,
+      "paused": false,
+      "keys": [],
+      "pendingInput": [],
+      "power": 60
+    }
+  },
+  {
+    "label": "09-practice-capture",
+    "wallMs": 50721,
+    "data": {
+      "state": {
+        "touchControls": "true",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "red",
+        "worldFull": "false",
+        "worldSeconds": "374",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "false",
+        "teachingCaptured": "true",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 167.1875,
+            "right": 378,
+            "bottom": 279.1875,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 562,
+            "w": 321.8125,
+            "h": 64,
+            "right": 333.8125,
+            "bottom": 626,
+            "font": "12px",
+            "scroll": 320,
+            "client": 320
+          },
+          ".rmuc-command-bar": {
+            "x": 69,
+            "y": 634,
+            "w": 252,
+            "h": 56,
+            "right": 321,
+            "bottom": 690,
+            "font": "16px",
+            "scroll": 250,
+            "client": 250
+          },
+          ".rmul3d-joystick": {
+            "x": 10,
+            "y": 692,
+            "w": 144,
+            "h": 144,
+            "right": 154,
+            "bottom": 836,
+            "font": "16px",
+            "scroll": 142,
+            "client": 142
+          },
+          ".rmul3d-crosshair": {
+            "x": 177,
+            "y": 404,
+            "w": 36,
+            "h": 36,
+            "right": 213,
+            "bottom": 440,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n4/5 · 玩家实践\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n已取得红方临时控制。沿金色指引撤离两处增益点，等待激活失效（2秒），再等待转为蓝方完全控制。\n\n蓝侧阵地 红方临时控制\n有效激活 红方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "left",
+    "wallMs": 51795,
+    "data": {
+      "elapsed": 48.175,
+      "debt": 1.2999999821186066,
+      "step": 10,
+      "red": {
+        "p": [
+          -2.7072627742486564,
+          0.5345351504553277,
+          2.5396209887926617
+        ],
+        "zones": [],
+        "yaw": -2.745688035491078,
+        "hp": 143,
+        "speed": 0
+      },
+      "blue": {
+        "p": [
+          -2.235,
+          0.49525629966678897,
+          4
+        ],
+        "zones": [
+          "blue-outpost"
+        ],
+        "yaw": 1.5707963267948966,
+        "hp": 160,
+        "goal": [
+          -2.25,
+          0.49525629966678897,
+          4
+        ],
+        "speed": 0
+      },
+      "redGoal": [
+        -3.1,
+        0.5581024722741927,
+        1.6
+      ],
+      "redStart": [
+        -2.4877065082158563,
+        0.5188236302025855,
+        3.078207252018059
+      ],
+      "look": {
+        "yaw": 0.39590461809871513,
+        "pitch": 0
+      },
+      "touchMove": {
+        "f": 0,
+        "r": 0
+      },
+      "moveOwner": null,
+      "paused": false,
+      "keys": [],
+      "pendingInput": [],
+      "power": 60
+    }
+  },
+  {
+    "label": "10-result",
+    "wallMs": 58636,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "true",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "366",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "true",
+        "teachingCaptured": "true",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 390,
+        "height": 844,
+        "docWidth": 390,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 8,
+            "y": 8,
+            "w": 374,
+            "h": 85.5,
+            "right": 382,
+            "bottom": 93.5,
+            "font": "11px",
+            "scroll": 372,
+            "client": 372
+          },
+          ".rmuc-lesson": {
+            "x": 12,
+            "y": 112,
+            "w": 366,
+            "h": 186.03125,
+            "right": 378,
+            "bottom": 298.03125,
+            "font": "16px",
+            "scroll": 364,
+            "client": 364
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 704,
+            "w": 321.8125,
+            "h": 64,
+            "right": 333.8125,
+            "bottom": 768,
+            "font": "12px",
+            "scroll": 320,
+            "client": 320
+          },
+          ".rmuc-command-bar": {
+            "x": 92,
+            "y": 772,
+            "w": 206,
+            "h": 56,
+            "right": 298,
+            "bottom": 828,
+            "font": "16px",
+            "scroll": 204,
+            "client": 204
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": {
+            "x": 177,
+            "y": 404,
+            "w": 36,
+            "h": 36,
+            "right": 213,
+            "bottom": 440,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 17,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 59.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 64.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 106.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 111.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 153.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ],
+          [
+            {
+              "x": 236,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 278.328125,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 45,
+              "client": 42
+            },
+            {
+              "x": 283.328125,
+              "y": 37.5,
+              "w": 42.328125,
+              "h": 47,
+              "right": 325.65625,
+              "bottom": 84.5,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            },
+            {
+              "x": 330.65625,
+              "y": 44.375,
+              "w": 42.328125,
+              "h": 33.25,
+              "right": 372.984375,
+              "bottom": 77.625,
+              "font": "11px",
+              "scroll": 42,
+              "client": 42
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n5/5 · 结果反馈\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n实践通过：你通过有效激活取得红方临时控制，撤离后蓝方恢复完全控制。前哨站始终归蓝方，本次未发生建筑摧毁或重建。\n\n蓝侧阵地 蓝方完全控制\n有效激活 蓝方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "referee-events",
+    "wallMs": 58638,
+    "data": [
+      {
+        "type": "territory",
+        "team": "red",
+        "location": "blue",
+        "structure": "outpost",
+        "full": false,
+        "at": 19.2,
+        "visibility": "all"
+      },
+      {
+        "type": "territory",
+        "team": "blue",
+        "location": "blue",
+        "structure": "outpost",
+        "full": true,
+        "at": 33.6,
+        "visibility": "all"
+      },
+      {
+        "type": "territory",
+        "team": "red",
+        "location": "blue",
+        "structure": "outpost",
+        "full": false,
+        "at": 46.8,
+        "visibility": "all"
+      },
+      {
+        "type": "territory",
+        "team": "blue",
+        "location": "blue",
+        "structure": "outpost",
+        "full": true,
+        "at": 54.8,
+        "visibility": "all"
+      }
+    ]
+  },
+  {
+    "label": "11-landscape-result",
+    "wallMs": 59287,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "true",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "366",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "true",
+        "teachingCaptured": "true",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 844,
+        "height": 390,
+        "docWidth": 844,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 12,
+            "y": 12,
+            "w": 820,
+            "h": 88.5,
+            "right": 832,
+            "bottom": 100.5,
+            "font": "12px",
+            "scroll": 818,
+            "client": 818
+          },
+          ".rmuc-lesson": {
+            "x": 562,
+            "y": 88,
+            "w": 270,
+            "h": 228.671875,
+            "right": 832,
+            "bottom": 316.671875,
+            "font": "16px",
+            "scroll": 268,
+            "client": 268
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 88,
+            "w": 236.3125,
+            "h": 83.5,
+            "right": 248.3125,
+            "bottom": 171.5,
+            "font": "11px",
+            "scroll": 234,
+            "client": 234
+          },
+          ".rmuc-command-bar": {
+            "x": 303.5,
+            "y": 318,
+            "w": 237,
+            "h": 56,
+            "right": 540.5,
+            "bottom": 374,
+            "font": "16px",
+            "scroll": 235,
+            "client": 235
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": {
+            "x": 404,
+            "y": 177,
+            "w": 36,
+            "h": 36,
+            "right": 440,
+            "bottom": 213,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 63.015625,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 154.671875,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 164.671875,
+              "y": 37.125,
+              "w": 91.671875,
+              "h": 38.25,
+              "right": 256.34375,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 266.34375,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 358,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            }
+          ],
+          [
+            {
+              "x": 520.015625,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 611.671875,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 621.671875,
+              "y": 37.125,
+              "w": 91.671875,
+              "h": 38.25,
+              "right": 713.34375,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 723.34375,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 815,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n5/5 · 结果反馈\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n实践通过：你通过有效激活取得红方临时控制，撤离后蓝方恢复完全控制。前哨站始终归蓝方，本次未发生建筑摧毁或重建。\n\n蓝侧阵地 蓝方完全控制\n有效激活 蓝方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "12-landscape-introduction",
+    "wallMs": 59573,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "true",
+        "worldView": "all",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000",
+        "teachingStep": "-1",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 844,
+        "height": 390,
+        "docWidth": 844,
+        "pointer": true,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 12,
+            "y": 12,
+            "w": 820,
+            "h": 88.5,
+            "right": 832,
+            "bottom": 100.5,
+            "font": "12px",
+            "scroll": 818,
+            "client": 818
+          },
+          ".rmuc-lesson": {
+            "x": 562,
+            "y": 88,
+            "w": 270,
+            "h": 261.40625,
+            "right": 832,
+            "bottom": 349.40625,
+            "font": "16px",
+            "scroll": 268,
+            "client": 268
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 263,
+            "y": 318,
+            "w": 318,
+            "h": 56,
+            "right": 581,
+            "bottom": 374,
+            "font": "16px",
+            "scroll": 316,
+            "client": 316
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 63.015625,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 154.671875,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 164.671875,
+              "y": 37.125,
+              "w": 91.671875,
+              "h": 38.25,
+              "right": 256.34375,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 266.34375,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 358,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            }
+          ],
+          [
+            {
+              "x": 520.015625,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 611.671875,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 621.671875,
+              "y": 37.125,
+              "w": 91.671875,
+              "h": 38.25,
+              "right": 713.34375,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            },
+            {
+              "x": 723.34375,
+              "y": 37.125,
+              "w": 91.65625,
+              "h": 38.25,
+              "right": 815,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 92,
+              "client": 92
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n1/5 · 规则介绍\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n前哨站增益点与中央高地增益点共同构成前哨阵地。 开局双方分别完全控制己方阵地。对方完全控制时，己方连续激活阵地内任一增益点满5秒可取得临时控制；临时控制方连续5秒不再激活该阵地内任一增益点，可转为另一方完全控制。双方同时激活同一阵地内的增益点时进度暂停；未满5秒的占领中断时进度等速回退。前哨站击毁与重建另有控制转换规则。\n\n本课仅练习阵地控制；建筑归属与阵地控制不同。回血、补弹等增益效果另有条件。",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "PASS",
+    "wallMs": 59574,
+    "data": {
+      "mode": "mobile",
+      "frames": 0
+    }
+  }
+]
