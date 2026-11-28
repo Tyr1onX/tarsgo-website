@@ -51,7 +51,7 @@ test("previews use actual team photography and do not replace 2027 official fiel
     const photo = await readFile(photoPath);
     assert.ok(photo.byteLength > 1000, `Reference photograph not found: ${entry.id}`);
   }
-  const source = await readFile(new URL("./rmul-3d-scene.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("./rmuc-3d-scene.ts", import.meta.url), "utf8");
   assert.match(source, /resolveCadModel\("rmucField"\)/);
   assert.match(source, /addRobotPreviews\(map, scene, terrain\)/);
   assert.doesNotMatch(source, /\.show\(model\)|CAD_VIEWER_CATALOG/);
@@ -59,7 +59,7 @@ test("previews use actual team photography and do not replace 2027 official fiel
 
 test("the arena provides exploration, driving and four calibration views without a model selector", async () => {
   const route = await readFile(new URL("../routes/pixel-jijia-arena.tsx", import.meta.url), "utf8");
-  const scene = await readFile(new URL("./rmul-3d-scene.ts", import.meta.url), "utf8");
+  const scene = await readFile(new URL("./rmuc-3d-scene.ts", import.meta.url), "utf8");
   const controls = await readFile(new URL("./rmuc-3d-world-controls.ts", import.meta.url), "utf8");
   assert.match(scene, /\["first","all","third","top","red","blue"\]/);
   assert.match(controls, /fixed\("view"\)/);
