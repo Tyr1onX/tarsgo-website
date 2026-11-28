@@ -813,10 +813,11 @@ export function mountArena(
       case "replay":if(guided)enterTerritory();else{exploreWorld();start();}break;
       case "explore":exploreWorld();break;
       case "free":if(terrain){controlPanel=null;explorer.set(-.12,terrain.heightAt(-.12,4),4);look={yaw:Math.PI/2,pitch:-.12};setView("first",true);}break;
-      case "robots":controlPanel="robots";break;
       case "take":takeControl();break;
-      case "settings":controlPanel="settings";break;
-      case "actions":controlPanel="actions";break;
+      case "robots":case "settings":case "actions":
+        // Camera-facing menus need a free cursor to reach every choice.
+        if(document.pointerLockElement===canvas)document.exitPointerLock();
+        controlPanel=action;break;
       case "close":controlPanel=null;break;
       case "interact":interact(false);break;
       case "exit":onExit();break;
@@ -1790,7 +1791,7 @@ export function mountArena(
     if (drag?.id !== event.pointerId) return;
     const click = !drag.moved && event.type === "pointerup" && event.pointerType === "mouse";
     drag = null;
-    if (click && !paused && canvas.requestPointerLock) {
+    if (click && !paused && !controlPanel && canvas.requestPointerLock) {
       try { const result = canvas.requestPointerLock(); if (result) void result.catch(() => {}); } catch { /* drag stays available */ }
     }
   }
