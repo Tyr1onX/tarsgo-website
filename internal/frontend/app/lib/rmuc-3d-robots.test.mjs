@@ -52,7 +52,8 @@ test("previews use actual team photography and do not replace 2027 official fiel
     assert.ok(photo.byteLength > 1000, `Reference photograph not found: ${entry.id}`);
   }
   const source = await readFile(new URL("./rmuc-3d-scene.ts", import.meta.url), "utf8");
-  assert.match(source, /resolveCadModel\("rmucField"\)/);
+  assert.match(source, /const assets=\[CAD_MODELS\.rmucField,MECHANISM_ASSET,CORE_ASSET,DART_ASSET\]/);
+  assert.doesNotMatch(source, /resolveCadModel|retainCadSourceNodes/);
   assert.match(source, /addRobotPreviews\(map, scene, terrain\)/);
   assert.doesNotMatch(source, /\.show\(model\)|CAD_VIEWER_CATALOG/);
 });
