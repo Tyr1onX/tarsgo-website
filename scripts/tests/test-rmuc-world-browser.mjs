@@ -20,13 +20,34 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await command("Input.insertText",{text:value});
     await wait(`document.querySelector(${JSON.stringify(selector)})?.value===${JSON.stringify(value)}`,"field ready");
   }
-  async function hit(x,y){
+  async function hit(id){
+    const [x,y]=await wait(`JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}")[${JSON.stringify(id)}]`,"visible entity "+id);
     const point=await evaluate(`(()=>{const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x+r.width*${x},y:r.y+r.height*${y}}})()`);
     for(const type of ["mousePressed","mouseReleased"])await command("Input.dispatchMouseEvent",{type,...point,button:"left",clickCount:1});
   }
-  async function key(k,type="keyDown"){await command("Input.dispatchKeyEvent",{type,key:k,code:k==="Escape"?"Escape":"Key"+k.toUpperCase(),windowsVirtualKeyCode:k==="Escape"?27:k.toUpperCase().charCodeAt(0)});}
+  async function key(k,type="keyDown"){await command("Input.dispatchKeyEvent",{type,key:k,code:k==="Escape"?"Escape":"Key"+k.toUpperCase(),windowsVirtualKeyCode:k==="Escape"?27:k.toUpperCase().charCodeAt(0),timestamp:Date.now()/1000});}
   async function press(k){await key(k);await key(k,"keyUp");}
-  async function hold(k,expression,label){await key(k);try{await wait(expression,label,30000);}finally{await key(k,"keyUp");}}
+  const traceExpression='JSON.parse(document.querySelector("canvas").dataset.territoryTrace)';
+  const trace=()=>evaluate(traceExpression);
+  // A real player moves in short bursts, then checks position. Sending keyup
+  // independently of a DOM progress poll prevents a slow frame extending a hold.
+  async function moveToward(goalName,arrived,label){
+    const deadline=Date.now()+30000;
+    for(let i=0;i<16&&Date.now()<deadline;i++){
+      const before=await trace();
+      if(arrived(before))return;
+      const goal=before[goalName],p=before.red.p,yaw=before.look.yaw;
+      const projection=(goal[0]-p[0])*(-Math.sin(yaw))+(goal[2]-p[2])*(-Math.cos(yaw));
+      const k=projection>=0?"w":"s",serial=before.lastKey?.serial??0;
+      const down=key(k);
+      await delay(Math.min(350,Math.max(180,Math.abs(projection)/2.6*1000)));
+      await Promise.all([down,key(k,"keyUp")]);
+      const after=await wait(`(()=>{const q=${traceExpression};return q.lastKey?.serial>${serial}&&!q.lastKey.pressed&&q.lastKey.key===${JSON.stringify("Key"+k.toUpperCase())}&&!q.pendingInput.length&&q.red.speed===0?q:null})()`,"released "+label,Math.max(1,deadline-Date.now()));
+      console.log("RMUC input",label,JSON.stringify({before:before.red.p,after:after.red.p,key:after.lastKey,elapsed:after.elapsed,debt:after.debt,zones:after.red.zones}));
+      if(arrived(after))return;
+    }
+    throw Error("Timed out: "+label+" "+JSON.stringify(await trace()));
+  }
   async function sameWorld(){
     assert.equal(await evaluate('window.__qaRenderer&&window.__qaRenderer===document.querySelector("canvas").__qaRenderer&&window.__qaCanvas===document.querySelector("canvas")&&window.__qaGL===document.querySelector("canvas").getContext("webgl2")&&document.querySelectorAll("canvas").length===1'),true);
     assert.equal(await evaluate('performance.getEntriesByName("arena:initialize").length'),1);
@@ -75,7 +96,7 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await state()).worldView,"first");
     await evaluate('window.__qaCanvas=document.querySelector("canvas");window.__qaGL=__qaCanvas.getContext("webgl2");window.__qaRenderer=__qaCanvas.__qaRenderer;true');
     await sameWorld();await screenshot("01-world-explore");
-    await hit(.5,.54);
+    await hit("territory");
     await wait(`!!document.querySelector('[data-world-mode="teaching"]')`,"physical territory start",15000);
     await wait(`!!document.querySelector('[data-world-contested="true"]')`,"referee contest",120000);
     await press("p");await wait(`!!document.querySelector('[data-teaching-paused="true"]')`,"pause");
@@ -87,19 +108,32 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await state()).worldController,"blue");
     assert.equal((await state()).worldOutpost,"1000");
     await press("e");await wait(`!!document.querySelector('[data-world-driving="true"]')`,"actual robot takeover");
-    await hold("w",'Number(document.querySelector("main[data-world-mode]").dataset.worldProgress)>=3',"entered legal area");
+    await moveToward("redGoal",q=>q.red.zones.includes("blue-central")&&Math.hypot(q.red.p[0]-q.redGoal[0],q.red.p[2]-q.redGoal[2])<.36,"entered legal area");
+    await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldProgress)>=3',"actual capture progress");
     await wait(`!!document.querySelector('[data-teaching-captured="true"]')`,"referee temporary control",90000);
     await screenshot("03-world-capture");
-    await hold("s",'Number(document.querySelector("main[data-world-mode]").dataset.worldProgress)>0',"withdrawal and defense progress");
+    await moveToward("redStart",q=>!q.red.zones.some(z=>z==="blue-central"||z==="blue-outpost"),"withdrawal");
+    await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldProgress)>0',"withdrawal and defense progress");
     await wait(`!!document.querySelector('[data-teaching-done="true"]')`,"referee full recovery",90000);
     await wait(`!!document.querySelector('[data-territory-completed="true"]')`,"real saved progress",15000);
     assert.deepEqual(await rows(),[expected]);await sameWorld();await screenshot("04-world-completed");
     await press("Escape");await ready();await sameWorld();
     assert.equal((await state()).worldSeconds,"420");
-    await hit(.409,.54);
+    await hit("match");
     await wait(`!!document.querySelector('[data-world-mode="match"]')`,"normal match start");
     await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldSeconds)<420',"normal referee running",60000);
     await sameWorld();await screenshot("05-world-match");
+    await hit("explore");await ready();
+    await wait('!!JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}").territory',"exploration controller rendered");
+    await sameWorld();await hit("exit");
+    await wait('location.pathname==="/"&&!window.__qaCanvas.isConnected&&window.__qaGL.isContextLost()',"actual exit and context release");
+    const disposedTrace=await evaluate('window.__qaCanvas.dataset.simTrace');
+    await delay(1000);
+    assert.equal(await evaluate('window.__qaCanvas.dataset.simTrace'),disposedTrace,"disposed world cannot keep publishing");
+    await evaluate('history.back();true');await ready();
+    assert.equal(await evaluate('document.querySelectorAll("main[data-world-mode] canvas").length===1&&window.__qaCanvas!==document.querySelector("main[data-world-mode] canvas")&&window.__qaRenderer!==document.querySelector("main[data-world-mode] canvas").__qaRenderer&&window.__qaGL.isContextLost()'),true,"reentry creates one new world");
+    assert.equal(await evaluate('performance.getEntriesByName("arena:initialize").length'),2);
+    await screenshot("05b-world-reentered");
     await logout();
     assert.equal(await login("test-user@tarsgo.test",passwordA),userA);
     await wait(`!!document.querySelector('[data-territory-completed="true"]')`,"saved completion restored");

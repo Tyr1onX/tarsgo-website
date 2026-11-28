@@ -81,8 +81,8 @@ export interface ArenaController {
   sentryMark:(kind: "supply"|"outpost"|"central"|"highpoint")=>void;
   performance:(value:InfantryPerformance)=>void;
   reset: () => void;
-  move: (id:number,vector:MoveVector|null,begin?:boolean) => boolean;
-  touchAction: (id:number,key:string,pressed:boolean) => void;
+  move: (id:number,vector:MoveVector|null,begin?:boolean,at?:number) => boolean;
+  touchAction: (id:number,key:string,pressed:boolean,at?:number) => void;
   pause: (paused: boolean) => void;
   settings: (value:ArenaSettings) => void;
   dispose: () => void;
@@ -129,7 +129,8 @@ export function mountArena(
   const canvas = renderer.domElement;
   const traceEnabled=import.meta.env.DEV||(window as Window & {__rmucQA?:boolean}).__rmucQA===true;
   const qaEvents:MatchEvent[]=[],qaDamage:DamageEvent[]=[];
-  let qaFrames=0,qaBatches=0,qaFrameMs=0;
+  let qaFrames=0,qaBatches=0,qaFrameMs=0,qaInputSerial=0;
+  let qaLastKey:{serial:number;key:string;pressed:boolean;at:number;received:number;appliedTick:number}|undefined;
   if(traceEnabled)Object.defineProperties(canvas,{__qaRenderer:{value:renderer},__qaEvents:{value:qaEvents},__qaDamage:{value:qaDamage}});
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", "RMUC 2027 三维战场");
@@ -300,21 +301,28 @@ export function mountArena(
   let lastTime: number | null = null;
   let lastStatus = "";
   const keys = new Set<string>();
+  const pendingInput:{tick:number;apply:()=>void}[]=[];
+  function timedInput(apply:()=>void,at=performance.now()){
+    if(driving&&match?.phase==="running"&&!paused&&!experiment?.running&&!document.hidden){
+      const tick=Math.max(pendingInput.at(-1)?.tick??0,simClock.inputTick(at));
+      pendingInput.push({tick,apply});
+    }else apply();
+  }
   let moveOwner:number|null=null,touchMove=ZERO_MOVE;
   const touchActions=new Map<number,string>();
-  function move(id:number,vector:MoveVector|null,begin=false){
+  function move(id:number,vector:MoveVector|null,begin=false,at=performance.now()){
     if(guided&&!driving&&vector)return false;
-    if(vector===null){if(moveOwner===id){moveOwner=null;touchMove=ZERO_MOVE;invalidate();}return false;}
+    if(vector===null){if(moveOwner===id){moveOwner=null;timedInput(()=>{touchMove=ZERO_MOVE;},at);invalidate();}return false;}
     if(!ready||paused||countdownEnd||document.hidden||experiment?.running||(!isPlaying(mode)&&mode!=="third"))return false;
     if(begin&&moveOwner===null)moveOwner=id;
     if(moveOwner!==id)return false;
-    touchMove=boundedMove(vector.f,vector.r);invalidate();return true;
+    const next=boundedMove(vector.f,vector.r);timedInput(()=>{touchMove=next;},at);invalidate();return true;
   }
-  function touchAction(id:number,key:string,pressed:boolean){
+  function touchAction(id:number,key:string,pressed:boolean,at=performance.now()){
     if(guided&&!driving&&pressed)return;
-    if(!pressed){touchActions.delete(id);invalidate();return;}
+    if(!pressed){timedInput(()=>touchActions.delete(id),at);invalidate();return;}
     if(ready&&!paused&&!countdownEnd&&!document.hidden&&!experiment?.running&&(mode==="third"&&["Space","ShiftLeft","ControlLeft"].includes(key)||isPlaying(mode)&&key==="ShiftLeft"&&(!driving||!!manualRobot()&&!!activeRobot()?.hp))){
-      touchActions.set(id,key);invalidate();
+      timedInput(()=>touchActions.set(id,key),at);invalidate();
     }
   }
   const boosted=()=>keys.has("ShiftLeft")||keys.has("ShiftRight")||[...touchActions.values()].includes("ShiftLeft");
@@ -466,7 +474,7 @@ export function mountArena(
     if(traceEnabled&&territoryLesson&&match){
       const g=territoryLesson;
       const describe=(bot:Robot)=>({p:bot.position.toArray(),zones:zonesAtPosition(bot.position),yaw:bot.object.rotation.y,hp:match!.robots.find(r=>r.id===bot.object.name)?.hp,goal:botPaths.get(bot)?.goal.toArray(),speed:motions.get(bot)?.speed});
-      canvas.dataset.territoryTrace=JSON.stringify({elapsed:match.elapsed,debt:simClock.debt,step:lesson.step,error:lesson.error,red:describe(g.red),blue:describe(g.blue),redGoal:g.redGoal.toArray(),redStart:g.redStart.toArray(),look,touchMove,moveOwner,paused,keys:[...keys],power:match.robots.find(r=>r.id===g.red.object.name)?.powerBuffer});
+      canvas.dataset.territoryTrace=JSON.stringify({elapsed:match.elapsed,debt:simClock.debt,step:lesson.step,error:lesson.error,red:describe(g.red),blue:describe(g.blue),redGoal:g.redGoal.toArray(),redStart:g.redStart.toArray(),look,touchMove,moveOwner,paused,keys:[...keys],pendingInput:pendingInput.map(i=>i.tick),lastKey:qaLastKey,power:match.robots.find(r=>r.id===g.red.object.name)?.powerBuffer});
     }
     if(traceEnabled)canvas.dataset.simTrace=JSON.stringify({elapsed:match?.elapsed,phase:match?.phase,winner:match?.winner,debt:simClock.debt,batches:qaBatches,frames:qaFrames,frameMs:qaFrameMs,paused,hidden:document.hidden,queued:simulationTimer!==undefined,experiment:!!experiment?.running});
     const signature = JSON.stringify({...status,experiment:status.experiment?{...status.experiment,results:undefined}:undefined});
@@ -549,6 +557,7 @@ export function mountArena(
 
   function simulate(tick:number){
     if(!match||!mechanism||match.phase!=="running")return false;
+    while(pendingInput.length&&pendingInput[0].tick<=tick)pendingInput.shift()!.apply();
     const before=match.elapsed,oldRune=match.pose.runeAngle,oldOutpost={...match.pose.outpostAngle};
     const dt=tick*SIM_STEP_MS/1000-before;
     if(driving&&isPlaying(mode)&&!paused){
@@ -1628,12 +1637,17 @@ export function mountArena(
 
   const flightKeys=new Set(["Space","ControlLeft","ControlRight"]);
   const movement = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"]);
-  function input(key: string, pressed: boolean) {
+  function input(key: string, pressed: boolean,at=performance.now()) {
     if ((!movement.has(key)&&!flightKeys.has(key))||experiment?.running||guided&&!driving) return;
-    if (!pressed) keys.delete(key);
+    const serial=traceEnabled?++qaInputSerial:0,received=performance.now();
+    function apply(){
+      if(pressed)keys.add(key);else keys.delete(key);
+      if(traceEnabled)qaLastKey={serial,key,pressed,at,received,appliedTick:simClock.tick};
+    }
+    if (!pressed) timedInput(apply,at);
     else if(ready&&!paused&&!countdownEnd){
       if(director.enabled)setView("third");
-      if(isPlaying(mode)&&movement.has(key)||mode==="third")keys.add(key);
+      if(isPlaying(mode)&&movement.has(key)||mode==="third")timedInput(apply,at);
     }
     invalidate();
   }
@@ -1655,7 +1669,7 @@ export function mountArena(
     if(event.code==="Escape"&&mode==="third"){clearInput();if(document.pointerLockElement===canvas)document.exitPointerLock();return;}
     if ((movement.has(event.code)||(mode==="third"||director.enabled)&&flightKeys.has(event.code))&&(isPlaying(mode)||mode==="third"||director.enabled)) {
       event.preventDefault();
-      input(event.code, true);
+      if(!event.repeat)input(event.code, true,event.timeStamp);
     } else if (event.code === "Space" && driving && isPlaying(mode)) {event.preventDefault();if(!event.repeat)trigger("space",true);}
     else if (!event.repeat && event.code === "KeyR") toggleSpin();
     else if (!event.repeat && event.code === "KeyB") buy();
@@ -1663,11 +1677,11 @@ export function mountArena(
     else if (!event.repeat && event.code === "KeyV") setView(driving?"first":mode==="third"?"all":"third");
     else if (!event.repeat && event.code === "KeyM") setView("all");
   }
-  function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);input(event.code, false); }
-  function clearInput() { impactFeedback=null;shotRequested=false;triggers.clear();keys.clear();moveOwner=null;touchMove=ZERO_MOVE;touchActions.clear();onInputReset(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
-  function turn(dx: number, dy: number) {
+  function keyup(event: KeyboardEvent) { if(event.code==="Space")trigger("space",false);input(event.code, false,event.timeStamp); }
+  function clearInput() { impactFeedback=null;shotRequested=false;triggers.clear();pendingInput.length=0;keys.clear();moveOwner=null;touchMove=ZERO_MOVE;touchActions.clear();onInputReset(); drag=null;observerPointer=null;lastTime = null; if(manualRobot()){motions.delete(manualRobot()!);if(match&&activeRobot())driveSpeed(match,activeRobot()!,0);} }
+  function turn(dx: number, dy: number,at=performance.now()) {
     if (!ready || paused || guided&&!driving || (!isPlaying(mode)&&mode!=="third")) return;
-    look = turnWithSettings(dx, dy);
+    timedInput(()=>{look=turnWithSettings(dx,dy);},at);
     invalidate();
   }
   let drag: { id: number; x: number; y: number; moved: boolean } | null = null;
@@ -1699,11 +1713,11 @@ export function mountArena(
   }
   function pointermove(event: PointerEvent) {
     if(worldPointer?.id===event.pointerId){event.stopImmediatePropagation();return;}
-    if(director.enabled&&observerPointer?.id===event.pointerId&&Math.hypot(event.clientX-observerPointer.x,event.clientY-observerPointer.y)>=4){const {x,y}=observerPointer;setView("third");drag={id:event.pointerId,x:event.clientX,y:event.clientY,moved:true};canvas.setPointerCapture(event.pointerId);turn(event.clientX-x,event.clientY-y);return;}
+    if(director.enabled&&observerPointer?.id===event.pointerId&&Math.hypot(event.clientX-observerPointer.x,event.clientY-observerPointer.y)>=4){const {x,y}=observerPointer;setView("third");drag={id:event.pointerId,x:event.clientX,y:event.clientY,moved:true};canvas.setPointerCapture(event.pointerId);turn(event.clientX-x,event.clientY-y,event.timeStamp);return;}
     if (document.pointerLockElement === canvas || drag?.id !== event.pointerId) return;
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
     if (dx || dy) drag.moved = true;
-    turn(dx,dy);
+    turn(dx,dy,event.timeStamp);
     drag.x = event.clientX; drag.y = event.clientY;
   }
   function pointerup(event: PointerEvent) {
@@ -1717,8 +1731,8 @@ export function mountArena(
     }
     trigger("mouse:"+event.pointerId,false);
     trigger("button:"+event.pointerId,false);
-    touchActions.delete(event.pointerId);
-    if(moveOwner===event.pointerId){moveOwner=null;touchMove=ZERO_MOVE;invalidate();}
+    timedInput(()=>touchActions.delete(event.pointerId),event.timeStamp);
+    if(moveOwner===event.pointerId){moveOwner=null;timedInput(()=>{touchMove=ZERO_MOVE;},event.timeStamp);invalidate();}
     if(observerPointer?.id===event.pointerId){const start=observerPointer;observerPointer=null;
       if(event.type==="pointerup"&&Math.hypot(event.clientX-start.x,event.clientY-start.y)<5&&!driving&&mode!=="ai-first"&&map){
         const robot=robotAtPointer(event);if(robot)observe(robot.object.name);
@@ -1747,7 +1761,7 @@ export function mountArena(
     publish();invalidate();
   }
   function mousemove(event: MouseEvent) {
-    if (document.pointerLockElement === canvas) turn(event.movementX, event.movementY);
+    if (document.pointerLockElement === canvas) turn(event.movementX,event.movementY,event.timeStamp);
   }
   function visibilityChange(){if(document.hidden){cancelStart();audio.stop();}stopSimulation();clearInput();resumeSimulation();invalidate();queueExperiment();}
   function lockchange() { if (document.pointerLockElement !== canvas) clearInput(); }

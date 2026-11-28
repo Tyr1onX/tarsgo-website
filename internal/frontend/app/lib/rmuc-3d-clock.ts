@@ -14,6 +14,12 @@ export class ArenaClock {
     if(this.last!==null)this.debt+=Math.max(0,now-this.last);
     this.last=now;
   }
+  // Events belong to the first unexecuted tick at or after their wall time,
+  // not to older ticks in the catch-up backlog.
+  inputTick(now:number){
+    const elapsed=this.last===null?0:Math.max(0,this.debt+now-this.last);
+    return this.tick+Math.floor(elapsed/SIM_STEP_MS)+1;
+  }
   run(step:(tick:number)=>boolean,limit=MAX_FRAME_STEPS){
     let count=0;
     while(count<limit&&this.debt+1e-7>=SIM_STEP_MS&&this.tick<MATCH_STEPS){

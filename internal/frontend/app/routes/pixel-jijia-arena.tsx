@@ -63,11 +63,11 @@ function TouchJoystick({controller,resetRef}:{controller:RefObject<ArenaControll
   function update(event:ReactPointerEvent<HTMLDivElement>,begin=false){
     const rect=event.currentTarget.getBoundingClientRect(),radius=rect.width*.33;
     const vector=joystickVector(event.clientX-rect.left-rect.width/2,event.clientY-rect.top-rect.height/2,radius);
-    if(!controller.current?.move(event.pointerId,vector,begin))return false;
+    if(!controller.current?.move(event.pointerId,vector,begin,event.timeStamp))return false;
     if(thumb.current)thumb.current.style.transform=`translate(${vector.r*radius}px,${-vector.f*radius}px)`;
     return true;
   }
-  function end(event:ReactPointerEvent<HTMLDivElement>){if(owner.current!==event.pointerId)return;controller.current?.move(event.pointerId,null);reset();}
+  function end(event:ReactPointerEvent<HTMLDivElement>){if(owner.current!==event.pointerId)return;controller.current?.move(event.pointerId,null,false,event.timeStamp);reset();}
   return <div className="rmul3d-joystick" ref={base} aria-label="移动摇杆"
     onPointerDown={event=>{if(event.button!==0||owner.current!==null)return;event.preventDefault();if(update(event,true)){owner.current=event.pointerId;event.currentTarget.setPointerCapture(event.pointerId);}}}
     onPointerMove={event=>{if(owner.current===event.pointerId&&!update(event))reset();}}
@@ -225,15 +225,15 @@ export default function PixelJijiaArenaPage() {
         {!disabled&&<><div className="rmul3d-hud">
         <div className="rmul3d-actions">
         {showTouch&&!flying&&<button className="rmul3d-ground-boost" type="button" aria-label="加速" title="加速"
-          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,"ShiftLeft",true);}}
-          onPointerUp={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false)}
-          onPointerCancel={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false)}
-          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false)}><ControlIcon kind="boost"/></button>}
+          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,"ShiftLeft",true,event.timeStamp);}}
+          onPointerUp={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false,event.timeStamp)}
+          onPointerCancel={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false,event.timeStamp)}
+          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,"ShiftLeft",false,event.timeStamp)}><ControlIcon kind="boost"/></button>}
         {showTouch&&flying&&<div className="rmul3d-flight-actions">{([["Space","上升"],["ShiftLeft","下降"],["ControlLeft","加速"]] as const).map(([key,label])=><button key={key} type="button" aria-label={label} title={label}
-          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,key,true);}}
-          onPointerUp={event=>controller.current?.touchAction(event.pointerId,key,false)}
-          onPointerCancel={event=>controller.current?.touchAction(event.pointerId,key,false)}
-          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,key,false)}><ControlIcon kind={key==="Space"?"up":key==="ShiftLeft"?"down":"boost"}/></button>)}</div>}
+          onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,key,true,event.timeStamp);}}
+          onPointerUp={event=>controller.current?.touchAction(event.pointerId,key,false,event.timeStamp)}
+          onPointerCancel={event=>controller.current?.touchAction(event.pointerId,key,false,event.timeStamp)}
+          onLostPointerCapture={event=>controller.current?.touchAction(event.pointerId,key,false,event.timeStamp)}><ControlIcon kind={key==="Space"?"up":key==="ShiftLeft"?"down":"boost"}/></button>)}</div>}
         {!teaching&&!disabled && !status.paused && playing && status.robot && status.match?.phase==="running" && !status.match.revival?.dead && status.match.stance?.control!=="auto" && <button type="button" className="rmul3d-fire" aria-label="开火" aria-disabled={!status.match.canFire}
           onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.fire("button:"+event.pointerId,true);}}
           onPointerUp={event=>controller.current?.fire("button:"+event.pointerId,false)}
