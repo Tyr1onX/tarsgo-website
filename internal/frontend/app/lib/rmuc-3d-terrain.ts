@@ -91,17 +91,23 @@ const SAMPLES = [
 
 export function supportedHeight(terrain: Pick<ArenaTerrain, "heightAt">, x: number, z: number, radius: number, previousY: number, step: number) {
   if (!insideField(x, z, radius)) return null;
-  const heights = SAMPLES.map(([dx, dz]) => terrain.heightAt(x + radius * dx, z + radius * dz));
-  const low = Math.min(...heights), high = Math.max(...heights);
+  const center = terrain.heightAt(x, z);
+  let low = center, high = center;
+  for (let i = 1; i < SAMPLES.length; i++) {
+    const [dx, dz] = SAMPLES[i];
+    const height = terrain.heightAt(x + radius * dx, z + radius * dz);
+    low = Math.min(low, height);
+    high = Math.max(high, height);
+  }
   // Three measured ~0.2m stair risers at the highpoint approach.
   // A rigid single-plane footprint cannot straddle two of these risers.
   // Only the stair strip permits articulated support; center motion still
   // obeys the existing step limit and the surrounding walls remain blocked.
   const stair=Math.abs(x)>=10.35&&Math.abs(x)<=12.05&&Math.abs(z-Math.sign(x)*4.65)<=.5;
   if (!Number.isFinite(low)) return null;
-  if(stair&&step>=.20&&high-low<=.75&&Math.abs(heights[0]-previousY)<=step)return heights[0];
+  if(stair&&step>=.20&&high-low<=.75&&Math.abs(center-previousY)<=step)return center;
   if (high - low > step || high - previousY > step || previousY - low > step) return null;
-  return heights[0];
+  return center;
 }
 
 export function moveOnArena(
