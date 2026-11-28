@@ -32,12 +32,15 @@ env = dict(os.environ, TZ="UTC", TARSGO_INTEGRATION_MYSQL_DSN=dsn,
            DB_PORT="3317", DB_NAME="tarsgo_acceptance", DB_USER=match[1],
            DB_PASSWORD=match[2], DB_LOC="UTC", JWT_SECRET="isolated-synthetic-test-secret-not-for-production")
 # First run covers an empty CI database; second proves the registry can re-run.
-for _ in range(2):
+for run in range(1, 3):
+    started = time.monotonic()
     subprocess.run(["go", "run", "./cmd/migrate"], cwd=BACKEND, env=env, check=True)
+    print(f"Migration {run}: {time.monotonic() - started:.1f}s", flush=True)
 
 pattern = "^(TestAcceptanceDatabase|TestMariaDB|TestWeeklyReportAllMemberAndGroupScopeAcceptance)"
 # Serial packages avoid collisions between historical migration fixtures and
 # other tests sharing this disposable schema. Disable Go's result cache.
+started = time.monotonic()
 result = subprocess.run(["go", "test", "-json", "-count=1", "-p=1", "-run", pattern, "./..."],
                         cwd=BACKEND, env=env, text=True, stdout=subprocess.PIPE)
 passed, skipped = set(), []
@@ -51,11 +54,14 @@ for line in result.stdout.splitlines():
         skipped.append((event["Package"], event["Test"]))
 if result.returncode or skipped or not passed:
     sys.exit(f"Database suite failed: exit={result.returncode}, skipped={skipped}, passed={len(passed)}")
-print(f"Database suite passed: {len(passed)} tests/subtests, zero skips.")
+print(f"Database suite passed: {len(passed)} tests/subtests, zero skips, {time.monotonic() - started:.1f}s.", flush=True)
 
-if any(os.environ.get(flag) == "true" for flag in (
-        "TARSGO_PIXEL_BROWSER_ACCEPTANCE", "TARSGO_RMUC_BROWSER_ACCEPTANCE")):
+browser_suites = ("TARSGO_WORKBENCH_BROWSER_ACCEPTANCE", "TARSGO_RMUC_BROWSER_ACCEPTANCE", "TARSGO_PIXEL_BROWSER_ACCEPTANCE")
+if any(env.get(flag) == "true" for flag in browser_suites):
+    started = time.monotonic()
     subprocess.run(["make", "build"], cwd=ROOT, env=env, check=True)
+    print(f"Browser acceptance build: {time.monotonic() - started:.1f}s", flush=True)
+    started = time.monotonic()
     server = subprocess.Popen([ROOT / "dist/tarsgo-backend"], cwd=ROOT, env=env)
     try:
         for attempt in range(30):
@@ -69,8 +75,19 @@ if any(os.environ.get(flag) == "true" for flag in (
                 time.sleep(1)
         else:
             sys.exit("Isolated browser acceptance server did not become ready")
-        subprocess.run(["node", "scripts/tests/test-pixel-fishing-browser.mjs"], cwd=ROOT,
-                       env=env, check=True, timeout=480)
+        print(f"Browser acceptance server ready: {time.monotonic() - started:.1f}s", flush=True)
+        # Independent budgets and diagnostics; share the same isolated server/build.
+        for flag in browser_suites:
+            if env.get(flag) != "true":
+                continue
+            suite_env = dict(env, **{key: "false" for key in browser_suites})
+            suite_env[flag] = "true"
+            started = time.monotonic()
+            try:
+                subprocess.run(["node", "scripts/tests/test-browser-acceptance.mjs"], cwd=ROOT,
+                               env=suite_env, check=True, timeout=480)
+            finally:
+                print(f"{flag}: {time.monotonic() - started:.1f}s", flush=True)
     finally:
         server.terminate()
         server.wait(timeout=15)

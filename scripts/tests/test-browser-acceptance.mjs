@@ -1,4 +1,4 @@
-// Exercise the built game and its real account API against the synthetic acceptance DB.
+// Shared browser runner for isolated workbench, pixel campus and RMUC acceptance.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
@@ -6,9 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { testRMUCWorld } from "./test-rmuc-world-browser.mjs";
+import { testWorkbench } from "./test-workbench-browser.mjs";
 
 const origin = "http://127.0.0.1:8182";
-const profile = await mkdtemp(join(tmpdir(), "pixel-fishing-browser-"));
+const profile = await mkdtemp(join(tmpdir(), "tarsgo-world-browser-"));
 const chrome = spawn(process.env.CHROME_BIN || "google-chrome", [
   "--headless=new", "--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--disable-background-timer-throttling",
   "--window-size=1200,850", "--remote-debugging-port=0", "--user-data-dir="+profile, "about:blank",
@@ -80,7 +81,16 @@ try {
   if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE==="true"){
     await testRMUCWorld({origin,command,evaluate,until,screenshot:name=>screenshot(name,process.env.RMUC_QA_OUTPUT)});
   }
-  if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE!=="true"||process.env.TARSGO_PIXEL_BROWSER_ACCEPTANCE==="true"){
+  if(process.env.TARSGO_WORKBENCH_BROWSER_ACCEPTANCE==="true"){
+    try{
+      await testWorkbench({origin,command,evaluate,until});
+    }catch(error){
+      try{console.error("Workbench failure",await evaluate('({path:location.pathname,search:location.search,active:document.activeElement?.outerHTML.slice(0,300)})'));await screenshot("failure",process.env.WORKBENCH_QA_OUTPUT);}catch{}
+      throw error;
+    }
+  }
+  if(process.env.TARSGO_PIXEL_BROWSER_ACCEPTANCE==="true"||
+     (process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE!=="true"&&process.env.TARSGO_WORKBENCH_BROWSER_ACCEPTANCE!=="true")){
   // Register the real browser's calendar fixture before its first navigation.
   // Date.now remains the real wall clock for database cooldowns and plant growth.
   const fixedCalendar="2026-11-26T04:00:00.000Z";
