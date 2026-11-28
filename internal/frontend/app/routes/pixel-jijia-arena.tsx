@@ -10,6 +10,7 @@ import type { ArenaController, ArenaLoadProgress, ArenaStatus } from "~/lib/rmuc
 import {DEFAULT_ARENA_SETTINGS,loadArenaSettings,saveArenaSettings,type ArenaSettings} from "~/lib/rmuc-3d-settings";
 import {defaultStrategy,STRATEGY_PRESETS,WEIGHT_KEYS,type Strategy} from "~/lib/rmuc-3d-strategy";
 import {pairedSummary,type ExperimentProgress} from "~/lib/rmuc-3d-experiment";
+import {KNOWLEDGE} from "~/lib/rmuc-academy";
 import "./pixel-jijia-arena.css";
 
 export function meta({}: Route.MetaArgs) {
@@ -48,6 +49,79 @@ function ExperimentResults({progress,onExport}:{progress:ExperimentProgress;onEx
     {progress.results.length>0&&<><p>A 胜 {summary.aWins} · B 胜 {summary.bWins} · 平 {summary.draws}　红胜 {summary.redWins} · 蓝胜 {summary.blueWins}</p>
     <div className="rmul3d-experiment-table"><table><thead><tr><th>种子</th><th>红 / 蓝</th><th>胜方</th><th>控制度 红 / 蓝</th><th>伤害 红 / 蓝</th></tr></thead><tbody>{progress.results.map(r=><tr key={r.index}><td>{r.seed}</td><td>{r.swapped?"B / A":"A / B"}</td><td>{r.winner==="red"?"红":r.winner==="blue"?"蓝":"平"}</td><td>{r.sides.red.control} / {r.sides.blue.control}</td><td>{r.sides.red.damage} / {r.sides.blue.damage}</td></tr>)}</tbody></table></div><button onClick={download}>导出 JSON</button></>}
   </div>;
+}
+
+const teamName=(team:"red"|"blue")=>team==="red"?"红方":"蓝方";
+const robotNames={heavy:"重装",infantry:"步兵",sentry:"哨兵"};
+const teachingChapters=[
+  ["认识比赛","阵容、场地、比赛流程与胜负"],
+  ["基础操控","自由探索、视角、接管与瞄准"],
+  ["生存与资源","补给、复活、金币、弹量、热量与功率"],
+  ["阵地争夺","前哨阵地争夺与恢复"],
+  ["攻防机制","基地、堡垒、装甲与跨越增益"],
+  ["工程与科技","重装、能量单元、装配与发射机构"],
+  ["特殊机制","能量机关、哨兵、空中、飞镖与雷达"],
+  ["完整实战","420 秒比赛与胜负判定"],
+] as const;
+const teachingPhases=["规则介绍","实体定位","动态演示","玩家实践","结果反馈"];
+const territorySteps=[
+  "蓝色边界标出了同一前哨阵地的两个增益点：中央高地和前哨站。注意红、蓝方步兵的位置。",
+  "红方步兵正在前往蓝方中央高地。进入增益点之前，占领进度不会增加。",
+  "红方激活了蓝方中央高地，占领进度开始累积。此时蓝方仍拥有完全控制。",
+  "蓝方步兵正前往蓝方前哨站。即使两台步兵处于不同增益点，也在争夺同一阵地。",
+  "双方同时激活同一阵地，进度暂停。交火本身不会直接改变阵地归属。",
+  "蓝方正在撤离前哨站增益点。等待双方争夺结束。",
+  "红方独自激活阵地，占领进度继续累积。连续有效激活达到五秒即可临时控制。",
+  "红方已获得临时控制。观察前哨站生命值：建筑没有被摧毁，阵地归属已经改变。",
+  "红方正在离开增益点，蓝方回到阵地。临时控制方不再激活满五秒，原阵营恢复完全控制。",
+  "蓝方已恢复完全控制。双方步兵正在回到练习起点，接下来由你操作红方步兵。",
+] as const;
+function ArenaScore({status}:{status:ArenaStatus}){
+  const m=status.match;if(!m)return null;
+  const clock=String(Math.floor(Math.max(0,m.seconds)/60)).padStart(2,"0")+":"+String(Math.max(0,m.seconds)%60).padStart(2,"0");
+  function side(team:"red"|"blue"){
+    const value=m!.sides[team];
+    return <div className={"rmuc-score-side "+team}><strong>{teamName(team)}</strong>
+      <span>基地生命值 <b>{value.base}</b></span>
+      <span>前哨站生命值 <b>{value.outpost}</b></span>
+      <span>金币 <b title={value.coins===null?"当前视角不可见":undefined}>{value.coins??"—"}</b></span>
+    </div>;
+  }
+  return <section className="rmuc-score" aria-label="比赛信息">{side("red")}<div className="rmuc-score-time"><small>{status.countdown?"比赛倒计时":m.phase==="finished"?"比赛结束":"比赛剩余时间"}</small><strong>{status.countdown??clock}</strong>{status.paused&&m.phase!=="finished"&&<small>已暂停</small>}{m.phase==="finished"&&<b>{m.winner==="draw"?"平局":m.winner?teamName(m.winner)+"胜利":""}</b>}</div>{side("blue")}</section>;
+}
+function RobotTelemetry({status}:{status:ArenaStatus}){
+  const m=status.match,f=status.focus;if(!m||!f)return null;
+  return <section className={"rmuc-telemetry "+f.team} aria-label="当前机器人状态">
+    <strong>{teamName(f.team)} {f.number}号 {robotNames[f.kind]} · {f.manual?"人工接管":"观察"}</strong>
+    <div><span>生命值 <b>{m.hp}/{m.maxHp}</b></span><span>弹药 <b>{m.ammo}{m.reserve>0?" + "+m.reserve:""}</b></span>{m.heatLimit>0&&<span>热量 <b>{m.heat}/{m.heatLimit}</b></span>}{m.power&&<span>缓冲能量 <b>{m.power.buffer}/60 J</b></span>}</div>
+    {m.revival?.dead?<span>战亡 · 复活 {Math.floor(m.revival.progress*100)}%</span>:<>{!!m.power?.locked&&<span>底盘断电 {m.power.locked}s</span>}{m.thermalLock&&<span>发射锁定</span>}{m.revival?.weak&&<span>虚弱</span>}{m.revival?.immune&&<span>免疫</span>}{m.pendingAmmo>0&&<span>补弹 {m.pendingAmmo}s</span>}{m.pendingHeal>0&&<span>回血 {m.pendingHeal}s</span>}</>}
+  </section>;
+}
+function TerritoryTeaching({status}:{status:ArenaStatus}){
+  const t=status.teaching!,side=status.match?.sides.blue,area=side?.outpostArea;
+  const phase=t.done?4:t.step===10?3:t.step===-1?0:t.step===0?1:2;
+  let message=t.step===-1?KNOWLEDGE.territory.detail+" "+KNOWLEDGE.outpost.summary:
+    t.step===10?t.captured?"已获得红方临时控制。离开蓝方中央高地及前哨站，回到金色起点标记，等待蓝方恢复完全控制。":status.robot?"使用 WASD 或左侧摇杆，沿金色目标指引进入蓝方中央高地，停留至红方临时控制。无需开火。":"接管红方步兵，亲自完成临时占领与归属恢复。":
+    territorySteps[t.step]??"";
+  if(t.done)message="实践通过：你亲自取得红方临时控制，离开阵地后让蓝方恢复完全控制。两次归属变化均由裁判系统实际判定。";
+  if(t.error)message=t.error;
+  return <aside className="rmuc-lesson" aria-label="前哨阵地教学">
+    <div className="rmuc-lesson-heading"><strong>前哨阵地争夺与恢复</strong><span>{phase+1}/5 · {teachingPhases[phase]}</span></div>
+    <div className="rmuc-lesson-steps">{teachingPhases.map((name,i)=><span key={name} data-active={i===phase} data-done={i<phase}>{name}</span>)}</div>
+    <p role={t.error?"alert":undefined}>{message}</p>
+    {area&&side&&t.step>=0&&<div className="rmuc-lesson-live"><span>蓝方前哨阵地：<b>{teamName(area.controller)}{area.full?"完全控制":"临时控制"}</b></span><span>{area.contested?"争夺暂停":area.progressing?"进度累积":area.progress>0?"进度回退":"未争夺"} <b>{(area.progress/10).toFixed(1)} / 5 秒</b></span><progress aria-label="阵地争夺进度" max={50} value={area.progress}/><span>前哨站生命值 <b>{side.outpost}</b></span></div>}
+  </aside>;
+}
+function ArenaRadar({status}:{status:ArenaStatus}){
+  const map=status.radarMap;if(!map)return null;
+  return <aside className="rmuc-radar" aria-label="雷达地图">
+    <strong>{map.perspective==="all"?"全局雷达地图":teamName(map.perspective)+"雷达情报"}</strong>
+    <svg viewBox="0 0 280 150" role="img" aria-label="红蓝双方机器人位置">
+      <image href={map.image} width="280" height="150"/>
+      {map.tracks.map(r=><g key={r.id} transform={"translate("+((14-r.x)*10)+" "+((7.5-r.z)*10)+")"} opacity={r.stale?.45:1}><title>{teamName(r.team)}{r.number}号</title><circle r="6.5" fill={r.team==="red"?"#dc4747":"#2585d9"}/><text textAnchor="middle" dominantBaseline="central" fill="white" fontSize="7" fontWeight="bold">{r.number}</text></g>)}
+    </svg>
+    {Object.entries(map.summary).map(([team,r])=><span key={team}>{team==="red"?"红方":"蓝方"}雷达 · {r.doubleUntil>0?"双倍易伤 "+r.doubleUntil+" 秒":"剩余机会 "+r.opportunities}</span>)}
+  </aside>;
 }
 
 const INITIAL_STATUS:ArenaStatus={view:"first",robot:null,nearby:null};
@@ -106,7 +180,7 @@ export default function PixelJijiaArenaPage() {
   }
   function receiveStatus(value:ArenaStatus){
     const old=previousLesson.current,next=value.teaching;
-    if(next&&(!old||next.step===0&&old.step!==0))lessonOwner.current=identity.current;
+    if(next&&(!old||next.step===-1&&old.step!==-1))lessonOwner.current=identity.current;
     previousLesson.current=next;
     setStatus(value);
     if(next?.done&&!old?.done)void saveTerritory();
@@ -207,7 +281,7 @@ export default function PixelJijiaArenaPage() {
   const firstPerson=playing||status.view==="ai-first";
   const focus=status.focus;
   const disabled = loading || !!error;
-  const showTouch=!status.paused&&!disabled&&!status.countdown&&!experimentRunning&&!experimentOpen&&(flying||playing&&status.match?.stance?.control!=="auto"&&!status.match?.revival?.dead&&status.match?.phase!=="finished");
+  const showTouch=!status.panel&&!status.paused&&!disabled&&!status.countdown&&!experimentRunning&&!experimentOpen&&(flying||playing&&status.match?.stance?.control!=="auto"&&!status.match?.revival?.dead&&status.match?.phase!=="finished");
 
   const configFields=<>
     <StrategyEditor label="红方 A" value={strategies.red} onChange={red=>setStrategies(s=>({...s,red}))} disabled={experimentRunning||status.match?.phase==="running"}/>
@@ -222,7 +296,16 @@ export default function PixelJijiaArenaPage() {
         {loading && !error && <div className="rmul3d-loading"><div className="rmul3d-load-content"><div className="rmul3d-load-brand"><span>TARS-GO</span><b>RMUC 2027</b></div><strong key={progress.phase} role="status">{PHASE_LABELS[progress.phase]}</strong>{progress.phase==="download"&&<><progress aria-label="资源下载进度" max={progress.total} value={progress.total===undefined?undefined:progress.received}/><span>{((progress.received??0)/1000000).toFixed(1)} MB{progress.total!==undefined?` / ${(progress.total/1000000).toFixed(1)} MB · ${Math.min(100,Math.floor((progress.received??0)/Math.max(1,progress.total)*100))}%`:""}</span></>}<button onClick={exitToMenu}>取消</button></div></div>}
         {error && <div className="rmul3d-error"><span role="alert">{error}</span><button onClick={retry}>重试</button><button onClick={()=>controller.current?.explore()}>返回探索</button></div>}
         {saveError&&<div className="rmul3d-save-error" role="alert">进度未保存 <button onClick={()=>void saveTerritory()}>重试</button></div>}
-        {!disabled&&<><div className="rmul3d-hud">
+        {!disabled&&<>
+        {!experimentRunning&&!status.atControl&&status.match&&(status.match.phase!=="ready"||focus||status.countdown)&&<ArenaScore status={status}/>}
+        {!experimentRunning&&focus&&!status.panel&&<RobotTelemetry status={status}/>}
+        {status.radarVisible&&!guided&&!status.panel&&!experimentRunning&&<ArenaRadar status={status}/>}
+        {teaching&&!status.panel&&<TerritoryTeaching status={status}/>}
+        {!experimentRunning&&!experimentOpen&&status.panel==="teaching"&&<section className="rmuc-command-panel rmuc-catalog" aria-label="教学目录"><header><h2>RMUC 2027 教学目录</h2><button data-world-command="close" onClick={()=>controller.current?.command("close")}>返回</button></header><ol>{teachingChapters.map(([title,summary],i)=><li key={title}><div><strong>{title}</strong><span>{summary}</span></div>{i===3?<button data-world-command="lessonStart" onClick={()=>controller.current?.command("lessonStart")}>{territoryCompleted?"重新练习":"开始学习"}</button>:<small>待开放</small>}</li>)}</ol></section>}
+        {!experimentRunning&&!experimentOpen&&status.panel&&status.panel!=="teaching"&&<section className="rmuc-command-panel" aria-label={status.panel==="robots"?"机器人选择":status.panel==="settings"?"比赛设置":"比赛操作"}><header><h2>{status.panel==="robots"?"机器人选择":status.panel==="settings"?"比赛设置":"比赛操作"}</h2><button data-world-command="close" onClick={()=>controller.current?.command("close")}>返回</button></header><div className="rmuc-command-grid">{status.controls?.filter(c=>c.id!=="close").map(c=><button key={c.id} data-world-command={c.id} aria-pressed={c.selected} title={c.label} disabled={c.disabled} onClick={()=>controller.current?.command(c.id)}>{c.label}{c.detail&&<small>{c.detail}</small>}</button>)}</div></section>}
+        {!experimentRunning&&!experimentOpen&&!status.panel&&!!status.controls?.length&&<nav className="rmuc-command-bar" aria-label="战场操作">{status.controls.map(c=>{const label=c.id==="resume"&&teaching?.step===-1?"开始演示":c.id==="take"&&guided?"接管并练习":c.label;return <button key={c.id} data-world-command={c.id} title={label} disabled={c.disabled} onClick={()=>controller.current?.command(c.id)}>{label}</button>;})}</nav>}
+        {!status.panel&&!experimentRunning&&!guided&&playing&&!focus&&<div className="rmuc-movement-help">WASD 移动 · 鼠标转向 · Shift 加速 · Esc 释放鼠标</div>}
+        <div className="rmul3d-hud">
         <div className="rmul3d-actions">
         {showTouch&&!flying&&<button className="rmul3d-ground-boost" type="button" aria-label="加速" title="加速"
           onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);controller.current?.touchAction(event.pointerId,"ShiftLeft",true,event.timeStamp);}}

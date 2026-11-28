@@ -72,6 +72,7 @@ test("free flight normalizes diagonal motion, uses wall delta, boosts, clamps, a
  const p=move([]);assert.equal(flightStep(p,look,new Set(),6,.05,bounds),false);
  assert.deepEqual(p.toArray(),[0,3,0]);
  const a=new THREE.Vector3(0,3,0),b=a.clone();for(let i=0;i<40;i++)flightStep(a,look,new Set(["KeyW"]),6,.025,bounds);for(let i=0;i<60;i++)flightStep(b,look,new Set(["KeyW"]),6,1/60,bounds);assert.ok(a.distanceTo(b)<1e-8);
+ const slow=new THREE.Vector3(0,3,0);for(let i=0;i<10;i++)flightStep(slow,look,new Set(["KeyW"]),6,.1,bounds);assert.ok(a.distanceTo(slow)<1e-8);
  for(let i=0;i<1000;i++)flightStep(a,look,new Set(["Space","ControlLeft"]),24,.05,bounds);assert.equal(a.y,bounds.max.y);
 });
 

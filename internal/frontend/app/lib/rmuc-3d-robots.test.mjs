@@ -63,7 +63,9 @@ test("the arena provides exploration, driving and four calibration views without
   const scene = await readFile(new URL("./rmuc-3d-scene.ts", import.meta.url), "utf8");
   const controls = await readFile(new URL("./rmuc-3d-world-controls.ts", import.meta.url), "utf8");
   assert.match(scene, /\["first","all","third","top","red","blue"\]/);
-  assert.match(controls, /fixed\("view"\)/);
+  assert.match(scene, /fixed\("view"\)/);
+  assert.doesNotMatch(controls,/remoteHousing|instrument|cameraFacing/);
+  assert.match(route,/data-world-command/);
   assert.match(scene, /case "view":/);
   assert.match(scene, /function robotAtPointer/);
   assert.doesNotMatch(route, /rmul3d-models|selectModel|CAD_MODELS|rmul3d-hud-top|rmul3d-settings-panel/);

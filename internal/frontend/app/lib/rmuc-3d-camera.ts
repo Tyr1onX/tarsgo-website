@@ -47,6 +47,6 @@ export function flightStep(position:THREE.Vector3,look:LookAngles,keys:ReadonlyS
  const {f,r,u,boost}=flightIntent(keys,touch);
  const norm=Math.hypot(f,r,u);if(!norm)return false;
  const d=lookDirection(look).multiplyScalar(f).add(new THREE.Vector3(Math.cos(look.yaw)*r,u,-Math.sin(look.yaw)*r));
- if(d.lengthSq()>0)d.normalize().multiplyScalar(Math.min(1,norm)*speed*(boost?3:1)*Math.min(.05,Math.max(0,dt)));
+ if(d.lengthSq()>0)d.normalize().multiplyScalar(Math.min(1,norm)*speed*(boost?3:1)*Math.max(0,dt));
  position.add(d).clamp(bounds.min,bounds.max);return true;
 }
