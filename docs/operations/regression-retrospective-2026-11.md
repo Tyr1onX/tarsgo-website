@@ -56,3 +56,52 @@
 3. 同一问题是否已经存在回归测试或规则却仍再次发生：若有，直接修正规则执行或测试覆盖，而不是新建另一套规范。
 
 不把 PR 数量、修复标题数或 CI 通过率单独当作质量结论。
+
+## 2026-11-28 补充：历史数据库结构核查
+
+核查基线：main `2196687`；本地隔离 MariaDB 的 `schema_migrations` 共 98 条、最高版本 98。随后通过既有生产 SSH 入口，使用应用数据库账号，在只读事务中以同口径执行聚合查询（单条查询上限 5 秒）。生产迁移版本同为 98；未读取个人记录、未执行写入或 DDL。
+
+| 结构 | 隔离库实测 | 生产实测 | 当前依赖与处置 |
+| --- | --- | --- | --- |
+| 五张 `skill_*` 表、三张旧 `capability_*` 表 | 各 0 行；无指向这些表的外键 | 各 0 行；无指向这些表的外键 | v21/v31 创建，v49 清除；历史迁移及退役回归测试仍使用，暂不删除 |
+| `registration_interviews`、旧双志愿字段 | 面试表 0 行；16 条报名中旧字段有效记录 0 条 | 面试表 0 行；旧字段有效记录 0 条 | v1/v51 及旧报名迁移仍依赖；需保持历史重放能力 |
+| `registration_legacy_archives` | 0 行 | 548 行 | `recruitmentanalytics/service.go` 和 `recruitmentrecords/service.go` 仍读取；必须保留 |
+| `legacy_assignment_target_archives` | 0 行 | 573 行 | v75/v76 保存历史作业受众快照；空测试库不能证明生产档案可删除 |
+| `daily_signals`、`assignment_late_windows` | 表均不存在 | 表均不存在 | v79/v66 已完成退役；保留早期创建及后续清理迁移，不再重复删除 |
+| `user_groups.is_default`、`users.management_group_id` | 默认组 0 行；非空管理组字段 0 行 | 默认组 0 行；非空管理组字段 7 行 | v87–v90 处理历史引用；现行认证不再依据旧管理范围字段，仍保留迁移兼容 |
+| `group_capability_dimensions`、`group_capability_ratings` | 各 0 行 | 各 0 行 | 现行培训评价表，不能与 v49 的旧能力表混淆 |
+
+以下 SQL 已在隔离库验证，并在生产以同口径完成只读核查。表不存在时记录不存在，不重新创建。生产中两个历史归档共有 1,121 行，不能删除；8 张退役学习表可列入结构退役候选，但仍需验证历史重放、上一稳定版本兼容及备份恢复。
+
+```sql
+START TRANSACTION READ ONLY;
+SELECT COUNT(*), MAX(version) FROM schema_migrations;
+SELECT TABLE_NAME FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('skill_review_events','skill_node_progress',
+    'skill_node_assignments','skill_node_prerequisites','skill_nodes',
+    'capability_manual_reviews','capability_dimension_sources','capability_dimensions',
+    'registration_interviews','registration_legacy_archives',
+    'legacy_assignment_target_archives','daily_signals','assignment_late_windows',
+    'group_capability_dimensions','group_capability_ratings');
+-- 对存在的候选表逐一执行 SELECT COUNT(*)，不要用估计行数替代。
+SELECT TABLE_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME
+FROM information_schema.KEY_COLUMN_USAGE
+WHERE TABLE_SCHEMA=DATABASE()
+  AND REFERENCED_TABLE_NAME IN ('skill_review_events','skill_node_progress',
+    'skill_node_assignments','skill_node_prerequisites','skill_nodes',
+    'capability_manual_reviews','capability_dimension_sources','capability_dimensions');
+SELECT COUNT(*) FROM user_groups WHERE is_default=1;
+SELECT COUNT(*) FROM users WHERE management_group_id IS NOT NULL;
+SELECT COUNT(*) FROM registrations
+WHERE group_1 IS NOT NULL OR group_2 IS NOT NULL OR final_group_id IS NOT NULL
+   OR group_1_status<>0 OR group_2_status<>0 OR status<>0 OR final_status<>0
+   OR reviewer_id_1 IS NOT NULL OR reviewer_id_2 IS NOT NULL
+   OR review_remark_1 IS NOT NULL OR review_remark_2 IS NOT NULL
+   OR reviewed_at_1 IS NOT NULL OR reviewed_at_2 IS NOT NULL
+   OR finalized_at IS NOT NULL OR finalized_by IS NOT NULL
+   OR JSON_CONTAINS_PATH(form_data,'one','$.group_1','$.group_2');
+ROLLBACK;
+```
+
+**删除门槛：** 生产只读计数、显式外键及应用层隐式引用均须核查；已有归档或现行业务依赖的结构必须保留。即使确认空表，也须以新迁移处理、验证从空库完整重放及已有库升级；不得删除旧迁移、修改旧版本内容或借外键级联清理业务记录。本轮已完成生产只读核查；不执行任何结构或数据删除。未验证删除后的旧版本回滚及备份恢复，不新增迁移。
