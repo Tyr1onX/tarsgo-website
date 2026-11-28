@@ -6,8 +6,8 @@
 
 | 规则依据 | 实现 | 状态 | 测试 / 未确认 |
 |---|---|---|---|
-| §3.1 阵容及表3-1 | rmuc-3d-identity.ts、rmuc-3d-robots.ts、rmul-3d-scene.ts roster | 正式编号/近似外观 | robots.test：每方4地面机器人；2026照片外观，不是2027实车CAD；每方另有4架空中视觉训练模型与机库、虚拟雷达及飞镖；空中不参与裁判伤害 |
-| 表3-7/3-8 空中系统、§4.3.2.2、制作规范S75–S83、表5-1 | rmuc-3d-air.ts、rmul-3d-scene.ts | 近似/未实现 | air.test：真实CAD平台、自动起降、10s悬停、归位、停桨、终局、重置；不装发射机构；冲击接触时间/面累积冲量待定，真实通信未实现，不计裁判收益 |
+| §3.1 阵容及表3-1 | rmuc-3d-identity.ts、rmuc-3d-robots.ts、rmuc-3d-scene.ts roster | 正式编号/近似外观 | robots.test：每方4地面机器人；2026照片外观，不是2027实车CAD；每方另有4架空中视觉训练模型与机库、虚拟雷达及飞镖；空中不参与裁判伤害 |
+| 表3-7/3-8 空中系统、§4.3.2.2、制作规范S75–S83、表5-1 | rmuc-3d-air.ts、rmuc-3d-scene.ts | 近似/未实现 | air.test：真实CAD平台、自动起降、10s悬停、归位、停桨、终局、重置；不装发射机构；冲击接触时间/面累积冲量待定，真实通信未实现，不计裁判收益 |
 | §4.2.2 / §4.3.2.4 基地、前哨 | rmuc-3d-mechanisms.ts | 近似 | mechanisms.test：前哨真实检测面射线；基地壳体仅遮挡，不计伤害，六块有效检测面尚未绑定；基地护甲运动待核实 |
 | §5.1.1 表5-1/2 伤害 | rmuc-3d-match.ts damageTarget、rmuc-3d-shot.ts、rmuc-3d-projectiles.ts | 近似 | mechanisms/projectiles.test：真实CAD首面遮挡、虚拟重力弹道、命中时结算、法向速度阈值、42mm伤害200及安装首发免伤；飞镖独立虚拟检测；非实车冲量传感器 |
 | §5.1.2 射击初速度超限 | rmuc-3d-projectiles.ts projectileSpeed | 近似/未实现 | 虚拟初速度取官方上限17mm 25m/s、42mm 16.5m/s；未模拟实车测速及超速处罚 |
@@ -29,9 +29,9 @@
 | §5.7.1 重装装配/42mm、表5-16 | rmuc-3d-match.ts launcherStatus/installLauncher/fireRound、rmuc-3d-shot.ts | 近似 | 300-M/50-2N/3时间解锁及历史最大差值、试射免热免伤、安装后600HP/300热量/100每秒冷却、前3分钟未安装50%防御；工作台真实CAD位置接近判定、单实体在工作台与云台间转移、拆回及重新试射；三级装配提前解锁；抓取距离、2026外观模块、射击间隔为训练近似；实车速度和丢包检测未实现 |
 | §5.7.2 哨兵 | rmuc-3d-match.ts createMatch | 近似 | 两种模式初始300弹量及各自性能参数、每分钟累计免费弹量；表5-28三姿态、5s切换、180s衰减、独立强化15s及功率/冷却/防御/易伤；赛前自动/半自动选择及指挥费已接入；区域目标标记为训练代理 |
 | §5.7.3 飞镖 | rmuc-3d-match.ts dartStatus/openDart/launchDart、rmuc-3d-mechanisms.ts applyDart | 近似 | dart.test、mechanisms.test：2次开闸、4枚、窗口/冷却、五类目标、虚拟命中、伤害/经验/遮挡/区域失效、护甲展开、双侧闸门与滑车；无真实飞行/传感器、半自动地图控制待补；当前地形增益失效联动已接入 |
-| §5.7.4 雷达 | rmuc-3d-radar.ts、rmuc-3d-shot.ts、rmul-3d-scene.ts | 近似（裁判标记与合法观测已接入） | 精确CAD遮挡、5Hz报告、阵营权限、干扰/双倍易伤及陈旧标记；识别、RF通信、真实硬件精度非正式实现 |
+| §5.7.4 雷达 | rmuc-3d-radar.ts、rmuc-3d-shot.ts、rmuc-3d-scene.ts | 近似（裁判标记与合法观测已接入） | 精确CAD遮挡、5Hz报告、阵营权限、干扰/双倍易伤及陈旧标记；识别、RF通信、真实硬件精度非正式实现 |
 | §5.8 单局胜负 | rmuc-3d-match.ts updateMatch | 近似 | match.test：基地击毁、时间/控制度/攻击伤害/机器人血量顺序；术语表确认仅己方存活机器人血量（不计基地/前哨），正式各伤害来源仍待补齐 |
-| §6 比赛流程、§7 判罚 | rmul-3d-scene.ts | 近似/未实现 | 420s训练及重开，不含检录、裁判自检、人工判罚 |
+| §6 比赛流程、§7 判罚 | rmuc-3d-scene.ts | 近似/未实现 | 420s训练及重开，不含检录、裁判自检、人工判罚 |
 
 ## 区域坐标来源
 

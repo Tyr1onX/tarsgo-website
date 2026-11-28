@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "react-router";
 import { getExperienceReturnTo, getPixelReturn } from "~/lib/experience-navigation";
 import type { Route } from "./+types/pixel-jijia-arena";
 import { buildPublicMeta } from "~/lib/social-meta";
-import type { ArenaController, ArenaLoadProgress, ArenaStatus } from "~/lib/rmul-3d-scene";
+import type { ArenaController, ArenaLoadProgress, ArenaStatus } from "~/lib/rmuc-3d-scene";
 import {DEFAULT_ARENA_SETTINGS,loadArenaSettings,saveArenaSettings,type ArenaSettings} from "~/lib/rmuc-3d-settings";
 import {defaultStrategy,STRATEGY_PRESETS,WEIGHT_KEYS,type Strategy} from "~/lib/rmuc-3d-strategy";
 import {pairedSummary,type ExperimentProgress} from "~/lib/rmuc-3d-experiment";
@@ -173,7 +173,7 @@ export default function PixelJijiaArenaPage() {
       setLoading(false);setError(message);
       queueMicrotask(()=>{if(active){controller.current?.dispose();controller.current=null;}});
     }
-    void import("~/lib/rmul-3d-scene").then(({ mountArena }) => {
+    void import("~/lib/rmuc-3d-scene").then(({ mountArena }) => {
       if (!active) return;
       performance.measure("arena:import",{start:importStarted,end:performance.now()});
       controller.current = mountArena(

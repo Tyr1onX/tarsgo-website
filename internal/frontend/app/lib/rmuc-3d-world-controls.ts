@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type {ArenaSettings} from "./rmuc-3d-settings";
-import type {ArenaStatus} from "./rmul-3d-scene";
+import type {ArenaStatus} from "./rmuc-3d-scene";
 
 export type WorldAction="territory"|"match"|"pause"|"resume"|"replay"|"explore"|"take"|"red"|"blue"|"view"|"settings"|"actions"|"interact"|"exit"|"close"|"next"|"previous"|"radar";
 export type WorldCommand={id:string;symbol:string;detail?:string;color?:string;run:()=>void};
