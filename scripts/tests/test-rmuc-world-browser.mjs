@@ -20,9 +20,12 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await command("Input.insertText",{text:value});
     await wait(`document.querySelector(${JSON.stringify(selector)})?.value===${JSON.stringify(value)}`,"field ready");
   }
+  const targets='JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}")';
+  async function targetPoint(id){
+    return wait(`(()=>{const pt=${targets}[${JSON.stringify(id)}];if(!pt)return null;const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x+r.width*pt[0],y:r.y+r.height*pt[1]}})()`,"visible entity "+id);
+  }
   async function hit(id){
-    const [x,y]=await wait(`JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}")[${JSON.stringify(id)}]`,"visible entity "+id);
-    const point=await evaluate(`(()=>{const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x+r.width*${x},y:r.y+r.height*${y}}})()`);
+    const point=await targetPoint(id);
     for(const type of ["mousePressed","mouseReleased"])await command("Input.dispatchMouseEvent",{type,...point,button:"left",clickCount:1});
   }
   async function key(k,type="keyDown"){await command("Input.dispatchKeyEvent",{type,key:k,code:k==="Escape"?"Escape":"Key"+k.toUpperCase(),windowsVirtualKeyCode:k==="Escape"?27:k.toUpperCase().charCodeAt(0),timestamp:Date.now()/1000});}
@@ -88,7 +91,12 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await read()).status,401,"server rejected logged-out progress read");
   }
   try{
-    await command("Page.addScriptToEvaluateOnNewDocument",{source:"window.__rmucQA=true"});
+    await command("Page.addScriptToEvaluateOnNewDocument",{source:`window.__rmucQA=true;
+      const nativeRAF=window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame=callback=>nativeRAF(function present(time){
+        if(window.__qaHoldWorldFrame){nativeRAF(present);return;}
+        callback(time);
+      });`});
     const passwordA=process.env.TARSGO_TEST_USER_PASSWORD,passwordB=process.env.TARSGO_TEST_ADMIN_PASSWORD;
     assert.ok(passwordA&&passwordB,"synthetic acceptance accounts required");
     const userA=await login("test-user@tarsgo.test",passwordA);
@@ -96,6 +104,36 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await state()).worldView,"first");
     await evaluate('window.__qaCanvas=document.querySelector("canvas");window.__qaGL=__qaCanvas.getContext("webgl2");window.__qaRenderer=__qaCanvas.__qaRenderer;true');
     await sameWorld();await screenshot("01-world-explore");
+    assert.deepEqual((await evaluate(`Object.keys(${targets}).sort()`)),["exit","free","match","robots","settings","territory"]);
+    const matchPoint=await targetPoint("match");
+    await command("Input.dispatchMouseEvent",{type:"mouseMoved",...matchPoint});
+    await wait('(()=>{const t=document.querySelector(".rmul3d-world-tooltip");return t&&!t.hidden&&t.textContent.includes("420秒")&&document.querySelector("canvas").style.cursor==="pointer"})()',"match hover");
+    await screenshot("01a-world-hover");
+    await command("Input.dispatchMouseEvent",{type:"mouseMoved",x:2,y:2});
+    await wait('document.querySelector(".rmul3d-world-tooltip")?.hidden&&document.querySelector("canvas").style.cursor!=="pointer"',"clear hover");
+    await hit("free");
+    await wait(`!!${targets}.explore&&!${targets}.territory&&!${targets}.settings`,"field exploration without control-zone menus");
+    await hit("explore");await wait(`!!${targets}.territory`,"control zone returned");await sameWorld();
+    await hit("robots");await wait(`!!${targets}.red&&!!${targets}.blue`,"team choice");
+    await hit("red");await hit("robot-red-2027-sentry-07");
+    await wait(`JSON.parse(document.querySelector("canvas").dataset.worldFrame||"null")?.view==="follow"&&!!${targets}.explore&&!${targets}.take`,"automatic sentry cannot be taken");
+    await hit("explore");await ready();await wait(`!!${targets}.robots`,"return from sentry");
+    await hit("robots");await hit("red");await hit("robot-red-2027-infantry-03");
+    await wait(`!!${targets}.take`,"selected robot can be taken");
+    // Reproduce the actual transition race: logical driving state changes
+    // before the next frame. The still-visible return button must remain usable.
+    await evaluate("window.__qaHoldWorldFrame=true");
+    try{
+      await hit("take");
+      await wait(`!!document.querySelector('[data-world-driving="true"]')&&JSON.parse(document.querySelector("canvas").dataset.worldFrame||"null")?.view==="follow"`,"takeover before next frame");
+      await hit("explore");await ready();
+    }finally{await evaluate("window.__qaHoldWorldFrame=false");}
+    await wait(`!!${targets}.territory`,"control zone presented after rapid return");await sameWorld();
+    // The usual flow must also read targets from the new driving frame,
+    // not the old follow frame after the status notification.
+    await hit("robots");await hit("red");await hit("robot-red-2027-infantry-03");await hit("take");
+    await wait(`(()=>{const frame=JSON.parse(document.querySelector("canvas").dataset.worldFrame||"null");return !!document.querySelector('[data-world-driving="true"]')&&frame?.driving&&frame.view==="first"&&!!${targets}.explore&&!${targets}.take})()`,"robot takeover rendered");
+    await hit("explore");await ready();await wait(`!!${targets}.territory`,"return from selected robot");await sameWorld();
     await hit("territory");
     await wait(`!!document.querySelector('[data-world-mode="teaching"]')`,"physical territory start",15000);
     await wait(`!!document.querySelector('[data-world-contested="true"]')`,"referee contest",120000);
@@ -143,7 +181,11 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await hit("match");
     await wait(`!!document.querySelector('[data-world-mode="match"]')`,"normal match start");
     await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldSeconds)<420',"normal referee running",60000);
-    await sameWorld();await screenshot("05-world-match");
+    await sameWorld();assert.ok(!(await evaluate(`!!${targets}.settings||!!${targets}.territory||!!${targets}.robots`)),"field menus absent during match");await screenshot("05-world-match");
+    await hit("pause");await wait(`!!${targets}.resume&&JSON.parse(document.querySelector("canvas").dataset.simTrace).paused`,"match paused");
+    const pausedMatch=await evaluate('JSON.parse(document.querySelector("canvas").dataset.simTrace).elapsed');await delay(1000);
+    assert.equal(await evaluate('JSON.parse(document.querySelector("canvas").dataset.simTrace).elapsed'),pausedMatch,"paused match does not advance");
+    await hit("resume");await wait(`!!${targets}.pause&&JSON.parse(document.querySelector("canvas").dataset.simTrace).elapsed>${pausedMatch}`,"match resumed");
     await hit("explore");await ready();
     await wait('!!JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}").territory',"exploration controller rendered");
     await sameWorld();await hit("exit");
