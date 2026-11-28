@@ -834,8 +834,8 @@ export function mountArena(
     if(m.phase==="ready"&&!status.countdown){
       if(m.performance){
         const perf=m.performance;
-        add("chassis","♥",()=>controller.performance({...perf,chassis:perf.chassis==="hp"?"power":"hp"}),perf.chassis==="hp"?"♥":"⚡");
-        add("launcher","♨",()=>controller.performance({...perf,launcher:perf.launcher==="cooling"?"burst":"cooling"}),perf.launcher==="cooling"?"♨":"✦");
+        add("chassis","♥",()=>{const current=activeRobot()?.performance;if(current)controller.performance({...current,chassis:current.chassis==="hp"?"power":"hp"});},perf.chassis==="hp"?"♥":"⚡");
+        add("launcher","♨",()=>{const current=activeRobot()?.performance;if(current)controller.performance({...current,launcher:current.launcher==="cooling"?"burst":"cooling"});},perf.launcher==="cooling"?"♨":"✦");
       }
       if(m.stance)add("sentry","✥",()=>controller.sentryControl(m.stance!.control==="auto"?"semi":"auto"),m.stance.control==="auto"?"A":"M");
       return result;
