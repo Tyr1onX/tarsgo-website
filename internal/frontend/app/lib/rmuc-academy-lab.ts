@@ -199,7 +199,6 @@ export function labPresentation(demo:LabCase):LabPresentation{
   if(demo.id==="base-protected")return {kind:"number",focus:["蓝方前哨归蓝方完全控制","蓝方基地血量"]};
   return presentations[demo.knowledge]??{kind:"number",focus:[]};
 }
-export const LAB_VERSION=1;
 export const labProgressId=(c:LabCase)=>"lab-"+c.id;
 export function relatedLabs(id:KnowledgeId){
   const keys:Partial<Record<KnowledgeId,KnowledgeId[]>>={base:["territory","outcome","supply","recovery","revival","fortress"],outpost:["territory","base","recovery","revival","fortress"],central:["territory","terrain"],fortress:["base","territory"],highpoint:["terrain","economy","xp"],supply:["recovery","revival","economy","heavy"],energy:["assembly"],heavy:["assembly","supply","power"],infantry:["heat","power","economy","xp","recovery","revival","terrain"],sentry:["recovery","revival","power"],systems:["radar","dart"],lineup:["heavy","sentry","radar","dart"],flow:["outcome"]};
