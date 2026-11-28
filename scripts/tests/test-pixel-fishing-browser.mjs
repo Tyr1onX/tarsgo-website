@@ -5,12 +5,12 @@ import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { testRMUCAcademy } from "./test-rmuc-academy-browser.mjs";
+import { testRMUCWorld } from "./test-rmuc-world-browser.mjs";
 
 const origin = "http://127.0.0.1:8182";
 const profile = await mkdtemp(join(tmpdir(), "pixel-fishing-browser-"));
 const chrome = spawn(process.env.CHROME_BIN || "google-chrome", [
-  "--headless=new", "--disable-dev-shm-usage", "--disable-background-timer-throttling",
+  "--headless=new", "--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--disable-background-timer-throttling",
   "--window-size=1200,850", "--remote-debugging-port=0", "--user-data-dir="+profile, "about:blank",
 ], {stdio:"ignore"});
 const output = process.env.PIXEL_QA_OUTPUT;
@@ -78,7 +78,7 @@ try {
   await command("Page.enable");
   // RMUC uses the same real browser and server, before the fishing calendar fixture.
   if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE==="true"){
-    await testRMUCAcademy({origin,command,evaluate,until,screenshot:name=>screenshot(name,process.env.RMUC_QA_OUTPUT)});
+    await testRMUCWorld({origin,command,evaluate,until,screenshot:name=>screenshot(name,process.env.RMUC_QA_OUTPUT)});
   }
   if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE!=="true"||process.env.TARSGO_PIXEL_BROWSER_ACCEPTANCE==="true"){
   // Register the real browser's calendar fixture before its first navigation.

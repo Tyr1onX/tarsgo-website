@@ -1,5 +1,5 @@
-// One match tick = 25ms. RAF only deposits elapsed wall time.
-// Carry fractional debt across frames, and cap catch-up work per render.
+// One match tick = 25ms. Carry fractional wall-time debt across scheduled
+// batches, independently of rendering; cap work per browser task.
 export const SIM_STEP_MS=25;
 export const MATCH_STEPS=420000/SIM_STEP_MS;
 export const MAX_FRAME_STEPS=3;
@@ -13,6 +13,12 @@ export class ArenaClock {
   deposit(now:number){
     if(this.last!==null)this.debt+=Math.max(0,now-this.last);
     this.last=now;
+  }
+  // Events belong to the first unexecuted tick at or after their wall time,
+  // not to older ticks in the catch-up backlog.
+  inputTick(now:number){
+    const elapsed=this.last===null?0:Math.max(0,this.debt+now-this.last);
+    return this.tick+Math.floor(elapsed/SIM_STEP_MS)+1;
   }
   run(step:(tick:number)=>boolean,limit=MAX_FRAME_STEPS){
     let count=0;

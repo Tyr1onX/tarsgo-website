@@ -59,10 +59,14 @@ test("previews use actual team photography and do not replace 2027 official fiel
 
 test("the arena provides exploration, driving and four calibration views without a model selector", async () => {
   const route = await readFile(new URL("../routes/pixel-jijia-arena.tsx", import.meta.url), "utf8");
-  for (const id of ["first", "third", "all", "red", "blue", "top"])
-    assert.match(route, new RegExp(`id: "${id}"`));
-  assert.doesNotMatch(route, /rmul3d-models|selectModel|CAD_MODELS/);
-  assert.match(route, /\/robots/);
+  const scene = await readFile(new URL("./rmul-3d-scene.ts", import.meta.url), "utf8");
+  const controls = await readFile(new URL("./rmuc-3d-world-controls.ts", import.meta.url), "utf8");
+  assert.match(scene, /\["first","all","third","top","red","blue"\]/);
+  assert.match(controls, /fixed\("view"\)/);
+  assert.match(scene, /case "view":/);
+  assert.match(scene, /function robotAtPointer/);
+  assert.doesNotMatch(route, /rmul3d-models|selectModel|CAD_MODELS|rmul3d-hud-top|rmul3d-settings-panel/);
+  assert.match(route, /experiment"\)==="1"/);
 });
 
 import * as THREE from "three";

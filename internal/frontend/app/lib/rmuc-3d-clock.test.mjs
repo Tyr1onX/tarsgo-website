@@ -25,3 +25,14 @@ test("seeded referee random streams are cloneable and unaffected by unrelated dr
  for(const m of [a,b]){updateMatch(m,7);assert.ok(dartStatus(m,"red").canFire);launchDart(m,"red");updateMatch(m,3);}
  assert.deepEqual(a.sides.red.dart,b.sides.red.dart);
 });
+
+test("new input does not drive historical catch-up ticks",()=>{
+ const c=new ArenaClock();c.deposit(0);c.deposit(5000);
+ const press=c.inputTick(5000),release=c.inputTick(5180);
+ assert.equal(press,201);assert.equal(release,208);
+ c.deposit(5200);
+ let driven=0,history=0;
+ while(c.debt>=SIM_STEP_MS)c.run(t=>{if(t<press)history++;if(t>=press&&t<release)driven++;return true;},8);
+ assert.equal(history,200);assert.equal(driven,7);
+ assert.equal(c.inputTick(5000),c.tick+1,"late input never rewinds executed ticks");
+});
