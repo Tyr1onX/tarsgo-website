@@ -23,7 +23,8 @@ import { CommunityObjectDetail, CommunityCredits } from "~/components/pixel-jiji
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { getCurrentUser, getCachedCurrentUser, subscribeAuthStateChange, subscribeAccountSessionChange, type AuthUser } from "~/lib/auth-client";
 import { STUDY_CATALOG, canPlaceStudy, furnitureSize, makeStudyRoom, type StudyFurniture, type StudyFurnitureKind } from "~/lib/pixel-jijia-study";
-import { SEASON_LABEL, WEATHER_LABEL, WEATHER_URL, WEATHER_REFRESH_MS, changchunClimate, parseCurrentWeather, advanceSurface, advanceWind, type SurfaceWeather, type ChangchunClimate, type CurrentWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
+import { SEASON_LABEL, changchunClimate, advanceSurface, advanceWind, type SurfaceWeather, type WeatherMode, type TimeMode } from "~/lib/pixel-jijia-climate";
+import { usePixelClimate } from "~/lib/pixel-jijia-climate-state";
 import groundTilesUrl from "../assets/pixel-jijia/ground-tiles.png?url";
 import plazaPropsUrl from "../assets/pixel-jijia/plaza-props.png?url";
 import roomPropsUrl from "../assets/pixel-jijia/room-props-v3.png?url";
@@ -133,19 +134,7 @@ export default function PixelJijiaPage() {
   const nearRoomIdRef = useRef<string | null>(null);
   const zoomRef = useRef(pixelReturn?.zoom??DEFAULT_ZOOM);
   const [zoom, setZoom] = useState(pixelReturn?.zoom??DEFAULT_ZOOM);
-  const [timeMode, setTimeMode] = useState<TimeMode>("actual");
-  const [clock, setClock] = useState<ChangchunClimate | null>(null);
-  const [weatherMode, setWeatherMode] = useState<WeatherMode | null>(null);
-  const [actualWeather, setActualWeather] = useState<CurrentWeather | null>(null);
-  const [weatherLoading, setWeatherLoading] = useState(false);
-  const liveWeather = actualWeather && Math.abs(Date.now() - actualWeather.time) <= WEATHER_REFRESH_MS * 3 ? actualWeather : null;
-  const climate = clock && {
-    ...clock,
-    weather: weatherMode === "random" ? clock.weather : liveWeather?.weather ?? null,
-    temperature: weatherMode === "random" ? clock.temperature : liveWeather?.temperature ?? null,
-  };
-  const climateRef = useRef(climate);
-  useEffect(() => { climateRef.current = climate; }, [climate]);
+  const {climate,climateRef,timeMode,weatherMode,changeTimeMode,changeWeatherMode,weatherLabel,hasLiveWeather}=usePixelClimate();
   const [mapOpen, setMapOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [assetState, setAssetState] = useState<"loading" | "ready" | "error">("loading");
@@ -584,60 +573,6 @@ export default function PixelJijiaPage() {
     }
     if(animal)openAnimal(animal);
   },[recordDiscovery,fishingNotice,nearAnimal,heldItem,openAnimal,collectSource,room]);
-
-  useEffect(() => {
-    const refresh = () => setClock(changchunClimate(new Date(), timeMode));
-    refresh();
-    const interval = window.setInterval(refresh, timeMode === "game" ? 1000 : 60_000);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [timeMode]);
-
-  useEffect(() => {
-    setTimeMode(localStorage.getItem("pixel-jijia-time-mode") === "game" ? "game" : "actual");
-    setWeatherMode(localStorage.getItem("pixel-jijia-weather-mode") === "random" ? "random" : "actual");
-  }, []);
-
-  useEffect(() => {
-    if (weatherMode !== "actual") return;
-    let active = true;
-    let request: AbortController | null = null;
-    const refresh = async () => {
-      if (request) return;
-      request = new AbortController();
-      const timeout = window.setTimeout(() => request?.abort(), 10_000);
-      setWeatherLoading(true);
-      try {
-        const response = await fetch(WEATHER_URL, { signal: request.signal });
-        const value = response.ok ? parseCurrentWeather(await response.json()) : null;
-        if (active) setActualWeather(value);
-      } catch {
-        if (active) setActualWeather(null);
-      } finally {
-        window.clearTimeout(timeout);
-        request = null;
-        if (active) setWeatherLoading(false);
-      }
-    };
-    void refresh();
-    const interval = window.setInterval(refresh, WEATHER_REFRESH_MS);
-    return () => {
-      active = false;
-      request?.abort();
-      window.clearInterval(interval);
-    };
-  }, [weatherMode]);
-
-  const changeWeatherMode = (mode: WeatherMode) => {
-    if (mode === weatherMode) return;
-    setActualWeather(null);
-    setWeatherLoading(mode === "actual");
-    setWeatherMode(mode);
-    localStorage.setItem("pixel-jijia-weather-mode", mode);
-  };
 
   const selectPlace = useCallback((place: Feature | null) => {
     if(place){
@@ -1645,15 +1580,12 @@ export default function PixelJijiaPage() {
   };
 
   const weatherControls = weatherMode && <div className="pixel-world-weather-controls">
-          <select aria-label="时间模式" value={timeMode} onChange={event => {
-            const mode=event.target.value as TimeMode;
-            setTimeMode(mode); localStorage.setItem("pixel-jijia-time-mode",mode);
-          }}><option value="actual">真实时间</option><option value="game">游戏时间</option></select>
+          <select aria-label="时间模式" value={timeMode} onChange={event => changeTimeMode(event.target.value as TimeMode)}><option value="actual">真实时间</option><option value="game">游戏时间</option></select>
           <select aria-label="天气模式" value={weatherMode} onChange={event => changeWeatherMode(event.target.value as WeatherMode)}>
             <option value="actual">长春实况</option>
             <option value="random">随机天气</option>
           </select>
-          {weatherMode === "actual" && liveWeather && <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" title="当前天气来自 Open-Meteo 气象模型">Open-Meteo</a>}
+          {hasLiveWeather && <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" title="当前天气来自 Open-Meteo 气象模型">Open-Meteo</a>}
         </div>;
   return (
     <main className={`pixel-world${mobile ? " is-mobile" : ""}`}>
@@ -1834,7 +1766,7 @@ export default function PixelJijiaPage() {
         <div className="pixel-world-weather-line" role="status">
           <span>{SEASON_LABEL[climate.season]}</span>
           <time>{String(climate.hour).padStart(2, "0")}:{String(climate.minute).padStart(2, "0")}</time>
-          <span>{weatherMode === "random" ? WEATHER_LABEL[clock!.weather] : liveWeather?.label ?? (weatherLoading ? "更新中" : "天气不可用")}</span>
+          <span>{weatherLabel}</span>
           {climate.temperature !== null && <span>{climate.temperature.toFixed(0)}°C</span>}
         </div>
         {!mobile && weatherControls}
