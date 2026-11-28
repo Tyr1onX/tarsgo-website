@@ -184,7 +184,11 @@ test("path search can route around an occupied waypoint",async()=>{
  const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
  const floor={heightAt:()=>.2},start=new THREE.Vector3(-2,.2,0),goal=new THREE.Vector3(2,.2,0);
  const other={position:new THREE.Vector3(0,.2,0),radius:.6},radius=.4;
- const path=findArenaPath(floor,start,goal,radius,.4,[other]);let step=path.next();while(!step.done)step=path.next();
+ const path=findArenaPath(floor,start,goal,radius,.4,[other]);let step=path.next(),checks=0;while(!step.done){checks++;step=path.next();}
+ // Preserve the old stable-sort/pop tie order for this symmetric obstacle.
+ assert.equal(checks,153);
+ assert.deepEqual(step.value.map(p=>[Number(p.x.toFixed(6))+0,Number(p.z.toFixed(6))+0]),
+   [[-1.65,0],[-1.3,-.35],[-.95,-.7],[-.6,-1.05],[-.25,-1.05],[.1,-1.05],[.45,-1.05],[.8,-.7],[1.15,-.35],[1.5,-.35],[1.85,0],[2,0]]);
  assert.ok(step.value.at(-1).distanceTo(goal)<.015);
  assert.ok(step.value.some(p=>Math.abs(p.z)>=.9));
  for(const node of step.value){moveOnArena(floor,start,node.x-start.x,node.z-start.z,radius,.23,[other]);assert.ok(start.distanceTo(node)<.016);}
