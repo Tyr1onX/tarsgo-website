@@ -20,9 +20,13 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await command("Input.insertText",{text:value});
     await wait(`document.querySelector(${JSON.stringify(selector)})?.value===${JSON.stringify(value)}`,"field ready");
   }
+  const targets='JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}")';
+  async function targetPoint(id){
+    const [x,y]=await wait(`${targets}[${JSON.stringify(id)}]`,"visible entity "+id);
+    return evaluate(`(()=>{const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x+r.width*${x},y:r.y+r.height*${y}}})()`);
+  }
   async function hit(id){
-    const [x,y]=await wait(`JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}")[${JSON.stringify(id)}]`,"visible entity "+id);
-    const point=await evaluate(`(()=>{const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x+r.width*${x},y:r.y+r.height*${y}}})()`);
+    const point=await targetPoint(id);
     for(const type of ["mousePressed","mouseReleased"])await command("Input.dispatchMouseEvent",{type,...point,button:"left",clickCount:1});
   }
   async function key(k,type="keyDown"){await command("Input.dispatchKeyEvent",{type,key:k,code:k==="Escape"?"Escape":"Key"+k.toUpperCase(),windowsVirtualKeyCode:k==="Escape"?27:k.toUpperCase().charCodeAt(0),timestamp:Date.now()/1000});}
@@ -96,6 +100,21 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await state()).worldView,"first");
     await evaluate('window.__qaCanvas=document.querySelector("canvas");window.__qaGL=__qaCanvas.getContext("webgl2");window.__qaRenderer=__qaCanvas.__qaRenderer;true');
     await sameWorld();await screenshot("01-world-explore");
+    assert.deepEqual((await evaluate(`Object.keys(${targets}).sort()`)),["exit","free","match","robots","settings","territory"]);
+    const matchPoint=await targetPoint("match");
+    await command("Input.dispatchMouseEvent",{type:"mouseMoved",...matchPoint});
+    await wait('(()=>{const t=document.querySelector(".rmul3d-world-tooltip");return t&&!t.hidden&&t.textContent.includes("420秒")&&document.querySelector("canvas").style.cursor==="pointer"})()',"match hover");
+    await screenshot("01a-world-hover");
+    await command("Input.dispatchMouseEvent",{type:"mouseMoved",x:2,y:2});
+    await wait('document.querySelector(".rmul3d-world-tooltip")?.hidden&&document.querySelector("canvas").style.cursor!=="pointer"',"clear hover");
+    await hit("free");
+    await wait(`!!${targets}.explore&&!${targets}.territory&&!${targets}.settings`,"field exploration without control-zone menus");
+    await hit("explore");await wait(`!!${targets}.territory`,"control zone returned");await sameWorld();
+    await hit("robots");await wait(`!!${targets}.red&&!!${targets}.blue`,"team choice");
+    await hit("red");await hit("robot-red-2027-infantry-03");
+    await wait(`!!${targets}.take`,"selected robot can be taken");
+    await hit("take");await wait(`!!document.querySelector('[data-world-driving="true"]')&&!!${targets}.explore`,"robot takeover");
+    await hit("explore");await ready();await wait(`!!${targets}.territory`,"return from selected robot");await sameWorld();
     await hit("territory");
     await wait(`!!document.querySelector('[data-world-mode="teaching"]')`,"physical territory start",15000);
     await wait(`!!document.querySelector('[data-world-contested="true"]')`,"referee contest",120000);
@@ -128,7 +147,7 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     await hit("match");
     await wait(`!!document.querySelector('[data-world-mode="match"]')`,"normal match start");
     await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldSeconds)<420',"normal referee running",60000);
-    await sameWorld();await screenshot("05-world-match");
+    await sameWorld();assert.ok(!(await evaluate(`!!${targets}.settings||!!${targets}.territory||!!${targets}.robots`)),"field menus absent during match");await screenshot("05-world-match");
     await hit("explore");await ready();
     await wait('!!JSON.parse(document.querySelector("canvas").dataset.worldTargets||"{}").territory',"exploration controller rendered");
     await sameWorld();await hit("exit");

@@ -2,44 +2,52 @@ import * as THREE from "three";
 import type {ArenaSettings} from "./rmuc-3d-settings";
 import type {ArenaStatus} from "./rmul-3d-scene";
 
-export type WorldAction="territory"|"match"|"pause"|"resume"|"replay"|"explore"|"take"|"red"|"blue"|"view"|"settings"|"actions"|"interact"|"exit"|"close"|"next"|"previous"|"radar";
-export type WorldCommand={id:string;symbol:string;detail?:string;color?:string;run:()=>void};
-const icons:Record<WorldAction,string>={territory:"◎",match:"▶",pause:"Ⅱ",resume:"▶",replay:"↻",explore:"⌂",take:"✥",red:"◆",blue:"◆",view:"◉",settings:"⚙",actions:"✣",interact:"↔",exit:"⏻",close:"×",next:"›",previous:"‹",radar:"⌖"};
-type Button={mesh:THREE.Mesh;texture:THREE.CanvasTexture;material:THREE.MeshBasicMaterial;command:WorldCommand|null;draw:(c:WorldCommand)=>void};
+export type WorldAction="territory"|"match"|"pause"|"resume"|"replay"|"explore"|"take"|"view"|"settings"|"actions"|"interact"|"exit"|"close"|"next"|"previous"|"radar"|"free"|"robots";
+export type WorldCommand={id:string;symbol:string;label?:string;detail?:string;color?:string;selected?:boolean;disabled?:boolean;run:()=>void};
+const icons:Record<WorldAction,string>={territory:"◎",match:"▶",pause:"Ⅱ",resume:"▶",replay:"↻",explore:"⌂",take:"✥",view:"◉",settings:"⚙",actions:"✣",interact:"↔",exit:"⏻",close:"×",next:"›",previous:"‹",radar:"⌖",free:"↗",robots:"▣"};
+const labels:Record<string,string>={territory:"实体教学",match:"开始比赛",pause:"暂停",resume:"继续",replay:"重播",explore:"返回控制区",free:"自由探索",robots:"机器人选择",take:"接管机器人",red:"红方",blue:"蓝方",view:"切换视角",settings:"比赛设置",actions:"机器人操作",interact:"上下机器人",exit:"退出战场",close:"返回",next:"下一页",previous:"上一页",radar:"雷达地图",sound:"声音开关",quality:"画质",volume:"音量",sensitivity:"灵敏度",invert:"反转视角",default:"恢复默认",cancelStart:"取消开始",director:"自动导播",perspective:"切换阵营",chassis:"底盘配置",launcher:"发射配置",sentry:"哨兵控制",cancelAssembly:"取消装配",revive:"确认复活",paidRevive:"付费复活",ammo:"补充弹药",heal:"购买回血",spin:"小陀螺",double:"双倍易伤",rune:"激活能量机关",enhance:"强化姿态",armor:"装甲增益",dartMode:"飞镖目标",dartOpen:"开启舱门",dartFire:"发射飞镖",pickup:"拾取能量块",drop:"放下能量块",install:"安装发射机构",detach:"拆卸发射机构","mark-supply":"标记补给区","mark-outpost":"标记前哨站","mark-central":"标记中心区","mark-highpoint":"标记高地","stance-attack":"攻击姿态","stance-defense":"防御姿态","stance-move":"移动姿态","air-red":"红方空中停机","air-blue":"蓝方空中停机","step-red":"红方装配","step-blue":"蓝方装配"};
+export function worldCommandLabel(c:WorldCommand){return c.label??labels[c.id]??(c.id.startsWith("assembly-")?"科技装配":c.id);}
+const descriptions:Record<string,string>={match:"启动完整的420秒模拟比赛",take:"控制当前选中的机器人",explore:"结束当前情境并返回场外",free:"进入正式场地自由探索"};
+type Button={mesh:THREE.Mesh;texture:THREE.CanvasTexture;material:THREE.MeshBasicMaterial;command:WorldCommand|null;draw:(c:WorldCommand,hovered?:boolean,pressed?:boolean)=>void};
 const RED="#ff7777",BLUE="#70baff",GOLD="#d4bc80";
 
-export function createWorldControls(scene:THREE.Scene,terrainHeight:(x:number,z:number)=>number,onAction:(action:WorldAction)=>void){
+export function createWorldControls(scene:THREE.Scene,controlZ:number,onAction:(action:WorldAction)=>void){
   const anchor=new THREE.Group(),remote=new THREE.Group(),instrument=new THREE.Group();
   scene.add(anchor,remote,instrument);
-  const buttonGeometry=new THREE.BoxGeometry(.36,.36,.10),housingGeometry=new THREE.BoxGeometry(1,1,.14);
-  const housingMaterial=new THREE.MeshBasicMaterial({color:0x293a38});
+  const buttonGeometry=new THREE.BoxGeometry(.60,.39,.08),housingGeometry=new THREE.BoxGeometry(1,1,.14);
+  const housingMaterial=new THREE.MeshStandardMaterial({color:0x35423f,metalness:.48,roughness:.58});
   const buttons:Button[]=[];
-  const fixed=(id:WorldAction,symbol=icons[id],detail?:string):WorldCommand=>({id,symbol,detail,color:id==="red"?RED:id==="blue"?BLUE:undefined,run:()=>onAction(id)});
+  const fixed=(id:WorldAction,symbol=icons[id],detail?:string):WorldCommand=>({id,symbol,detail,run:()=>onAction(id)});
   function add(parent:THREE.Group,x=0,y=0,command:WorldCommand|null=null){
-    const canvas=document.createElement("canvas");canvas.width=128;canvas.height=128;
+    const canvas=document.createElement("canvas");canvas.width=384;canvas.height=256;
     const ctx=canvas.getContext("2d")!,texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
     const material=new THREE.MeshBasicMaterial({map:texture,toneMapped:false});
     const mesh=new THREE.Mesh(buttonGeometry,material);mesh.position.set(x,y,0);parent.add(mesh);
     let previous="";
-    function draw(c:WorldCommand){
-      const key=[c.symbol,c.detail,c.color].join("|");if(previous===key)return;previous=key;
-      ctx.fillStyle="#182624";ctx.fillRect(0,0,128,128);
-      ctx.strokeStyle=GOLD;ctx.lineWidth=6;ctx.strokeRect(4,4,120,120);
-      ctx.fillStyle=c.color??"#f7f4e9";ctx.font="bold "+(c.detail?"52":"78")+"px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(c.symbol,64,c.detail?49:65,112);
-      if(c.detail){ctx.font="bold 24px sans-serif";ctx.fillText(c.detail,64,97,112);}
+    function draw(c:WorldCommand,hovered=false,pressed=false){
+      const label=worldCommandLabel(c),selected=c.selected??c.detail==="✓";
+      const key=[c.symbol,label,c.detail,c.color,selected,c.disabled,hovered,pressed].join("|");if(previous===key)return;previous=key;
+      ctx.fillStyle=c.disabled?"#303634":pressed?"#63502d":hovered?"#48533d":selected?"#354a43":c.id==="match"?"#423722":"#182624";ctx.fillRect(0,0,384,256);
+      ctx.strokeStyle=c.disabled?"#68716c":hovered?"#ffe5a8":selected?"#90d0aa":GOLD;ctx.lineWidth=hovered?9:5;ctx.strokeRect(5,5,374,246);
+      ctx.fillStyle=c.disabled?"#a4aca8":c.color??"#f7f4e9";ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.font="bold 53px sans-serif";ctx.fillText(c.symbol,192,c.detail?56:65,330);
+      ctx.font="bold 54px sans-serif";ctx.fillText(label,192,c.detail?133:162,350);
+      if(c.detail){ctx.font="bold 35px sans-serif";ctx.fillText(c.detail,192,209,340);}
       texture.needsUpdate=true;
     }
     const b={mesh,texture,material,command,draw};buttons.push(b);
     if(command){mesh.name="world-"+command.id;draw(command);}else mesh.visible=false;
     return b;
   }
-  anchor.position.set(-1.65,terrainHeight(-1.65,4)+1.33,4);
-  anchor.scale.setScalar(.75);anchor.rotation.y=Math.PI/2;
-  const backing=new THREE.Mesh(housingGeometry,housingMaterial);backing.scale.set(1.42,.95,1.14);backing.position.set(0,-.22,-.11);anchor.add(backing);
-  const pole=new THREE.Mesh(housingGeometry,housingMaterial);pole.scale.set(.09,1.7,.64);pole.position.set(0,-1.1,-.12);anchor.add(pole);
-  const lesson=add(anchor,0,0,fixed("territory"));
-  add(anchor,-.44,0,fixed("match"));add(anchor,.44,0,fixed("settings"));
-  add(anchor,-.44,-.44,fixed("red"));add(anchor,0,-.44,fixed("view"));add(anchor,.44,-.44,fixed("blue"));
+  // Concourse in front of the long-side stands, outside the CAD and rails.
+  anchor.position.set(0,1.52,controlZ);
+  const backing=new THREE.Mesh(housingGeometry,housingMaterial);backing.scale.set(2.26,1.13,1.14);backing.position.set(0,-.25,-.11);anchor.add(backing);
+  for(const x of [-.76,.76]){
+    const leg=new THREE.Mesh(housingGeometry,housingMaterial);leg.scale.set(.16,.59,1.8);leg.position.set(x,-1.06,-.25);anchor.add(leg);
+  }
+  const foot=new THREE.Mesh(housingGeometry,housingMaterial);foot.scale.set(2.35,.09,4);foot.position.set(0,-1.37,-.19);anchor.add(foot);
+  add(anchor,-.72,0,fixed("match"));const lesson=add(anchor,0,0,fixed("territory"));add(anchor,.72,0,fixed("robots"));
+  add(anchor,-.72,-.52,fixed("free"));add(anchor,0,-.52,fixed("settings"));add(anchor,.72,-.52,fixed("exit"));
   const remoteHousing=new THREE.Mesh(housingGeometry,new THREE.MeshBasicMaterial({color:0x293a38,depthTest:false,depthWrite:false}));
   remoteHousing.renderOrder=98;remote.add(remoteHousing);
   const slots=Array.from({length:9},()=>add(remote));
@@ -77,13 +85,15 @@ export function createWorldControls(scene:THREE.Scene,terrainHeight:(x:number,z:
     displayTexture.needsUpdate=true;
   }
   const ray=new THREE.Raycaster(),ndc=new THREE.Vector2(),offset=new THREE.Vector3(),forward=new THREE.Vector3();
-  let page=0,lastPanel:string|null=null;
-  function update(camera:THREE.PerspectiveCamera,state:{guided:boolean;active:boolean;paused:boolean;take:boolean;driving:boolean;done:boolean;view:string;experiment:boolean;completed:boolean;settings:ArenaSettings;nearby:boolean;panel:"settings"|"actions"|null;status:ArenaStatus;extra:WorldCommand[];radar:boolean}){
-    anchor.visible=!state.experiment&&!state.active&&!state.guided&&!state.driving&&state.view==="first";
+  let page=0,lastPanel:string|null=null,anchorEnabled=false;
+  function update(camera:THREE.PerspectiveCamera,state:{guided:boolean;active:boolean;paused:boolean;take:boolean;driving:boolean;done:boolean;view:string;experiment:boolean;completed:boolean;settings:ArenaSettings;nearby:boolean;panel:"settings"|"actions"|"robots"|null;atControl:boolean;status:ArenaStatus;extra:WorldCommand[];radar:boolean}){
+    const inControl=state.atControl&&!state.experiment&&!state.active&&!state.guided&&!state.driving&&state.view==="first";
     camera.getWorldDirection(forward);
-    const accessible=anchor.visible&&camera.position.distanceTo(anchor.position)<=3.5&&offset.copy(anchor.position).sub(camera.position).normalize().dot(forward)>.5;
+    const accessible=inControl&&!state.panel&&camera.position.distanceTo(anchor.position)<=3.5&&offset.copy(anchor.position).sub(camera.position).normalize().dot(forward)>.5;
+    anchorEnabled=accessible;
+    for(const b of buttons)if(b.mesh.parent===anchor)b.mesh.visible=!inControl||!state.panel&&accessible;
     remote.visible=!state.experiment;
-    lesson.draw(fixed("territory",state.completed?"✓":"◎"));
+    lesson.command=fixed("territory",state.completed?"✓":"◎");
     let commands:WorldCommand[];
     if(state.panel!==lastPanel){page=0;lastPanel=state.panel;}
     if(state.guided)commands=(state.take?["take","replay","explore"]:state.done?["replay","explore"]:[state.paused?"resume":"pause","replay","explore"]).map(id=>fixed(id as WorldAction));
@@ -95,48 +105,61 @@ export function createWorldControls(scene:THREE.Scene,terrainHeight:(x:number,z:
       commands.push(fixed("close"));
     }else{
       commands=[];
-      if(state.take)commands.push(fixed("take"));
+      if(state.status.focus&&!state.driving)commands.push({...fixed("take"),disabled:!state.take});
       if(state.driving||state.nearby&&!state.active)commands.push(fixed("interact"));
       if(state.active){if(state.status.match?.phase!=="finished")commands.push(fixed(state.paused?"resume":"pause"));commands.push(fixed("replay"),fixed("explore"));}
-      else if(!accessible)commands.push(fixed("match"),fixed("explore"));
-      if(!state.driving&&!accessible)commands.push(fixed("view"));
-      if(state.extra.length)commands.push(fixed("actions"));
-      if(!accessible)commands.push(fixed("settings"));
-      commands.push(fixed("exit"));
+      else if(!accessible&&!inControl)commands.push(fixed("match"),fixed("explore"));
+      if(!state.driving&&!accessible&&!inControl)commands.push(fixed("view"));
+      if(state.extra.length)commands.push({...fixed("actions"),label:state.driving?"机器人操作":"比赛操作"});
+      if(inControl)commands=accessible?[]:([ "match","territory","robots","free","settings","exit"] as WorldAction[]).map(id=>fixed(id));
     }
     // Guided controls retain their original screen position and touch targets.
-    const columns=state.guided?3:camera.aspect<.8?4:7;
+    const deskPanel=inControl&&!!state.panel;
+    const columns=state.guided||deskPanel||camera.aspect<.8?3:5;
+    const rows=Math.max(1,Math.ceil(commands.length/columns));
     const halfHeight=1.5*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+    const scale=Math.min(halfHeight*(deskPanel?.60:.46),halfHeight*camera.aspect*1.75/(Math.min(columns,Math.max(1,commands.length))*.66));
     remote.quaternion.copy(camera.quaternion);
-    remote.position.copy(camera.position).add(offset.set(0,-halfHeight*((state.guided?state.driving:state.view==="first"||state.view==="third")&&camera.aspect<.8?.53:.79),-1.5).applyQuaternion(camera.quaternion));
-    remote.scale.setScalar(Math.min(halfHeight*.42,halfHeight*camera.aspect*(state.guided?.72:.62)));
+    const bottom=deskPanel?-halfHeight*.02-(rows-1)*.23*scale:-halfHeight*((state.guided?state.driving:state.view==="first"||state.view==="third")&&camera.aspect<.8?.53:.79);
+    remote.position.copy(camera.position).add(offset.set(0,bottom,-1.5).applyQuaternion(camera.quaternion));
+    remote.scale.setScalar(scale);
     for(let i=0;i<slots.length;i++){
       const b=slots[i],c=commands[i];b.mesh.visible=!!c;b.command=c??null;if(!c)continue;
-      b.mesh.name="world-"+c.id;b.draw(c);
+      b.mesh.name="world-"+c.id;
       const row=Math.floor(i/columns),n=Math.min(columns,commands.length-row*columns);
-      b.mesh.position.set((i%columns-(n-1)/2)*.43,row*.43,0);
+      b.mesh.position.set((i%columns-(n-1)/2)*.66,(rows-1-row)*.46,0);
     }
     remoteHousing.visible=!state.guided&&commands.length>0;
-    if(remoteHousing.visible){const rows=Math.ceil(commands.length/columns);remoteHousing.scale.set(Math.min(columns,commands.length)*.43+.06,rows*.43+.03,.8);remoteHousing.position.set(0,(rows-1)*.215,-.11);}
+    if(remoteHousing.visible){remoteHousing.scale.set(Math.min(columns,commands.length)*.66+.06,rows*.46+.03,.8);remoteHousing.position.set(0,(rows-1)*.23,-.11);}
     instrument.visible=!state.guided&&!state.experiment&&(state.active||state.driving||!!state.status.focus||state.radar);
     if(instrument.visible){drawDisplay(state.status,state.radar);instrument.quaternion.copy(camera.quaternion);instrument.position.copy(camera.position).add(offset.set(0,halfHeight*.80,-1.5).applyQuaternion(camera.quaternion));instrument.scale.setScalar(Math.min(halfHeight*1.16,halfHeight*camera.aspect*1.85));instrument.updateMatrixWorld(true);}
     anchor.updateMatrixWorld(true);remote.updateMatrixWorld(true);
   }
-  function pick(camera:THREE.PerspectiveCamera,x=0,y=0){
+  function hitButton(camera:THREE.PerspectiveCamera,x=0,y=0){
     ray.setFromCamera(ndc.set(x,y),camera);
-    const candidates=buttons.filter(b=>b.command&&b.mesh.visible&&b.mesh.parent?.visible);
+    const candidates=buttons.filter(b=>b.command&&b.mesh.visible&&b.mesh.parent?.visible&&(b.mesh.parent!==anchor||anchorEnabled));
     const hit=ray.intersectObjects(candidates.map(b=>b.mesh),false)[0];
     if(!hit||hit.object.parent===anchor&&hit.distance>3.5)return null;
-    return candidates.find(b=>b.mesh===hit.object)?.command??null;
+    return candidates.find(b=>b.mesh===hit.object)??null;
+  }
+  function pick(camera:THREE.PerspectiveCamera,x=0,y=0){
+    const command=hitButton(camera,x,y)?.command;
+    return command??null;
+  }
+  function feedback(camera:THREE.PerspectiveCamera,point:{x:number;y:number}|null,pressed:string|null){
+    const hit=point?hitButton(camera,point.x,point.y):null;
+    for(const b of buttons)if(b.command&&b.mesh.visible&&b.mesh.parent?.visible)b.draw(b.command,b===hit,!!pressed&&b.command.id===pressed);
+    const c=hit?.command;
+    return c?{label:worldCommandLabel(c),description:c.disabled?"当前不可执行":descriptions[c.id],disabled:!!c.disabled}:null;
   }
   function targets(camera:THREE.PerspectiveCamera){
     const point=new THREE.Vector3();
     return Object.fromEntries(buttons.flatMap(b=>{
-      if(!b.command||!b.mesh.visible||!b.mesh.parent?.visible)return [];
+      if(!b.command||b.command.disabled||!b.mesh.visible||!b.mesh.parent?.visible||b.mesh.parent===anchor&&!anchorEnabled)return [];
       b.mesh.getWorldPosition(point).project(camera);
       if(Math.abs(point.x)>1||Math.abs(point.y)>1||point.z>1||point.z< -1||pick(camera,point.x,point.y)?.id!==b.command.id)return [];
       return [[b.command.id,[(point.x+1)/2,(1-point.y)/2]]];
     }));
   }
-  return {update,pick,targets,dispose(){anchor.removeFromParent();remote.removeFromParent();instrument.removeFromParent();buttonGeometry.dispose();housingGeometry.dispose();housingMaterial.dispose();remoteHousing.material.dispose();for(const b of buttons){b.material.dispose();b.texture.dispose();}displayMesh.geometry.dispose();displayMaterial.dispose();displayTexture.dispose();}};
+  return {update,pick,feedback,targets,dispose(){anchor.removeFromParent();remote.removeFromParent();instrument.removeFromParent();buttonGeometry.dispose();housingGeometry.dispose();housingMaterial.dispose();remoteHousing.material.dispose();for(const b of buttons){b.material.dispose();b.texture.dispose();}displayMesh.geometry.dispose();displayMaterial.dispose();displayTexture.dispose();}};
 }
