@@ -3,10 +3,9 @@ import type {ArenaSettings} from "./rmuc-3d-settings";
 import type {ArenaStatus} from "./rmuc-3d-scene";
 
 export type WorldAction="territory"|"match"|"pause"|"resume"|"replay"|"explore"|"take"|"view"|"settings"|"actions"|"interact"|"exit"|"close"|"next"|"previous"|"radar"|"free"|"robots";
-export type WorldCommand={id:string;symbol:string;label?:string;detail?:string;color?:string;selected?:boolean;disabled?:boolean;run:()=>void};
+export type WorldCommand={id:string;symbol:string;label:string;detail?:string;color?:string;selected?:boolean;disabled?:boolean;run:()=>void};
 const icons:Record<WorldAction,string>={territory:"◎",match:"▶",pause:"Ⅱ",resume:"▶",replay:"↻",explore:"⌂",take:"✥",view:"◉",settings:"⚙",actions:"✣",interact:"↔",exit:"⏻",close:"×",next:"›",previous:"‹",radar:"⌖",free:"↗",robots:"▣"};
-const labels:Record<string,string>={territory:"实体教学",match:"开始比赛",pause:"暂停",resume:"继续",replay:"重播",explore:"返回控制区",free:"自由探索",robots:"机器人选择",take:"接管机器人",red:"红方",blue:"蓝方",view:"切换视角",settings:"比赛设置",actions:"机器人操作",interact:"上下机器人",exit:"退出战场",close:"返回",next:"下一页",previous:"上一页",radar:"雷达地图",sound:"声音开关",quality:"画质",volume:"音量",sensitivity:"灵敏度",invert:"反转视角",default:"恢复默认",cancelStart:"取消开始",director:"自动导播",perspective:"切换阵营",chassis:"底盘配置",launcher:"发射配置",sentry:"哨兵控制",cancelAssembly:"取消装配",revive:"确认复活",paidRevive:"付费复活",ammo:"补充弹药",heal:"购买回血",spin:"小陀螺",double:"双倍易伤",rune:"激活能量机关",enhance:"强化姿态",armor:"装甲增益",dartMode:"飞镖目标",dartOpen:"开启舱门",dartFire:"发射飞镖",pickup:"拾取能量块",drop:"放下能量块",install:"安装发射机构",detach:"拆卸发射机构","mark-supply":"标记补给区","mark-outpost":"标记前哨站","mark-central":"标记中心区","mark-highpoint":"标记高地","stance-attack":"攻击姿态","stance-defense":"防御姿态","stance-move":"移动姿态","air-red":"红方空中停机","air-blue":"蓝方空中停机","step-red":"红方装配","step-blue":"蓝方装配"};
-export function worldCommandLabel(c:WorldCommand){return c.label??labels[c.id]??(c.id.startsWith("assembly-")?"科技装配":c.id);}
+const labels:Record<WorldAction,string>={territory:"实体教学",match:"开始比赛",pause:"暂停",resume:"继续",replay:"重播",explore:"返回控制区",free:"自由探索",robots:"机器人选择",take:"接管机器人",view:"切换视角",settings:"比赛设置",actions:"机器人操作",interact:"上下机器人",exit:"退出战场",close:"返回",next:"下一页",previous:"上一页",radar:"雷达地图"};
 const descriptions:Record<string,string>={match:"启动完整的420秒模拟比赛",take:"控制当前选中的机器人",explore:"结束当前情境并返回场外",free:"进入正式场地自由探索"};
 type Button={mesh:THREE.Mesh;texture:THREE.CanvasTexture;material:THREE.MeshBasicMaterial;command:WorldCommand|null;draw:(c:WorldCommand,hovered?:boolean,pressed?:boolean)=>void};
 const RED="#ff7777",BLUE="#70baff",GOLD="#d4bc80";
@@ -17,7 +16,7 @@ export function createWorldControls(scene:THREE.Scene,controlZ:number,onAction:(
   const buttonGeometry=new THREE.BoxGeometry(.60,.39,.08),housingGeometry=new THREE.BoxGeometry(1,1,.14);
   const housingMaterial=new THREE.MeshStandardMaterial({color:0x35423f,metalness:.48,roughness:.58});
   const buttons:Button[]=[];
-  const fixed=(id:WorldAction,symbol=icons[id],detail?:string):WorldCommand=>({id,symbol,detail,run:()=>onAction(id)});
+  const fixed=(id:WorldAction,symbol=icons[id],detail?:string):WorldCommand=>({id,symbol,label:labels[id],detail,run:()=>onAction(id)});
   function add(parent:THREE.Group,x=0,y=0,command:WorldCommand|null=null){
     const canvas=document.createElement("canvas");canvas.width=384;canvas.height=256;
     const ctx=canvas.getContext("2d")!,texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
@@ -25,7 +24,7 @@ export function createWorldControls(scene:THREE.Scene,controlZ:number,onAction:(
     const mesh=new THREE.Mesh(buttonGeometry,material);mesh.position.set(x,y,0);parent.add(mesh);
     let previous="";
     function draw(c:WorldCommand,hovered=false,pressed=false){
-      const label=worldCommandLabel(c),selected=c.selected??c.detail==="✓";
+      const label=c.label,selected=c.selected??c.detail==="✓";
       const key=[c.symbol,label,c.detail,c.color,selected,c.disabled,hovered,pressed].join("|");if(previous===key)return;previous=key;
       ctx.fillStyle=c.disabled?"#303634":pressed?"#63502d":hovered?"#48533d":selected?"#354a43":c.id==="match"?"#423722":"#182624";ctx.fillRect(0,0,384,256);
       ctx.strokeStyle=c.disabled?"#68716c":hovered?"#ffe5a8":selected?"#90d0aa":GOLD;ctx.lineWidth=hovered?9:5;ctx.strokeRect(5,5,374,246);
@@ -84,7 +83,7 @@ export function createWorldControls(scene:THREE.Scene,controlZ:number,onAction:(
     }
     displayTexture.needsUpdate=true;
   }
-  const ray=new THREE.Raycaster(),ndc=new THREE.Vector2(),offset=new THREE.Vector3(),forward=new THREE.Vector3();
+  const ray=new THREE.Raycaster(),renderedCamera=new THREE.PerspectiveCamera(),ndc=new THREE.Vector2(),offset=new THREE.Vector3(),forward=new THREE.Vector3();
   let page=0,lastPanel:string|null=null,anchorEnabled=false;
   function update(camera:THREE.PerspectiveCamera,state:{guided:boolean;active:boolean;paused:boolean;take:boolean;driving:boolean;done:boolean;view:string;experiment:boolean;completed:boolean;settings:ArenaSettings;nearby:boolean;panel:"settings"|"actions"|"robots"|null;atControl:boolean;status:ArenaStatus;extra:WorldCommand[];radar:boolean}){
     const inControl=state.atControl&&!state.experiment&&!state.active&&!state.guided&&!state.driving&&state.view==="first";
@@ -100,8 +99,8 @@ export function createWorldControls(scene:THREE.Scene,controlZ:number,onAction:(
     else if(state.panel){
       const size=6,max=Math.max(0,Math.ceil(state.extra.length/size)-1);page=Math.min(page,max);
       commands=state.extra.slice(page*size,(page+1)*size);
-      if(page>0)commands.push({id:"previous",symbol:"‹",run:()=>{page--;}});
-      if(page<max)commands.push({id:"next",symbol:"›",run:()=>{page++;}});
+      if(page>0)commands.push({id:"previous",symbol:icons.previous,label:labels.previous,run:()=>{page--;}});
+      if(page<max)commands.push({id:"next",symbol:icons.next,label:labels.next,run:()=>{page++;}});
       commands.push(fixed("close"));
     }else{
       commands=[];
@@ -134,30 +133,33 @@ export function createWorldControls(scene:THREE.Scene,controlZ:number,onAction:(
     instrument.visible=!state.guided&&!state.experiment&&(state.active||state.driving||!!state.status.focus||state.radar);
     if(instrument.visible){drawDisplay(state.status,state.radar);instrument.quaternion.copy(camera.quaternion);instrument.position.copy(camera.position).add(offset.set(0,halfHeight*.80,-1.5).applyQuaternion(camera.quaternion));instrument.scale.setScalar(Math.min(halfHeight*1.16,halfHeight*camera.aspect*1.85));instrument.updateMatrixWorld(true);}
     anchor.updateMatrixWorld(true);remote.updateMatrixWorld(true);
+    // Pick the camera which placed these controls, not the mutable simulation camera.
+    // A view transition can update that camera before a new frame is presented.
+    renderedCamera.copy(camera,false);
   }
-  function hitButton(camera:THREE.PerspectiveCamera,x=0,y=0){
-    ray.setFromCamera(ndc.set(x,y),camera);
+  function hitButton(x=0,y=0){
+    ray.setFromCamera(ndc.set(x,y),renderedCamera);
     const candidates=buttons.filter(b=>b.command&&b.mesh.visible&&b.mesh.parent?.visible&&(b.mesh.parent!==anchor||anchorEnabled));
     const hit=ray.intersectObjects(candidates.map(b=>b.mesh),false)[0];
     if(!hit||hit.object.parent===anchor&&hit.distance>3.5)return null;
     return candidates.find(b=>b.mesh===hit.object)??null;
   }
-  function pick(camera:THREE.PerspectiveCamera,x=0,y=0){
-    const command=hitButton(camera,x,y)?.command;
+  function pick(x=0,y=0){
+    const command=hitButton(x,y)?.command;
     return command??null;
   }
-  function feedback(camera:THREE.PerspectiveCamera,point:{x:number;y:number}|null,pressed:string|null){
-    const hit=point?hitButton(camera,point.x,point.y):null;
+  function feedback(point:{x:number;y:number}|null,pressed:string|null){
+    const hit=point?hitButton(point.x,point.y):null;
     for(const b of buttons)if(b.command&&b.mesh.visible&&b.mesh.parent?.visible)b.draw(b.command,b===hit,!!pressed&&b.command.id===pressed);
     const c=hit?.command;
-    return c?{label:worldCommandLabel(c),description:c.disabled?"当前不可执行":descriptions[c.id],disabled:!!c.disabled}:null;
+    return c?{label:c.label,description:c.disabled?"当前不可执行":descriptions[c.id],disabled:!!c.disabled}:null;
   }
-  function targets(camera:THREE.PerspectiveCamera){
+  function targets(){
     const point=new THREE.Vector3();
     return Object.fromEntries(buttons.flatMap(b=>{
       if(!b.command||b.command.disabled||!b.mesh.visible||!b.mesh.parent?.visible||b.mesh.parent===anchor&&!anchorEnabled)return [];
-      b.mesh.getWorldPosition(point).project(camera);
-      if(Math.abs(point.x)>1||Math.abs(point.y)>1||point.z>1||point.z< -1||pick(camera,point.x,point.y)?.id!==b.command.id)return [];
+      b.mesh.getWorldPosition(point).project(renderedCamera);
+      if(Math.abs(point.x)>1||Math.abs(point.y)>1||point.z>1||point.z< -1||pick(point.x,point.y)?.id!==b.command.id)return [];
       return [[b.command.id,[(point.x+1)/2,(1-point.y)/2]]];
     }));
   }
