@@ -5,7 +5,7 @@ import {
   FOUNTAIN, TRAINING_FIELD, PONDS, groundAt, waterDepthAt, PLACES, SCENERY, TILE, WORLD_HEIGHT, WORLD_WIDTH, snapCamera, shelteredAt, puddleCell, worldHash as hash,
   type Direction, type Place, type Position, type PropSprite, type Scenery, type SurfaceMark,
 } from "./pixel-jijia-world.ts";
-import { explorerFrameBox, EXPLORER_FRAME_WIDTH, EXPLORER_FRAME_HEIGHT, type ExplorerAnimation } from "./pixel-jijia-explorer.ts";
+import { explorerFrameBox, EXPLORER_FRAME_HEIGHT, type ExplorerAnimation } from "./pixel-jijia-explorer.ts";
 import { nightLight, type Season, type ChangchunClimate, type WeatherKind, type SurfaceWeather } from "./pixel-jijia-climate.ts";
 import { drawAnimal, drawFishing, fishingReady, type Animal, type FishingCast } from "./pixel-jijia-life.ts";
 
