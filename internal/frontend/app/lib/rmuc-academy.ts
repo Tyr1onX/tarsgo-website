@@ -2,7 +2,6 @@ import { GROUND_LINEUP, GROUND_NAMES, SYSTEM_NAMES } from "./rmuc-3d-identity.ts
 import { MATCH_DURATION } from "./rmuc-3d-match.ts";
 
 export const RULE_VERSION = "RMUC 2027 V1.0.0";
-export const RULE_SOURCE = "https://bbs.robomaster.com/wiki/20204847/1969149?source=7";
 
 type Knowledge = {title:string;summary:string;detail:string;reference:string;boundary?:string};
 export const KNOWLEDGE = {
