@@ -1,0 +1,1829 @@
+[
+  {
+    "label": "00-console",
+    "wallMs": 1785,
+    "data": {
+      "state": {
+        "touchControls": "true",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "explore",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": null,
+          ".rmuc-lesson": null,
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": null,
+          ".rmul3d-joystick": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0,
+            "right": 0,
+            "bottom": 0,
+            "font": "16px",
+            "scroll": 0,
+            "client": 0
+          },
+          ".rmul3d-crosshair": {
+            "x": 622,
+            "y": 382,
+            "w": 36,
+            "h": 36,
+            "right": 658,
+            "bottom": 418,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [],
+        "text": null,
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "01-catalog",
+    "wallMs": 2512,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "explore",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": null,
+          ".rmuc-lesson": null,
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": null,
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": {
+            "x": 622,
+            "y": 382,
+            "w": 36,
+            "h": 36,
+            "right": 658,
+            "bottom": 418,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": {
+            "x": 390,
+            "y": 95,
+            "w": 500,
+            "h": 610,
+            "right": 890,
+            "bottom": 705,
+            "font": "16px",
+            "scroll": 498,
+            "client": 498
+          }
+        },
+        "score": [],
+        "text": null,
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "02-introduction",
+    "wallMs": 2653,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "all",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000",
+        "teachingStep": "-1",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 88.5,
+            "right": 1070,
+            "bottom": 100.5,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 330.34375,
+            "right": 1268,
+            "bottom": 436.34375,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 481,
+            "y": 736,
+            "w": 318,
+            "h": 48,
+            "right": 799,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 316,
+            "client": 316
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n1/5 · 规则介绍\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n前哨站增益点与中央高地增益点共同构成前哨阵地。 开局双方分别完全控制己方阵地。对方完全控制时，己方连续激活阵地内任一增益点满5秒可取得临时控制；临时控制方连续5秒不再激活该阵地内任一增益点，可转为另一方完全控制。双方同时激活同一阵地内的增益点时进度暂停；未满5秒的占领中断时进度等速回退。前哨站击毁与重建另有控制转换规则。\n\n本课仅练习阵地控制；建筑归属与阵地控制不同。回血、补弹等增益效果另有条件。",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "03-entity",
+    "wallMs": 2698,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "all",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "420",
+        "worldOutpost": "1000",
+        "teachingStep": "0",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 69,
+            "right": 1070,
+            "bottom": 81,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 288.28125,
+            "right": 1268,
+            "bottom": 394.28125,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 494,
+            "y": 736,
+            "w": 292,
+            "h": 48,
+            "right": 786,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 290,
+            "client": 290
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n2/5 · 实体定位\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n蓝色边界标示蓝侧前哨阵地的两个增益点：中央高地与前哨站。实赛以交互模块检测为准；本场地用几何区域近似，激活失效有2秒延迟。\n\n蓝侧阵地 蓝方完全控制\n有效激活 无\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "04-contest",
+    "wallMs": 13223,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "detail",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "23",
+        "worldContested": "true",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "410",
+        "worldOutpost": "1000",
+        "teachingStep": "4",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 88.5,
+            "right": 1070,
+            "bottom": 100.5,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 288.28125,
+            "right": 1268,
+            "bottom": 394.28125,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 494,
+            "y": 736,
+            "w": 292,
+            "h": 48,
+            "right": 786,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 290,
+            "client": 290
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n3/5 · 动态演示\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n双方均激活同一阵地，进度暂停而非清零。本次交火用于展示争夺；命中步兵不直接改变阵地控制权。\n\n蓝侧阵地 蓝方完全控制\n有效激活 红方、蓝方\n争夺暂停 2.3 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "05-demo-capture",
+    "wallMs": 22770,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "detail",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "red",
+        "worldFull": "false",
+        "worldSeconds": "401",
+        "worldOutpost": "1000",
+        "teachingStep": "7",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 69,
+            "right": 1070,
+            "bottom": 81,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 265.1875,
+            "right": 1268,
+            "bottom": 371.1875,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 494,
+            "y": 736,
+            "w": 292,
+            "h": 48,
+            "right": 786,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 290,
+            "client": 290
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n3/5 · 动态演示\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n红方已临时控制蓝侧阵地。前哨站未被击毁，仍由蓝方拥有；临时控制不是建筑易主。\n\n蓝侧阵地 红方临时控制\n有效激活 红方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "06-demo-withdraw",
+    "wallMs": 29814,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "follow",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "red",
+        "worldFull": "false",
+        "worldSeconds": "394",
+        "worldOutpost": "1000",
+        "teachingStep": "8",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 69,
+            "right": 1070,
+            "bottom": 81,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 288.28125,
+            "right": 1268,
+            "bottom": 394.28125,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 106,
+            "w": 339.8125,
+            "h": 64,
+            "right": 351.8125,
+            "bottom": 170,
+            "font": "12px",
+            "scroll": 338,
+            "client": 338
+          },
+          ".rmuc-command-bar": {
+            "x": 494,
+            "y": 736,
+            "w": 292,
+            "h": 48,
+            "right": 786,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 290,
+            "client": 290
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n3/5 · 动态演示\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n红方撤离，蓝方回到增益点是本次演示安排。红方连续5秒不再激活即可转为蓝方完全控制；不要求蓝方必须到场。\n\n蓝侧阵地 红方临时控制\n有效激活 红方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "07-practice-ready",
+    "wallMs": 44264,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "false",
+        "worldView": "follow",
+        "worldMode": "teaching",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "380",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 88.5,
+            "right": 1070,
+            "bottom": 100.5,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 265.1875,
+            "right": 1268,
+            "bottom": 371.1875,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 106,
+            "w": 339.8125,
+            "h": 64,
+            "right": 351.8125,
+            "bottom": 170,
+            "font": "12px",
+            "scroll": 338,
+            "client": 338
+          },
+          ".rmuc-command-bar": {
+            "x": 474.5,
+            "y": 736,
+            "w": 331,
+            "h": 48,
+            "right": 805.5,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 329,
+            "client": 329
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n4/5 · 玩家实践\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n接管红方步兵，完成有效激活、临时控制和撤离后的完全控制恢复。\n\n蓝侧阵地 蓝方完全控制\n有效激活 无\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "08-practice-driving",
+    "wallMs": 44438,
+    "data": {
+      "state": {
+        "touchControls": "true",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "380",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "false",
+        "teachingCaptured": "false",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 69,
+            "right": 1070,
+            "bottom": 81,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 265.1875,
+            "right": 1268,
+            "bottom": 371.1875,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 106,
+            "w": 339.8125,
+            "h": 64,
+            "right": 351.8125,
+            "bottom": 170,
+            "font": "12px",
+            "scroll": 338,
+            "client": 338
+          },
+          ".rmuc-command-bar": {
+            "x": 494,
+            "y": 736,
+            "w": 292,
+            "h": 48,
+            "right": 786,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 290,
+            "client": 290
+          },
+          ".rmul3d-joystick": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0,
+            "right": 0,
+            "bottom": 0,
+            "font": "16px",
+            "scroll": 0,
+            "client": 0
+          },
+          ".rmul3d-crosshair": {
+            "x": 622,
+            "y": 382,
+            "w": 36,
+            "h": 36,
+            "right": 658,
+            "bottom": 418,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n4/5 · 玩家实践\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n用 WASD 或左侧摇杆前往金色标记，保持有效激活直至红方临时控制。本次练习无需开火。\n\n蓝侧阵地 蓝方完全控制\n有效激活 无\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "entered",
+    "wallMs": 46050,
+    "data": {
+      "elapsed": 42.375,
+      "debt": 7.0999999940395355,
+      "step": 10,
+      "red": {
+        "p": [
+          -2.9897462648930113,
+          0.550246694945453,
+          1.863781268508786
+        ],
+        "zones": [
+          "blue-central"
+        ],
+        "yaw": -5.887280689080871,
+        "hp": 143,
+        "speed": 0
+      },
+      "blue": {
+        "p": [
+          -0.6649999999999999,
+          0.4952562929804553,
+          4
+        ],
+        "zones": [],
+        "yaw": -1.5707963267948966,
+        "hp": 160,
+        "speed": 0
+      },
+      "redGoal": [
+        -3.1,
+        0.5581024722741927,
+        1.6
+      ],
+      "redStart": [
+        -2.4877065082158563,
+        0.5188236302025855,
+        3.078207252018059
+      ],
+      "look": {
+        "yaw": 0.39590461809871513,
+        "pitch": 0
+      },
+      "touchMove": {
+        "f": 0,
+        "r": 0
+      },
+      "moveOwner": null,
+      "paused": false,
+      "keys": [],
+      "pendingInput": [],
+      "lastKey": {
+        "serial": 8,
+        "key": "KeyW",
+        "pressed": false,
+        "at": 45244.59999999404,
+        "received": 45245,
+        "appliedTick": 1691
+      },
+      "power": 60
+    }
+  },
+  {
+    "label": "09-practice-capture",
+    "wallMs": 50607,
+    "data": {
+      "state": {
+        "touchControls": "true",
+        "territoryCompleted": "false",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "red",
+        "worldFull": "false",
+        "worldSeconds": "374",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "false",
+        "teachingCaptured": "true",
+        "teachingPaused": "false"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 69,
+            "right": 1070,
+            "bottom": 81,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 288.28125,
+            "right": 1268,
+            "bottom": 394.28125,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 106,
+            "w": 339.8125,
+            "h": 64,
+            "right": 351.8125,
+            "bottom": 170,
+            "font": "12px",
+            "scroll": 338,
+            "client": 338
+          },
+          ".rmuc-command-bar": {
+            "x": 494,
+            "y": 736,
+            "w": 292,
+            "h": 48,
+            "right": 786,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 290,
+            "client": 290
+          },
+          ".rmul3d-joystick": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0,
+            "right": 0,
+            "bottom": 0,
+            "font": "16px",
+            "scroll": 0,
+            "client": 0
+          },
+          ".rmul3d-crosshair": {
+            "x": 622,
+            "y": 382,
+            "w": 36,
+            "h": 36,
+            "right": 658,
+            "bottom": 418,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n4/5 · 玩家实践\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n已取得红方临时控制。沿金色指引撤离两处增益点，等待激活失效（2秒），再等待转为蓝方完全控制。\n\n蓝侧阵地 红方临时控制\n有效激活 红方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "left",
+    "wallMs": 51558,
+    "data": {
+      "elapsed": 47.875,
+      "debt": 2.4000000059604645,
+      "step": 10,
+      "red": {
+        "p": [
+          -2.7400424284531235,
+          0.5345351504553277,
+          2.461195901797255
+        ],
+        "zones": [],
+        "yaw": -2.745688035491078,
+        "hp": 143,
+        "speed": 0
+      },
+      "blue": {
+        "p": [
+          -2.235,
+          0.49525629966678897,
+          4
+        ],
+        "zones": [
+          "blue-outpost"
+        ],
+        "yaw": 1.5707963267948966,
+        "hp": 160,
+        "goal": [
+          -2.25,
+          0.49525629966678897,
+          4
+        ],
+        "speed": 0
+      },
+      "redGoal": [
+        -3.1,
+        0.5581024722741927,
+        1.6
+      ],
+      "redStart": [
+        -2.4877065082158563,
+        0.5188236302025855,
+        3.078207252018059
+      ],
+      "look": {
+        "yaw": 0.39590461809871513,
+        "pitch": 0
+      },
+      "touchMove": {
+        "f": 0,
+        "r": 0
+      },
+      "moveOwner": null,
+      "paused": false,
+      "keys": [],
+      "pendingInput": [],
+      "lastKey": {
+        "serial": 12,
+        "key": "KeyS",
+        "pressed": false,
+        "at": 50752.69999998808,
+        "received": 50753.19999998808,
+        "appliedTick": 1911
+      },
+      "power": 60
+    }
+  },
+  {
+    "label": "10-result",
+    "wallMs": 58345,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "true",
+        "worldView": "first",
+        "worldMode": "teaching",
+        "worldDriving": "true",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "366",
+        "worldOutpost": "1000",
+        "teachingStep": "10",
+        "teachingDone": "true",
+        "teachingCaptured": "true",
+        "teachingPaused": "true"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 88.5,
+            "right": 1070,
+            "bottom": 100.5,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": {
+            "x": 938,
+            "y": 106,
+            "w": 330,
+            "h": 288.28125,
+            "right": 1268,
+            "bottom": 394.28125,
+            "font": "16px",
+            "scroll": 328,
+            "client": 328
+          },
+          ".rmuc-telemetry": {
+            "x": 12,
+            "y": 106,
+            "w": 339.8125,
+            "h": 64,
+            "right": 351.8125,
+            "bottom": 170,
+            "font": "12px",
+            "scroll": 338,
+            "client": 338
+          },
+          ".rmuc-command-bar": {
+            "x": 521.5,
+            "y": 736,
+            "w": 237,
+            "h": 48,
+            "right": 758.5,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 235,
+            "client": 235
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": {
+            "x": 622,
+            "y": 382,
+            "w": 36,
+            "h": 36,
+            "right": 658,
+            "bottom": 418,
+            "font": "16px",
+            "scroll": 36,
+            "client": 36
+          },
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 37.125,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 37.125,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 75.375,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": "前哨阵地争夺与恢复\n5/5 · 结果反馈\n规则介绍\n实体定位\n动态演示\n玩家实践\n结果反馈\n\n实践通过：你通过有效激活取得红方临时控制，撤离后蓝方恢复完全控制。前哨站始终归蓝方，本次未发生建筑摧毁或重建。\n\n蓝侧阵地 蓝方完全控制\n有效激活 蓝方\n未累计 0.0 / 5 秒\n前哨站建筑 蓝方拥有 · 1000 HP",
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "referee-events",
+    "wallMs": 58350,
+    "data": [
+      {
+        "type": "territory",
+        "team": "red",
+        "location": "blue",
+        "structure": "outpost",
+        "full": false,
+        "at": 19.2,
+        "visibility": "all"
+      },
+      {
+        "type": "territory",
+        "team": "blue",
+        "location": "blue",
+        "structure": "outpost",
+        "full": true,
+        "at": 33.6,
+        "visibility": "all"
+      },
+      {
+        "type": "territory",
+        "team": "red",
+        "location": "blue",
+        "structure": "outpost",
+        "full": false,
+        "at": 46.8,
+        "visibility": "all"
+      },
+      {
+        "type": "territory",
+        "team": "blue",
+        "location": "blue",
+        "structure": "outpost",
+        "full": true,
+        "at": 54.5,
+        "visibility": "all"
+      }
+    ]
+  },
+  {
+    "label": "11-match",
+    "wallMs": 64219,
+    "data": {
+      "state": {
+        "touchControls": "false",
+        "territoryCompleted": "true",
+        "worldView": "all",
+        "worldMode": "match",
+        "worldDriving": "false",
+        "worldProgress": "0",
+        "worldContested": "false",
+        "worldController": "blue",
+        "worldFull": "true",
+        "worldSeconds": "419",
+        "worldOutpost": "1000"
+      },
+      "layout": {
+        "width": 1280,
+        "height": 800,
+        "docWidth": 1280,
+        "pointer": false,
+        "boxes": {
+          ".rmuc-score": {
+            "x": 210,
+            "y": 12,
+            "w": 860,
+            "h": 69,
+            "right": 1070,
+            "bottom": 81,
+            "font": "12px",
+            "scroll": 858,
+            "client": 858
+          },
+          ".rmuc-lesson": null,
+          ".rmuc-telemetry": null,
+          ".rmuc-command-bar": {
+            "x": 453.5,
+            "y": 736,
+            "w": 373,
+            "h": 48,
+            "right": 826.5,
+            "bottom": 784,
+            "font": "16px",
+            "scroll": 371,
+            "client": 371
+          },
+          ".rmul3d-joystick": null,
+          ".rmul3d-crosshair": null,
+          ".rmuc-catalog": null
+        },
+        "score": [
+          [
+            {
+              "x": 261,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 359.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 369.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 467.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 477.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 576,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ],
+          [
+            {
+              "x": 738,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 836.328125,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 846.328125,
+              "y": 27.375,
+              "w": 98.328125,
+              "h": 38.25,
+              "right": 944.65625,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            },
+            {
+              "x": 954.65625,
+              "y": 27.375,
+              "w": 98.34375,
+              "h": 38.25,
+              "right": 1053,
+              "bottom": 65.625,
+              "font": "12px",
+              "scroll": 98,
+              "client": 98
+            }
+          ]
+        ],
+        "text": null,
+        "init": 1,
+        "canvas": 1,
+        "identity": true
+      }
+    }
+  },
+  {
+    "label": "PASS",
+    "wallMs": 64219,
+    "data": {
+      "mode": "desktop",
+      "frames": 1426
+    }
+  }
+]

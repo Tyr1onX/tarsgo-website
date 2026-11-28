@@ -633,8 +633,9 @@ export function territoryStatus(match:Match,location:Team,kind:"outpost"|"base")
   const area=kind==="outpost"?match.sides[location].outpostArea:match.sides[location].baseArea;
   const ids=territoryZones(location,kind);
   const present=(team:Team)=>match.robots.some(r=>r.team===team&&!weak(r)&&ids.some(id=>zoneContact(r,id,Math.floor((match.elapsed+1e-8)*10))));
-  const direction=territoryDirection(area,present(area.controller),present(opponent(area.controller)));
-  return {...area,contested:direction===0,progressing:direction>0,enabled:zoneEnabled(match,`${location}-${kind}`)};
+  const activated={red:present("red"),blue:present("blue")};
+  const direction=territoryDirection(area,activated[area.controller],activated[opponent(area.controller)]);
+  return {...area,activated,contested:direction===0,progressing:direction>0,enabled:zoneEnabled(match,`${location}-${kind}`)};
 }
 function rebuildOutpost(match:Match,location:Team,team:Team,at=match.elapsed){
   const side=match.sides[location];side.outpost=500;side.outpostOwner=team;side.stopped=true;

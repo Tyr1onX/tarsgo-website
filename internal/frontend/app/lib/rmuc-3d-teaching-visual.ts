@@ -35,13 +35,13 @@ export function createTerritoryMatchVisuals(scene:THREE.Scene,terrain:ArenaTerra
   });
   return {update(match:Match,camera:THREE.PerspectiveCamera,height:number,visible:boolean){
     for(const {zone,tag} of labels){
-      const kind=zone.kind==="base"?"base":"outpost",area=territoryStatus(match,zone.team,kind),side=match.sides[zone.team];
+      const kind=zone.kind==="base"?"base":"outpost",area=territoryStatus(match,zone.team,kind);
       tag.sprite.visible=visible&&(area.contested||area.progress>0||area.controller!==zone.team||camera.position.distanceTo(tag.sprite.position)<8);
       if(!tag.sprite.visible)continue;
-      const name=(zone.team==="red"?"红方":"蓝方")+(kind==="base"?"基地":"前哨");
+      const name=(zone.team==="red"?"红侧":"蓝侧")+(kind==="base"?"基地阵地":"前哨阵地");
       const owner=(area.controller==="red"?"红":"蓝")+"方"+(area.full?"完全控制":"临时控制");
       const state=area.contested?"争夺暂停":area.progress>0?(area.progress/10).toFixed(1)+"/5秒":owner;
-      tag.draw(name+" "+side[kind]+" · "+state,area.contested?"#ffcc55":area.controller==="red"?"#ff7777":"#70baff");
+      tag.draw(name+" · "+state,area.contested?"#ffcc55":area.controller==="red"?"#ff7777":"#70baff");
       scale(tag.sprite,camera,height,25);
     }
   },dispose(){group.removeFromParent();for(const {tag} of labels)tag.dispose();}};
@@ -116,7 +116,7 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
       direction.visible=false;
     }
     stateTag.sprite.visible=!local;
-    stateTag.draw(practice.failed?"练习失败":practice.done?"练习通过":area.contested?"争夺暂停":area.progressing?"占领 "+(area.progress/10).toFixed(1)+"/5秒":(area.controller==="red"?"红方":"蓝方")+(area.full?"完全控制":"临时控制"),practice.failed?"#ff7777":practice.done?"#8ce6a4":color);
+    stateTag.draw(practice.failed?"练习失败":practice.done?"练习通过":area.contested?"争夺暂停":area.progressing?(area.full?"临时控制 ":"完全控制 ")+(area.progress/10).toFixed(1)+"/5秒":(area.controller==="red"?"红方":"蓝方")+(area.full?"完全控制":"临时控制"),practice.failed?"#ff7777":practice.done?"#8ce6a4":color);
     scale(stateTag.sprite,camera,height,local?27:26);
     track.quaternion.copy(camera.quaternion);
     progress.position.copy(track.position);progress.quaternion.copy(track.quaternion);progress.scale.copy(track.scale);
@@ -125,7 +125,7 @@ export function createTerritoryTeachingVisuals(scene:THREE.Scene,terrain:ArenaTe
     const side=match.sides.blue;
     const [ox,oz]=ARENA_ZONES.find(l=>l.id==="blue-outpost")!.goal;
     outpostTag.sprite.position.set(ox,terrain.heightAt(ox,oz)+2.1,oz);
-    outpostTag.draw("蓝方前哨站 "+side.outpost+" HP",side.outpostOwner==="blue"?"#70baff":"#ff7777");
+    outpostTag.draw("蓝侧前哨站 · "+(side.outpost===0?"已击毁":(side.outpostOwner==="red"?"红方":"蓝方")+" "+side.outpost+" HP"),side.outpostOwner==="blue"?"#70baff":"#ff7777");
     outpostTag.sprite.visible=!driving;scale(outpostTag.sprite,camera,height,23);
     target.visible=practice.practice&&!practice.done;
     target.position.copy(practice.target);target.position.y+=.12;

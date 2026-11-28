@@ -335,6 +335,7 @@ export function mountArena(
       pendingInput.push({tick,apply});
     }else{
       if(!driving)advanceExplorer(performance.now());
+      else if(match?.phase==="ready")advancePreparation(performance.now());
       apply();
     }
   }
@@ -682,6 +683,22 @@ export function mountArena(
     return !!(f||r||h||v);
   }
 
+  // Pre-match motion consumes wall time in bounded kinematic steps.
+  // The running referee and robot input queue remain on their fixed clock.
+  function advancePreparation(time:number){
+    if(!ready||!driving||!terrain||!isPlaying(mode)||match?.phase!=="ready"||paused||document.hidden||countdownEnd||experiment?.running){lastTime=null;return false;}
+    const dt=lastTime===null?0:Math.max(0,time-lastTime)/1000;
+    lastTime=Math.max(time,lastTime??time);
+    const h=Number(keys.has("ArrowRight"))-Number(keys.has("ArrowLeft")),v=Number(keys.has("ArrowDown"))-Number(keys.has("ArrowUp"));
+    for(let remaining=dt;remaining>1e-8;remaining-=.05){
+      const step=Math.min(.05,remaining);
+      if(h||v)look=turnWithSettings(h*step*520,v*step*520);
+      advanceMotion(step);advanceAiming(step);
+    }
+    const {f,r}=movementIntent(keys,touchMove);
+    return !!(f||r||h||v||aimingManual());
+  }
+
   function render(time: number) {
     frame = 0;
     if (disposed) return;
@@ -700,16 +717,7 @@ export function mountArena(
       if(advanceExplorer(time))invalidate();else lastTime=null;
       if(isPlaying(mode))syncCamera();
     }else if (ready && terrain && isPlaying(mode)) {
-      const dt = lastTime === null ? 0 : Math.min(.05, (time - lastTime) / 1000);
-      const {f,r}=movementIntent(keys,touchMove);
-      const horizontal = Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"));
-      const vertical = Number(keys.has("ArrowDown")) - Number(keys.has("ArrowUp"));
-      if(match?.phase!=="running"&&(horizontal || vertical)) look = turnWithSettings(horizontal * dt * 520, vertical * dt * 520);
-      if(match?.phase==="ready"&&!countdownEnd){advanceMotion(dt);advanceAiming(dt);}
-      if (f || r || horizontal || vertical || match?.phase==="ready"&&aimingManual()) {
-        lastTime = time;
-        invalidate();
-      } else lastTime = null;
+      if(match?.phase==="ready"&&advancePreparation(time))invalidate();else lastTime=null;
       syncCamera();
     } else if(following())syncObserver(time);
     else if (controls.enabled) controls.update();
