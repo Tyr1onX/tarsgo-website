@@ -108,13 +108,19 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await state()).worldController,"blue");
     assert.equal((await state()).worldOutpost,"1000");
     await press("e");await wait(`!!document.querySelector('[data-world-driving="true"]')`,"actual robot takeover");
+    const practiceAt=(await trace()).elapsed;
     await moveToward("redGoal",q=>q.red.zones.includes("blue-central")&&Math.hypot(q.red.p[0]-q.redGoal[0],q.red.p[2]-q.redGoal[2])<.36,"entered legal area");
-    await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldProgress)>=3',"actual capture progress");
+    // The referee resets progress to zero on capture. A slow CDP poll may
+    // observe the completed capture rather than any intermediate value.
+    await wait('(()=>{const d=document.querySelector("main[data-world-mode]").dataset;return Number(d.worldProgress)>=3||d.teachingCaptured==="true"&&d.worldController==="red"&&d.worldFull==="false"})()',"actual capture progress");
     await wait(`!!document.querySelector('[data-teaching-captured="true"]')`,"referee temporary control",90000);
+    const capturedAt=await evaluate(`document.querySelector("canvas").__qaEvents.find(e=>e.type==="territory"&&e.location==="blue"&&e.structure==="outpost"&&e.team==="red"&&!e.full&&e.at>=${practiceAt})?.at??null`);
+    assert.ok(capturedAt!==null,"actual practice referee emitted red temporary control");
     await screenshot("03-world-capture");
     await moveToward("redStart",q=>!q.red.zones.some(z=>z==="blue-central"||z==="blue-outpost"),"withdrawal");
-    await wait('Number(document.querySelector("main[data-world-mode]").dataset.worldProgress)>0',"withdrawal and defense progress");
+    await wait('(()=>{const d=document.querySelector("main[data-world-mode]").dataset;return Number(d.worldProgress)>0||d.teachingDone==="true"&&d.worldController==="blue"&&d.worldFull==="true"})()',"withdrawal and defense progress");
     await wait(`!!document.querySelector('[data-teaching-done="true"]')`,"referee full recovery",90000);
+    assert.equal(await evaluate(`document.querySelector("canvas").__qaEvents.some(e=>e.type==="territory"&&e.location==="blue"&&e.structure==="outpost"&&e.team==="blue"&&e.full&&e.at>${capturedAt})`),true,"actual practice referee emitted blue full recovery");
     await wait(`!!document.querySelector('[data-territory-completed="true"]')`,"real saved progress",15000);
     assert.deepEqual(await rows(),[expected]);await sameWorld();await screenshot("04-world-completed");
     await press("Escape");await ready();await sameWorld();
