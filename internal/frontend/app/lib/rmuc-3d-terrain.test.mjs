@@ -63,6 +63,21 @@ test("movement respects physical boundary, raised obstacles, support and other r
   assert.ok(p.x < -.45);
 });
 
+test("support rejects an unsafe sample anywhere in the footprint and preserves stair support", () => {
+  const radius=.5;
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[.707,.707],[-.707,.707],[.707,-.707],[-.707,-.707]]){
+    for(const unsafe of [.6,-.2,-Infinity]){
+      const floor={heightAt:(x,z)=>x===dx*radius&&z===dz*radius?unsafe:.2};
+      assert.equal(supportedHeight(floor,0,0,radius,.2,.23),null);
+    }
+  }
+  assert.equal(supportedHeight({heightAt:()=>.2},0,0,radius,.2,.23),.2);
+  const stairs={heightAt:x=>x<11.2?.15:x>11.2?.85:.5};
+  assert.equal(supportedHeight(stairs,11.2,4.65,radius,.5,.23),.5);
+  assert.equal(supportedHeight(stairs,11.2,3.65,radius,.5,.23),null);
+  assert.equal(supportedHeight(stairs,11.2,4.65,radius,.1,.23),null);
+});
+
 test("actual official field allows every driveable preview to move from its placement", () => {
   const robots = ROBOT_PLACEMENTS.filter(entry => entry.area === "field").map(entry => {
     const model = createRobotPreview(entry.kind);
