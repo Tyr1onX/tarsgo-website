@@ -64,6 +64,7 @@ type pixelItemAction struct {
 	Variant  string `json:"variant"`
 	Name     string `json:"name"`
 	Mode     string `json:"mode"`
+	Slot     int    `json:"slot"`
 	X        int    `json:"x"`
 	Y        int    `json:"y"`
 }
@@ -89,12 +90,24 @@ func (h *PixelHomeHandler) Items(c *gin.Context) {
 		writeAPIError(c, 401, "请先登录")
 		return
 	}
-	var rows []model.PixelItem
-	if err := h.db.WithContext(c.Request.Context()).Where("user_id = ?", user.ID).Order("item_id").Find(&rows).Error; err != nil {
+	type itemView struct {
+		model.PixelItem
+		Displayed uint64 `json:"displayed"`
+		Available uint64 `json:"available" gorm:"-"`
+	}
+	views := []itemView{}
+	if err := h.db.WithContext(c.Request.Context()).Table("pixel_items").Select("pixel_items.*, (SELECT COUNT(*) FROM pixel_displays WHERE pixel_displays.user_id = pixel_items.user_id AND pixel_displays.item_id = pixel_items.item_id) AS displayed").Where("pixel_items.user_id = ?", user.ID).Order("item_id").Scan(&views).Error; err != nil {
 		writeAPIError(c, 500, "背包读取失败")
 		return
 	}
-	writeAPI(c, 200, "背包", rows)
+	for i := range views {
+		if views[i].Displayed > views[i].Quantity {
+			writeAPIError(c, 500, "收藏状态异常")
+			return
+		}
+		views[i].Available = views[i].Quantity - views[i].Displayed
+	}
+	writeAPI(c, 200, "背包", views)
 }
 
 func (h *PixelHomeHandler) Cast(c *gin.Context) {
@@ -176,16 +189,24 @@ func (h *PixelHomeHandler) Release(c *gin.Context) {
 		if item.ID != a.ID || item.Kind != "fish" {
 			continue
 		}
-		res := h.db.WithContext(c.Request.Context()).Model(&model.PixelItem{}).Where("user_id = ? AND item_id = ? AND revision = ? AND quantity > 0", a.Owner, a.ID, a.Revision).Updates(map[string]any{"quantity": gorm.Expr("quantity - 1"), "revision": gorm.Expr("revision + 1")})
-		if res.Error != nil {
-			writeAPIError(c, 500, "放生未确认，请重新查看背包")
-			return
-		}
-		if res.RowsAffected == 0 {
-			writeAPIError(c, 409, "背包已更新，请重新选择")
-			return
-		}
-		writeAPI(c, 200, "已放生", nil)
+		err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			if _, err := lockPixelHome(tx, a.Owner); err != nil {
+				return err
+			}
+			row, err := lockPixelItem(tx, a)
+			if err != nil {
+				return err
+			}
+			n, err := pixelAvailable(tx, row)
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return errPixelChanged
+			}
+			return tx.Model(&row).Updates(map[string]any{"quantity": gorm.Expr("quantity - 1"), "revision": gorm.Expr("revision + 1")}).Error
+		})
+		natureResult(c, err, nil)
 		return
 	}
 	writeAPIError(c, 400, "只有鱼类可以放生")

@@ -71,11 +71,11 @@ export function PixelInventory({ change, atWater, onInspect, onRelease }:{change
       {rows.map(row=>{
         const item=worldItems.get(row.id);
         if(!item)return null;
-        return <div key={row.id}><ItemIcon item={item}/><span>{item.name} · {row.quantity? "×"+row.quantity:"已发现"}</span>
-          {row.quantity>0&&<button type="button" disabled={busy} onClick={()=>{
+        return <div key={row.id}><ItemIcon item={item}/><span>{item.name} · {row.quantity? "×"+row.quantity:"已发现"}{Boolean(row.displayed)&&" · 展示 "+row.displayed}</span>
+          {(row.available??row.quantity)>0&&<button type="button" disabled={busy} onClick={()=>{
             if(owner.current!==null&&owner.current===getCachedCurrentUser()?.id)onInspect(item,row,owner.current);
           }}>{["food","seed","tool"].includes(item.kind)||item.id==="pinecone"||item.id==="wheel"?"拿取":"拿起看看"}</button>}
-          {item.kind==="fish"&&row.quantity>0&&<button type="button" disabled={busy} onClick={()=>void release(row)}>放生一条</button>}
+          {item.kind==="fish"&&(row.available??row.quantity)>0&&<button type="button" disabled={busy} onClick={()=>void release(row)}>放生一条</button>}
         </div>;
       })}
       {guest?<Link to="/login">登录后保存物品</Link>:notice?<span role="status">{notice}</span>:!rows.length&&<span>{loading?"读取背包中…":"暂无收藏"}</span>}

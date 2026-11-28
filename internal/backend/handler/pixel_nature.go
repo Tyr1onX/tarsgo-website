@@ -36,6 +36,9 @@ func grantPixelItem(tx *gorm.DB, owner uint64, id string) error {
 // A consumed revision is unique across feeding, sowing and repair. The callback
 // runs once, in the same transaction as the inventory debit and receipt.
 func consumePixelItem(tx *gorm.DB, a pixelItemAction, kind, target string, use func() error) error {
+	if _, err := lockPixelHome(tx, a.Owner); err != nil {
+		return err
+	}
 	var row model.PixelItem
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND item_id = ?", a.Owner, a.ID).Take(&row).Error; err != nil {
 		return err
@@ -51,7 +54,11 @@ func consumePixelItem(tx *gorm.DB, a pixelItemAction, kind, target string, use f
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	if a.Revision == 0 || row.Revision != a.Revision || row.Quantity == 0 {
+	available, err := pixelAvailable(tx, row)
+	if err != nil {
+		return err
+	}
+	if a.Revision == 0 || row.Revision != a.Revision || available == 0 {
 		return errPixelChanged
 	}
 	if err = use(); err != nil {
@@ -115,12 +122,7 @@ func plantFitsFurniture(x, y int, furniture []pixelFurniture) bool {
 		return false
 	}
 	for _, f := range furniture {
-		w, h := 1, 1
-		if f.Kind == "desk" {
-			w, h = 3, 2
-		} else if f.Kind == "shelf" {
-			w = 2
-		}
+		w, h := pixelFurnitureSize(f.Kind)
 		if x >= f.X && x < f.X+w && y >= f.Y && y < f.Y+h {
 			return false
 		}

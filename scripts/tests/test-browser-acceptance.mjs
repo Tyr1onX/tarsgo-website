@@ -295,6 +295,10 @@ try {
         }
       }finally{await command("Input.dispatchKeyEvent",{type:"keyUp",...data});}
       actual=await evaluate(`+${state}?.${axis}`);
+      if(Math.abs(actual-target)>=.5){
+        console.log("Movement failure evidence",await evaluate(`(()=>({detail:!!document.querySelector(".pixel-world-detail"),focus:document.activeElement?.tagName,x:${state}?.playerX,y:${state}?.playerY,transition:${state}?.transition}))()`));
+        await diagnose("move-"+axis+"-"+target);
+      }
       assert.ok(Math.abs(actual-target)<.5,"could not walk to "+axis+" "+target+" actual "+actual);
     }
   }
@@ -528,6 +532,142 @@ try {
   assert.deepEqual((await home()).plants,ownerHome.plants);
   await loanAt("water-can",64.5,77.5);
   console.log("Actual account switch, logout, visitor read-only and restored owner inventory passed.");
+  // Phase 4: use actual furniture editor, owned catches and repaired RM items.
+  // No direct inventory or layout fixture writes are used in the browser.
+  let displayFish=(await bag()).find(r=>r.available>0&&item(r.id)?.kind==="fish");
+  if(!displayFish){
+    await startAt(135.5,24.5);
+    for(let attempt=0;attempt<12&&!displayFish;attempt++){
+      await until(()=>evaluate(`${state}?.interaction==="钓鱼"`),"collection fishing");
+      await key("e");await until(()=>evaluate(`${state}?.fishing==="ready"`),"collection bite");
+      await key("e");await until(()=>evaluate(`${state}?.fishing==="idle"`),"collection catch");
+      displayFish=(await bag()).find(r=>r.available>0&&item(r.id)?.kind==="fish");
+    }
+  }
+  assert.ok(displayFish,"actual catch for aquarium");
+  const displayFishName=item(displayFish.id).name;
+  const repaired=(await bag()).find(r=>r.id==="clean-wrench"&&r.available>0);
+  assert.ok(repaired,"actual repaired collection");
+  await click("button","我的研究室");
+  await until(()=>evaluate(`${state}?.scene==="study"&&${state}?.transition==="idle"`),"collection study");
+  const plantsBefore=(await home()).plants;
+  async function chooseFurniture(kind){
+    const index=await evaluate(`(()=>{const el=document.querySelector(".pixel-world-study-tools select");el.focus();return [...el.options].findIndex(o=>o.value===${JSON.stringify(kind)});})()`);
+    assert.ok(index>=0,"furniture catalog "+kind);
+    const press=async(key,code,n)=>{for(const type of ["keyDown","keyUp"])await command("Input.dispatchKeyEvent",{type,key,code,windowsVirtualKeyCode:n});};
+    await press("Home","Home",36);
+    for(let i=0;i<index;i++)await press("ArrowDown","ArrowDown",40);
+    await until(()=>evaluate(`document.querySelector(".pixel-world-study-tools select")?.value===${JSON.stringify(kind)}`),"selected "+kind);
+  }
+  const fixtures=[["aquarium-large",15,14],["aquarium-small",23,15],["cabinet",24,12],["pedestal",13,15],["desk",8,15],["table-display",10,18],["pet-bed",20,15]];
+  await click("button","布置家具");
+  for(const [kind,x,y] of fixtures){await chooseFurniture(kind);await clickWorld(x+.5,y+.5);}
+  await click("button","保存布局");
+  const placed=await until(async()=>{const h=await home();return fixtures.every(([kind,x,y])=>h.furniture.some(f=>f.kind===kind&&f.x===x&&f.y===y&&f.id))&&h;},"seven saved collection furnishings");
+  const tank=placed.furniture.find(f=>f.kind==="aquarium-large"&&f.x===15&&f.y===14);
+  const cabinet=placed.furniture.find(f=>f.kind==="cabinet"&&f.x===24&&f.y===12);
+  assert.equal(new Set(placed.furniture.map(f=>f.id??f.kind+"-"+f.x+"-"+f.y)).size,placed.furniture.length);
+  assert.deepEqual(placed.plants,plantsBefore);
+  await click("button","完成布置");
+  await moveTo(17.6,17.7);
+  await command("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await command("Emulation.setTouchEmulationEnabled",{enabled:true,maxTouchPoints:5});
+  await until(()=>evaluate('document.querySelector(".pixel-world")?.classList.contains("is-mobile")'),"collection touch viewport");
+  await clickWorld(16.5,15,true);
+  await until(()=>evaluate('document.querySelector(".pixel-world-detail h1")?.textContent==="大鱼缸"&&[...document.querySelectorAll(".pixel-study-slot button")].some(b=>!b.disabled)'),"touch aquarium opened");
+  await tap(".pixel-study-slot button","放入物品");
+  await tap(".pixel-study-choices button",displayFishName);
+  await until(async()=>{const h=await home();return h.displays.some(d=>d.facilityId===tank.id&&d.id===displayFish.id);},"touch fish displayed");
+  const reserved=(await bag()).find(r=>r.id===displayFish.id);
+  assert.equal(reserved.quantity,displayFish.quantity);
+  assert.equal(reserved.available,displayFish.available-1);
+  assert.equal(reserved.displayed,displayFish.displayed+1);
+  await until(()=>evaluate('Boolean(document.querySelector(".pixel-study-slot button:not(:disabled)"))'),"touch slot updated");
+  await screenshot("mobile-aquarium-display");
+  await tap(".pixel-study-slot button","取出");
+  await until(async()=> (await bag()).find(r=>r.id===displayFish.id)?.available===displayFish.available,"touch take fish");
+  await until(()=>evaluate('![...document.querySelectorAll(".pixel-study-slot button")].some(b=>b.textContent==="取出")&&[...document.querySelectorAll(".pixel-study-slot button")].some(b=>!b.disabled)'),"touch take reflected");
+  await tap(".pixel-study-slot button","放入物品");
+  await tap(".pixel-study-choices button",displayFishName);
+  await until(async()=> (await home()).displays.some(d=>d.facilityId===tank.id&&d.id===displayFish.id),"touch redisplay");
+  await until(()=>evaluate('[...document.querySelectorAll(".pixel-study-slot button")].some(b=>b.textContent==="取出"&&!b.disabled)'),"touch redisplay reflected");
+  await tap(".pixel-world-detail-close","×");
+  await until(()=>evaluate('!document.querySelector(".pixel-world-detail")'),"touch aquarium closed");
+  await command("Emulation.setDeviceMetricsOverride",{width:1200,height:850,deviceScaleFactor:1,mobile:false});
+  await command("Emulation.setTouchEmulationEnabled",{enabled:false});
+  await until(()=>evaluate('!document.querySelector(".pixel-world")?.classList.contains("is-mobile")'),"desktop collection viewport");
+  // Sample the actual rendered aquarium interior, not a synthetic animation flag.
+  const sample=()=>evaluate(`(()=>{const c=document.querySelector("canvas[data-player-x]"),d=c.dataset;return [...c.getContext("2d").getImageData(Math.round(15*16-+d.cameraX)+4,Math.round(16*16-+d.cameraY)-32,40,19).data].join(",");})()`);
+  const frame=await sample();
+  await until(async()=>await sample()!==frame,"fish swims in actual canvas",6000);
+  await screenshot("study-aquarium-swimming");
+  await click("button","布置家具");
+  await chooseFurniture("move");
+  await clickWorld(16.5,15);
+  await until(()=>evaluate('document.querySelector(".pixel-world-study-notice")?.textContent.includes("选择新的家具位置")'),"tank selected for move");
+  await clickWorld(15.5,13.5);
+  await until(()=>evaluate('!document.querySelector(".pixel-world-study-notice")'),"tank move accepted");
+  await click("button","保存布局");
+  await until(async()=>{const h=await home();return h.furniture.some(f=>f.id===tank.id&&f.x===15&&f.y===13)&&h.displays.some(d=>d.facilityId===tank.id&&d.id===displayFish.id);},"move retains fish and ID");
+  await click("button","完成布置");
+  await moveTo(25.6,17.7);await moveTo(25.6,14.2);
+  await clickWorld(24.5,12.5);
+  await until(()=>evaluate('document.querySelector(".pixel-world-detail h1")?.textContent==="收藏柜"&&[...document.querySelectorAll(".pixel-study-slot button")].some(b=>!b.disabled)'),"collection cabinet");
+  await click(".pixel-study-slot button","放入物品");
+  await click(".pixel-study-choices button",item(repaired.id).name);
+  await until(async()=> (await home()).displays.some(d=>d.facilityId===cabinet.id&&d.id===repaired.id),"repaired item displayed");
+  await click(".pixel-world-detail-close","×");
+  console.log("Cabinet close evidence",await evaluate(`(()=>({detail:!!document.querySelector(".pixel-world-detail"),focus:document.activeElement?.tagName,x:${state}?.playerX,y:${state}?.playerY,transition:${state}?.transition}))()`));
+  await until(()=>evaluate(`!document.querySelector(".pixel-world-detail")&&document.activeElement===document.querySelector("canvas[data-player-x]")&&${state}?.transition==="idle"`),"cabinet closed and canvas focus restored");
+  await moveTo(21.2,14.2);
+  await clickWorld(21,15.5);
+  await until(()=>evaluate('document.querySelector(".pixel-world-detail h1")?.textContent==="宠物窝"'),"pet bed");
+  await click(".pixel-world-detail button","休息");
+  await until(async()=> (await pet())?.mode==="home","pet home mode");
+  await until(()=>evaluate(`JSON.parse(${state}?.animals||"[]").some(a=>a.id==="companion"&&Math.hypot(a.x-21,a.y-15.5)<.3&&["wait","lie","sleep"].includes(a.behavior))`),"companion rests in actual bed",20000);
+  await screenshot("study-collection-and-pet-bed");
+  await click(".pixel-study-pet-visibility","访客可看见");
+  await click("button","邀请参观");
+  const collectionInvite=await until(()=>evaluate('document.querySelector("input[aria-label=参观邀请链接]")?.value'),"collection invitation");
+  const ownerDisplays=(await home()).displays;
+  assert.equal(await signOut(),200);
+  assert.equal(await signIn("test-admin@tarsgo.test","synthetic-admin-only"),200);
+  assert.notEqual(await account(),ownerId);
+  assert.ok(!(await home()).displays.some(d=>d.facilityId===tank.id));
+  await command("Page.navigate",{url:collectionInvite});
+  await until(()=>evaluate(`${state}?.scene==="study"&&Boolean(document.querySelector(".pixel-world-study-guest"))`),"collection visitor");
+  assert.ok((await evaluate('document.querySelector(".pixel-world-study-guest")?.textContent')).includes((await evaluate('fetch("/api/pixel-home/visit?token="+new URLSearchParams(location.search).get("visit")).then(r=>r.json()).then(r=>r.data.pet.name)'))));
+  await moveTo(17.6,16.7);
+  await clickWorld(16.5,14);
+  await until(()=>evaluate('Boolean(document.querySelector(".pixel-study-collection"))'),"visitor aquarium");
+  assert.ok((await evaluate('document.querySelector(".pixel-study-collection").textContent')).includes(displayFishName));
+  assert.equal(await evaluate('document.querySelectorAll(".pixel-study-collection button").length'),0);
+  await screenshot("collection-visitor-readonly");
+  assert.equal(await signOut(),200);
+  assert.equal(await signIn("test-user@tarsgo.test","synthetic-user-only"),200);
+  await command("Page.navigate",{url:origin+"/pixel-jijia"});
+  await until(()=>evaluate(`${state}?.scene==="outdoor"&&${state}?.transition==="idle"`),"collection owner restored");
+  assert.deepEqual((await home()).displays,ownerDisplays);
+  await click("button","我的研究室");
+  await until(()=>evaluate(`${state}?.scene==="study"&&${state}?.transition==="idle"`),"collection reopened");
+  await click("button","撤销邀请");
+  const token=new URL(collectionInvite).searchParams.get("visit");
+  await until(()=>evaluate(`fetch("/api/pixel-home/visit?token="+${JSON.stringify(token)}).then(r=>r.status===404)`),"collection invite revoked");
+  await moveTo(17.6,16.7);
+  await clickWorld(16.5,14);
+  await until(()=>evaluate('Boolean(document.querySelector(".pixel-study-slot button:not(:disabled)"))'),"release aquarium");
+  await click(".pixel-study-slot button","放生");
+  await until(async()=> (await bag()).find(r=>r.id===displayFish.id)?.quantity===displayFish.quantity-1,"displayed fish released");
+  await click(".pixel-world-detail-close","×");
+  await click("button","布置家具");await chooseFurniture("erase");await clickWorld(24.5,12.5);
+  await click("button","保存布局");
+  await until(async()=>{const h=await home();return !h.furniture.some(f=>f.id===cabinet.id)&&!h.displays.some(d=>d.facilityId===cabinet.id);},"cabinet deleted");
+  const recovered=(await bag()).find(r=>r.id===repaired.id);
+  assert.equal(recovered.quantity,repaired.quantity);assert.equal(recovered.available,repaired.available);
+  assert.deepEqual((await home()).plants,plantsBefore);
+  await screenshot("study-collections-completed");
+  console.log("Phase 4: real furnishings, mobile touch place/take, canvas swimming, stable move, RM display, pet bed, visitor/account isolation, revoke, release and deletion recovery passed.");
+
 
   }
 } finally {

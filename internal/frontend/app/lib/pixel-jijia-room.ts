@@ -1,3 +1,5 @@
+import {drawStudyCollection} from "./pixel-jijia-study-art.ts";
+import type {StudyDisplay} from "./pixel-jijia-study.ts";
 import { drawLifeObject,type LifeObject } from "./pixel-jijia-nature.ts";
 import { ROBOT_MODELS } from "./pixel-jijia-robot.ts";
 import { baseAction, type BaseRoomState, type Achievement, EXHIBIT_IDS } from "./pixel-jijia-base.ts";
@@ -12,7 +14,7 @@ type Rect = Position & { width: number; height: number };
 export type RoomObject = Rect & {
   id: string;
   title: string;
-  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit" | "desk" | "chair" | "shelf" | "lamp" | "plant";
+  kind: "workbench" | "cabinet" | "machine" | "console" | "display" | "camera" | "server" | "reception" | "exit" | "desk" | "chair" | "shelf" | "lamp" | "plant" | "aquarium-small" | "aquarium-large" | "pedestal" | "table-display" | "pet-bed";
   solid?: boolean;
   decorative?: boolean;
   href?: string;
@@ -192,15 +194,15 @@ for (const room of Object.values(ROOMS)) {
 export function roomObjectAt(room: RoomScene, position: Position): RoomObject | null {
   const exit=room.objects.find(o=>o.kind==="exit"&&position.x>=o.x&&position.x<=o.x+o.width&&position.y>=o.y-.55&&position.y<=o.y+o.height);
   if(exit)return exit;
-  return room.id==="study"?room.objects.find(o=>o.kind==="chair"&&position.x>=o.x-.25&&position.x<=o.x+o.width+.25&&position.y>=o.y-1&&position.y<=o.y+o.height)??null:publicRoomObjectAt(room,position);
+  return room.id==="study"?room.objects.find(o=>roomInteractable(room,o)&&o.kind!=="exit"&&position.x>=o.x-.25&&position.x<=o.x+o.width+.25&&position.y>=o.y-(o.kind.startsWith("aquarium")||o.kind==="cabinet"||o.kind==="shelf"?1.7:1)&&position.y<=o.y+o.height)??null:publicRoomObjectAt(room,position);
 }
 
-export function isRoomWalkable(room: RoomScene, x: number, y: number): boolean {
+export function isRoomWalkable(room: RoomScene, x: number, y: number, companion=false): boolean {
   const radius = 0.3;
   if (x - radius < 1 || x + radius > room.width - 1 ||
       y - radius < 5 || y + radius > room.height - 1) return false;
   if (room.walls.some(w => overlapsRect(x, y, radius, w))) return false;
-  return !room.objects.some(o => o.solid && overlapsRect(x, y, radius, o));
+  return !room.objects.some(o => o.solid && !(companion&&o.kind==="pet-bed") && overlapsRect(x, y, radius, o));
 }
 
 // Use the exit object's real footprint to trigger a seamless return outdoors.
@@ -273,7 +275,7 @@ export function meetingChair(room:RoomScene,position:Position):RoomObject|null {
     .sort((a,b)=>Math.hypot(a.x+a.width/2-position.x,a.y+a.height/2-position.y)-Math.hypot(b.x+b.width/2-position.x,b.y+b.height/2-position.y))[0]??null;
 }
 export function roomInteractable(room: RoomScene, object: RoomObject) {
-  return object.kind==="chair"?!!chairExit(room,object):!!baseAction(room.id,object.id)||!object.decorative&&!!(object.community||object.href||object.kind==="exit");
+  return room.id==="study"&&["desk","shelf","cabinet","aquarium-small","aquarium-large","pedestal","table-display","pet-bed"].includes(object.kind)?true:object.kind==="chair"?!!chairExit(room,object):!!baseAction(room.id,object.id)||!object.decorative&&!!(object.community||object.href||object.kind==="exit");
 }
 
 export function closestRoomObject(room: RoomScene, position: Position, facing?: Direction, previous?: RoomObject | null): RoomObject | null {
@@ -381,7 +383,7 @@ export function renderRoomScene(
   ctx: CanvasRenderingContext2D, terrain: HTMLCanvasElement | HTMLImageElement, room: RoomScene,
   character: HTMLImageElement, player: Position, pose:ExplorerAnimation, camera: Position,
   elapsed: number, motionAllowed: boolean,
-  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement, companion:Animal|null=null,life:LifeObject[]=[],
+  climate: RoomClimate | null = null, seatDepth=player.y, effects?: ReadonlyMap<string,number>, base?:BaseRoomState, achievements:readonly Achievement[]=[], exhibitAtlas?:HTMLImageElement, companion:Animal|null=null,life:LifeObject[]=[],displays:StudyDisplay[]=[],
 ) {
   const screenCamera = snapCamera(camera);
   const width = room.width * TILE, height = room.height * TILE;
@@ -404,16 +406,20 @@ export function renderRoomScene(
         drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour,base?.power[object.id]);
     }
   }
+  if(room.id==="study")for(const o of room.objects)if(o.kind==="pet-bed")drawStudyCollection(ctx,o,screenCamera,[],elapsed,motionAllowed);
   const actors=[{depth:seatDepth,draw:()=>renderExplorer(ctx, character, player, pose, screenCamera)}];
   if(companion)actors.push({depth:companion.y,draw:()=>drawAnimal(ctx,companion,screenCamera,motionAllowed)});
   for(const object of life)actors.push({depth:object.point.y,draw:()=>drawLifeObject(ctx,object,screenCamera,Date.now())});
   actors.sort((a,b)=>a.depth-b.depth);
   let actorIndex=0;
-  const props = room.objects.filter(o => o.kind !== "exit" && (room.id === "study" || o.solid))
+  const props = room.objects.filter(o => o.kind !== "exit" && o.kind!=="pet-bed" && (room.id === "study" || o.solid))
     .sort((a, b) => a.y + a.height - b.y - b.height);
   for (const object of props) {
     while(actorIndex<actors.length&&actors[actorIndex].depth<object.y+object.height)actors[actorIndex++].draw();
-    if (room.id === "study") drawRoomObject(ctx, object, screenCamera);
+    if (room.id === "study") {
+      const shown=displays.filter(d=>d.facilityId===object.id);
+      if(!drawStudyCollection(ctx,object,screenCamera,shown,elapsed,motionAllowed,exhibitAtlas))drawRoomObject(ctx,object,screenCamera);
+    }
     else {
       drawPublicRoomObject(ctx, object, screenCamera, elapsed, motionAllowed, effects?.get(object.id),viewWidth,viewHeight,hour,base?.power[object.id]);
       for (const child of room.objects) if (child.host === object.id)
