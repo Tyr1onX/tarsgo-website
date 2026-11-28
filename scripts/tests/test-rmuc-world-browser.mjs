@@ -146,6 +146,21 @@ export async function testRMUCWorld({origin,command,evaluate,until,screenshot}){
     assert.equal((await state()).worldController,"blue");
     assert.equal((await state()).worldOutpost,"1000");
     await press("e");await wait(`!!document.querySelector('[data-world-driving="true"]')`,"actual robot takeover");
+    // Exercise the registered blur handler with a pending or applied movement
+    // input in the real world. Headless focus changes are not deterministic,
+    // so dispatch the lifecycle event explicitly, without replacing the handler.
+    const beforeBlur=await trace();
+    await key("w");
+    await wait(`(()=>{const q=${traceExpression};return q.pendingInput.length>0||q.lastKey?.serial>${beforeBlur.lastKey?.serial??0}&&q.keys.includes("KeyW")})()`,"movement input received before blur");
+    await evaluate('window.dispatchEvent(new Event("blur"));true');
+    await wait(`(()=>{const q=${traceExpression};return !q.keys.length&&!q.pendingInput.length&&(q.red.speed??0)===0})()`,"blur clears active and queued movement");
+    // The held key must not start driving again as accumulated ticks run.
+    const stopped=await trace();
+    await wait(`(()=>{const q=${traceExpression};return q.elapsed>=${stopped.elapsed+.25}&&q})()`,"simulation continues after blur");
+    const afterBlur=await trace();
+    assert.ok(!afterBlur.keys.length&&!afterBlur.pendingInput.length,"cleared input does not reappear during catch-up");
+    assert.ok(Math.hypot(afterBlur.red.p[0]-stopped.red.p[0],afterBlur.red.p[2]-stopped.red.p[2])<.01,"robot stays stopped without keyup");
+    await key("w","keyUp");
     const practiceAt=(await trace()).elapsed;
     await moveToward("redGoal",q=>q.red.zones.includes("blue-central")&&Math.hypot(q.red.p[0]-q.redGoal[0],q.red.p[2]-q.redGoal[2])<.36,"entered legal area");
     // The referee resets progress to zero on capture. A slow CDP poll may
