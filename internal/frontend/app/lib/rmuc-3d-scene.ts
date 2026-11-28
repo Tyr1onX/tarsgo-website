@@ -15,7 +15,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { frameArena, lookDirection, turnView, flightBounds, flightStep } from "./rmuc-3d-camera";
-import { CAD_MODELS, resolveCadModel } from "./rmul-3d-cad-assets";
+import { CAD_MODELS } from "./rmul-3d-cad-assets";
 import { CORE_ASSET, DART_ASSET, MECHANISM_ASSET, installCoreGeometry, installMechanisms, type Team } from "./rmuc-3d-mechanisms";
 import { createMatch, startMatch, updateMatch, purchaseAmmo, canPurchaseAmmo, purchaseHealth, canPurchaseHealth, remoteHealthCost, canFire, territoryStatus, ammoOffer, revivalStatus, reviveRobot, launcherStatus, installLauncher, removeLauncher, activateRune, runeStatus, runeLights, controlsOutpost, robotLevel, reserveAmmo, driveSpeed, canSpinChassis, chassisStatus, sentryStatus, switchSentry, type SentryMode, type SentryControl, selectSentryControl, sentryCommandCost, markSentry, type InfantryPerformance, selectInfantryPerformance, energyStatus, pickupEnergy, dropEnergy, assemblyStatus, beginAssembly, assemblyAction, cancelAssembly, technologyLevel, terrainStatus, canDriveRobot, armorStatus,fortifyArmor,recommendedArmorCenter,dartStatus,selectDart,openDart,launchDart,type DartMode, type Difficulty, type Match, type DamageEvent,type MatchEvent } from "./rmuc-3d-match";
 import { traceArenaShot, createArenaShotPreparer, SHOT_RANGE, type ShotIndex, arenaHitTarget, bindArmorFrame, aliasArmorFrames } from "./rmuc-3d-shot";
@@ -1921,8 +1921,7 @@ export function mountArena(
     return model;
   }
   void (async () => {
-    const asset=await resolveCadModel("rmucField");
-    const assets=[{...asset,bytes:CAD_MODELS.rmucField.bytes},MECHANISM_ASSET,CORE_ASSET,DART_ASSET];
+    const assets=[CAD_MODELS.rmucField,MECHANISM_ASSET,CORE_ASSET,DART_ASSET];
     for(const item of assets)assetProgress.set(item.url,{phase:"download",received:0,total:item.bytes});
     reportAssets(true);
     const [field,parts,coreParts,dartParts]=await Promise.all(assets.map(loadAsset));
