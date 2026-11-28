@@ -8,7 +8,6 @@ export type RadarTrack = {progress:number;delta:number;correct:boolean;nextLoss:
 export type RadarSide = {tracks:Record<string,RadarTrack>;encryptionLevel:1|2|3;vulnerableSeconds:number;used:number;doubleUntil:number};
 export type Radar = Record<RadarTeam,RadarSide>;
 const teams = ["red","blue"] as const;
-const opposite=(team:RadarTeam):RadarTeam=>team==="red"?"blue":"red";
 const EPS=1e-8;
 export function createRadar(robots:readonly RadarRobot[]):Radar{
   const side=():RadarSide=>({tracks:Object.fromEntries(robots.map(r=>[r.id,{progress:0,delta:0,correct:false,nextLoss:.5,report:null,reportedAt:null}])),encryptionLevel:1,vulnerableSeconds:0,used:0,doubleUntil:0});

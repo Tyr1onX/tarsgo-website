@@ -48,7 +48,7 @@ export function createGlassSwitchScene(canvas: HTMLCanvasElement) {
   }).map(([key, hexes]) => [key, hexes.map(toLab)]));
   function color(key: string, t: number) {
     const palette = palettes[key];
-    let i = stops.findIndex((s, index) => index < stops.length - 1 && t <= stops[index + 1]);
+    let i = stops.findIndex((_, index) => index < stops.length - 1 && t <= stops[index + 1]);
     if (i < 0) i = stops.length - 2;
     const f = clamp((t - stops[i]) / (stops[i + 1] - stops[i]));
     return fromLab(palette[i].map((v, n) => mix(v, palette[i + 1][n], f)));

@@ -1,5 +1,5 @@
 import { worldItems, type WorldItem, type ItemRow } from "./pixel-jijia-items.ts";
-import { groundAt, isWalkable, pathIsWalkable, PLACES, TRAINING_FIELD, overlapsRect, TILE, type Position } from "./pixel-jijia-world.ts";
+import { groundAt, isWalkable, PLACES, TRAINING_FIELD, overlapsRect, TILE, type Position } from "./pixel-jijia-world.ts";
 import { drawItem, type ItemSprite } from "./pixel-jijia-item-art.ts";
 
 export type LoanObject=Position & {key:string;itemId:string;active?:boolean};

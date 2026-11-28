@@ -1,4 +1,4 @@
-import { worldItems, guestCatch, pondLabels, closestItemSource, availableSources, type ItemSource, type WorldItem, type ItemRow } from "~/lib/pixel-jijia-items";
+import { worldItems, guestCatch, pondLabels, closestItemSource, availableSources, type ItemSource, type ItemRow } from "~/lib/pixel-jijia-items";
 import { freshLoans, lifeObjects, closeLife, plantStage, plantPoint, outdoorPlacement, studyPlacement, placementClear, lifeBlocks, plantCarrySprite, type HeldItem, type PlantRecord, type LifeObject } from "~/lib/pixel-jijia-nature";
 import { PixelInventory } from "~/components/pixel-jijia-inventory";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -7,7 +7,7 @@ import { getExperienceReturnTo, experienceReturnLabel, getPixelReturn } from "~/
 import type { Route } from "./+types/pixel-jijia";
 import { buildPublicMeta } from "~/lib/social-meta";
 import {
-  FOUNTAIN, groundAt, pathIsWalkable, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestBench, closestPlace, closestStory, closestFeature, nearDoor, movePlayer, isWalkable, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
+  FOUNTAIN, groundAt, pathIsWalkable, waterDepthAt, PLACES, SCENERY, SPAWN, TILE, WORLD_HEIGHT, WORLD_WIDTH, cameraAt, clampZoom, closestPlace, closestFeature, nearDoor, movePlayer, isWalkable, outdoorDoorAt, snapCamera, advanceSurfaceTrail, directionToward,
   type SurfaceMark, type Direction, type Place, type Position, type Scenery,
 } from "~/lib/pixel-jijia-world";
 import { buildingBounds, renderNavigationMap, renderParticles, renderScene, renderTerrain, renderWorldPreview, WORLD_ART_SCALE, type Terrain, type PixelParticle, type SpriteIndex } from "~/lib/pixel-jijia-scene";

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { getOperationsBoard, getOperationsAttention, operationsAttentionLabel,
+import { getOperationsBoard, getOperationsAttention,
   type OperationsBoard } from "~/lib/operations-progress-client";
 import "./operations-progress.css";
 

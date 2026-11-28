@@ -22,7 +22,6 @@ import { CommunityExperienceToastHost } from "~/components/community-experience-
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
 import { ApiError } from "~/lib/api-client";
 import {
-  getAuthUserRoleLabel,
   getAuthUserName,
   getBootstrapStatus,
   getCurrentUser,

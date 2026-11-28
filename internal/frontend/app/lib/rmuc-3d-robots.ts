@@ -365,7 +365,7 @@ function sentry(group: THREE.Group) {
 }
 
 function drone(group: THREE.Group) {
-  const w = 1.5, h = .5, d = 1.2;
+  const w = 1.5, d = 1.2;
   for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2])
     rod(group, new THREE.Vector3(x, -.18, z), new THREE.Vector3(x, .38, z), .017, materials.frame);
   for (const y of [-.18, .38]) {
