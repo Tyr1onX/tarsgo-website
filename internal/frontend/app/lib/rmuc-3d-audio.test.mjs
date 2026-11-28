@@ -14,6 +14,11 @@ test("original synthesized cues are finite, bounded, repeatable and distinct",()
  assert.equal(eventCue({type:"assembly-step-start"}),null);
  assert.equal(eventCue({type:"assembly-step-complete"}),"assembly");
  assert.equal(eventCue({type:"assembly-end",reason:"cancelled"}),null);
+ assert.equal(eventCue({type:"heal",status:"completed",amount:0}),null);
+ assert.equal(eventCue({type:"heal",status:"completed",amount:5}),"heal");
+ assert.equal(eventCue({type:"ammo",status:"completed",amount:5}),"ammo");
+ assert.equal(eventCue({type:"robot-dead"}),"defeat");
+ assert.notDeepEqual(cueSamples("heal",48000),cueSamples("ammo",48000));
 });
 test("native audio lifecycle has no queued cues; mute and disposal stop and disconnect voices",()=>{
  let started=0,stopped=0,closed=0,disconnected=0,context;

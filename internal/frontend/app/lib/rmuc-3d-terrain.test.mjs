@@ -63,6 +63,21 @@ test("movement respects physical boundary, raised obstacles, support and other r
   assert.ok(p.x < -.45);
 });
 
+test("support rejects an unsafe sample anywhere in the footprint and preserves stair support", () => {
+  const radius=.5;
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[.707,.707],[-.707,.707],[.707,-.707],[-.707,-.707]]){
+    for(const unsafe of [.6,-.2,-Infinity]){
+      const floor={heightAt:(x,z)=>x===dx*radius&&z===dz*radius?unsafe:.2};
+      assert.equal(supportedHeight(floor,0,0,radius,.2,.23),null);
+    }
+  }
+  assert.equal(supportedHeight({heightAt:()=>.2},0,0,radius,.2,.23),.2);
+  const stairs={heightAt:x=>x<11.2?.15:x>11.2?.85:.5};
+  assert.equal(supportedHeight(stairs,11.2,4.65,radius,.5,.23),.5);
+  assert.equal(supportedHeight(stairs,11.2,3.65,radius,.5,.23),null);
+  assert.equal(supportedHeight(stairs,11.2,4.65,radius,.1,.23),null);
+});
+
 test("actual official field allows every driveable preview to move from its placement", () => {
   const robots = ROBOT_PLACEMENTS.filter(entry => entry.area === "field").map(entry => {
     const model = createRobotPreview(entry.kind);
@@ -124,6 +139,18 @@ test("each estimated referee zone has a supported goal on actual CAD terrain",()
  assert.deepEqual(zonesAtPosition({x:3.23,y:.3,z:0}),[],"below central highland is not an activation");
 });
 
+test("recorded infantry recovery goal requires support for its actual footprint",()=>{
+ // #702 seed 2062, red 04 at 124 seconds. The smaller generic zone
+ // test footprint was valid, but the actual in-match footprint is not.
+ const radius=.7085378400813248;
+ const outpost=new THREE.Vector3(2.4,terrain.heightAt(2.4,-4),-4);
+ const supply=new THREE.Vector3(11.5,terrain.heightAt(11.5,-5.65),-5.65);
+ assert.ok(zonesAtPosition(outpost).includes("red-outpost"));
+ assert.equal(supportedHeight(terrain,outpost.x,outpost.z,radius,outpost.y,.23),null);
+ assert.ok(zonesAtPosition(supply).includes("red-supply"));
+ assert.notEqual(supportedHeight(terrain,supply.x,supply.z,radius,supply.y,.23),null);
+});
+
 test("navigation reaches an exact off-grid goal rather than stopping short",async()=>{
  const {findArenaPath,stepChassis}=await import("./rmuc-3d-navigation.ts");
  const floor={heightAt:()=>.2},start=new THREE.Vector3(0,.2,0),goal=new THREE.Vector3(2.4,.2,0);
@@ -157,7 +184,11 @@ test("path search can route around an occupied waypoint",async()=>{
  const {findArenaPath}=await import("./rmuc-3d-navigation.ts");
  const floor={heightAt:()=>.2},start=new THREE.Vector3(-2,.2,0),goal=new THREE.Vector3(2,.2,0);
  const other={position:new THREE.Vector3(0,.2,0),radius:.6},radius=.4;
- const path=findArenaPath(floor,start,goal,radius,.4,[other]);let step=path.next();while(!step.done)step=path.next();
+ const path=findArenaPath(floor,start,goal,radius,.4,[other]);let step=path.next(),checks=0;while(!step.done){checks++;step=path.next();}
+ // Preserve the old stable-sort/pop tie order for this symmetric obstacle.
+ assert.equal(checks,153);
+ assert.deepEqual(step.value.map(p=>[Number(p.x.toFixed(6))+0,Number(p.z.toFixed(6))+0]),
+   [[-1.65,0],[-1.3,-.35],[-.95,-.7],[-.6,-1.05],[-.25,-1.05],[.1,-1.05],[.45,-1.05],[.8,-.7],[1.15,-.35],[1.5,-.35],[1.85,0],[2,0]]);
  assert.ok(step.value.at(-1).distanceTo(goal)<.015);
  assert.ok(step.value.some(p=>Math.abs(p.z)>=.9));
  for(const node of step.value){moveOnArena(floor,start,node.x-start.x,node.z-start.z,radius,.23,[other]);assert.ok(start.distanceTo(node)<.016);}

@@ -345,6 +345,9 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.PixelPlant{}, &model.PixelGather{})
 		}},
 		{version: 98, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.RMUCLessonProgress{})
+		}},
+		{version: 99, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.PixelDisplay{}, &model.PixelHome{})
 		}},
 	}

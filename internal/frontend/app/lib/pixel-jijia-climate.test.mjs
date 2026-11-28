@@ -47,7 +47,10 @@ test("四季地形、天气粒子与显示必须复用原 Canvas 及减少动态
   assert.ok(scene.includes('season === "winter"'));
   assert.ok(scene.includes('season === "autumn"'));
   assert.ok(scene.includes('season === "spring"'));
-  assert.ok(route.includes('window.setInterval(refresh, timeMode === "game" ? 1000 : 60_000)'));
+  const state = readFileSync(new URL("./pixel-jijia-climate-state.ts", import.meta.url), "utf8");
+  assert.ok(route.includes("usePixelClimate()"));
+  assert.ok(state.includes('window.setInterval(refresh, timeMode === "game" ? 1000 : 60_000)'));
+  assert.ok(!route.includes("setInterval(refresh, timeMode"));
   assert.ok(route.includes('time - lastWeather > (climate.weather === "snow" ? 150 : climate.weather === "storm" ? 38 : 65)'));
   assert.ok(route.includes("if (reducedMotion.matches || room)"));
   assert.ok(route.includes('aria-label="长春时间与天气"'));

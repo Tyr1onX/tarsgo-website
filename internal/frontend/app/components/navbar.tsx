@@ -16,7 +16,7 @@ import {
   subscribePermissionChange,
   type AuthUser,
 } from "~/lib/auth-client";
-import { getDashboardSectionKey, getDashboardSectionMenu, getDefaultDashboardPath, hasWorkbenchAccess } from "~/lib/dashboard-navigation";
+import { getDashboardSectionKey, getDashboardSectionMenu, getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { resolveGroupIdentity, type GroupIdentity } from "~/lib/group-identity";
 import {
   getCachedUserGroupConfirmationState,

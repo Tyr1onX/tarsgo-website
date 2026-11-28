@@ -5,11 +5,12 @@ import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { testRMUCWorld } from "./test-rmuc-world-browser.mjs";
 
 const origin = "http://127.0.0.1:8182";
 const profile = await mkdtemp(join(tmpdir(), "pixel-fishing-browser-"));
 const chrome = spawn(process.env.CHROME_BIN || "google-chrome", [
-  "--headless=new", "--disable-dev-shm-usage", "--disable-background-timer-throttling",
+  "--headless=new", "--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--disable-background-timer-throttling",
   "--window-size=1200,850", "--remote-debugging-port=0", "--user-data-dir="+profile, "about:blank",
 ], {stdio:"ignore"});
 const output = process.env.PIXEL_QA_OUTPUT;
@@ -61,10 +62,11 @@ try {
     await command("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[box]});
     await command("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   }
-  async function screenshot(name){
-    if(!output)return;
+  async function screenshot(name,directory=output){
+    if(!directory)return;
+    await mkdir(directory,{recursive:true});
     const r=await command("Page.captureScreenshot",{format:"png"});
-    await writeFile(join(output,name+".png"),Buffer.from(r.data,"base64"));
+    await writeFile(join(directory,name+".png"),Buffer.from(r.data,"base64"));
   }
   diagnose=async label=>{
     try{
@@ -73,9 +75,14 @@ try {
       await screenshot("failure-"+label.replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,80));
     }catch(error){console.log("Browser evidence unavailable",String(error));}
   };
+  await command("Page.enable");
+  // RMUC uses the same real browser and server, before the fishing calendar fixture.
+  if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE==="true"){
+    await testRMUCWorld({origin,command,evaluate,until,screenshot:name=>screenshot(name,process.env.RMUC_QA_OUTPUT)});
+  }
+  if(process.env.TARSGO_RMUC_BROWSER_ACCEPTANCE!=="true"||process.env.TARSGO_PIXEL_BROWSER_ACCEPTANCE==="true"){
   // Register the real browser's calendar fixture before its first navigation.
   // Date.now remains the real wall clock for database cooldowns and plant growth.
-  await command("Page.enable");
   const fixedCalendar="2026-11-26T04:00:00.000Z";
   await command("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{
     const RealDate=Date;
@@ -652,6 +659,7 @@ try {
   console.log("Phase 4: real furnishings, mobile touch place/take, canvas swimming, stable move, RM display, pet bed, visitor/account isolation, revoke, release and deletion recovery passed.");
 
 
+  }
 } finally {
   socket?.close();
   chrome.kill("SIGTERM");

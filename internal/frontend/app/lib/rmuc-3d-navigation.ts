@@ -13,8 +13,11 @@ export function* findArenaPath(terrain:Pick<ArenaTerrain,"heightAt">, start:THRE
   const queue=[first], seen=new Map<string,number>([["0,0",0]]);
   let best=first;
   for(let expanded=0;queue.length&&expanded<3500;expanded++){
-    queue.sort((a,b)=>b.score-a.score);
-    const node=queue.pop()!;
+    // Select the minimum directly. Scan from the end to retain the old
+    // stable-sort/pop tie order (the most recently enqueued equal score).
+    let next=queue.length-1;
+    for(let i=next-1;i>=0;i--)if(queue[i].score<queue[next].score)next=i;
+    const node=queue.splice(next,1)[0];
     if(node.cost>seen.get(node.ix+","+node.iz)!)continue;
     if(distance(node.p)<distance(best.p))best=node;
     if(distance(node.p)<=Math.max(reach,GRID)){
